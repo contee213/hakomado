@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <title>hukumado</title>
+  <link rel="stylesheet" href="grid.css">
+</head>
+<body>
+  <header class="toolbar">
+    <span class="brand">hukumado</span>
+
+    <button id="openLayout" type="button" title="レイアウトを選ぶ">▦ レイアウト: <span id="layoutName"></span></button>
+
+    <button id="openFavorites" type="button" title="お気に入りチャンネルの配信状況 (F)">★ お気に入り</button>
+    <button id="autoMode" type="button" title="自動再生 (L): ON にすると配信中のお気に入りを全部 (最大 16) 再生し、その後も 1 分ごとに、配信が始まったら枠を足し、終わったら枠を消す。ON の間に ✕ で閉じた配信は入れ直さない (OFF → ON で戻る)">▶ 自動再生 OFF</button>
+    <button id="nowPlaying" class="now-playing" type="button">🔇 ミュート中</button>
+    <button id="danmakuAll" type="button" title="全枠の弾幕を切り替え (D)">弾幕 ON</button>
+    <button id="openSettings" type="button">⚙ 設定</button>
+
+    <span class="spacer"></span>
+    <span class="hint">枠にカーソルを乗せると操作バーが出ます / 数字キーでその枠だけ音を出す</span>
+  </header>
+
+  <main id="grid" class="grid"></main>
+  <div id="globalToast" class="toast global-toast" role="status"></div>
+
+  <dialog id="settings" class="settings-dialog">
+    <form method="dialog" class="settings-form">
+      <header class="settings-head">
+        <h2>⚙ 設定</h2>
+        <div class="settings-tabs" role="tablist">
+          <button type="button" role="tab" data-tab="danmaku">弾幕</button>
+          <button type="button" role="tab" data-tab="audio">音声の枠</button>
+          <button type="button" role="tab" data-tab="chat">チャット欄</button>
+        </div>
+      </header>
+
+      <section class="settings-panel" data-panel="danmaku" role="tabpanel">
+      <label>流れる時間 <output id="durationOut"></output>
+        <input type="range" id="duration" min="3" max="15" step="0.5">
+      </label>
+      <label>文字サイズ <output id="fontScaleOut"></output>
+        <input type="range" id="fontScale" min="0.5" max="2" step="0.1">
+      </label>
+      <label>不透明度 <output id="opacityOut"></output>
+        <input type="range" id="opacity" min="0.2" max="1" step="0.05">
+      </label>
+      <label>表示範囲 (上から) <output id="areaOut"></output>
+        <input type="range" id="area" min="0.25" max="1" step="0.05">
+      </label>
+      <label>同時表示の上限 (1枠あたり) <output id="maxOnScreenOut"></output>
+        <input type="range" id="maxOnScreen" min="10" max="200" step="5">
+      </label>
+      <label class="check"><input type="checkbox" id="showAuthor"> 投稿者名を表示</label>
+      <label class="check"><input type="checkbox" id="showPaid"> スーパーチャットを強調表示</label>
+      </section>
+
+      <section class="settings-panel" data-panel="audio" role="tabpanel" hidden>
+      <p class="settings-note">音が出ている枠に付ける線の見た目</p>
+      <div class="hl-swatches" id="hlSwatches"></div>
+      <label>線の太さ <output id="hlWidthOut"></output>
+        <input type="range" id="hlWidth" min="1" max="4" step="0.5">
+      </label>
+      <label>光の強さ <output id="hlGlowOut"></output>
+        <input type="range" id="hlGlow" min="0" max="1" step="0.05">
+      </label>
+      <label class="check"><input type="checkbox" id="hlAnimate"> グラデーションをゆっくり動かす</label>
+      </section>
+
+      <section class="settings-panel" data-panel="chat" role="tabpanel" hidden>
+      <p class="settings-note">枠の 💬 で開くチャット欄の見た目 (開いているチャット欄にすぐ反映)</p>
+      <label>文字サイズ <output id="chatZoomOut"></output>
+        <input type="range" id="chatZoom" min="0.5" max="1" step="0.05">
+      </label>
+      <label>幅 (枠に対して) <output id="chatWidthOut"></output>
+        <input type="range" id="chatWidth" min="0.15" max="0.5" step="0.01">
+      </label>
+      <label class="check"><input type="checkbox" id="chatHideAvatars"> 投稿者のアイコンを隠す</label>
+      </section>
+
+      <div class="dialog-actions">
+        <button value="close">閉じる</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="layoutPicker" class="layout-dialog">
+    <div class="layout-wrap">
+      <header class="fav-head">
+        <h2>▦ レイアウト</h2>
+        <span class="spacer"></span>
+        <span class="seg fit-seg">
+          <button type="button" data-fit="fit" title="どの枠も 16:9 ちょうどの大きさにする。画面と比率が合わない分は外側の余白になる">16:9 に合わせる</button><button type="button" data-fit="fill" title="余白なしで画面を埋める。映像は枠に合わせて拡大し、はみ出た端は切れる">画面いっぱい</button>
+        </span>
+        <button type="button" id="layoutClose" title="閉じる (Esc)">✕</button>
+      </header>
+      <p class="layout-note">濃い枠がメイン。読み込んだ配信は 1 番 (メイン) から順に入ります。枠の ⠿ をドラッグで入れ替え。
+        <span class="use-legend">％ は今の画面サイズで映像が占める割合 (16:9 に合わせる場合)</span></p>
+      <div id="layoutGroups" class="layout-groups"></div>
+    </div>
+  </dialog>
+
+  <dialog id="favorites" class="fav-dialog">
+    <div class="fav">
+      <header class="fav-head">
+        <h2>★ お気に入り</h2>
+        <span id="favLiveCount" class="fav-live-count"></span>
+        <span class="spacer"></span>
+        <button type="button" id="favFillLive" title="配信中のチャンネルを空いている枠に順に入れる (今の枠はそのまま)">空き枠へ</button>
+        <button type="button" id="favRefresh" title="配信状況を取り直す">⟳ 更新</button>
+        <button type="button" id="favClose" title="閉じる (Esc)">✕</button>
+      </header>
+      <div class="fav-tools">
+        <input type="search" id="favFilter" placeholder="名前・@チャンネル名で絞り込み" spellcheck="false">
+        <span class="fav-target"></span>
+      </div>
+
+      <div id="favList" class="fav-list"></div>
+      <p id="favEmpty" class="fav-empty">まだ登録がありません。下の欄にチャンネルを入力して追加してください。</p>
+
+      <footer class="fav-foot">
+        <form id="favAdd" class="fav-add">
+          <input type="text" placeholder="追加: @チャンネル名 / チャンネルURL / 動画URL" spellcheck="false">
+          <button type="submit">追加</button>
+        </form>
+        <button type="button" id="favRestore" class="fav-restore" hidden></button>
+        <div id="favError" class="fav-error"></div>
+      </footer>
+    </div>
+  </dialog>
+
+  <template id="favItemTemplate">
+    <li class="fav-item">
+      <img class="fav-icon" alt="" referrerpolicy="no-referrer">
+      <div class="fav-main">
+        <div class="fav-name-row"><span class="fav-name"></span><span class="badge"></span><span class="fav-where"></span></div>
+        <div class="fav-title"></div>
+      </div>
+      <img class="fav-thumb" alt="" referrerpolicy="no-referrer">
+      <button type="button" class="fav-del" title="お気に入りから外す">✕</button>
+    </li>
+  </template>
+
+  <template id="tileTemplate">
+    <section class="tile">
+      <div class="stage">
+        <div class="player-slot"></div>
+        <div class="danmaku-layer"></div>
+        <div class="toast" role="status"></div>
+        <div class="audio-badge" title="この枠から音が出ています">🔊</div>
+        <form class="empty">
+          <div class="empty-title"></div>
+          <input class="url-input" type="text" placeholder="URL / 動画ID / @チャンネル を貼り付け" spellcheck="false">
+          <div class="empty-actions">
+            <button type="submit">読み込む</button>
+            <button type="button" class="pick-fav">★ お気に入りから選ぶ</button>
+          </div>
+          <div class="error"></div>
+        </form>
+        <div class="bar">
+          <span class="grip" draggable="true" title="ドラッグして他の枠と入れ替え">⠿</span>
+          <span class="index"></span>
+          <button type="button" data-act="audio" title="この枠だけ音を出す (他の枠はミュート)。複数枠で同時に聞くときは枠内のプレイヤーのスピーカーで"></button>
+          <button type="button" data-act="fav" title="この枠のチャンネルをお気に入りに登録">★</button>
+          <button type="button" data-act="danmaku" title="弾幕の表示切り替え">弾</button>
+          <button type="button" data-act="chat" title="チャット欄の表示切り替え">💬</button>
+          <button type="button" data-act="reload" title="再読み込み">⟳</button>
+          <button type="button" data-act="max" title="この枠を全画面で見る (Shift+数字キーでも可。Esc で戻る)">⛶</button>
+          <button type="button" data-act="clear" title="この枠を空にする">✕</button>
+        </div>
+      </div>
+      <div class="chat-slot"></div>
+    </section>
+  </template>
+
+  <script src="layouts.js"></script>
+  <script src="danmaku.js"></script>
+  <script src="presets.js"></script>
+  <script src="favorites.js"></script>
+  <script src="grid.js"></script>
+</body>
+</html>

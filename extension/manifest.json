@@ -1,0 +1,50 @@
+{
+  "manifest_version": 3,
+  "name": "hukumado - YouTube マルチビュー",
+  "short_name": "hukumado",
+  "version": "0.1.0",
+  "description": "YouTube の配信を最大 16 枠で同時視聴。各枠にチャットの弾幕を流せます。",
+  "minimum_chrome_version": "111",
+  "action": {
+    "default_title": "hukumado を開く"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "permissions": [
+    "storage",
+    "declarativeNetRequestWithHostAccess"
+  ],
+  "host_permissions": [
+    "https://www.youtube.com/*",
+    "https://schedule.hololive.tv/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.youtube.com/live_chat*"
+      ],
+      "js": ["content/chat.js"],
+      "all_frames": true,
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://www.youtube.com/watch*"
+      ],
+      "js": ["content/watch.js"],
+      "css": ["content/watch.css"],
+      "all_frames": true,
+      "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "https://www.youtube.com/watch*"
+      ],
+      "js": ["content/watch-main.js"],
+      "world": "MAIN",
+      "all_frames": true,
+      "run_at": "document_start"
+    }
+  ]
+}

@@ -1,0 +1,40 @@
+/* hukumado: マルチビュー画面の枠に入れた視聴ページのときだけ (html.hukumado-frame)、プレイヤー以外を隠して枠いっぱいに広げる */
+html.hukumado-frame,
+html.hukumado-frame body {
+  overflow: hidden !important;
+  background: #000 !important;
+}
+
+html.hukumado-frame #masthead-container,
+html.hukumado-frame ytd-masthead,
+html.hukumado-frame #secondary,
+html.hukumado-frame #below,
+html.hukumado-frame #chat-container,
+html.hukumado-frame ytd-live-chat-frame,
+html.hukumado-frame tp-yt-app-drawer,
+html.hukumado-frame ytd-mini-guide-renderer,
+html.hukumado-frame #guide {
+  display: none !important;
+}
+
+html.hukumado-frame #movie_player {
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  z-index: 2147483647 !important;
+  background: #000 !important;
+}
+
+html.hukumado-frame #movie_player .html5-video-container,
+html.hukumado-frame #movie_player video {
+  width: 100% !important;
+  height: 100% !important;
+  left: 0 !important;
+  top: 0 !important;
+  object-fit: contain !important;
+}
+
+html.hukumado-frame.hukumado-fill #movie_player video {
+  object-fit: cover !important;
+}

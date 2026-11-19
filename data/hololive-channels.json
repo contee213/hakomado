@@ -1,0 +1,875 @@
+[
+  {
+    "channelId": "UCp6993wxpyDPHUpavwDFqgg",
+    "handle": "@TokinoSora",
+    "channelName": "SoraCh. ときのそらチャンネル",
+    "members": [
+      "ときのそら"
+    ],
+    "group": "0期生",
+    "branch": "jp",
+    "status": "active"
+  },
+  {
+    "channelId": "UCDqI2jOz0weumE8s7paEk6g",
+    "handle": "@Robocosan",
+    "channelName": "Roboco Ch. - ロボ子",
+    "members": [
+      "ロボ子さん"
+    ],
+    "group": "0期生",
+    "branch": "jp",
+    "status": "active"
+  },
+  {
+    "channelId": "UC0TXe_LYZ4scaW2XMyi5_kw",
+    "handle": "@AZKi",
+    "channelName": "AZKi Channel",
+    "members": [
+      "AZKi"
+    ],
+    "group": "0期生",
+    "branch": "jp",
+    "status": "active"
+  },
+  {
+    "channelId": "UC-hM6YJuNYVAmUWxeIr9FeA",
+    "handle": "@SakuraMiko",
+    "channelName": "Miko Ch. さくらみこ",
+    "members": [
+      "さくらみこ"
+    ],
+    "group": "0期生",
+    "branch": "jp",
+    "status": "active"
+  },
+  {
+    "channelId": "UC5CwaMl1eIgY8h02uZw7u8A",
+    "handle": "@HoshimachiSuisei",
+    "channelName": "Suisei Channel",
+    "members": [
+      "星街すいせい"
+    ],
+    "group": "0期生",
+    "branch": "jp",
+    "status": "active"
+  },
+  {
+    "channelId": "UCFTLzh12_nrtzqBPsTCqenA",
+    "handle": "@AkiRosenthal",
+    "channelName": "アキロゼCh。Vtuber/ホロライブ所属",
+    "members": [
+      "アキ・ローゼンタール"
+    ],
+    "group": "1期生",
+    "branch": "jp",
+    "status": "active"
+  },
+  {
+    "channelId": "UC1CfXB_kRs3C-zaeTG3oGyg",
+    "handle": "@AkaiHaato",
+    "channelName": "HAACHAMA Ch 赤井はあと",
+    "members": [
+      "赤井はあと"
+    ],
+    "group": "1期生",
+    "branch": "jp",
+    "status": "active"
+  },
+  {
+    "channelId": "UCdn5BQ06XqgXoAxIhbqw5Rg",
+    "handle": "@ShirakamiFubuki",
+    "channelName": "フブキCh。白上フブキ",
+    "members": [
+      "白上フブキ"
+    ],
+    "group": "1期生",
+    "branch": "jp",
+    "status": "active"
+  },
+  {
+    "channelId": "UCQ0UDLQCjY0rmuxCDE38FGg",
+    "handle": "@NatsuiroMatsuri",
+    "channelName": "Matsuri Channel 夏色まつり",
+    "members": [
+      "夏色まつり"
+    ],
+    "group": "1期生",
+    "branch": "jp",
+    "status": "active"
+  },
+  {
+    "channelId": "UC7fk0CB07ly8oSl0aqKkqFg",
+    "handle": "@NakiriAyame",
+    "channelName": "Nakiri Ayame Ch. 百鬼あやめ",
+    "members": [
+      "百鬼あやめ"
+    ],
+    "group": "2期生",
+    "branch": "jp",
+    "status": "active"
+  },
+  {
+    "channelId": "UC1suqwovbL1kzsoaZgFZLKg",
+    "handle": "@YuzukiChoco",
+    "channelName": "Choco Ch. 癒月ちょこ",
+    "members": [
+      "癒月ちょこ"
+    ],
+    "group": "2期生",
+    "branch": "jp",
+    "status": "active"
+  },
+  {
+    "channelId": "UCvzGlP9oQwU--Y0r9id_jnA",
+    "handle": "@OozoraSubaru",
+    "channelName": "Subaru Ch. 大空スバル",
+    "members": [
+      "大空スバル"
+    ],
+    "group": "2期生",
+    "branch": "jp",
+    "status": "active"
+  },
+  {
+    "channelId": "UC1opHUrw8rvnsadT-iGp7Cg",
+    "handle": "@MinatoAqua",
+    "channelName": "Aqua Ch. 湊あくあ",
+    "members": [
+      "湊あくあ"
+    ],
+    "group": "2期生",
+    "branch": "jp",
+    "status": "graduated"
+  },
+  {
+    "channelId": "UCXTpFs_3PqI41qX2d9tL2Rw",
+    "handle": "@MurasakiShion",
+    "channelName": "Shion Ch. 紫咲シオン",
+    "members": [
+      "紫咲シオン"
+    ],
+    "group": "2期生",
+    "branch": "jp",
+    "status": "graduated"
+  },
+  {
+    "channelId": "UCp-5t9SrOQwXMU7iIjQfARg",
+    "handle": "@OokamiMio",
+    "channelName": "Mio Channel 大神ミオ",
+    "members": [
+      "大神ミオ"
+    ],
+    "group": "ゲーマーズ",
+    "branch": "jp",
+    "status": "active"
+  },
+  {
+    "channelId": "UCvaTdHTWBGv3MKj3KVqJVCw",
+    "handle": "@NekomataOkayu",
+    "channelName": "Okayu Ch. 猫又おかゆ",
+    "members": [
+      "猫又おかゆ"
+    ],
+    "group": "ゲーマーズ",
+    "branch": "jp",
+    "status": "active"
+  },
+  {
+    "channelId": "UChAnqc_AY5_I3Px5dig3X1Q",
+    "handle": "@InugamiKorone",
+    "channelName": "Korone Ch. 戌神ころね",
+    "members": [
+      "戌神ころね"
+    ],
+    "group": "ゲーマーズ",
+    "branch": "jp",
+    "status": "active"
+  },
+  {
+    "channelId": "UC1DCedRgGHBdm81E1llLhOQ",
+    "handle": "@usadapekora",
+    "channelName": "Pekora Ch. 兎田ぺこら",
+    "members": [
+      "兎田ぺこら"
+    ],
+    "group": "3期生",
+    "branch": "jp",
+    "status": "active"
+  },
+  {
+    "channelId": "UCvInZx9h3jC2JzsIzoOebWg",
+    "handle": "@ShiranuiFlare",
+    "channelName": "Flare Ch. 不知火フレア",
+    "members": [
+      "不知火フレア"
+    ],
+    "group": "3期生",
+    "branch": "jp",
+    "status": "active"
+  },
+  {
+    "channelId": "UCdyqAaZDKHXg4Ahi7VENThQ",
+    "handle": "@ShiroganeNoel",
+    "channelName": "Noel Ch. 白銀ノエル",
+    "members": [
+      "白銀ノエル"
+    ],
+    "group": "3期生",
+    "branch": "jp",
+    "status": "active"
+  },
+  {
+    "channelId": "UCCzUftO8KOVkV4wQG1vkUvg",
+    "handle": "@HoushouMarine",
+    "channelName": "Marine Ch. 宝鐘マリン hololive3期生",
+    "members": [
+      "宝鐘マリン"
+    ],
+    "group": "3期生",
+    "branch": "jp",
+    "status": "active"
+  },
+  {
+    "channelId": "UCqm3BQLlJfvkTsX_hvm0UmA",
+    "handle": "@TsunomakiWatame",
+    "channelName": "Watame Ch. 角巻わため",
+    "members": [
+      "角巻わため"
+    ],
+    "group": "4期生",
+    "branch": "jp",
+    "status": "active"
+  },
+  {
+    "channelId": "UC1uv2Oq6kNxgATlCiez59hw",
+    "handle": "@TokoyamiTowa",
+    "channelName": "Towa Ch. 常闇トワ",
+    "members": [
+      "常闇トワ"
+    ],
+    "group": "4期生",
+    "branch": "jp",
+    "status": "active"
+  },
+  {
+    "channelId": "UCa9Y57gfeY0Zro_noHRVrnw",
+    "handle": "@HimemoriLuna",
+    "channelName": "Luna Ch. 姫森ルーナ",
+    "members": [
+      "姫森ルーナ"
+    ],
+    "group": "4期生",
+    "branch": "jp",
+    "status": "active"
+  },
+  {
+    "channelId": "UCZlDXzGoo7d44bwdNObFacg",
+    "handle": "@AmaneKanata",
+    "channelName": "Kanata Ch. 天音かなた",
+    "members": [
+      "天音かなた"
+    ],
+    "group": "4期生",
+    "branch": "jp",
+    "status": "graduated"
+  },
+  {
+    "channelId": "UCS9uQI-jC3DE0L4IpXyvr6w",
+    "handle": "@KiryuCoco",
+    "channelName": "Coco Ch. 桐生ココ",
+    "members": [
+      "桐生ココ"
+    ],
+    "group": "4期生",
+    "branch": "jp",
+    "status": "graduated"
+  },
+  {
+    "channelId": "UCFKOVgVbGmX65RxO3EtH3iw",
+    "handle": "@YukihanaLamy",
+    "channelName": "Lamy Ch. 雪花ラミィ",
+    "members": [
+      "雪花ラミィ"
+    ],
+    "group": "5期生",
+    "branch": "jp",
+    "status": "active"
+  },
+  {
+    "channelId": "UCAWSyEs_Io8MtpY3m-zqILA",
+    "handle": "@MomosuzuNene",
+    "channelName": "Nene Ch.桃鈴ねね",
+    "members": [
+      "桃鈴ねね"
+    ],
+    "group": "5期生",
+    "branch": "jp",
+    "status": "active"
+  },
+  {
+    "channelId": "UCUKD-uaobj9jiqB-VXt71mA",
+    "handle": "@ShishiroBotan",
+    "channelName": "Botan Ch.獅白ぼたん",
+    "members": [
+      "獅白ぼたん"
+    ],
+    "group": "5期生",
+    "branch": "jp",
+    "status": "active"
+  },
+  {
+    "channelId": "UCK9V2B22uJYu3N7eR_BT9QA",
+    "handle": "@OmaruPolka",
+    "channelName": "Polka Ch. 尾丸ポルカ",
+    "members": [
+      "尾丸ポルカ"
+    ],
+    "group": "5期生",
+    "branch": "jp",
+    "status": "active"
+  },
+  {
+    "channelId": "UCENwRMx5Yh42zWpzURebzTw",
+    "handle": "@LaplusDarknesss",
+    "channelName": "Laplus ch. ラプラス・ダークネス - holoX -",
+    "members": [
+      "ラプラス・ダークネス"
+    ],
+    "group": "holoX",
+    "branch": "jp",
+    "status": "active"
+  },
+  {
+    "channelId": "UCs9_O1tRPMQTHQ-N_L6FU2g",
+    "handle": "@TakaneLui",
+    "channelName": "Lui ch. 鷹嶺ルイ - holoX -",
+    "members": [
+      "鷹嶺ルイ"
+    ],
+    "group": "holoX",
+    "branch": "jp",
+    "status": "active"
+  },
+  {
+    "channelId": "UC6eWCld0KwmyHFbAqK3V-Rw",
+    "handle": "@HakuiKoyori",
+    "channelName": "Koyori ch. 博衣こより - holoX -",
+    "members": [
+      "博衣こより"
+    ],
+    "group": "holoX",
+    "branch": "jp",
+    "status": "active"
+  },
+  {
+    "channelId": "UC_vMYWcDjmfdpH6r4TTn1MQ",
+    "handle": "@kazamairoha",
+    "channelName": "Iroha ch. 風真いろは - holoX -",
+    "members": [
+      "風真いろは"
+    ],
+    "group": "holoX",
+    "branch": "jp",
+    "status": "active"
+  },
+  {
+    "channelId": "UCIBY1ollUsauvVi4hW4cumw",
+    "handle": "@SakamataChloe",
+    "channelName": "Chloe ch. 沙花叉クロヱ - holoX -",
+    "members": [
+      "沙花叉クロヱ"
+    ],
+    "group": "holoX",
+    "branch": "jp",
+    "status": "ended"
+  },
+  {
+    "channelId": "UCWQtYtq9EOB4-I5P-3fh8lA",
+    "handle": "@OtonoseKanade",
+    "channelName": "Kanade Ch. 音乃瀬奏 ‐ ReGLOSS",
+    "members": [
+      "音乃瀬奏"
+    ],
+    "group": "ReGLOSS",
+    "branch": "dev_is",
+    "status": "active"
+  },
+  {
+    "channelId": "UCtyWhCj3AqKh2dXctLkDtng",
+    "handle": "@IchijouRirika",
+    "channelName": "Ririka Ch. 一条莉々華 ‐ ReGLOSS",
+    "members": [
+      "一条莉々華"
+    ],
+    "group": "ReGLOSS",
+    "branch": "dev_is",
+    "status": "active"
+  },
+  {
+    "channelId": "UCdXAk5MpyLD8594lm_OvtGQ",
+    "handle": "@JuufuuteiRaden",
+    "channelName": "Raden Ch. 儒烏風亭らでん ‐ ReGLOSS",
+    "members": [
+      "儒烏風亭らでん"
+    ],
+    "group": "ReGLOSS",
+    "branch": "dev_is",
+    "status": "active"
+  },
+  {
+    "channelId": "UC1iA6_NT4mtAcIII6ygrvCw",
+    "handle": "@TodorokiHajime",
+    "channelName": "Hajime Ch. 轟はじめ ‐ ReGLOSS",
+    "members": [
+      "轟はじめ"
+    ],
+    "group": "ReGLOSS",
+    "branch": "dev_is",
+    "status": "active"
+  },
+  {
+    "channelId": "UCMGfV7TVTmHhEErVJg1oHBQ",
+    "handle": "@HiodoshiAo",
+    "channelName": "Ao Ch. 火威青 ‐ ReGLOSS",
+    "members": [
+      "火威青"
+    ],
+    "group": "ReGLOSS",
+    "branch": "dev_is",
+    "status": "graduated"
+  },
+  {
+    "channelId": "UC9LSiN9hXI55svYEBrrK-tw",
+    "handle": "@IsakiRiona",
+    "channelName": "Riona Ch. 響咲リオナ - FLOW GLOW",
+    "members": [
+      "響咲リオナ"
+    ],
+    "group": "FLOW GLOW",
+    "branch": "dev_is",
+    "status": "active"
+  },
+  {
+    "channelId": "UCuI_opAVX6qbxZY-a-AxFuQ",
+    "handle": "@KoganeiNiko",
+    "channelName": "Niko Ch. 虎金妃笑虎 - FLOW GLOW",
+    "members": [
+      "虎金妃笑虎"
+    ],
+    "group": "FLOW GLOW",
+    "branch": "dev_is",
+    "status": "active"
+  },
+  {
+    "channelId": "UCjk2nKmHzgH5Xy-C5qYRd5A",
+    "handle": "@MizumiyaSu",
+    "channelName": "Su Ch. 水宮枢 - FLOW GLOW",
+    "members": [
+      "水宮枢"
+    ],
+    "group": "FLOW GLOW",
+    "branch": "dev_is",
+    "status": "active"
+  },
+  {
+    "channelId": "UCKMWFR6lAstLa7Vbf5dH7ig",
+    "handle": "@RindoChihaya",
+    "channelName": "Chihaya Ch. 輪堂 千速 - FLOW GLOW",
+    "members": [
+      "輪堂千速"
+    ],
+    "group": "FLOW GLOW",
+    "branch": "dev_is",
+    "status": "active"
+  },
+  {
+    "channelId": "UCGzTVXqMQHa4AgJVJIVvtDQ",
+    "handle": "@KikiraraVivi",
+    "channelName": "Vivi Ch. 綺々羅々ヴィヴィ - FLOW GLOW",
+    "members": [
+      "綺々羅々ヴィヴィ"
+    ],
+    "group": "FLOW GLOW",
+    "branch": "dev_is",
+    "status": "active"
+  },
+  {
+    "channelId": "UC8eitCE9Z6EwUCs-VUi1blg",
+    "handle": "@AchichiMela",
+    "channelName": "Mela Ch. 熱千めら‐ アソビ★まわり隊!",
+    "members": [
+      "熱千めら"
+    ],
+    "group": "アソビ★まわり隊！",
+    "branch": "other",
+    "status": "active"
+  },
+  {
+    "channelId": "UCROQtXcp2loQEmvpe5rhJzQ",
+    "handle": "@SorashinaSopia",
+    "channelName": "Sopia Ch. 宙科そぴあ ‐ アソビ★まわり隊!",
+    "members": [
+      "宙科そぴあ"
+    ],
+    "group": "アソビ★まわり隊！",
+    "branch": "other",
+    "status": "active"
+  },
+  {
+    "channelId": "UCy9mgxB8pn2C4aNK_MPthDQ",
+    "handle": "@SuzunaTsuzuri",
+    "channelName": "Tsuzuri Ch. 鈴鳴つづり ‐ アソビ★まわり隊!",
+    "members": [
+      "鈴鳴つづり"
+    ],
+    "group": "アソビ★まわり隊！",
+    "branch": "other",
+    "status": "active"
+  },
+  {
+    "channelId": "UCSjQDxud2HkAO2DVD3lwxmw",
+    "handle": "@HyakutoKyoko",
+    "channelName": "Kyoko Ch. 百灯キョーコ ‐ アソビ★まわり隊!",
+    "members": [
+      "百灯キョーコ"
+    ],
+    "group": "アソビ★まわり隊！",
+    "branch": "other",
+    "status": "active"
+  },
+  {
+    "channelId": "UCOyYb1c43VlX9rc_lT6NKQw",
+    "handle": "@ayundarisu",
+    "channelName": "Ayunda Risu Ch. hololive",
+    "members": [
+      "アユンダ・リス"
+    ],
+    "group": "ID 1期生 AREA15",
+    "branch": "id",
+    "status": "active"
+  },
+  {
+    "channelId": "UCP0BspO_AMEe3aQqqpo89Dg",
+    "handle": "@MoonaHoshinova",
+    "channelName": "Moona Hoshinova hololive",
+    "members": [
+      "ムーナ・ホシノヴァ"
+    ],
+    "group": "ID 1期生 AREA15",
+    "branch": "id",
+    "status": "active"
+  },
+  {
+    "channelId": "UCAoy6rzhSf4ydcYjJw3WoVg",
+    "handle": "@AiraniIofifteen",
+    "channelName": "Airani Iofifteen Channel hololive",
+    "members": [
+      "アイラニ・イオフィフティーン"
+    ],
+    "group": "ID 1期生 AREA15",
+    "branch": "id",
+    "status": "active"
+  },
+  {
+    "channelId": "UCYz_5n-uDuChHtLo7My1HnQ",
+    "handle": "@KureijiOllie",
+    "channelName": "Kureiji Ollie Ch. hololive",
+    "members": [
+      "クレイジー・オリー"
+    ],
+    "group": "ID 2期生 holoro",
+    "branch": "id",
+    "status": "active"
+  },
+  {
+    "channelId": "UC727SQYUvx5pDDGQpTICNWg",
+    "handle": "@AnyaMelfissa",
+    "channelName": "Anya Melfissa Ch. hololive",
+    "members": [
+      "アーニャ・メルフィッサ"
+    ],
+    "group": "ID 2期生 holoro",
+    "branch": "id",
+    "status": "active"
+  },
+  {
+    "channelId": "UChgTyjG-pdNvxxhdsXfHQ5Q",
+    "handle": "@PavoliaReine",
+    "channelName": "Pavolia Reine Ch. hololive",
+    "members": [
+      "パヴォリア・レイネ"
+    ],
+    "group": "ID 2期生 holoro",
+    "branch": "id",
+    "status": "active"
+  },
+  {
+    "channelId": "UCTvHWSfBZgtxE4sILOaurIQ",
+    "handle": "@VestiaZeta",
+    "channelName": "ベスティア・ゼータ Ch. hololive",
+    "members": [
+      "ベスティア・ゼータ"
+    ],
+    "group": "ID 3期生 holoh3ro",
+    "branch": "id",
+    "status": "active"
+  },
+  {
+    "channelId": "UCZLZ8Jjx_RN2CXloOmgTHVg",
+    "handle": "@KaelaKovalskia",
+    "channelName": "カエラ・コヴァルスキア Ch. hololive",
+    "members": [
+      "カエラ・コヴァルスキア"
+    ],
+    "group": "ID 3期生 holoh3ro",
+    "branch": "id",
+    "status": "active"
+  },
+  {
+    "channelId": "UCjLEmnpCNeisMxy134KPwWw",
+    "handle": "@KoboKanaeru",
+    "channelName": "Kobo Kanaeru Ch. hololive",
+    "members": [
+      "こぼ・かなえる"
+    ],
+    "group": "ID 3期生 holoh3ro",
+    "branch": "id",
+    "status": "active"
+  },
+  {
+    "channelId": "UCL_qhgtOy0dy1Agp8vkySQg",
+    "handle": "@MoriCalliope",
+    "channelName": "Mori Calliope Ch. hololive",
+    "members": [
+      "森カリオペ"
+    ],
+    "group": "EN Myth",
+    "branch": "en",
+    "status": "active"
+  },
+  {
+    "channelId": "UCHsx4Hqa-1ORjQTh9TYDhww",
+    "handle": "@TakanashiKiara",
+    "channelName": "Takanashi Kiara Ch. hololive",
+    "members": [
+      "小鳥遊キアラ"
+    ],
+    "group": "EN Myth",
+    "branch": "en",
+    "status": "active"
+  },
+  {
+    "channelId": "UCMwGHR0BTZuLsmjY_NT5Pwg",
+    "handle": "@NinomaeInanis",
+    "channelName": "Ninomae Ina'nis Ch. hololive",
+    "members": [
+      "一伊那尓栖"
+    ],
+    "group": "EN Myth",
+    "branch": "en",
+    "status": "active"
+  },
+  {
+    "channelId": "UCyl1z3jo3XHR1riLFKG5UAg",
+    "handle": "@WatsonAmelia",
+    "channelName": "Watson Amelia Ch. hololive-EN",
+    "members": [
+      "ワトソン・アメリア"
+    ],
+    "group": "EN Myth",
+    "branch": "en",
+    "status": "ended"
+  },
+  {
+    "channelId": "UCoSrY_IQQVpmIRZ9Xf-y93g",
+    "handle": "@GawrGura",
+    "channelName": "Gawr Gura Ch. hololive-EN",
+    "members": [
+      "がうる・ぐら"
+    ],
+    "group": "EN Myth",
+    "branch": "en",
+    "status": "graduated"
+  },
+  {
+    "channelId": "UC8rcEBzJSleTkf_-agPM20g",
+    "handle": "@IRyS",
+    "channelName": "IRyS Ch. hololive",
+    "members": [
+      "IRyS"
+    ],
+    "group": "EN Project: HOPE",
+    "branch": "en",
+    "status": "active"
+  },
+  {
+    "channelId": "UCmbs8T6MWqUHP1tIQvSgKrg",
+    "handle": "@OuroKronii",
+    "channelName": "Ouro Kronii Ch. hololive",
+    "members": [
+      "オーロ・クロニー"
+    ],
+    "group": "EN Council / Promise",
+    "branch": "en",
+    "status": "active"
+  },
+  {
+    "channelId": "UCgmPnx-EEeOrZSg5Tiw7ZRQ",
+    "handle": "@HakosBaelz",
+    "channelName": "Hakos Baelz Ch. hololive",
+    "members": [
+      "ハコス・ベールズ"
+    ],
+    "group": "EN Council / Promise",
+    "branch": "en",
+    "status": "active"
+  },
+  {
+    "channelId": "UCsUj0dszADCGbF3gNrQEuSQ",
+    "handle": "@TsukumoSana",
+    "channelName": "Tsukumo Sana Ch. hololive-EN",
+    "members": [
+      "九十九佐命"
+    ],
+    "group": "EN Council / Promise",
+    "branch": "en",
+    "status": "graduated"
+  },
+  {
+    "channelId": "UCO_aKKYxn4tvrqPjcTzZ6EQ",
+    "handle": "@CeresFauna",
+    "channelName": "Ceres Fauna Ch. hololive-EN",
+    "members": [
+      "セレス・ファウナ"
+    ],
+    "group": "EN Council / Promise",
+    "branch": "en",
+    "status": "graduated"
+  },
+  {
+    "channelId": "UC3n5uGu18FoCy23ggWWp8tA",
+    "handle": "@NanashiMumei",
+    "channelName": "Nanashi Mumei Ch. hololive-EN",
+    "members": [
+      "七詩ムメイ"
+    ],
+    "group": "EN Council / Promise",
+    "branch": "en",
+    "status": "graduated"
+  },
+  {
+    "channelId": "UCgnfPPb9JI3e9A4cXHnWbyg",
+    "handle": "@ShioriNovella",
+    "channelName": "Shiori Novella Ch. hololive",
+    "members": [
+      "シオリ・ノヴェラ"
+    ],
+    "group": "EN Advent",
+    "branch": "en",
+    "status": "active"
+  },
+  {
+    "channelId": "UC9p_lqQ0FEDz327Vgf5JwqA",
+    "handle": "@KosekiBijou",
+    "channelName": "Koseki Bijou Ch. hololive",
+    "members": [
+      "古石ビジュー"
+    ],
+    "group": "EN Advent",
+    "branch": "en",
+    "status": "active"
+  },
+  {
+    "channelId": "UC_sFNM0z0MWm9A6WlKPuMMg",
+    "handle": "@NerissaRavencroft",
+    "channelName": "Nerissa Ravencroft Ch. hololive",
+    "members": [
+      "ネリッサ・レイヴンクロフト"
+    ],
+    "group": "EN Advent",
+    "branch": "en",
+    "status": "active"
+  },
+  {
+    "channelId": "UCt9H_RpQzhxzlyBxFqrdHqA",
+    "handle": "@FUWAMOCOch",
+    "channelName": "FUWAMOCO Ch. hololive",
+    "members": [
+      "フワワ・アビスガード",
+      "モココ・アビスガード"
+    ],
+    "group": "EN Advent",
+    "branch": "en",
+    "status": "active"
+  },
+  {
+    "channelId": "UCW5uhrG1eCBYditmhL0Ykjw",
+    "handle": "@holoen_erbloodflame",
+    "channelName": "Elizabeth Rose Bloodflame Ch. hololive",
+    "members": [
+      "エリザベス・ローズ・ブラッドフレイム"
+    ],
+    "group": "EN Justice",
+    "branch": "en",
+    "status": "active"
+  },
+  {
+    "channelId": "UCDHABijvPBnJm7F-KlNME3w",
+    "handle": "@holoen_gigimurin",
+    "channelName": "Gigi Murin Ch. hololive",
+    "members": [
+      "ジジ・ムリン"
+    ],
+    "group": "EN Justice",
+    "branch": "en",
+    "status": "active"
+  },
+  {
+    "channelId": "UCvN5h1ShZtc7nly3pezRayg",
+    "handle": "@holoen_ceciliaimmergreen",
+    "channelName": "Cecilia Immergreen Ch. hololive",
+    "members": [
+      "セシリア・イマーグリーン"
+    ],
+    "group": "EN Justice",
+    "branch": "en",
+    "status": "active"
+  },
+  {
+    "channelId": "UCl69AEx4MdqMZH7Jtsm7Tig",
+    "handle": "@holoen_raorapanthera",
+    "channelName": "Raora Panthera Ch. hololive",
+    "members": [
+      "ラオーラ・パンテーラ"
+    ],
+    "group": "EN Justice",
+    "branch": "en",
+    "status": "active"
+  },
+  {
+    "channelId": "UCozx5csNhCx1wsVq3SZVkBQ",
+    "handle": "@holoANroom",
+    "channelName": "holoAN room (ホロアナ)",
+    "members": [
+      "井月みちる",
+      "花園さやか",
+      "風白ゆき",
+      "春先のどか"
+    ],
+    "group": "holoAN",
+    "branch": "other",
+    "status": "active"
+  },
+  {
+    "channelId": "UCJFZiqLMntJufDCHc6bQixg",
+    "handle": "@hololive",
+    "channelName": "hololive ホロライブ - VTuber Group",
+    "members": [
+      "ホロライブ公式"
+    ],
+    "group": "公式",
+    "branch": "other",
+    "status": "active"
+  }
+]

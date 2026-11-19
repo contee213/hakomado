@@ -1,0 +1,5 @@
+# リポジトリ内の改行は LF にそろえる (Windows / macOS / Linux どこで clone しても同じ内容になるように)
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.ico binary

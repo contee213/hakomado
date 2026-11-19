@@ -1,0 +1,14 @@
+# エディタ / ツールのローカル設定
+.claude/settings.local.json
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# 拡張機能のパッケージ (配布用に作った場合)
+*.zip
+*.crx
+*.pem
