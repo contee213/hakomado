@@ -10,6 +10,8 @@
 </head>
 <body>
   <!-- 上部バー: 左 = よく使うもの (自動再生・お気に入り・今の音声)、右 = たまに使うもの (レイアウト・弾幕・設定・使い方) -->
+  <!-- 全画面のとき、ここにマウスを寄せると上部バーが出る -->
+  <div class="toolbar-hotzone" aria-hidden="true"></div>
   <header class="toolbar">
     <span class="brand">hukumado</span>
     <button id="autoMode" class="toggle" type="button" aria-pressed="false" title="自動再生 (L): ON にすると配信中のお気に入りを全部 (最大 16) 再生し、その後も 1 分ごとに、配信が始まったら枠を足し、終わったら枠を消す。ON の間に ✕ で閉じた配信は入れ直さない (OFF → ON で戻る)"><span class="tb-icon">▶</span><span class="tb-label">自動再生</span></button>
@@ -20,6 +22,7 @@
 
     <button id="openLayout" type="button" title="レイアウトを選ぶ"><span class="tb-icon">▦</span><span id="layoutName" class="tb-label"></span></button>
     <button id="danmakuAll" class="toggle on" type="button" aria-pressed="true" title="全枠の弾幕の表示 (D)"><span class="tb-icon">≋</span><span class="tb-label">弾幕</span></button>
+    <button id="gridFullscreen" class="icon-only" type="button" title="分割したまま全画面 (Shift+F)。上端にマウスを寄せると、このバーが出ます">⛶</button>
     <button id="openSettings" class="icon-only" type="button" title="設定">⚙</button>
     <button id="openHelp" class="icon-only" type="button" title="使い方とキー操作 (?)">?</button>
   </header>
@@ -122,6 +125,7 @@
       <table class="help-keys">
         <tr><th><kbd>1</kbd>〜<kbd>9</kbd></th><td>その枠だけ音を出す</td></tr>
         <tr><th><kbd>Shift</kbd> + <kbd>1</kbd>〜<kbd>9</kbd></th><td>その枠を全画面 (<kbd>Esc</kbd> で戻る)</td></tr>
+        <tr><th><kbd>Shift</kbd> + <kbd>F</kbd></th><td>分割したまま全画面 (上端にマウスを寄せるとバーが出る)</td></tr>
         <tr><th><kbd>M</kbd></th><td>ミュート ⇄ 直前の状態に戻す</td></tr>
         <tr><th><kbd>L</kbd></th><td>自動再生の ON / OFF</td></tr>
         <tr><th><kbd>F</kbd></th><td>お気に入りを開く</td></tr>

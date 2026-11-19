@@ -687,15 +687,46 @@ function onBarAction(i, act, e) {
 let fullscreenAudioBefore = null; // 全画面にする前に音が出ていた枠の一覧 (戻したときに復元。[] = ミュートだった)
 let fullscreenTile = null;
 
+// ---- 分割したままの全画面 (上部バーを隠して画面全体を枠に使う)
+// F11 (ブラウザの全画面) のときも同じく上部バーを隠す。上端にマウスを寄せるとバーが出る
+const browserFullscreenQuery = matchMedia('(display-mode: fullscreen)');
+
+async function toggleGridFullscreen() {
+  if (document.fullscreenElement) {
+    await document.exitFullscreen().catch(() => {});
+    // 枠の全画面の上に重なっていた場合は、もう一段戻す
+    if (document.fullscreenElement) await document.exitFullscreen().catch(() => {});
+    return;
+  }
+  try {
+    await document.documentElement.requestFullscreen();
+  } catch (e) {
+    console.warn('hukumado: 全画面にできませんでした', e);
+  }
+}
+
+function updateGridFullscreen() {
+  const appFs = document.fullscreenElement === document.documentElement;
+  document.body.classList.toggle('grid-fs', appFs || browserFullscreenQuery.matches);
+  setToggle(document.getElementById('gridFullscreen'), appFs);
+}
+browserFullscreenQuery.addEventListener('change', updateGridFullscreen);
+
+/** 1 つの枠が全画面になっているか (分割したままの全画面とは別) */
+function isTileFullscreen() {
+  return !!document.fullscreenElement?.classList?.contains('tile');
+}
+
 async function toggleFullscreen(i) {
   const el = views[i].el;
   if (document.fullscreenElement === el) {
+    // 分割したままの全画面から開いていた場合は、そちらに戻る
     await document.exitFullscreen().catch(() => {});
     return;
   }
   if (!state.tiles[i].videoId) return;
   // 別の枠が全画面中なら、その状態 (音声の復元先) を引き継いだまま切り替える
-  if (!document.fullscreenElement) fullscreenAudioBefore = audibleTiles();
+  if (!isTileFullscreen()) fullscreenAudioBefore = audibleTiles();
   try {
     await el.requestFullscreen();
   } catch (e) {
@@ -709,8 +740,9 @@ async function toggleFullscreen(i) {
 }
 
 document.addEventListener('fullscreenchange', () => {
-  if (document.fullscreenElement) return;
-  // 全画面を終えたら、その前に音が出ていた枠に戻す
+  updateGridFullscreen();
+  if (isTileFullscreen()) return;
+  // 枠の全画面を終えたら (分割したままの全画面に戻った場合も)、その前に音が出ていた枠に戻す
   // (全画面中に自分で別の枠の音に切り替えていたら、それを尊重して何もしない)
   const before = fullscreenAudioBefore;
   const fsTile = fullscreenTile;
@@ -928,6 +960,12 @@ function setupToolbar() {
   const dialog = document.getElementById('settings');
   document.getElementById('openSettings').addEventListener('click', () => dialog.showModal());
   document.getElementById('openHelp').addEventListener('click', openHelp);
+  document.getElementById('gridFullscreen').addEventListener('click', (e) => {
+    // 押したボタンにフォーカスを残さない (全画面中に上部バーを隠すため)
+    e.currentTarget.blur();
+    toggleGridFullscreen();
+  });
+  updateGridFullscreen();
   // ダイアログは背景 (枠の外) をクリックしても閉じる
   for (const d of document.querySelectorAll('#settings, #help')) {
     d.addEventListener('click', (e) => e.target === d && d.close());
@@ -1024,6 +1062,11 @@ function setupToolbar() {
     if (e.shiftKey && digit) {
       const i = visibleIndexes()[parseInt(digit, 10) - 1];
       if (i != null) toggleFullscreen(i);
+      return;
+    }
+    // Shift+F: 分割したまま全画面 (F だけならお気に入り)
+    if (e.shiftKey && e.code === 'KeyF') {
+      toggleGridFullscreen();
       return;
     }
     if (e.key === 'm' || e.key === 'M') {
