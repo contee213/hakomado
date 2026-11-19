@@ -343,16 +343,9 @@ function buildTiles() {
       loadInput(i, el.querySelector('.url-input').value);
     });
     el.querySelector('.pick-fav').addEventListener('click', () => openFavorites(i));
-    // 操作バーと ⋯ メニューのボタン
-    el.addEventListener('click', (e) => {
-      const btn = e.target.closest('.bar button[data-act], .tile-menu button[data-act]');
-      if (!btn) return;
-      if (btn.dataset.act === 'menu') {
-        toggleTileMenu(i);
-        return;
-      }
-      closeTileMenus();
-      onBarAction(i, btn.dataset.act, e);
+    el.querySelector('.bar').addEventListener('click', (e) => {
+      const btn = e.target.closest('button[data-act]');
+      if (btn) onBarAction(i, btn.dataset.act, e);
     });
     gridEl.appendChild(el);
   }
@@ -407,14 +400,29 @@ function chatUrl(t) {
 }
 
 // 音が出ている枠の線の色 (グラデーション)。glow は光の色 (r, g, b)
+// 設定画面では 6 列 × 3 行で並ぶ: 1 行目 = ビビッド、2 行目 = パステル (どちらも 赤→橙→黄→緑→青→紫 の順)、
+// 3 行目 = 白・金属・グラデーションの特別色。dark = 明るい色なので上部バーの文字を黒にする
 const HL_PRESETS = {
+  red: { name: 'レッド', colors: ['#ff8a80', '#ff4e45', '#e53935'], glow: [255, 78, 69] },
+  orange: { name: 'オレンジ', colors: ['#ffd180', '#ff9800', '#f57c00'], glow: [255, 152, 0] },
+  yellow: { name: 'イエロー', colors: ['#fff59d', '#ffd600', '#ffab00'], glow: [255, 214, 0], dark: true },
+  green: { name: 'グリーン', colors: ['#b9f6ca', '#00e676', '#00b248'], glow: [0, 230, 118] },
   sky: { name: '水色', colors: ['#8fe9ff', '#29a9ff', '#5b8cff'], glow: [41, 169, 255] },
-  sakura: { name: 'ピンク', colors: ['#ffd1e8', '#ff8cc6', '#ff5fa2'], glow: [255, 120, 180] },
-  sunset: { name: 'オレンジ', colors: ['#ffe08a', '#ffad5c', '#ff6f61'], glow: [255, 150, 80] },
-  lavender: { name: '紫', colors: ['#e3d4ff', '#b28dff', '#7c6cff'], glow: [160, 120, 255] },
-  aurora: { name: '虹', colors: ['#6ee7ff', '#a78bfa', '#ff8cc6', '#ffd36e'], glow: [170, 150, 255] },
-  red: { name: '赤', colors: ['#ff8a80', '#ff4e45', '#e53935'], glow: [255, 78, 69] },
-  white: { name: '白', colors: ['#ffffff', '#dfe6ee', '#ffffff'], glow: [255, 255, 255] },
+  purple: { name: 'パープル', colors: ['#e1bee7', '#b388ff', '#7c4dff'], glow: [150, 110, 255] },
+
+  sakura: { name: 'さくら', colors: ['#ffe0ef', '#ffb3d6', '#ff8cc6'], glow: [255, 150, 200], dark: true },
+  peach: { name: 'ピーチ', colors: ['#ffe9dc', '#ffc9a8', '#ffa987'], glow: [255, 180, 150], dark: true },
+  lemon: { name: 'レモン', colors: ['#fffce0', '#fff3a8', '#ffe57a'], glow: [255, 235, 140], dark: true },
+  mint: { name: 'ミント', colors: ['#e3fff5', '#b0f2dc', '#7de3c3'], glow: [130, 230, 200], dark: true },
+  babyblue: { name: 'ベビーブルー', colors: ['#e3f6ff', '#b8e6fc', '#86d2f8'], glow: [130, 210, 250], dark: true },
+  lavender: { name: 'ラベンダー', colors: ['#f1e8ff', '#d6c4ff', '#b6a0ff'], glow: [190, 160, 255], dark: true },
+
+  white: { name: 'ホワイト', colors: ['#ffffff', '#dfe6ee', '#ffffff'], glow: [255, 255, 255], dark: true },
+  silver: { name: 'シルバー', colors: ['#f5f7fa', '#b0bec5', '#78909c'], glow: [176, 190, 197], dark: true },
+  gold: { name: 'ゴールド', colors: ['#fff3b0', '#e6b422', '#b8860b'], glow: [230, 180, 34] },
+  sunset: { name: '夕焼け', colors: ['#ffe08a', '#ff8a65', '#c2185b'], glow: [255, 130, 100] },
+  borealis: { name: 'オーロラ', colors: ['#64ffda', '#40c4ff', '#b388ff'], glow: [100, 200, 255] },
+  aurora: { name: '虹', colors: ['#ff8a80', '#ffd180', '#ffff8d', '#b9f6ca', '#80d8ff', '#b388ff'], glow: [180, 160, 255] },
 };
 
 function hlGradient(p) {
@@ -430,7 +438,8 @@ function applyHighlight() {
   root.setProperty('--hl-width', `${s.hlWidth}px`);
   const blur = Math.round(4 + s.hlGlow * 16);
   root.setProperty('--hl-glow', s.hlGlow > 0 ? `0 0 ${blur}px rgba(${p.glow.join(', ')}, ${(s.hlGlow * 0.9).toFixed(2)})` : 'none');
-  root.setProperty('--hl-text', s.hlStyle === 'white' ? '#111' : '#fff');
+  root.setProperty('--hl-text', p.dark ? '#111' : '#fff');
+  root.setProperty('--hl-text-shadow', p.dark ? 'none' : '0 1px 2px rgba(0, 0, 0, .35)');
   document.body.classList.toggle('hl-animate', !!s.hlAnimate);
 }
 
@@ -496,9 +505,8 @@ function renderTile(i, { reloadPlayer = false, reloadChat = false } = {}) {
   audio.textContent = t.muted ? '🔇' : '🔊';
   audio.classList.toggle('on', !t.muted);
   el.classList.toggle('audible', visible && !!t.videoId && !t.muted && state.count > 1);
-  el.querySelector('.bar [data-act="chat"]').classList.toggle('on', t.chat);
-  el.querySelector('.tile-menu [data-act="danmaku"]').setAttribute('aria-checked', String(t.danmaku));
-  el.querySelector('.tile-menu [data-act="chat"]').setAttribute('aria-checked', String(t.chat));
+  setToggle(el.querySelector('.bar [data-act="chat"]'), t.chat);
+  setToggle(el.querySelector('.bar [data-act="danmaku"]'), t.danmaku);
   updateTileName(i);
   updateNowPlaying();
 }
@@ -515,41 +523,6 @@ function updateTileName(i) {
   el.textContent = name;
   el.title = name;
 }
-
-// ---- 枠の ⋯ メニュー (同時に開くのは 1 つだけ。外側クリック / Esc で閉じる)
-function toggleTileMenu(i) {
-  const menu = views[i].el.querySelector('.tile-menu');
-  const open = menu.hidden;
-  closeTileMenus();
-  if (!open) return;
-  menu.hidden = false;
-  views[i].el.classList.add('menu-open');
-  // 画面の端からはみ出すときは内側に寄せる (左端の狭い枠 / 下端の枠)
-  const margin = 4;
-  const r = menu.getBoundingClientRect();
-  if (r.left < margin) menu.style.right = `${4 - (margin - r.left)}px`;
-  if (r.bottom > window.innerHeight - margin) {
-    menu.style.top = 'auto';
-    menu.style.bottom = '4px';
-  }
-  menu.querySelector('button')?.focus();
-}
-
-function closeTileMenus() {
-  for (const v of views) {
-    const menu = v.el.querySelector('.tile-menu');
-    menu.hidden = true;
-    menu.style.right = menu.style.top = menu.style.bottom = '';
-    v.el.classList.remove('menu-open');
-  }
-}
-
-document.addEventListener('click', (e) => {
-  if (!e.target.closest('.tile-menu, .bar [data-act="menu"]')) closeTileMenus();
-});
-document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') closeTileMenus();
-});
 
 function renderAll() {
   for (let i = 0; i < MAX_TILES; i++) renderTile(i);
@@ -778,7 +751,6 @@ window.addEventListener('message', (e) => {
     setAudio(i, { on: !data.muted });
   } else if (data.hukumado === 'meta') {
     views[i].meta = { title: String(data.title || ''), channel: String(data.channel || '') };
-    views[i].el.querySelector('.audio-badge').title = views[i].meta.channel;
     updateTileName(i);
     updateNowPlaying();
   }
@@ -999,7 +971,10 @@ function setupToolbar() {
     b.dataset.id = id;
     const chip = document.createElement('i');
     chip.style.background = hlGradient(p);
-    b.append(chip, p.name);
+    const label = document.createElement('span');
+    label.textContent = p.name;
+    b.title = p.name;
+    b.append(chip, label);
     b.addEventListener('click', () => {
       state.settings.hlStyle = id;
       syncSettingsInputs();
@@ -1654,9 +1629,11 @@ function askChoice({ title, body, choices }) {
       const strong = document.createElement('strong');
       strong.textContent = c.label;
       b.append(strong);
-      if (c.note) {
+      // note は文字列か、行ごとの配列 (長い行は 1 行ずつ「…」で省略)
+      for (const line of [].concat(c.note || [])) {
         const small = document.createElement('small');
-        small.textContent = c.note;
+        small.textContent = line;
+        small.title = line;
         b.append(small);
       }
       return b;
@@ -1668,7 +1645,9 @@ function askChoice({ title, body, choices }) {
   return new Promise((resolve) => dialog.addEventListener('close', () => resolve(dialog.returnValue), { once: true }));
 }
 
-/** 保存されたセッションの説明 (「2×2・3 件: 兎田ぺこら、大神ミオ…」) */
+const SESSION_NAMES_SHOWN = 5; // 再開画面に名前を出す件数 (それ以上は「ほか N 件」)
+
+/** 保存されたセッションの説明。lines = [「11/20 01:29・1 + 2・3 件」, 名前 (1 行 1 件、最大 5 件), 「ほか N 件」] */
 function describeSession(data) {
   const layoutName = getLayout(data.layoutId).name;
   const order = isPermutation(data.order) ? data.order : Array.from({ length: MAX_TILES }, (_, i) => i);
@@ -1677,9 +1656,13 @@ function describeSession(data) {
     .map((i) => data.tiles?.[i])
     .filter((t) => t?.videoId);
   const names = shown.map((t) => t.label || t.input || t.videoId);
-  const head = names.slice(0, 4).join('、') + (names.length > 4 ? ` ほか ${names.length - 4} 件` : '');
   const when = data.updatedAt ? new Date(data.updatedAt).toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
-  return { count: shown.length, text: `${when} ・ ${layoutName} ・ ${shown.length} 件${data.autoMode ? ' ・ 自動再生' : ''}: ${head}` };
+  const lines = [
+    [when, layoutName, `${shown.length} 件`, data.autoMode ? '自動再生' : ''].filter(Boolean).join(' ・ '),
+    ...names.slice(0, SESSION_NAMES_SHOWN).map((n) => `・${n}`),
+  ];
+  if (names.length > SESSION_NAMES_SHOWN) lines.push(`ほか ${names.length - SESSION_NAMES_SHOWN} 件`);
+  return { count: shown.length, lines };
 }
 
 /** 以前の版 (セッションに分ける前) の保存内容を、視聴セッション 1 つに移す */
@@ -1726,7 +1709,7 @@ async function chooseSession() {
   const choices = resumable.map((s, n) => ({
     value: 'resume:' + s.id,
     label: n === 0 ? '▶ 前回の続きから' : '▶ この内容で再開',
-    note: describeSession(s.data).text,
+    note: describeSession(s.data).lines,
   }));
   choices.push(
     { value: 'new', label: '新しく始める', note: '空の枠から始めます' },
