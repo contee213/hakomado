@@ -5,6 +5,8 @@
   --text: #e8e8ec;
   --muted: #9a9aa6;
   --accent: #ff4e45;
+  --on: #29a9ff; /* ON 状態のボタン */
+  --on-bg: #12324a;
   --gap: 4px;
   color-scheme: dark;
 }
@@ -41,14 +43,35 @@ button:hover, select:hover { border-color: #444450; }
   height: 36px;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   padding: 0 10px;
   border-bottom: 1px solid var(--line);
   background: #111114;
+  overflow: hidden;
 }
+.toolbar > * { flex: none; }
 .brand { font-weight: 700; letter-spacing: .02em; margin-right: 6px; }
-.spacer { flex: 1; }
-.hint { color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.spacer { flex: 1 1 0; min-width: 8px; }
+.toolbar button { display: inline-flex; align-items: center; gap: 5px; height: 26px; }
+.toolbar .tb-icon { width: 1em; text-align: center; }
+.toolbar .icon-only { width: 28px; justify-content: center; padding: 0; }
+/* レイアウト名は長いものもあるので幅を抑えて省略 */
+#openLayout .tb-label { max-width: 9em; overflow: hidden; text-overflow: ellipsis; }
+
+/* ON / OFF のボタンは文字を変えずに色で状態を出す */
+button.toggle { color: var(--muted); }
+button.toggle.on { color: #fff; border-color: var(--on); background: var(--on-bg); }
+button.toggle.busy .tb-icon { animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* 狭いウィンドウでは文字を減らす (アイコンとツールチップで分かる) */
+@media (max-width: 900px) {
+  .brand { display: none; }
+  #openFavorites .tb-label, #danmakuAll .tb-label { display: none; }
+}
+@media (max-width: 640px) {
+  #autoMode .tb-label, #openLayout .tb-label { display: none; }
+}
 
 /* ---------- grid ---------- */
 .grid {
@@ -130,13 +153,17 @@ body.hl-animate .now-playing.on { animation: hl-flow 6s ease-in-out infinite; }
   box-shadow: 0 1px 4px rgba(0, 0, 0, .5);
 }
 .tile.audible .audio-badge { display: block; animation: badge-fade 3s forwards; }
+/* 操作バーが出ている間は、バーのボタンと重ならないように隠す */
+.tile.audible:hover .audio-badge, .tile.audible.menu-open .audio-badge { display: none; }
 @keyframes badge-fade {
   0%, 70% { opacity: 1; }
   100% { opacity: 0; }
 }
 
 /* 上部バーの「今の音声」 */
-.now-playing { max-width: 280px; display: inline-flex; align-items: center; gap: 2px; overflow: hidden; }
+/* 長いチャンネル名は省略し、狭いウィンドウでは縮む (他のボタンを押し出さない) */
+.toolbar > .now-playing { flex: 0 1 auto; min-width: 70px; max-width: 300px; overflow: hidden; gap: 2px; }
+.now-playing .np-name { min-width: 0; white-space: nowrap; }
 .now-playing.on {
   background: var(--hl-gradient);
   background-size: 300% 300%;
@@ -299,20 +326,80 @@ body.hl-animate .now-playing.on { animation: hl-flow 6s ease-in-out infinite; }
   opacity: 0;
   transition: opacity .15s;
 }
-.tile:hover .bar, .tile:focus-within .bar { opacity: 1; }
-.tile.is-empty .bar [data-act="audio"],
-.tile.is-empty .bar [data-act="danmaku"],
-.tile.is-empty .bar [data-act="chat"],
-.tile.is-empty .bar [data-act="fav"],
-.tile.is-empty .bar [data-act="reload"],
-.tile.is-empty .bar [data-act="clear"] { display: none; }
+.tile:hover .bar, .tile:focus-within .bar, .tile.menu-open .bar { opacity: 1; }
+/* 空の枠では、入れ替え (⠿) 以外の操作は出さない */
+.tile.is-empty .bar-buttons, .tile.is-empty .tile-name { display: none; }
 
-.bar button {
-  padding: 1px 7px;
+/* 名前は残りの幅いっぱいに出し、長ければ省略。ボタンは右に寄せて縮めない */
+.bar .tile-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 12px;
+  color: #fff;
+  text-shadow: 0 1px 2px #000;
+}
+.bar-buttons { display: flex; gap: 3px; margin-left: auto; flex: none; }
+.bar-buttons button {
+  width: 26px;
+  height: 24px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   background: rgba(20, 20, 24, .85);
   font-size: 12px;
 }
-.bar button.on { border-color: var(--accent); color: #fff; }
+.bar-buttons button.on { border-color: var(--on); color: #fff; }
+/* 狭い枠ではボタンを減らす (省いた操作は ⋯ メニューにある): 300px 未満 = 💬 を省く、200px 未満 = ⛶ と名前も省く */
+@container (max-width: 300px) {
+  .bar-buttons .wide-only { display: none; }
+}
+@container (max-width: 210px) {
+  .bar .tile-name { display: none; }
+}
+@container (max-width: 200px) {
+  .bar-buttons .mid-only { display: none; }
+  .bar-buttons button { width: 24px; }
+}
+/* ⋯ メニューの「全画面で見る」は、⛶ ボタンを省いた狭い枠のときだけ出す */
+.tile { container: tile / inline-size; }
+.tile-menu .narrow-only { display: none; }
+@container tile (max-width: 200px) {
+  .tile-menu .narrow-only { display: flex; }
+}
+
+/* 枠の ⋯ メニュー (映像の枠からはみ出してもよいよう、枠の直下に置く) */
+.tile.menu-open { z-index: 20; }
+.tile-menu {
+  position: absolute;
+  top: 30px;
+  right: 4px;
+  z-index: 21;
+  display: flex;
+  flex-direction: column;
+  min-width: 170px;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #1d1d22;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, .5);
+}
+.tile-menu[hidden] { display: none; }
+.tile-menu button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  background: transparent;
+  padding: 6px 8px;
+  text-align: left;
+}
+.tile-menu button:hover, .tile-menu button:focus-visible { background: #2a2a31; }
+.tile-menu .check-mark { width: 1em; text-align: center; color: var(--on); }
+.tile-menu [aria-checked="true"] .check-mark::before { content: "✓"; }
 
 /* 2 択の切り替え (選ばれている方を塗りつぶす) */
 .seg { display: inline-flex; }
@@ -326,6 +413,7 @@ body.hl-animate .now-playing.on { animation: hl-flow 6s ease-in-out infinite; }
   font-weight: 700;
 }
 .bar .index {
+  flex: none;
   min-width: 18px;
   text-align: center;
   font-weight: 700;
@@ -372,8 +460,13 @@ dialog.fav-dialog {
   padding: 12px 14px;
   border-bottom: 1px solid var(--line);
 }
-.fav-head h2 { margin: 0; font-size: 15px; }
-.fav-target { color: var(--muted); font-size: 12px; }
+.fav-head h2 { margin: 0; font-size: 15px; white-space: nowrap; }
+.fav-target { color: var(--muted); font-size: 12px; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+
+/* ダイアログ右上の閉じるボタン (どのダイアログも同じ見た目・位置) */
+.dialog-close { width: 28px; height: 26px; padding: 0; flex: none; }
+.settings-title { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.settings-title h2 { margin: 0; font-size: 15px; }
 
 .fav-list {
   list-style: none;
@@ -403,14 +496,18 @@ dialog.fav-dialog {
 }
 .fav-sub { list-style: none; margin: 0; padding: 0; }
 .fav-section { margin: 2px 0 6px; }
-.fav-section > h3,
-.fav-section > summary {
+.fav-section > h3 {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
   margin: 0;
   padding: 6px 8px 4px;
   font-size: 12px;
   font-weight: 700;
   color: var(--muted);
 }
+.section-action { font-size: 12px; font-weight: 400; padding: 2px 8px; color: var(--text); }
 .fav-section.live-sec > h3 { color: var(--accent); }
 /* 配信していないチャンネルは件数が多いので詰めて表示 */
 .rest-sec .fav-item { padding: 4px 8px; }
@@ -448,8 +545,8 @@ dialog.fav-dialog {
 .fav-item.live .fav-icon { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent); }
 
 .fav-main { flex: 1; min-width: 0; }
-.fav-name-row { display: flex; align-items: center; gap: 8px; }
-.fav-name { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fav-name-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.fav-name { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .fav-title {
   color: var(--muted);
   font-size: 12px;
@@ -458,7 +555,7 @@ dialog.fav-dialog {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.fav-where { color: #8ab4ff; font-size: 11px; white-space: nowrap; }
+.fav-where { flex: none; color: #8ab4ff; font-size: 11px; white-space: nowrap; }
 
 .badge {
   flex: none;
@@ -481,7 +578,8 @@ dialog.fav-dialog {
   object-fit: cover;
   background: #000;
 }
-.fav-thumb:not([src]) { visibility: hidden; }
+/* 配信していないチャンネルはサムネイルが無いので、場所ごと詰める */
+.fav-thumb:not([src]) { display: none; }
 
 .fav-del {
   flex: none;
@@ -498,7 +596,7 @@ dialog.fav-dialog {
   padding: 12px 14px;
   border-top: 1px solid var(--line);
 }
-.fav-add { display: flex; gap: 6px; flex: 1; min-width: 260px; }
+.fav-add { display: flex; gap: 6px; flex: 1; min-width: min(260px, 100%); }
 .fav-add input {
   flex: 1;
   min-width: 0;
@@ -626,8 +724,27 @@ dialog.settings-dialog { width: min(400px, calc(100% - 32px)); }
 .settings-panel { display: flex; flex-direction: column; gap: 12px; min-height: 300px; }
 .settings-panel[hidden] { display: none; }
 .settings-note { margin: 0; color: var(--muted); font-size: 12px; }
-.settings-form h2.sub { margin-top: 8px; padding-top: 12px; border-top: 1px solid var(--line); }
 .settings-form label { display: flex; flex-direction: column; gap: 4px; color: var(--muted); }
 .settings-form label output { color: var(--text); }
 .settings-form label.check { flex-direction: row; align-items: center; gap: 6px; color: var(--text); }
-.dialog-actions { display: flex; justify-content: flex-end; }
+/* 使い方 */
+dialog.help-dialog { width: min(520px, calc(100% - 32px)); }
+.help-form { display: flex; flex-direction: column; gap: 10px; padding: 16px; }
+.help-form h3 { margin: 4px 0 0; font-size: 13px; color: var(--muted); }
+.help-tips { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; line-height: 1.5; }
+.help-keys { border-collapse: collapse; }
+.help-keys th { text-align: left; font-weight: 400; padding: 3px 14px 3px 0; white-space: nowrap; }
+.help-keys td { padding: 3px 0; color: var(--muted); }
+kbd {
+  display: inline-block;
+  min-width: 1.6em;
+  padding: 0 5px;
+  border: 1px solid #444450;
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  font: inherit;
+  font-size: 12px;
+  text-align: center;
+  background: #222228;
+}
+code { font-size: 12px; background: #222228; padding: 0 4px; border-radius: 3px; }

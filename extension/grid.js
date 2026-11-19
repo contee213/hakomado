@@ -343,9 +343,16 @@ function buildTiles() {
       loadInput(i, el.querySelector('.url-input').value);
     });
     el.querySelector('.pick-fav').addEventListener('click', () => openFavorites(i));
-    el.querySelector('.bar').addEventListener('click', (e) => {
-      const btn = e.target.closest('button[data-act]');
-      if (btn) onBarAction(i, btn.dataset.act, e);
+    // 操作バーと ⋯ メニューのボタン
+    el.addEventListener('click', (e) => {
+      const btn = e.target.closest('.bar button[data-act], .tile-menu button[data-act]');
+      if (!btn) return;
+      if (btn.dataset.act === 'menu') {
+        toggleTileMenu(i);
+        return;
+      }
+      closeTileMenus();
+      onBarAction(i, btn.dataset.act, e);
     });
     gridEl.appendChild(el);
   }
@@ -485,20 +492,75 @@ function renderTile(i, { reloadPlayer = false, reloadChat = false } = {}) {
   v.danmaku.setEnabled(visible && danmakuOn);
 
   // --- bar state
-  const audio = el.querySelector('[data-act="audio"]');
+  const audio = el.querySelector('.bar [data-act="audio"]');
   audio.textContent = t.muted ? '🔇' : '🔊';
   audio.classList.toggle('on', !t.muted);
   el.classList.toggle('audible', visible && !!t.videoId && !t.muted && state.count > 1);
-  el.querySelector('[data-act="danmaku"]').classList.toggle('on', danmakuOn);
-  el.querySelector('[data-act="chat"]').classList.toggle('on', t.chat);
+  el.querySelector('.bar [data-act="chat"]').classList.toggle('on', t.chat);
+  el.querySelector('.tile-menu [data-act="danmaku"]').setAttribute('aria-checked', String(t.danmaku));
+  el.querySelector('.tile-menu [data-act="chat"]').setAttribute('aria-checked', String(t.chat));
+  updateTileName(i);
   updateNowPlaying();
 }
 
+/** 操作バーに出すその枠の名前 (お気に入りの名前 → 配信のチャンネル名 → 入力した内容) */
+function tileName(i) {
+  const t = state.tiles[i];
+  return t.label || views[i].meta?.channel || t.input || '';
+}
+
+function updateTileName(i) {
+  const el = views[i].el.querySelector('.tile-name');
+  const name = state.tiles[i].videoId ? tileName(i) : '';
+  el.textContent = name;
+  el.title = name;
+}
+
+// ---- 枠の ⋯ メニュー (同時に開くのは 1 つだけ。外側クリック / Esc で閉じる)
+function toggleTileMenu(i) {
+  const menu = views[i].el.querySelector('.tile-menu');
+  const open = menu.hidden;
+  closeTileMenus();
+  if (!open) return;
+  menu.hidden = false;
+  views[i].el.classList.add('menu-open');
+  // 画面の端からはみ出すときは内側に寄せる (左端の狭い枠 / 下端の枠)
+  const margin = 4;
+  const r = menu.getBoundingClientRect();
+  if (r.left < margin) menu.style.right = `${4 - (margin - r.left)}px`;
+  if (r.bottom > window.innerHeight - margin) {
+    menu.style.top = 'auto';
+    menu.style.bottom = '4px';
+  }
+  menu.querySelector('button')?.focus();
+}
+
+function closeTileMenus() {
+  for (const v of views) {
+    const menu = v.el.querySelector('.tile-menu');
+    menu.hidden = true;
+    menu.style.right = menu.style.top = menu.style.bottom = '';
+    v.el.classList.remove('menu-open');
+  }
+}
+
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.tile-menu, .bar [data-act="menu"]')) closeTileMenus();
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') closeTileMenus();
+});
+
 function renderAll() {
   for (let i = 0; i < MAX_TILES; i++) renderTile(i);
-  document.getElementById('danmakuAll').textContent = state.danmakuAll ? '弾幕 ON' : '弾幕 OFF';
-  document.getElementById('danmakuAll').classList.toggle('on', state.danmakuAll);
+  setToggle(document.getElementById('danmakuAll'), state.danmakuAll);
   layout();
+}
+
+/** 上部バーの ON / OFF ボタン (文字は変えず、見た目と aria-pressed で状態を出す) */
+function setToggle(btn, on) {
+  btn.classList.toggle('on', on);
+  btn.setAttribute('aria-pressed', String(on));
 }
 
 // ---------------------------------------------------------------- audio
@@ -594,8 +656,7 @@ function updateNowPlaying() {
   }
   const order = visibleIndexes();
   const parts = now.map((i) => {
-    const meta = views[i].meta || {};
-    return { n: order.indexOf(i) + 1, name: meta.channel || state.tiles[i].input || '' };
+    return { n: order.indexOf(i) + 1, name: tileName(i) };
   });
   const num = document.createElement('b');
   num.className = 'np-num';
@@ -718,6 +779,7 @@ window.addEventListener('message', (e) => {
   } else if (data.hukumado === 'meta') {
     views[i].meta = { title: String(data.title || ''), channel: String(data.channel || '') };
     views[i].el.querySelector('.audio-badge').title = views[i].meta.channel;
+    updateTileName(i);
     updateNowPlaying();
   }
 });
@@ -839,6 +901,11 @@ function setupDragSwap() {
 
 // ---------------------------------------------------------------- toolbar & settings
 
+function openHelp() {
+  const d = document.getElementById('help');
+  if (!d.open) d.showModal();
+}
+
 // 設定画面のスライダーの表示形式
 const SETTING_FORMATS = {
   duration: (v) => `${v} 秒`,
@@ -871,6 +938,11 @@ function setupToolbar() {
 
   const dialog = document.getElementById('settings');
   document.getElementById('openSettings').addEventListener('click', () => dialog.showModal());
+  document.getElementById('openHelp').addEventListener('click', openHelp);
+  // ダイアログは背景 (枠の外) をクリックしても閉じる
+  for (const d of document.querySelectorAll('#settings, #help')) {
+    d.addEventListener('click', (e) => e.target === d && d.close());
+  }
 
   // 設定画面のタブ (最後に開いていたタブを次回も開く)
   const tabs = dialog.querySelectorAll('.settings-tabs [data-tab]');
@@ -954,6 +1026,8 @@ function setupToolbar() {
       toggleMuteAll();
     } else if (e.key === 'd' || e.key === 'D') {
       toggleDanmakuAll();
+    } else if (e.key === '?') {
+      openHelp();
     } else if (e.key === 'f' || e.key === 'F') {
       openFavorites(null);
     } else if (e.key === 'l' || e.key === 'L') {
@@ -1049,14 +1123,26 @@ function formatStart(ms) {
 
 let favFilter = '';
 
-function favSection(title, items, { cls = '' } = {}) {
+/** 見出し付きの一覧。action を渡すと見出しの右にボタンを出す */
+function favSection(title, items, { cls = '', action = null } = {}) {
   const ul = document.createElement('ul');
   ul.className = 'fav-sub';
   ul.append(...items);
   const sec = document.createElement('section');
   sec.className = `fav-section ${cls}`;
   const h = document.createElement('h3');
-  h.textContent = `${title} (${items.length})`;
+  const label = document.createElement('span');
+  label.textContent = `${title} (${items.length})`;
+  h.append(label);
+  if (action) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'section-action';
+    b.textContent = action.label;
+    b.title = action.title || '';
+    b.addEventListener('click', action.onClick);
+    h.append(b);
+  }
   sec.append(h, ul);
   return sec;
 }
@@ -1074,7 +1160,18 @@ function renderFavorites(favs) {
   const rest = entries.filter((e) => e.st?.state !== 'live' && e.st?.state !== 'upcoming');
 
   const sections = [];
-  if (live.length) sections.push(favSection('● 配信中', live.map(favItem), { cls: 'live-sec' }));
+  if (live.length) {
+    sections.push(
+      favSection('● 配信中', live.map(favItem), {
+        cls: 'live-sec',
+        action: {
+          label: '空いている枠に入れる',
+          title: 'まだ表示していない配信中のチャンネルを、空いている枠に順に入れる (今の枠はそのまま)',
+          onClick: fillLiveIntoEmptyTiles,
+        },
+      }),
+    );
+  }
   if (upcoming.length) sections.push(favSection('予定', upcoming.map(favItem)));
   // それ以外はまとめて 1 つの一覧 (自分で追加したチャンネル → 既定のチャンネルの順)
   rest.sort((a, b) => Number(!!a.f.preset) - Number(!!b.f.preset));
@@ -1294,15 +1391,15 @@ async function setAutoMode(on, { resume = false } = {}) {
   autoTimer = 0;
   save();
   const btn = document.getElementById('autoMode');
-  btn.classList.toggle('on', on);
-  btn.textContent = on ? '▶ 自動再生 ON' : '▶ 自動再生 OFF';
+  setToggle(btn, on);
   if (!on) return; // OFF: 今の枠はそのまま、増減だけ止める
 
   autoDismissed.clear();
   autoMissing.clear();
   autoBusy = true;
+  // 確認中は文字を変えずにアイコンを回す (ボタンの幅を変えないため)
   btn.disabled = true;
-  btn.textContent = '確認中…';
+  btn.classList.add('busy');
   try {
     if (resume) await autoTickOnce();
     else await startAllLive();
@@ -1311,7 +1408,7 @@ async function setAutoMode(on, { resume = false } = {}) {
   } finally {
     autoBusy = false;
     btn.disabled = false;
-    btn.textContent = state.autoMode ? '▶ 自動再生 ON' : '▶ 自動再生 OFF';
+    btn.classList.remove('busy');
   }
   if (state.autoMode) autoTimer = setInterval(autoTick, AUTO_INTERVAL_MS);
 }
@@ -1433,7 +1530,6 @@ function setupFavorites() {
   document.getElementById('openFavorites').addEventListener('click', () => openFavorites(null));
   document.getElementById('favClose').addEventListener('click', () => favDialog.close());
   document.getElementById('favRefresh').addEventListener('click', () => refreshFavorites(true));
-  document.getElementById('favFillLive').addEventListener('click', fillLiveIntoEmptyTiles);
   document.getElementById('autoMode').addEventListener('click', () => setAutoMode(!state.autoMode));
   // 背景クリックで閉じる
   favDialog.addEventListener('click', (e) => {

@@ -2,23 +2,24 @@
 <html lang="ja">
 <head>
   <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>hukumado</title>
   <link rel="stylesheet" href="grid.css">
 </head>
 <body>
+  <!-- 上部バー: 左 = よく使うもの (自動再生・お気に入り・今の音声)、右 = たまに使うもの (レイアウト・弾幕・設定・使い方) -->
   <header class="toolbar">
     <span class="brand">hukumado</span>
-
-    <button id="openLayout" type="button" title="レイアウトを選ぶ">▦ レイアウト: <span id="layoutName"></span></button>
-
-    <button id="openFavorites" type="button" title="お気に入りチャンネルの配信状況 (F)">★ お気に入り</button>
-    <button id="autoMode" type="button" title="自動再生 (L): ON にすると配信中のお気に入りを全部 (最大 16) 再生し、その後も 1 分ごとに、配信が始まったら枠を足し、終わったら枠を消す。ON の間に ✕ で閉じた配信は入れ直さない (OFF → ON で戻る)">▶ 自動再生 OFF</button>
+    <button id="autoMode" class="toggle" type="button" aria-pressed="false" title="自動再生 (L): ON にすると配信中のお気に入りを全部 (最大 16) 再生し、その後も 1 分ごとに、配信が始まったら枠を足し、終わったら枠を消す。ON の間に ✕ で閉じた配信は入れ直さない (OFF → ON で戻る)"><span class="tb-icon">▶</span><span class="tb-label">自動再生</span></button>
+    <button id="openFavorites" type="button" title="お気に入り (F)"><span class="tb-icon">★</span><span class="tb-label">お気に入り</span></button>
     <button id="nowPlaying" class="now-playing" type="button">🔇 ミュート中</button>
-    <button id="danmakuAll" type="button" title="全枠の弾幕を切り替え (D)">弾幕 ON</button>
-    <button id="openSettings" type="button">⚙ 設定</button>
 
     <span class="spacer"></span>
-    <span class="hint">枠にカーソルを乗せると操作バーが出ます / 数字キーでその枠だけ音を出す</span>
+
+    <button id="openLayout" type="button" title="レイアウトを選ぶ"><span class="tb-icon">▦</span><span id="layoutName" class="tb-label"></span></button>
+    <button id="danmakuAll" class="toggle on" type="button" aria-pressed="true" title="全枠の弾幕の表示 (D)"><span class="tb-icon">≋</span><span class="tb-label">弾幕</span></button>
+    <button id="openSettings" class="icon-only" type="button" title="設定">⚙</button>
+    <button id="openHelp" class="icon-only" type="button" title="使い方とキー操作 (?)">?</button>
   </header>
 
   <main id="grid" class="grid"></main>
@@ -35,7 +36,10 @@
   <dialog id="settings" class="settings-dialog">
     <form method="dialog" class="settings-form">
       <header class="settings-head">
-        <h2>⚙ 設定</h2>
+        <div class="settings-title">
+          <h2>⚙ 設定</h2>
+          <button value="close" class="dialog-close" title="閉じる (Esc)">✕</button>
+        </div>
         <div class="settings-tabs" role="tablist">
           <button type="button" role="tab" data-tab="danmaku">弾幕</button>
           <button type="button" role="tab" data-tab="audio">音声の枠</button>
@@ -85,10 +89,31 @@
       </label>
       <label class="check"><input type="checkbox" id="chatHideAvatars"> 投稿者のアイコンを隠す</label>
       </section>
+    </form>
+  </dialog>
 
-      <div class="dialog-actions">
-        <button value="close">閉じる</button>
+  <dialog id="help" class="help-dialog">
+    <form method="dialog" class="help-form">
+      <div class="settings-title">
+        <h2>? 使い方</h2>
+        <button value="close" class="dialog-close" title="閉じる (Esc)">✕</button>
       </div>
+      <ul class="help-tips">
+        <li>空の枠に URL / 動画 ID / <code>@チャンネル名</code> を貼るか、「★ お気に入りから選ぶ」で配信を読み込みます</li>
+        <li>枠にカーソルを乗せると操作バーが出ます。左端の ⠿ をドラッグすると枠を入れ替えます</li>
+        <li>「▶ 自動再生」を ON にすると、配信中のお気に入りを全部並べ、始まった / 終わった配信に合わせて枠を増減します</li>
+        <li>枠内のプレイヤーのスピーカーで音を出すと、他の枠を止めずに複数の枠を同時に聞けます</li>
+      </ul>
+      <h3>キー操作</h3>
+      <table class="help-keys">
+        <tr><th><kbd>1</kbd>〜<kbd>9</kbd></th><td>その枠だけ音を出す</td></tr>
+        <tr><th><kbd>Shift</kbd> + <kbd>1</kbd>〜<kbd>9</kbd></th><td>その枠を全画面 (<kbd>Esc</kbd> で戻る)</td></tr>
+        <tr><th><kbd>M</kbd></th><td>ミュート ⇄ 直前の状態に戻す</td></tr>
+        <tr><th><kbd>L</kbd></th><td>自動再生の ON / OFF</td></tr>
+        <tr><th><kbd>F</kbd></th><td>お気に入りを開く</td></tr>
+        <tr><th><kbd>D</kbd></th><td>全枠の弾幕の表示切り替え</td></tr>
+        <tr><th><kbd>?</kbd></th><td>この画面を開く</td></tr>
+      </table>
     </form>
   </dialog>
 
@@ -100,7 +125,7 @@
         <span class="seg fit-seg">
           <button type="button" data-fit="fit" title="どの枠も 16:9 ちょうどの大きさにする。画面と比率が合わない分は外側の余白になる">16:9 に合わせる</button><button type="button" data-fit="fill" title="余白なしで画面を埋める。映像は枠に合わせて拡大し、はみ出た端は切れる">画面いっぱい</button>
         </span>
-        <button type="button" id="layoutClose" title="閉じる (Esc)">✕</button>
+        <button type="button" id="layoutClose" class="dialog-close" title="閉じる (Esc)">✕</button>
       </header>
       <p class="layout-note">濃い枠がメイン。読み込んだ配信は 1 番 (メイン) から順に入ります。枠の ⠿ をドラッグで入れ替え。
         <span class="use-legend">％ は今の画面サイズで映像が占める割合 (16:9 に合わせる場合)</span></p>
@@ -114,9 +139,8 @@
         <h2>★ お気に入り</h2>
         <span id="favLiveCount" class="fav-live-count"></span>
         <span class="spacer"></span>
-        <button type="button" id="favFillLive" title="配信中のチャンネルを空いている枠に順に入れる (今の枠はそのまま)">空き枠へ</button>
         <button type="button" id="favRefresh" title="配信状況を取り直す">⟳ 更新</button>
-        <button type="button" id="favClose" title="閉じる (Esc)">✕</button>
+        <button type="button" id="favClose" class="dialog-close" title="閉じる (Esc)">✕</button>
       </header>
       <div class="fav-tools">
         <input type="search" id="favFilter" placeholder="名前・@チャンネル名で絞り込み" spellcheck="false">
@@ -165,19 +189,28 @@
           </div>
           <div class="error"></div>
         </form>
+        <!-- 枠の操作バー: よく使うもの (音・全画面・閉じる) は常に表示、それ以外は ⋯ メニュー -->
         <div class="bar">
           <span class="grip" draggable="true" title="ドラッグして他の枠と入れ替え">⠿</span>
           <span class="index"></span>
-          <button type="button" data-act="audio" title="この枠だけ音を出す (他の枠はミュート)。複数枠で同時に聞くときは枠内のプレイヤーのスピーカーで"></button>
-          <button type="button" data-act="fav" title="この枠のチャンネルをお気に入りに登録">★</button>
-          <button type="button" data-act="danmaku" title="弾幕の表示切り替え">弾</button>
-          <button type="button" data-act="chat" title="チャット欄の表示切り替え">💬</button>
-          <button type="button" data-act="reload" title="再読み込み">⟳</button>
-          <button type="button" data-act="max" title="この枠を全画面で見る (Shift+数字キーでも可。Esc で戻る)">⛶</button>
-          <button type="button" data-act="clear" title="この枠を空にする">✕</button>
+          <span class="tile-name"></span>
+          <span class="bar-buttons">
+            <button type="button" data-act="audio" title="この枠だけ音を出す (他の枠はミュート)。複数枠で同時に聞くときは枠内のプレイヤーのスピーカーで"></button>
+            <button type="button" data-act="chat" class="wide-only" title="チャット欄の表示切り替え">💬</button>
+            <button type="button" data-act="max" class="mid-only" title="この枠を全画面で見る (Shift+数字キーでも可。Esc で戻る)">⛶</button>
+            <button type="button" data-act="menu" title="その他の操作" aria-haspopup="menu">⋯</button>
+            <button type="button" data-act="clear" title="この枠を閉じる">✕</button>
+          </span>
         </div>
       </div>
       <div class="chat-slot"></div>
+      <div class="tile-menu" role="menu" hidden>
+        <button type="button" role="menuitemcheckbox" data-act="danmaku"><span class="check-mark"></span>弾幕を表示</button>
+        <button type="button" role="menuitemcheckbox" data-act="chat"><span class="check-mark"></span>チャット欄を表示</button>
+        <button type="button" role="menuitem" data-act="fav"><span class="check-mark">★</span>お気に入りに登録</button>
+        <button type="button" role="menuitem" data-act="reload"><span class="check-mark">⟳</span>再読み込み</button>
+        <button type="button" role="menuitem" data-act="max" class="narrow-only"><span class="check-mark">⛶</span>全画面で見る</button>
+      </div>
     </section>
   </template>
 
