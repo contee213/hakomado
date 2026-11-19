@@ -55,13 +55,28 @@ const template = document.getElementById('tileTemplate');
 const views = [];
 
 // ---------------------------------------------------------------- storage
+// 保存は 2 種類:
+//  - 共通設定 (settings): 全タブで共有。どこかのタブで変えると他のタブにもすぐ反映
+//  - 視聴セッション (session:<id>): 枠・レイアウト・表示方法・自動再生など。タブ (ウィンドウ) ごとに別々
+//    → 複数ウィンドウ / 複数ディスプレイで別々の配信を並べても、お互いの内容を上書きしない
 
-async function load() {
-  const saved = await chrome.storage.local.get(['layoutId', 'order', 'fit', 'autoMode', 'danmakuAll', 'settings', 'tiles']);
-  if (typeof saved.danmakuAll === 'boolean') state.danmakuAll = saved.danmakuAll;
-  if (typeof saved.autoMode === 'boolean') state.autoMode = saved.autoMode;
+const SESSION_PREFIX = 'session:';
+const MAX_SAVED_SESSIONS = 8; // 保存しておく視聴セッションの数 (古いものから消す)
+let sessionId = null; // このタブの視聴セッション。起動時の選択が終わるまでは null (= 保存しない)
+
+async function loadSettings() {
+  const { settings } = await chrome.storage.local.get('settings');
+  state.settings = { ...DEFAULT_SETTINGS, ...(settings || {}) };
+}
+
+/** 保存されている視聴セッションを state に読み込む (無ければ初期状態) */
+function applySession(saved = {}) {
+  state.tiles = Array.from({ length: MAX_TILES }, () => newTileState());
+  state.order = Array.from({ length: MAX_TILES }, (_, i) => i);
+  state.layoutId = DEFAULT_LAYOUT_ID;
+  state.danmakuAll = typeof saved.danmakuAll === 'boolean' ? saved.danmakuAll : true;
+  state.autoMode = saved.autoMode === true;
   if (saved.fit === 'fit' || saved.fit === 'fill') state.fit = saved.fit;
-  state.settings = { ...DEFAULT_SETTINGS, ...(saved.settings || {}) };
   if (Array.isArray(saved.tiles)) {
     // 知っている項目だけ取り込む (古い版の項目や壊れた値を持ち込まない)
     const keys = Object.keys(newTileState());
@@ -80,21 +95,70 @@ async function load() {
   if (first >= 0) state.tiles[first].muted = false;
 }
 
+/** 保存されている視聴セッションの一覧 (新しい順) */
+async function listSessions() {
+  const all = await chrome.storage.local.get(null);
+  return Object.entries(all)
+    .filter(([k, v]) => k.startsWith(SESSION_PREFIX) && v && typeof v === 'object')
+    .map(([k, v]) => ({ id: k.slice(SESSION_PREFIX.length), data: v }))
+    .sort((a, b) => (b.data.updatedAt || 0) - (a.data.updatedAt || 0));
+}
+
+/** 古い / 空の視聴セッションを片付ける (使用中のものは消さない) */
+async function pruneSessions(inUse) {
+  const sessions = await listSessions();
+  const keep = new Set([...inUse, sessionId]);
+  const removable = sessions.filter((s) => !keep.has(s.id));
+  const empty = removable.filter((s) => !(s.data.tiles || []).some((t) => t?.videoId));
+  const tooMany = removable.filter((s) => !empty.includes(s)).slice(Math.max(0, MAX_SAVED_SESSIONS - keep.size));
+  const keys = [...empty, ...tooMany].map((s) => SESSION_PREFIX + s.id);
+  if (keys.length) await chrome.storage.local.remove(keys);
+}
+
+function newSessionId() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+}
+
 let saveTimer = 0;
+
+/** この視聴セッションを保存 (少し待ってまとめて) */
 function save() {
+  if (!sessionId) return;
   clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => {
-    chrome.storage.local.set({
+  saveTimer = setTimeout(saveNow, 300);
+}
+
+function saveNow() {
+  clearTimeout(saveTimer);
+  if (!sessionId) return Promise.resolve();
+  return chrome.storage.local.set({
+    [SESSION_PREFIX + sessionId]: {
       layoutId: state.layoutId,
       order: state.order,
       fit: state.fit,
       autoMode: state.autoMode,
       danmakuAll: state.danmakuAll,
-      settings: state.settings,
       tiles: state.tiles.map(({ muted, ...rest }) => rest),
-    });
-  }, 300);
+      updatedAt: Date.now(),
+    },
+  });
 }
+
+let settingsTimer = 0;
+/** 共通設定を保存 (他のタブには storage.onChanged で伝わる) */
+function saveSettings() {
+  clearTimeout(settingsTimer);
+  settingsTimer = setTimeout(() => chrome.storage.local.set({ settings: state.settings }), 200);
+}
+
+// 他のタブで共通設定が変わったら、このタブにも反映する
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area !== 'local' || !changes.settings?.newValue) return;
+  state.settings = { ...DEFAULT_SETTINGS, ...changes.settings.newValue };
+  applyHighlight();
+  applyChatLook();
+  syncSettingsInputs();
+});
 
 // ---------------------------------------------------------------- input parsing
 
@@ -775,6 +839,30 @@ function setupDragSwap() {
 
 // ---------------------------------------------------------------- toolbar & settings
 
+// 設定画面のスライダーの表示形式
+const SETTING_FORMATS = {
+  duration: (v) => `${v} 秒`,
+  fontScale: (v) => `${Math.round(v * 100)}%`,
+  opacity: (v) => `${Math.round(v * 100)}%`,
+  area: (v) => `${Math.round(v * 100)}%`,
+  maxOnScreen: (v) => `${v} 件`,
+  chatZoom: (v) => `${Math.round(v * 100)}%`,
+  chatWidth: (v) => `${Math.round(v * 100)}%`,
+  hlWidth: (v) => `${v} px`,
+  hlGlow: (v) => (v === 0 ? 'なし' : `${Math.round(v * 100)}%`),
+};
+const SETTING_CHECKBOXES = ['showAuthor', 'showPaid', 'chatHideAvatars', 'hlAnimate'];
+
+/** 設定画面の入力欄を state.settings に合わせる (他のタブで設定が変わったときも呼ぶ) */
+function syncSettingsInputs() {
+  for (const [key, fmt] of Object.entries(SETTING_FORMATS)) {
+    document.getElementById(key).value = String(state.settings[key]);
+    document.getElementById(key + 'Out').textContent = fmt(state.settings[key]);
+  }
+  for (const key of SETTING_CHECKBOXES) document.getElementById(key).checked = !!state.settings[key];
+  for (const b of document.querySelectorAll('.hl-swatch')) b.classList.toggle('selected', b.dataset.id === state.settings.hlStyle);
+}
+
 function setupToolbar() {
   setupLayoutPicker();
 
@@ -807,43 +895,28 @@ function setupToolbar() {
   }
   showTab([...tabs].some((t) => t.dataset.tab === initialTab) ? initialTab : 'danmaku');
 
-  const fmt = {
-    duration: (v) => `${v} 秒`,
-    fontScale: (v) => `${Math.round(v * 100)}%`,
-    opacity: (v) => `${Math.round(v * 100)}%`,
-    area: (v) => `${Math.round(v * 100)}%`,
-    maxOnScreen: (v) => `${v} 件`,
-    chatZoom: (v) => `${Math.round(v * 100)}%`,
-    chatWidth: (v) => `${Math.round(v * 100)}%`,
-    hlWidth: (v) => `${v} px`,
-    hlGlow: (v) => (v === 0 ? 'なし' : `${Math.round(v * 100)}%`),
-  };
   const chatKeys = new Set(['chatZoom', 'chatWidth', 'chatHideAvatars']);
   const hlKeys = new Set(['hlWidth', 'hlGlow', 'hlAnimate']);
-  for (const key of Object.keys(fmt)) {
+  const onSettingChanged = (key) => {
+    if (chatKeys.has(key)) applyChatLook();
+    if (hlKeys.has(key)) applyHighlight();
+    saveSettings();
+  };
+  for (const key of Object.keys(SETTING_FORMATS)) {
     const input = document.getElementById(key);
-    const out = document.getElementById(key + 'Out');
-    input.value = String(state.settings[key]);
-    out.textContent = fmt[key](state.settings[key]);
     input.addEventListener('input', () => {
       state.settings[key] = parseFloat(input.value);
-      out.textContent = fmt[key](state.settings[key]);
-      if (chatKeys.has(key)) applyChatLook();
-      if (hlKeys.has(key)) applyHighlight();
-      save();
+      document.getElementById(key + 'Out').textContent = SETTING_FORMATS[key](state.settings[key]);
+      onSettingChanged(key);
     });
   }
-  for (const key of ['showAuthor', 'showPaid', 'chatHideAvatars', 'hlAnimate']) {
+  for (const key of SETTING_CHECKBOXES) {
     const input = document.getElementById(key);
-    input.checked = !!state.settings[key];
     input.addEventListener('change', () => {
       state.settings[key] = input.checked;
-      if (chatKeys.has(key)) applyChatLook();
-      if (hlKeys.has(key)) applyHighlight();
-      save();
+      onSettingChanged(key);
     });
   }
-  applyChatLook();
 
   // 音が出ている枠の色 (見本をクリックで選択)
   const swatches = document.getElementById('hlSwatches');
@@ -857,13 +930,14 @@ function setupToolbar() {
     b.append(chip, p.name);
     b.addEventListener('click', () => {
       state.settings.hlStyle = id;
-      for (const x of swatches.children) x.classList.toggle('selected', x.dataset.id === id);
+      syncSettingsInputs();
       applyHighlight();
-      save();
+      saveSettings();
     });
-    b.classList.toggle('selected', id === state.settings.hlStyle);
     swatches.appendChild(b);
   }
+  syncSettingsInputs();
+  applyChatLook();
   applyHighlight();
 
   document.addEventListener('keydown', (e) => {
@@ -1444,12 +1518,159 @@ async function registerTab() {
   });
 }
 
+// ---------------------------------------------------------------- 起動 (視聴セッションの選択)
+// タブ (ウィンドウ) ごとに別の視聴セッションを持つ。開いたときに、他のタブで使っていない
+// 前回のセッションがあれば「続きから / 新しく / 自動再生で」を選ぶ。同じタブの再読み込みは確認なしで続ける
+
+const sessionChannel = new BroadcastChannel('hukumado-sessions');
+const SESSION_TAB_KEY = 'hukumado.sessionId'; // sessionStorage: このタブで使っていた視聴セッション (再読み込み用)
+
+/** 他のタブで使用中の視聴セッション ID を集める */
+function sessionsInUse() {
+  return new Promise((resolve) => {
+    const ids = new Set();
+    const onMessage = (e) => e.data?.type === 'in-use' && e.data.sessionId && ids.add(e.data.sessionId);
+    sessionChannel.addEventListener('message', onMessage);
+    sessionChannel.postMessage({ type: 'who' });
+    setTimeout(() => {
+      sessionChannel.removeEventListener('message', onMessage);
+      resolve(ids);
+    }, 300);
+  });
+}
+
+// 後から開いたタブからの問い合わせに、このタブの視聴セッションを答える
+sessionChannel.addEventListener('message', (e) => {
+  if (e.data?.type === 'who' && sessionId) sessionChannel.postMessage({ type: 'in-use', sessionId });
+});
+
+/** 選択肢を出して、選ばれたものの value を返す (Esc では閉じない) */
+function askChoice({ title, body, choices }) {
+  const dialog = document.getElementById('startDialog');
+  document.getElementById('startTitle').textContent = title;
+  document.getElementById('startBody').replaceChildren(...(Array.isArray(body) ? body : [body]));
+  const wrap = document.getElementById('startChoices');
+  wrap.replaceChildren(
+    ...choices.map((c, n) => {
+      const b = document.createElement('button');
+      b.value = c.value;
+      b.className = n === 0 ? 'primary' : '';
+      const strong = document.createElement('strong');
+      strong.textContent = c.label;
+      b.append(strong);
+      if (c.note) {
+        const small = document.createElement('small');
+        small.textContent = c.note;
+        b.append(small);
+      }
+      return b;
+    }),
+  );
+  dialog.addEventListener('cancel', (e) => e.preventDefault());
+  dialog.showModal();
+  wrap.firstElementChild?.focus();
+  return new Promise((resolve) => dialog.addEventListener('close', () => resolve(dialog.returnValue), { once: true }));
+}
+
+/** 保存されたセッションの説明 (「2×2・3 件: 兎田ぺこら、大神ミオ…」) */
+function describeSession(data) {
+  const layoutName = getLayout(data.layoutId).name;
+  const order = isPermutation(data.order) ? data.order : Array.from({ length: MAX_TILES }, (_, i) => i);
+  const shown = order
+    .slice(0, getLayout(data.layoutId).slots.length)
+    .map((i) => data.tiles?.[i])
+    .filter((t) => t?.videoId);
+  const names = shown.map((t) => t.label || t.input || t.videoId);
+  const head = names.slice(0, 4).join('、') + (names.length > 4 ? ` ほか ${names.length - 4} 件` : '');
+  const when = data.updatedAt ? new Date(data.updatedAt).toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+  return { count: shown.length, text: `${when} ・ ${layoutName} ・ ${shown.length} 件${data.autoMode ? ' ・ 自動再生' : ''}: ${head}` };
+}
+
+/** 以前の版 (セッションに分ける前) の保存内容を、視聴セッション 1 つに移す */
+async function migrateLegacyStorage() {
+  const old = await chrome.storage.local.get(['layoutId', 'order', 'fit', 'autoMode', 'danmakuAll', 'tiles']);
+  if (!Object.keys(old).length) return;
+  await chrome.storage.local.set({ [SESSION_PREFIX + newSessionId()]: { ...old, updatedAt: Date.now() - 1 } });
+  await chrome.storage.local.remove(Object.keys(old));
+}
+
+/** このタブで使う視聴セッションを決めて読み込む。戻り値: 自動再生を最初から始めるか */
+async function chooseSession() {
+  await migrateLegacyStorage();
+  const inUse = await sessionsInUse();
+  const allSessions = await listSessions();
+  const sessions = allSessions.filter((s) => !inUse.has(s.id));
+
+  // 同じタブの再読み込みなら、確認なしで続ける
+  let remembered = null;
+  try {
+    remembered = sessionStorage.getItem(SESSION_TAB_KEY);
+  } catch {
+    /* ignore */
+  }
+  const same = sessions.find((s) => s.id === remembered);
+  if (same) {
+    sessionId = same.id;
+    applySession(same.data);
+    return false;
+  }
+
+  // 新しく始めるときも、表示方法 (16:9 / 画面いっぱい) は直近のもの (使用中のタブを含む) を引き継ぐ
+  const latest = allSessions[0]?.data;
+  const startNew = () => {
+    sessionId = newSessionId();
+    applySession({ fit: latest?.fit, danmakuAll: latest?.danmakuAll });
+  };
+
+  const resumable = sessions.filter((s) => describeSession(s.data).count > 0).slice(0, 3);
+  if (resumable.length === 0) {
+    startNew();
+    return false;
+  }
+  const choices = resumable.map((s, n) => ({
+    value: 'resume:' + s.id,
+    label: n === 0 ? '▶ 前回の続きから' : '▶ この内容で再開',
+    note: describeSession(s.data).text,
+  }));
+  choices.push(
+    { value: 'new', label: '新しく始める', note: '空の枠から始めます' },
+    { value: 'auto', label: '▶ 自動再生で始める', note: '配信中のお気に入りを全部再生します' },
+  );
+  const body = document.createElement('p');
+  body.textContent =
+    inUse.size > 0
+      ? `ほかのタブ (ウィンドウ) で ${inUse.size} つ使用中です。そちらとは別に、このタブで視聴します。`
+      : '前回の視聴内容が残っています。';
+  const choice = await askChoice({ title: 'どの内容で視聴しますか?', body, choices });
+  if (choice.startsWith('resume:')) {
+    const s = resumable.find((x) => 'resume:' + x.id === choice);
+    sessionId = s.id;
+    applySession(s.data);
+    return false;
+  }
+  startNew();
+  return choice === 'auto';
+}
+
 (async function main() {
-  await Promise.all([load(), registerTab(), Favorites.seedPresets()]);
+  await Promise.all([loadSettings(), Favorites.seedPresets()]);
   buildTiles();
   setupDragSwap();
   setupToolbar();
+  layout();
+
+  const startAuto = await chooseSession();
+  try {
+    sessionStorage.setItem(SESSION_TAB_KEY, sessionId);
+  } catch {
+    /* ignore */
+  }
+  await registerTab();
+  pruneSessions(await sessionsInUse());
+
   renderAll();
-  // 前回 自動再生 ON のまま閉じていたら、今の枠のまま続ける
-  if (state.autoMode) setAutoMode(true, { resume: true });
+  save();
+  if (startAuto) setAutoMode(true);
+  // 自動再生 ON のまま閉じたセッションを続けるときは、今の枠のまま確認を再開
+  else if (state.autoMode) setAutoMode(true, { resume: true });
 })();

@@ -5,8 +5,20 @@
 
 const RULE_IDS = [1, 2];
 
-chrome.action.onClicked.addListener(() => {
-  chrome.tabs.create({ url: chrome.runtime.getURL('grid.html') });
+// 同じウィンドウに hukumado のタブがあればそこへ切り替え、無ければこのウィンドウに新しく開く
+// (別のウィンドウで押せば、そのウィンドウ用の視聴セッションが始まる = 複数ディスプレイで使える)
+chrome.action.onClicked.addListener(async (current) => {
+  for (const id of await getGridTabs()) {
+    try {
+      const tab = await chrome.tabs.get(id);
+      if (tab.windowId !== current.windowId) continue;
+      await chrome.tabs.update(id, { active: true });
+      return;
+    } catch {
+      /* もう閉じられている */
+    }
+  }
+  chrome.tabs.create({ url: chrome.runtime.getURL('grid.html'), windowId: current.windowId });
 });
 
 async function getGridTabs() {

@@ -587,6 +587,24 @@ dialog::backdrop { background: rgba(0, 0, 0, .5); }
   border-radius: 5px;
 }
 .hl-swatch.selected { border-color: var(--text); color: var(--text); }
+/* 起動時の確認 (別タブ / 前回の続き) */
+dialog.start-dialog { width: min(440px, calc(100% - 32px)); }
+.start-form { display: flex; flex-direction: column; gap: 12px; padding: 18px; }
+.start-form h2 { margin: 0; font-size: 16px; }
+.start-body { color: var(--muted); }
+.start-body p { margin: 0 0 6px; }
+.start-choices { display: flex; flex-direction: column; gap: 8px; }
+.start-choices button {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 9px 12px;
+  text-align: left;
+}
+.start-choices button small { color: var(--muted); font-size: 12px; line-height: 1.4; }
+.start-choices button.primary { border-color: #29a9ff; background: #12324a; }
+
 /* 設定画面のタブ */
 dialog.settings-dialog { width: min(400px, calc(100% - 32px)); }
 .settings-head { display: flex; flex-direction: column; gap: 10px; }
