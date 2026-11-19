@@ -169,6 +169,7 @@ extension/
 ├── danmaku.js           弾幕の描画 (重ならない行に割り当てて流す)
 ├── favorites.js         お気に入りの保存と配信状況の取得 (ホロジュール / YouTube)
 ├── presets.js           既定のお気に入り (ホロライブ)
+├── icons/               アイコン (icon.svg が元。PNG は 16 / 32 / 48 / 128px に書き出したもの)
 └── content/
     ├── watch.js / watch.css   枠の視聴ページをプレイヤーだけの表示にし、親画面と連絡
     ├── watch-main.js          YouTube プレイヤーの API でミュートを切り替える (ページ側で実行)
