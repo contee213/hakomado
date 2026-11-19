@@ -15,6 +15,16 @@ class Danmaku {
     this.active = 0;
   }
 
+  /**
+   * 弾幕を流す帯 (枠の高さに対する割合)。設定画面のプレビューや枠に重ねる帯の表示にも使う
+   * @returns {{top: number, height: number}} 0〜1
+   */
+  static band(s) {
+    const height = Math.min(1, Math.max(0.1, Number(s.area) || 1));
+    const top = s.areaPos === 'bottom' ? 1 - height : s.areaPos === 'middle' ? (1 - height) / 2 : 0;
+    return { top, height };
+  }
+
   get enabled() {
     return !this.layer.classList.contains('off');
   }
@@ -45,7 +55,11 @@ class Danmaku {
 
     const fontSize = Math.round(Math.min(Math.max(H / 14, 12), 42) * s.fontScale);
     const laneHeight = Math.round(fontSize * 1.3);
-    const laneCount = Math.max(1, Math.floor((H * s.area) / laneHeight));
+    // 流す帯 (位置: 上寄せ / 中央 / 下寄せ、高さ: 画面の area 割)
+    const band = Danmaku.band(s);
+    const laneCount = Math.max(1, Math.floor((H * band.height) / laneHeight));
+    const bandTop = H * band.top;
+    const bandBottom = bandTop + H * band.height;
 
     const el = this.render(msg, s);
     el.style.fontSize = fontSize + 'px';
@@ -74,7 +88,9 @@ class Danmaku {
     }
 
     this.lanes[lane] = { startedAt: now, width, speed };
-    el.style.top = lane * laneHeight + 'px';
+    // 下寄せのときは下の行から埋める (画面の下の方にまとまって流れるように)
+    const top = s.areaPos === 'bottom' ? bandBottom - (lane + 1) * laneHeight : bandTop + lane * laneHeight;
+    el.style.top = Math.round(top) + 'px';
     el.style.visibility = '';
     this.active++;
 

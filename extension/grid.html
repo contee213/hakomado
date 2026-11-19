@@ -59,9 +59,21 @@
       <label>不透明度 <output id="opacityOut"></output>
         <input type="range" id="opacity" min="0.2" max="1" step="0.05">
       </label>
-      <label>表示範囲 (上から) <output id="areaOut"></output>
-        <input type="range" id="area" min="0.25" max="1" step="0.05">
-      </label>
+      <div class="dm-area">
+        <div class="dm-area-controls">
+          <span class="field-label">流れる場所</span>
+          <span class="seg dm-pos-seg" role="radiogroup" aria-label="流れる位置">
+            <button type="button" data-pos="top">上</button><button type="button" data-pos="middle">中央</button><button type="button" data-pos="bottom">下</button>
+          </span>
+          <label>高さ <output id="areaOut"></output>
+            <input type="range" id="area" min="0.2" max="1" step="0.05">
+          </label>
+        </div>
+        <!-- 枠に対して、どこを流れるかの見本 -->
+        <div class="dm-preview" aria-hidden="true">
+          <div class="dm-preview-band"><i></i><i></i><i></i></div>
+        </div>
+      </div>
       <label>同時表示の上限 (1枠あたり) <output id="maxOnScreenOut"></output>
         <input type="range" id="maxOnScreen" min="10" max="200" step="5">
       </label>

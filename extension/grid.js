@@ -8,7 +8,8 @@ const DEFAULT_SETTINGS = {
   duration: 7, // 画面を横切る秒数
   fontScale: 1,
   opacity: 0.9,
-  area: 0.75,
+  area: 0.75, // 弾幕を流す高さ (枠の高さに対する割合)
+  areaPos: 'top', // 弾幕を流す位置: 'top' | 'middle' | 'bottom'
   maxOnScreen: 60,
   showAuthor: false,
   showPaid: true,
@@ -400,30 +401,26 @@ function chatUrl(t) {
 }
 
 // 音が出ている枠の線の色 (グラデーション)。glow は光の色 (r, g, b)
-// 設定画面では 6 列 × 3 行で並ぶ: 1 行目 = ビビッド、2 行目 = パステル (どちらも 赤→橙→黄→緑→青→紫 の順)、
-// 3 行目 = 白・金属・グラデーションの特別色。dark = 明るい色なので上部バーの文字を黒にする
+// 音が出ている枠の線の色 (6 色)。映像の上でも見分けやすい、はっきりした色に絞っている
 const HL_PRESETS = {
-  red: { name: 'レッド', colors: ['#ff8a80', '#ff4e45', '#e53935'], glow: [255, 78, 69] },
-  orange: { name: 'オレンジ', colors: ['#ffd180', '#ff9800', '#f57c00'], glow: [255, 152, 0] },
-  yellow: { name: 'イエロー', colors: ['#fff59d', '#ffd600', '#ffab00'], glow: [255, 214, 0], dark: true },
-  green: { name: 'グリーン', colors: ['#b9f6ca', '#00e676', '#00b248'], glow: [0, 230, 118] },
   sky: { name: '水色', colors: ['#8fe9ff', '#29a9ff', '#5b8cff'], glow: [41, 169, 255] },
+  pink: { name: 'ピンク', colors: ['#ffc1e0', '#ff7ab8', '#ff4f9a'], glow: [255, 110, 170] },
+  orange: { name: 'オレンジ', colors: ['#ffd180', '#ff9800', '#f57c00'], glow: [255, 152, 0] },
+  green: { name: 'グリーン', colors: ['#b9f6ca', '#00e676', '#00b248'], glow: [0, 230, 118] },
   purple: { name: 'パープル', colors: ['#e1bee7', '#b388ff', '#7c4dff'], glow: [150, 110, 255] },
-
-  sakura: { name: 'さくら', colors: ['#ffe0ef', '#ffb3d6', '#ff8cc6'], glow: [255, 150, 200], dark: true },
-  peach: { name: 'ピーチ', colors: ['#ffe9dc', '#ffc9a8', '#ffa987'], glow: [255, 180, 150], dark: true },
-  lemon: { name: 'レモン', colors: ['#fffce0', '#fff3a8', '#ffe57a'], glow: [255, 235, 140], dark: true },
-  mint: { name: 'ミント', colors: ['#e3fff5', '#b0f2dc', '#7de3c3'], glow: [130, 230, 200], dark: true },
-  babyblue: { name: 'ベビーブルー', colors: ['#e3f6ff', '#b8e6fc', '#86d2f8'], glow: [130, 210, 250], dark: true },
-  lavender: { name: 'ラベンダー', colors: ['#f1e8ff', '#d6c4ff', '#b6a0ff'], glow: [190, 160, 255], dark: true },
-
-  white: { name: 'ホワイト', colors: ['#ffffff', '#dfe6ee', '#ffffff'], glow: [255, 255, 255], dark: true },
-  silver: { name: 'シルバー', colors: ['#f5f7fa', '#b0bec5', '#78909c'], glow: [176, 190, 197], dark: true },
-  gold: { name: 'ゴールド', colors: ['#fff3b0', '#e6b422', '#b8860b'], glow: [230, 180, 34] },
-  sunset: { name: '夕焼け', colors: ['#ffe08a', '#ff8a65', '#c2185b'], glow: [255, 130, 100] },
-  borealis: { name: 'オーロラ', colors: ['#64ffda', '#40c4ff', '#b388ff'], glow: [100, 200, 255] },
-  aurora: { name: '虹', colors: ['#ff8a80', '#ffd180', '#ffff8d', '#b9f6ca', '#80d8ff', '#b388ff'], glow: [180, 160, 255] },
+  white: { name: 'ホワイト', colors: ['#ffffff', '#dfe6ee', '#ffffff'], glow: [255, 255, 255] },
 };
+
+// 以前の版で選べた色は、近い色に読み替える
+const HL_LEGACY = {
+  red: 'pink', sakura: 'pink', peach: 'orange', yellow: 'orange', lemon: 'orange', gold: 'orange', sunset: 'orange',
+  mint: 'green', borealis: 'green', babyblue: 'sky', lavender: 'purple', aurora: 'purple', silver: 'white',
+};
+
+function normalizeHlStyle(id) {
+  if (HL_PRESETS[id]) return id;
+  return HL_LEGACY[id] || 'sky';
+}
 
 function hlGradient(p) {
   return `linear-gradient(135deg, ${p.colors.join(', ')})`;
@@ -432,14 +429,12 @@ function hlGradient(p) {
 /** 音が出ている枠の線・上部バー・バッジの見た目を設定に合わせる */
 function applyHighlight() {
   const s = state.settings;
-  const p = HL_PRESETS[s.hlStyle] || HL_PRESETS.sky;
+  const p = HL_PRESETS[normalizeHlStyle(s.hlStyle)];
   const root = document.documentElement.style;
   root.setProperty('--hl-gradient', hlGradient(p));
   root.setProperty('--hl-width', `${s.hlWidth}px`);
   const blur = Math.round(4 + s.hlGlow * 16);
   root.setProperty('--hl-glow', s.hlGlow > 0 ? `0 0 ${blur}px rgba(${p.glow.join(', ')}, ${(s.hlGlow * 0.9).toFixed(2)})` : 'none');
-  root.setProperty('--hl-text', p.dark ? '#111' : '#fff');
-  root.setProperty('--hl-text-shadow', p.dark ? 'none' : '0 1px 2px rgba(0, 0, 0, .35)');
   document.body.classList.toggle('hl-animate', !!s.hlAnimate);
 }
 
@@ -899,7 +894,29 @@ function syncSettingsInputs() {
     document.getElementById(key + 'Out').textContent = fmt(state.settings[key]);
   }
   for (const key of SETTING_CHECKBOXES) document.getElementById(key).checked = !!state.settings[key];
-  for (const b of document.querySelectorAll('.hl-swatch')) b.classList.toggle('selected', b.dataset.id === state.settings.hlStyle);
+  for (const b of document.querySelectorAll('.hl-swatch')) b.classList.toggle('selected', b.dataset.id === normalizeHlStyle(state.settings.hlStyle));
+  for (const b of document.querySelectorAll('.dm-pos-seg [data-pos]')) {
+    const on = b.dataset.pos === (state.settings.areaPos || 'top');
+    b.classList.toggle('selected', on);
+    b.setAttribute('aria-checked', String(on));
+  }
+  applyDanmakuArea();
+}
+
+/** 弾幕が流れる帯を CSS 変数に出す (設定画面の見本と、枠に重ねる帯で使う) */
+function applyDanmakuArea() {
+  const { top, height } = Danmaku.band(state.settings);
+  const root = document.documentElement.style;
+  root.setProperty('--dm-band-top', `${(top * 100).toFixed(1)}%`);
+  root.setProperty('--dm-band-height', `${(height * 100).toFixed(1)}%`);
+}
+
+/** 流れる場所を変えている間、実際の各枠に帯を重ねて見せる (少し経つと消える) */
+let dmAreaTimer = 0;
+function flashDanmakuArea() {
+  document.body.classList.add('show-dm-area');
+  clearTimeout(dmAreaTimer);
+  dmAreaTimer = setTimeout(() => document.body.classList.remove('show-dm-area'), 1800);
 }
 
 function setupToolbar() {
@@ -944,8 +961,20 @@ function setupToolbar() {
   const onSettingChanged = (key) => {
     if (chatKeys.has(key)) applyChatLook();
     if (hlKeys.has(key)) applyHighlight();
+    if (key === 'area' || key === 'areaPos') {
+      applyDanmakuArea();
+      flashDanmakuArea();
+    }
     saveSettings();
   };
+  // 弾幕の流れる位置 (上 / 中央 / 下)
+  for (const b of document.querySelectorAll('.dm-pos-seg [data-pos]')) {
+    b.addEventListener('click', () => {
+      state.settings.areaPos = b.dataset.pos;
+      syncSettingsInputs();
+      onSettingChanged('areaPos');
+    });
+  }
   for (const key of Object.keys(SETTING_FORMATS)) {
     const input = document.getElementById(key);
     input.addEventListener('input', () => {
