@@ -76,7 +76,7 @@
       document.querySelector('ytd-watch-metadata #owner #channel-name a, #owner ytd-channel-name a, #upload-info #channel-name a')
         ?.textContent?.trim() ||
       '';
-    // チャンネルの URL (@ハンドル または /channel/UC…) → お気に入りに入っているかの判定用
+    // チャンネルの URL (@ハンドル または /channel/UC…) → ピックアップに入っているかの判定用
     const url = document.querySelector('span[itemprop="author"] link[itemprop="url"]')?.getAttribute('href') || '';
     const handle = url.match(/\/(@[^/?#]+)/)?.[1] || '';
     const channelId = url.match(/\/channel\/(UC[\w-]{22})/)?.[1] || '';
@@ -91,7 +91,7 @@
     if (++metaTicks > 30) clearInterval(metaTimer);
   }, 1000);
 
-  // 「画面いっぱい」表示のときは映像を枠に合わせて拡大し、はみ出た端を切る
+  // 「ストレッチ」表示のときは映像を枠に合わせて拡大し、はみ出た端を切る
   document.documentElement.classList.toggle('hukumado-fill', params.get('hukumado_fill') === '1');
 
   window.addEventListener('message', (e) => {

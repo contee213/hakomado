@@ -53,7 +53,8 @@ class Danmaku {
     if (this.active >= s.maxOnScreen) return;
     if (msg.paid && !s.showPaid) msg = { ...msg, paid: null };
 
-    const fontSize = Math.round(Math.min(Math.max(H / 14, 12), 42) * s.fontScale);
+    // 100% = 枠の高さの 1/20 (10〜32 px に収める)
+    const fontSize = Math.round(Math.min(Math.max(H / 20, 10), 32) * s.fontScale);
     const laneHeight = Math.round(fontSize * 1.3);
     // 流す帯 (位置: 上寄せ / 中央 / 下寄せ、高さ: 画面の area 割)
     const band = Danmaku.band(s);
@@ -131,6 +132,7 @@ class Danmaku {
     el.className = 'dm';
     if (msg.authorType === 'owner') el.classList.add('owner');
     else if (msg.authorType === 'moderator') el.classList.add('moderator');
+    else if (msg.authorType === 'member') el.classList.add('member');
 
     if (msg.paid) {
       el.classList.add('paid');
@@ -141,7 +143,8 @@ class Danmaku {
       el.appendChild(amount);
     }
 
-    if (s.showAuthor && msg.author) {
+    const staff = msg.authorType === 'owner' || msg.authorType === 'moderator';
+    if (msg.author && (s.authorName === 'all' || (s.authorName === 'staff' && staff))) {
       const a = document.createElement('span');
       a.className = 'author';
       a.textContent = msg.author;

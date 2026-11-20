@@ -117,7 +117,7 @@ body.grid-fs .grid { height: 100%; }
 /* 狭いウィンドウでは文字を減らす (アイコンとツールチップで分かる) */
 @media (max-width: 900px) {
   .brand { display: none; }
-  #openFavorites .tb-label, #danmakuAll .tb-label { display: none; }
+  #openFavorites .tb-label { display: none; }
 }
 @media (max-width: 640px) {
   #autoMode .tb-label, #cruise .tb-label, #openLayout .tb-label { display: none; }
@@ -130,7 +130,7 @@ body.grid-fs .grid { height: 100%; }
   display: grid;
   gap: var(--gap);
   padding: var(--gap);
-  /* 16:9 に合わせる表示のとき、余った分は外側に均等に */
+  /* 標準表示のとき、余った分は外側に均等に */
   justify-content: center;
   align-content: center;
 }
@@ -146,6 +146,8 @@ body.grid-fs .grid { height: 100%; }
   overflow: visible;
 }
 .tile[hidden] { display: none; }
+/* PinP の小窓: メインの映像の上に重なるので、縁取りで境目を見せる */
+.tile.pip-sub { box-shadow: 0 0 0 2px rgba(0, 0, 0, .85), 0 4px 14px rgba(0, 0, 0, .6); }
 /* 音の出ている枠: 映像にかからないよう、枠の外側 (枠と枠のすき間) にグラデーションの線を引く。
    色・太さ・光は設定から変えられる (grid.js の applyHighlight が下の変数を書き換える) */
 :root {
@@ -237,7 +239,9 @@ body.hl-animate .tile.audible::before { animation: hl-flow 6s ease-in-out infini
   position: absolute;
   left: 0;
   white-space: nowrap;
-  font-weight: 700;
+  /* フォント・太さは設定から CSS 変数で (applyDanmakuLook)。文字色は白、縁取りは黒で固定 */
+  font-family: var(--dm-font, inherit);
+  font-weight: var(--dm-weight, 700);
   line-height: 1.25;
   color: #fff;
   text-shadow:
@@ -254,8 +258,11 @@ body.hl-animate .tile.audible::before { animation: hl-flow 6s ease-in-out infini
   filter: drop-shadow(0 0 1px rgba(0, 0, 0, .9));
 }
 .dm .author { font-weight: 400; opacity: .75; margin-right: .4em; font-size: .8em; }
+/* 投稿者の種類で色分け (設定で ON のときだけ) */
+/* 投稿者の種類で色分け (配信者 = 黄、モデレーター = 青、メンバー = 緑) */
 .dm.owner { color: #ffd600; }
 .dm.moderator { color: #8ab4ff; }
+.dm.member { color: #6fe08a; }
 .dm.paid {
   padding: 0 .35em;
   border-radius: .3em;
@@ -326,7 +333,7 @@ body.hl-animate .tile.audible::before { animation: hl-flow 6s ease-in-out infini
 }
 @container (max-width: 260px) {
   .empty-actions .pick-fav { font-size: 0; }
-  .empty-actions .pick-fav::before { content: "★"; font-size: 12px; }
+  .empty-actions .pick-fav::before { content: "📺"; font-size: 12px; }
 }
 
 /* ---------- per-tile bar ---------- */
@@ -383,7 +390,7 @@ body.hl-animate .tile.audible::before { animation: hl-flow 6s ease-in-out infini
 /* 弾幕 / チャット欄が OFF のときは控えめに */
 .bar-buttons button.toggle:not(.on) { color: var(--muted); }
 .bar-buttons .close { margin-left: 3px; }
-/* 済んだもの (お気に入り登録済み・チャンネル登録済み・高評価済み) のボタンは隠す */
+/* 済んだもの (チャンネル登録済み・高評価済み) のボタンは隠す */
 .bar-buttons button[hidden] { display: none; }
 /* YouTube のチャンネル登録・高評価: 押せないとき (未ログイン・確認中・操作中) は薄く */
 .bar-buttons button.social:disabled { opacity: .35; cursor: default; }
@@ -470,9 +477,9 @@ dialog.fav-dialog[open] { display: flex; flex-direction: column; }
   border-bottom: 1px solid var(--line);
 }
 .fav-head h2 { margin: 0; font-size: 15px; white-space: nowrap; }
-/* お気に入り / 履歴 の切り替えで隠すもの (display を指定している要素も隠れるように) */
+/* ピックアップ / チャンネル / 履歴 の切り替えで隠すもの (display を指定している要素も隠れるように) */
 .fav [hidden] { display: none !important; }
-/* お気に入り / 履歴 の切り替え */
+/* ピックアップ / チャンネル / 履歴 の切り替え */
 .fav-tabs { flex: none; }
 .fav-tabs button { flex: none; padding: 4px 12px; font-size: 13px; white-space: nowrap; }
 /* 履歴: 見た日時と、枠から外れた理由 */
@@ -504,6 +511,9 @@ dialog.fav-dialog[open] { display: flex; flex-direction: column; }
   padding: 1px 8px;
 }
 .fav-live-count:empty { display: none; }
+/* 保存の件数 (配信中の数と区別して落ち着いた色に) */
+#savedCount { background: #3a3a44; font-weight: 400; }
+#savedCount[hidden] { display: none; }
 .fav-tools { display: flex; align-items: center; gap: 10px; padding: 8px 14px 0; }
 .fav-tools input {
   flex: 1;
@@ -602,6 +612,14 @@ dialog.fav-dialog[open] { display: flex; flex-direction: column; }
 /* 配信していないチャンネルはサムネイルが無いので、場所ごと詰める */
 .fav-thumb:not([src]) { display: none; }
 
+/* 📌 = ピックアップ。入っていないチャンネルは色を抜いて控えめに出す */
+.fav-star { flex: none; padding: 1px 7px; }
+.fav-star:not(.on) { filter: grayscale(1); opacity: .45; }
+.fav-item:hover .fav-star:not(.on) { opacity: .8; }
+/* 枠のバーの 📌 も、入っていないときは色を抜く */
+.bar-buttons button[data-act="fav"]:not(.on),
+.bar-buttons button[data-act="save"]:not(.on) { filter: grayscale(1); }
+.settings-form select { margin-left: 8px; }
 .fav-del {
   flex: none;
   opacity: 0;
@@ -629,18 +647,79 @@ dialog.fav-dialog[open] { display: flex; flex-direction: column; }
 .fav-error { width: 100%; color: #ff8a80; font-size: 12px; }
 .fav-error:empty { display: none; }
 
+/* ---------- 自動再生を始めるときの進み具合 (画面中央。大きさを固定して、文字が変わっても動かない) ---------- */
+.auto-progress {
+  position: fixed;
+  left: 50%;
+  top: 40%;
+  transform: translate(-50%, -50%);
+  width: 380px;
+  max-width: calc(100% - 32px);
+  height: 118px;
+  box-sizing: border-box;
+  padding: 16px 18px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .5);
+  z-index: 50;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.auto-progress[hidden] { display: none; }
+.auto-progress-title { font-weight: 700; font-size: 14px; }
+.auto-progress-text { color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.auto-progress-track { height: 6px; border-radius: 3px; background: #2a2a31; overflow: hidden; }
+.auto-progress-bar { height: 100%; width: 0; background: var(--accent); transition: width .25s; }
+.auto-progress-pct { color: var(--muted); font-size: 11px; text-align: right; }
+
+/* ---------- お知らせ (上部バーのボタンと一覧)。一覧は右上に固定 (中身の数で位置が動かない) ---------- */
+#openNotices { position: relative; }
+.notice-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  box-sizing: border-box;
+  border-radius: 8px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+}
+.notice-badge[hidden] { display: none; }
+dialog.notice-dialog[open] { width: min(420px, calc(100% - 32px)); margin: 48px 16px auto auto; }
+.notice-wrap { display: flex; flex-direction: column; height: min(520px, calc(100vh - 80px)); }
+.notice-list { list-style: none; margin: 0; padding: 6px; overflow-y: auto; flex: 1; }
+.notice-list:empty { display: none; }
+.notice-item { padding: 8px; border-radius: 8px; cursor: pointer; }
+.notice-item:hover { background: #222228; }
+.notice-item.unread { box-shadow: inset 3px 0 0 var(--accent); }
+.notice-head { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.notice-name { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.notice-when { flex: none; color: var(--muted); font-size: 11px; white-space: nowrap; }
+.notice-title { color: var(--muted); font-size: 12px; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.notice-title:empty { display: none; }
+#noticeClear[hidden], #noticeEmpty[hidden] { display: none; }
+
 /* ---------- layout picker ---------- */
 dialog.layout-dialog { width: min(760px, calc(100% - 32px)); }
 .layout-wrap { display: flex; flex-direction: column; max-height: calc(100vh - 64px); }
-.layout-groups { overflow-y: auto; padding: 8px 14px 14px; }
-.layout-group h3 { font-size: 12px; color: var(--muted); margin: 10px 0 6px; font-weight: 600; }
-/* 均等 9 種は 1 行、メイン + サブ 12 種は 6 列 × 2 行 (普通の画面ならスクロールなしで全部見える) */
-/* 均等 9 種は 1 段、メイン + サブ 18 種は 2 段 (メイン枠の数の順) */
-.layout-list { display: grid; grid-template-columns: repeat(9, minmax(0, 1fr)); gap: 8px; }
-.layout-list.uniform { grid-template-columns: repeat(9, minmax(0, 1fr)); }
+.layout-groups { overflow-y: auto; padding: 8px 14px 14px; height: min(560px, calc(100vh - 220px)); }
+/* タブ: おすすめ / 均等 / メイン + サブ① (10 枠まで) / メイン + サブ② (11 枠以上) / PinP。どれも総枠数の順に並べる。
+   配置順 (メインを置く角: 左上〜右下) はタブの上で選ぶ。タブを切り替えても高さが変わらないよう、一覧の高さは固定する */
+.layout-tabs { margin: 8px 14px 0; }
+.layout-anchor-row { display: flex; align-items: center; gap: 8px; padding: 8px 14px 0; color: var(--muted); font-size: 12px; }
+.layout-anchor button { padding: 3px 10px; font-size: 12px; }
+.layout-list { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 8px; }
 @media (max-width: 700px) {
   .layout-list { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-  .layout-list.uniform { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 }
 
 .layout-option {
@@ -654,19 +733,17 @@ dialog.layout-dialog { width: min(760px, calc(100% - 32px)); }
 }
 .layout-option.current { border-color: var(--accent); background: #2a1c1c; }
 .layout-note { margin: 0; padding: 8px 14px 0; color: var(--muted); font-size: 12px; }
-.use-legend { display: block; margin-top: 2px; }
 .layout-name { white-space: nowrap; }
-.layout-use { font-size: 11px; color: var(--muted); display: none; }
-.layout-use.good { color: #7fd17f; }
-.layout-groups.show-use .layout-use { display: block; }
-.layout-dialog:has(.fit-seg [data-fit="fill"].selected) .use-legend { display: none; }
 .layout-thumb {
   width: 100%;
   aspect-ratio: 16 / 9;
-  display: grid;
-  gap: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
-.layout-thumb .cell { background: #3a3a44; border-radius: 2px; }
+.layout-shape { position: relative; }
+/* 枠どうしの境目は内側の線で見せる (隙間を空けると、小さな枠の多いレイアウトで形が崩れる) */
+.layout-thumb .cell { position: absolute; background: #3a3a44; border-radius: 1px; box-shadow: inset 0 0 0 1px #1c1c21; }
 .layout-thumb .cell.main { background: #9a9aa6; }
 .layout-option:hover .layout-thumb .cell.main, .layout-option.current .layout-thumb .cell.main { background: var(--accent); }
 
@@ -706,6 +783,9 @@ dialog {
   width: min(380px, calc(100% - 32px));
 }
 dialog::backdrop { background: rgba(0, 0, 0, .5); }
+/* ダイアログは上端の位置を固定する (中身の量やタブで高さが変わっても、上端と左端が動かないように。伸びるのは下だけ)。
+   横幅は種類ごとに固定 (画面が狭いときだけ縮む) なので、左端も動かない */
+dialog[open] { margin: 48px auto auto; max-height: calc(100vh - 64px); }
 .settings-form { display: flex; flex-direction: column; gap: 12px; padding: 16px; }
 .settings-form h2 { margin: 0 0 4px; font-size: 15px; }
 /* 6 色を 1 行に */
@@ -715,6 +795,28 @@ dialog::backdrop { background: rgba(0, 0, 0, .5); }
 .dm-area-controls { flex: 1; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .field-label { color: var(--muted); }
 .dm-pos-seg button { flex: 1; }
+/* 弾幕の文字の見た目 (2 列) と見本 */
+.dm-look { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px 14px; }
+.dm-look label { min-width: 0; }
+.dm-look select { width: 100%; min-width: 0; box-sizing: border-box; margin: 0; }
+.dm-sample {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: linear-gradient(135deg, #3a4a5e, #6d7f8f 55%, #c9d3da);
+  font-size: 18px;
+  opacity: var(--dm-opacity, 1);
+}
+.dm-sample .dm { position: static; will-change: auto; }
+/* 見本の投稿者名: 設定に合わせて出す */
+.dm-sample .author { display: none; }
+body.dm-author-all .dm-sample .author,
+body.dm-author-staff .dm-sample .dm.owner .author,
+body.dm-author-staff .dm-sample .dm.moderator .author { display: inline; }
+.dm-look-wide { grid-column: 1 / -1; }
 .dm-preview {
   position: relative;
   flex: none;
@@ -819,7 +921,8 @@ dialog.start-dialog { width: min(440px, calc(100% - 32px)); }
 .start-choices button.primary { border-color: #29a9ff; background: #12324a; }
 
 /* 設定画面のタブ */
-dialog.settings-dialog { width: min(400px, calc(100% - 32px)); }
+/* 縦にスクロールしないよう、横に広げて 2 列で並べる (狭い画面では 1 列) */
+dialog.settings-dialog { width: min(780px, calc(100% - 32px)); overflow: hidden; }
 .settings-head { display: flex; flex-direction: column; gap: 10px; }
 .settings-tabs {
   display: flex;
@@ -842,16 +945,112 @@ dialog.settings-dialog { width: min(400px, calc(100% - 32px)); }
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   grid-template-rows: auto minmax(0, 1fr) auto;
-  max-height: calc(100vh - 48px);
+  /* ダイアログと同じ高さまで (ダイアログ側ではスクロールさせず、二重のスクロールバーを出さない) */
+  max-height: calc(100vh - 64px);
+  box-sizing: border-box;
 }
 /* 設定画面の下: 初期値に戻す */
-.settings-foot { grid-row: 3; grid-column: 1; display: flex; justify-content: flex-end; padding-top: 10px; border-top: 1px solid var(--line); }
+.settings-foot { grid-row: 3; grid-column: 1; display: flex; justify-content: space-between; align-items: center; gap: 12px; padding-top: 10px; border-top: 1px solid var(--line); }
+/* バージョン表示 (使い方・設定の画面の下) */
+.app-version { color: var(--muted); font-size: 11px; user-select: text; }
+.help-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 14px; }
+
+/* ---------- 使い方ツアー ---------- */
+.tour { position: fixed; inset: 0; z-index: 1000; }
+/* 明るくする範囲: 周りを大きな影で暗くする。ステップごとに位置と大きさがなめらかに動く */
+.tour-spot {
+  position: fixed;
+  border-radius: 10px;
+  box-shadow: 0 0 0 9999px rgba(8, 12, 20, .5), 0 0 0 4px rgba(77, 179, 255, .35), 0 0 24px 6px rgba(77, 179, 255, .45);
+  outline: 2px solid #4db3ff;
+  outline-offset: 0;
+  transition: left .35s ease, top .35s ease, width .35s ease, height .35s ease, outline-color .2s;
+  pointer-events: none;
+  animation: tour-pulse 1.6s ease-in-out infinite;
+}
+/* ツアーの見本の操作バー: 空の枠の上でも全部のボタンを出し、押せないようにする */
+.tour-mock-bar { opacity: 1; pointer-events: none; background: rgba(0, 0, 0, .8); }
+.tile.is-empty .tour-mock-bar .tile-name { display: block; }
+.tile.is-empty .tour-mock-bar .bar-buttons { margin-left: 0; }
+.tile.is-empty .tour-mock-bar .bar-buttons > * { display: inline-flex; }
+.tour-pulse-btn { animation: tour-btn 1.2s ease-in-out infinite; }
+@keyframes tour-btn {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(77, 179, 255, .7); }
+  50% { box-shadow: 0 0 0 5px rgba(77, 179, 255, 0); }
+}
+.tour-spot.none { outline-color: transparent; animation: none; box-shadow: 0 0 0 9999px rgba(8, 12, 20, .5); }
+/* 押してもらうステップ: 明るくしたボタンだけ押せる */
+.tour-spot.action { pointer-events: auto; cursor: pointer; outline-width: 3px; }
+@keyframes tour-pulse {
+  0%, 100% { outline-offset: 0; }
+  50% { outline-offset: 5px; }
+}
+/* 吹き出し: 暗い画面の中で目立つよう、明るめのグレーに白い文字で大きめに */
+.tour-tip {
+  position: fixed;
+  width: min(420px, calc(100vw - 24px));
+  box-sizing: border-box;
+  padding: 20px 22px 16px;
+  border: 1px solid #5a606c;
+  border-radius: 14px;
+  background: #3b404b;
+  color: #fff;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, .5), 0 2px 6px rgba(0, 0, 0, .25);
+  font-size: 14px;
+  transition: left .35s ease, top .35s ease;
+  animation: tour-in .25s ease;
+}
+/* 最初のようこそは、さらに大きく */
+.tour-tip.hero { width: min(500px, calc(100vw - 24px)); padding: 28px 30px 20px; text-align: center; }
+.tour-tip.hero .tour-logo { display: block; width: 64px; height: 64px; margin: 0 auto 12px; }
+.tour-tip.hero h3 { font-size: 24px; }
+.tour-tip.hero .tour-count { display: none; }
+@keyframes tour-in {
+  from { opacity: 0; transform: translateY(8px) scale(.98); }
+  to { opacity: 1; transform: none; }
+}
+.tour-tip h3 { margin: 0 0 8px; font-size: 19px; font-weight: 700; color: #fff; }
+.tour-tip p { margin: 0 0 14px; color: #dfe3ea; font-size: 14.5px; line-height: 1.75; }
+.tour-count { float: right; margin-top: 3px; color: #aab1bd; font-size: 12px; font-weight: 600; }
+/* 進み具合の点は 1 行使い、ボタンの行は「スキップ … 戻る・次へ」 */
+.tour-dots { display: flex; justify-content: center; gap: 5px; margin-bottom: 14px; }
+.tour-dots i { width: 7px; height: 7px; border-radius: 50%; background: #646b78; transition: background .2s, width .2s; }
+.tour-dots i.on { width: 18px; border-radius: 4px; background: #4db3ff; }
+.tour-nav { display: flex; align-items: center; gap: 8px; }
+.tour-nav button { font-size: 14px; padding: 7px 14px; border-radius: 8px; border: 1px solid #5f6672; background: #4a505c; color: #fff; }
+.tour-nav button:hover { background: #555c69; }
+.tour-nav .tour-skip { margin-right: auto; border: 0; background: none; color: #b7bdc8; padding-left: 0; }
+.tour-nav .tour-skip:hover { background: none; color: #fff; }
+.tour-nav .primary { border-color: #1a8cff; background: #1a8cff; color: #fff; font-weight: 700; }
+.tour-nav .primary:hover { background: #0b78e6; }
+@media (prefers-reduced-motion: reduce) {
+  .tour-spot, .tour-tip { transition: none; animation: none; }
+}
 .settings-foot button { font-size: 12px; }
-.settings-panel { grid-row: 2; grid-column: 1; display: flex; flex-direction: column; gap: 12px; min-height: 0; overflow-y: auto; }
-.settings-panel[hidden] { display: flex; visibility: hidden; }
+.settings-panel {
+  grid-row: 2;
+  grid-column: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0 24px;
+  align-items: start;
+  min-height: 0;
+  /* 画面がとても低いときだけ、タブの中身をスクロール */
+  overflow-y: auto;
+}
+.settings-panel[hidden] { display: grid; visibility: hidden; }
+.settings-col { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.preset-buttons { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+@media (max-width: 720px) {
+  .settings-panel { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+}
 .settings-note { margin: 0; color: var(--muted); font-size: 12px; }
 .settings-form label { display: flex; flex-direction: column; gap: 4px; color: var(--muted); }
+/* スライダーは「名前 … 値」を 1 行にして、その下にスライダー */
+.settings-form label:has(> input[type="range"]) { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 8px; }
+.settings-form label:has(> input[type="range"]) > input { grid-column: 1 / -1; }
 .settings-form label output { color: var(--text); }
+.settings-form label select { width: 100%; margin: 0; box-sizing: border-box; }
 .settings-form label.check { flex-direction: row; align-items: center; gap: 6px; color: var(--text); }
 /* 使い方 */
 dialog.help-dialog { width: min(520px, calc(100% - 32px)); }

@@ -1,8 +1,19 @@
-// おすすめレイアウトの定義
+// レイアウトの定義
 // cols × rows の格子の上に、枠 (slot) を [列, 行, 横幅, 縦幅] で置く (0 始まり、単位は格子のマス)。
 // slots の並び順 = 枠の番号。メイン枠を先に並べるので、1 番から順にメイン → サブになる。
-/* exported LAYOUTS, DEFAULT_LAYOUT_ID, MAX_SLOTS, getLayout, solveTracks */
+// 種類 (group):
+//  - uniform: 均等 (全部同じ大きさ)
+//  - main: メイン + サブ。tools/gen-layouts.js が計算した形 (layouts-generated.js)
+//  - pip: PinP。メイン 1 枠の中に小窓 (メインの 1/5) を 1〜3 個重ねる
+// main と pip は、基準位置 (anchor: tl / bl / tr / br = メインを置く角) ごとにある。
+// 計算した形は左上 (tl) が基準で、他は反転して作る。サブ・小窓はメインと反対側に来る
+// (PinP は基準が左上なら小窓が右下)
+// kind: uniform = 均等 / pip = PinP / main は focus = メイン重視 (サブが小さい)・balance = バランス (サブが大きい)・single = 1 種類だけ
+/* exported LAYOUTS, ANCHORS, DEFAULT_LAYOUT_ID, MAX_SLOTS, getLayout, layoutFor, solveTracks */
+/* global GENERATED_LAYOUTS */
 'use strict';
+
+const ANCHORS = ['tl', 'bl', 'tr', 'br'];
 
 const LAYOUTS = (() => {
   const list = [];
@@ -13,66 +24,38 @@ const LAYOUTS = (() => {
   for (const [r, c] of [[1, 1], [1, 2], [2, 2], [2, 3], [3, 2], [3, 3], [3, 4], [4, 3], [4, 4]]) {
     const slots = [];
     for (let y = 0; y < r; y++) for (let x = 0; x < c; x++) slots.push([x, y, 1, 1]);
-    list.push({ id: `u${r}x${c}`, group: 'uniform', name: `${r}×${c}`, cols: c, rows: r, mains: 0, slots });
+    list.push({ id: `u${r}x${c}`, key: `u${r}x${c}`, group: 'uniform', kind: 'uniform', name: `${r}×${c}`, cols: c, rows: r, mains: 0, slots });
   }
 
-  // ---- メイン + サブ (大きいメイン枠と小さいサブ枠)
-  // 名前は「メイン数+サブ数」。同じ組み合わせが 2 種類あるものだけ、サブ枠の位置を 1 文字で付ける
-  // (B = サブが下、R = サブが右)。メイン 2 枠・6 枠は、横に並べたもの (B) と縦に並べたもの (R) がある。
-  // 16:9 の枠は横長なので、縦に並べた方がメインどうしの中心が近く (約 0.56 倍)、視線の移動が少ない
-  const add = (id, cols, rows, mains, subs, pos = '') => {
-    list.push({ id, group: 'main', name: `${mains.length}+${subs.length}${pos}`, cols, rows, mains: mains.length, slots: [...mains, ...subs] });
-  };
+  // ---- 左上を基準にした形 (メイン + サブ と PinP)。これを反転して 4 つの基準位置を作る
+  const base = GENERATED_LAYOUTS.map((g) => ({ ...g, group: 'main', name: `${g.mains}+${g.subs}` }));
+  // PinP: 5 × 5 マスのメイン 1 枠に、1 マス (= メインの 1/5) の小窓を右下の角から上へ重ねる
+  for (let n = 1; n <= 3; n++) {
+    const slots = [[0, 0, 5, 5]];
+    for (let k = 0; k < n; k++) slots.push([4, 4 - k, 1, 1]);
+    base.push({ key: `pip${n}`, group: 'pip', kind: 'pip', mains: 1, subs: n, name: `PinP 1+${n}`, cols: 5, rows: 5, slots });
+  }
 
-  /** x0..x1, y0..y1 の範囲を 1 マスずつのサブ枠で埋める */
-  const cells = (x0, y0, w, h) => {
-    const out = [];
-    for (let y = y0; y < y0 + h; y++) for (let x = x0; x < x0 + w; x++) out.push([x, y, 1, 1]);
-    return out;
-  };
-  /** メイン枠を cols 列 × rows 段に並べる (1 枠 = size × size マス) */
-  const mainGrid = (cols, rows, size) => {
-    const out = [];
-    for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++) out.push([x * size, y * size, size, size]);
-    return out;
-  };
-
-  // メイン 1
-  add('m1s2', 3, 2, [[0, 0, 2, 2]], cells(2, 0, 1, 2)); // サブが右
-  add('m1s3r', 4, 3, [[0, 0, 3, 3]], cells(3, 0, 1, 3)); // サブが右
-  add('m1s4b', 4, 4, [[0, 0, 4, 3]], cells(0, 3, 4, 1)); // サブが下
-  add('m1s5', 3, 3, [[0, 0, 2, 2]], [...cells(2, 0, 1, 2), ...cells(0, 2, 3, 1)]); // L 字 (右と下)
-  add('m1s7', 4, 4, [[0, 0, 3, 3]], [...cells(3, 0, 1, 3), ...cells(0, 3, 4, 1)]); // L 字
-  add('m1s8', 6, 4, [[0, 0, 4, 4]], cells(4, 0, 2, 4)); // サブが右に 2 列
-  add('m1s9', 5, 5, [[0, 0, 4, 4]], [...cells(4, 0, 1, 4), ...cells(0, 4, 5, 1)]); // L 字
-  add('m1s12', 4, 4, [[1, 1, 2, 2]], [ // メインが中央
-    ...cells(0, 0, 4, 1),
-    [0, 1, 1, 1], [3, 1, 1, 1],
-    [0, 2, 1, 1], [3, 2, 1, 1],
-    ...cells(0, 3, 4, 1),
-  ]);
-
-  // メイン 2 (B = 横に並べてサブは下、R = 縦に並べてサブは右)
-  add('m2s3', 6, 3, [[0, 0, 3, 2], [3, 0, 3, 2]], [[0, 2, 2, 1], [2, 2, 2, 1], [4, 2, 2, 1]]);
-  add('m2s4', 4, 3, mainGrid(2, 1, 2), cells(0, 2, 4, 1), 'B');
-  add('m2s4r', 3, 4, mainGrid(1, 2, 2), cells(2, 0, 1, 4), 'R');
-  add('m2s8', 4, 4, mainGrid(2, 1, 2), cells(0, 2, 4, 2), 'B');
-  add('m2s8r', 4, 4, mainGrid(1, 2, 2), cells(2, 0, 2, 4), 'R');
-  add('m2s12', 6, 5, mainGrid(2, 1, 3), cells(0, 3, 6, 2), 'B');
-  add('m2s12r', 5, 6, mainGrid(1, 2, 3), cells(3, 0, 2, 6), 'R');
-
-  // メイン 4 (2 × 2)
-  add('m4s4', 5, 4, mainGrid(2, 2, 2), cells(4, 0, 1, 4)); // サブが右
-  add('m4s6', 6, 7, mainGrid(2, 2, 3), cells(0, 6, 6, 1)); // サブが下
-  add('m4s9', 5, 5, mainGrid(2, 2, 2), [...cells(4, 0, 1, 4), ...cells(0, 4, 5, 1)]); // L 字
-
-  // メイン 6 (B = 3 列 × 2 段でサブは下、R = 2 列 × 3 段でサブは右) とメイン 8 (3 × 3 の 1 マスを 4 分割)
-  add('m6s6', 6, 5, mainGrid(3, 2, 2), cells(0, 4, 6, 1), 'B');
-  add('m6s6r', 5, 6, mainGrid(2, 3, 2), cells(4, 0, 1, 6), 'R');
-  add('m6s9', 9, 7, mainGrid(3, 2, 3), cells(0, 6, 9, 1), 'B');
-  add('m6s9r', 7, 9, mainGrid(2, 3, 3), cells(6, 0, 1, 9), 'R');
-  add('m8s4', 6, 6, mainGrid(3, 3, 2).slice(0, 8), cells(4, 4, 2, 2));
-
+  const flips = { tl: [false, false], bl: [false, true], tr: [true, false], br: [true, true] };
+  for (const anchor of ANCHORS) {
+    const [fx, fy] = flips[anchor];
+    for (const g of base) {
+      const slots = g.slots.map(([x, y, w, h]) => [fx ? g.cols - x - w : x, fy ? g.rows - y - h : y, w, h]);
+      list.push({
+        id: `${anchor}-${g.key}`,
+        key: g.key,
+        anchor,
+        group: g.group,
+        kind: g.kind,
+        name: g.name,
+        cols: g.cols,
+        rows: g.rows,
+        mains: g.mains,
+        overlap: g.group === 'pip', // 枠が重なる (小窓をメインの上に出す)
+        slots,
+      });
+    }
+  }
   return list;
 })();
 
@@ -81,6 +64,11 @@ const MAX_SLOTS = Math.max(...LAYOUTS.map((l) => l.slots.length));
 
 function getLayout(id) {
   return LAYOUTS.find((l) => l.id === id) || LAYOUTS.find((l) => l.id === DEFAULT_LAYOUT_ID);
+}
+
+/** 同じ形 (key) で基準位置 anchor のレイアウト。均等など基準位置の無いものはそのまま */
+function layoutFor(key, anchor) {
+  return LAYOUTS.find((l) => l.key === key && (!l.anchor || l.anchor === anchor)) || null;
 }
 
 /**

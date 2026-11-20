@@ -59,6 +59,11 @@ async function applyRules(tabIds) {
   await chrome.declarativeNetRequest.updateSessionRules({ removeRuleIds: RULE_IDS, addRules });
 }
 
+// 初めてインストールしたときだけ、マルチビュー画面でツアーを出す印を付ける (バージョンアップや再読み込みでは出さない)
+chrome.runtime.onInstalled.addListener(({ reason }) => {
+  if (reason === 'install') chrome.storage.local.set({ tourPending: true });
+});
+
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   const tabId = sender.tab?.id;
   if (tabId == null || sender.id !== chrome.runtime.id) return false;
@@ -96,8 +101,11 @@ chrome.tabs.onRemoved.addListener((tabId) => {
   removeTab(tabId);
 });
 
-// グリッド画面から別ページへ移動した場合もルールを外す
+// グリッド画面から別ページへ移動した場合もルールを外す。
+// tabs 権限が無いので、移動先が他のサイトだと URL は分からない → 読み込みが始まった時点で、いったん外す。
+// マルチビュー画面自身の読み込み (再読み込みなど) なら、画面が開いたときに登録し直すので問題ない
 chrome.tabs.onUpdated.addListener((tabId, info) => {
-  if (!info.url || info.url.startsWith(chrome.runtime.getURL('grid.html'))) return;
-  removeTab(tabId);
+  if (info.status === 'loading' || (info.url && !info.url.startsWith(chrome.runtime.getURL('grid.html')))) {
+    removeTab(tabId);
+  }
 });

@@ -1,0 +1,5 @@
+#!/bin/sh
+# コミットのたびに、manifest.json の version_name (ビルド番号と日付) を更新してコミットに含める。
+# 有効にする: git config core.hooksPath .githooks
+node tools/stamp-version.js || exit 1
+git add extension/manifest.json

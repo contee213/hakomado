@@ -274,6 +274,16 @@
       reportSocial();
       return;
     }
+    let nowId = '';
+    try {
+      nowId = player()?.getVideoData?.().video_id || '';
+    } catch {
+      /* ignore */
+    }
+    if (nowId !== params.get('v')) {
+      reportSocial({ failed: act });
+      return;
+    }
     let ok = true;
     try {
       if (act === 'like') likeButton().click();

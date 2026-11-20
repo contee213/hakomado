@@ -1,4 +1,4 @@
-// お気に入りチャンネル: 保存と、チャンネル情報 / 配信状況の取得
+// チャンネル一覧 (ピックアップの印を含む): 保存と、チャンネル情報 / 配信状況の取得
 // - 既定でホロライブ所属チャンネル (presets.js) を登録しておく
 // - ホロライブのチャンネルの配信状況は、ホロジュール (schedule.hololive.tv) を 1 回取得してまとめて判定する
 //   (YouTube のチャンネルページは 1 件 1MB 以上あり、数十件を毎回取りに行くと重いため)
@@ -18,7 +18,7 @@ const Favorites = (() => {
   //   他のタブが少し前に取ったものはそのまま使い、タブがいくつあっても取得は 1 つ分で済むようにする
   // - YouTube へのページ取得はタブ間で 1 件ずつ、間を空けて行う (一度にまとめて取らない)
   // - YouTube に制限 (429) をかけられたら、しばらく取りに行かない (5 分 → 10 分 → … 最大 60 分)
-  const shared = chrome.storage.session || chrome.storage.local;
+  const shared = chrome.storage.session;
   const SHARED_KEY = 'statusShared'; // {sched: {at, byHandle}, yt: {channelId: {at, status}}, backoff: {until, step}, lastYtFetch}
   const YT_AUTO_MS = 3 * 60 * 1000; // 自動再生・一覧を開いたとき: ホロライブ以外のチャンネルは 3 分に 1 回まで
   const YT_MANUAL_MS = 30 * 1000; // 「⟳ 更新」や自動再生を ON にしたとき
@@ -26,12 +26,15 @@ const Favorites = (() => {
   const SCHED_MANUAL_MS = 5 * 1000;
   const YT_GAP_MS = 1000; // YouTube へのページ取得の間隔
   const YT_STALE_MS = 10 * 60 * 1000; // 取りに行けなかったときに使ってよい、前の結果の古さ
+  // 取得の待ち時間の上限。応答が返ってこないまま順番待ち (ロック) を持ち続けると、全タブの取得が止まるため
+  const FETCH_TIMEOUT_MS = 20 * 1000;
+  const withTimeout = (opts = {}) => ({ ...opts, signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
   const BACKOFF_BASE_MS = 5 * 60 * 1000;
   const BACKOFF_MAX_MS = 60 * 60 * 1000;
 
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   // 同じ名前のロックは、この拡張機能のどのタブとも共有される (順番待ち)
-  const withLock = (name, fn) => (navigator.locks ? navigator.locks.request(name, fn) : fn());
+  const withLock = (name, fn) => navigator.locks.request(name, fn);
 
   async function readShared() {
     const { [SHARED_KEY]: v } = await shared.get(SHARED_KEY);
@@ -60,7 +63,7 @@ const Favorites = (() => {
         if (wait > 0) await sleep(wait);
         let res;
         try {
-          res = await fetch(url, opts);
+          res = await fetch(url, withTimeout(opts));
         } finally {
           await updateShared((v) => (v.lastYtFetch = Date.now()));
         }
@@ -108,12 +111,20 @@ const Favorites = (() => {
     await chrome.storage.local.set({ favorites: favs.map(delocalize) });
   }
 
-  /** 既定のお気に入り (ホロライブ) を、まだ入れていなければ追加する。外したものは戻さない */
-  async function seedPresets() {
-    const { favorites = [], presetVersion = 0, removedPresets = [] } = await chrome.storage.local.get([
+  // チャンネル一覧を読んでから書くまでを、タブ間で 1 つずつにする (2 つのタブでほぼ同時に 📌 を変えたときなど)
+  const withListLock = (fn) => navigator.locks.request('hukumado-favorites', fn);
+
+  /** 既定のチャンネル (ホロライブ) を、まだ入れていなければ追加する。外したものは戻さない */
+  function seedPresets() {
+    return withListLock(seedPresetsLocked);
+  }
+
+  async function seedPresetsLocked() {
+    const { favorites = [], presetVersion = 0, removedPresets = [], presetsDeclined = false } = await chrome.storage.local.get([
       'favorites',
       'presetVersion',
       'removedPresets',
+      'presetsDeclined',
     ]);
     if (presetVersion >= PRESET_VERSION) return;
     const byId = new Map(favorites.map((f) => [f.channelId, f]));
@@ -122,17 +133,45 @@ const Favorites = (() => {
       if (existing) {
         // 自分で登録済みのチャンネルにもグループ等を付けておく
         Object.assign(existing, { group: p.group, preset: true, handle: existing.handle || p.handle });
+      } else if (presetsDeclined) {
+        // 初期データを全部外した人には、後の版で増えたチャンネルも入れない (戻すときの数には入れる)
+        if (!removedPresets.includes(p.channelId)) removedPresets.push(p.channelId);
       } else if (!removedPresets.includes(p.channelId)) {
         favorites.push({ ...p, preset: true });
       }
     }
-    await chrome.storage.local.set({ favorites, presetVersion: PRESET_VERSION });
+    await chrome.storage.local.set({ favorites, removedPresets, presetVersion: PRESET_VERSION });
   }
 
-  /** 外した既定のお気に入りを戻す */
-  async function restorePresets() {
-    await chrome.storage.local.set({ removedPresets: [], presetVersion: 0 });
-    await seedPresets();
+  /** 外した既定のチャンネルを戻す */
+  function restorePresets() {
+    return withListLock(async () => {
+      await chrome.storage.local.set({ removedPresets: [], presetVersion: 0, presetsDeclined: false });
+      await seedPresetsLocked();
+    });
+  }
+
+  /**
+   * 初期データのチャンネルをまとめて外す (自分で追加したもの・ピックアップ (📌) に入れたものは残す)。
+   * @returns {Promise<number>} 外した数
+   */
+  function removeAllPresets() {
+    return withListLock(async () => {
+      const favs = await list();
+      const drop = favs.filter((f) => f.preset && !f.star);
+      if (!drop.length) return 0;
+      const { removedPresets = [] } = await chrome.storage.local.get('removedPresets');
+      const ids = new Set([...removedPresets, ...drop.map((f) => f.channelId)]);
+      await saveList(favs.filter((f) => !drop.includes(f)));
+      for (const f of drop) statusCache.delete(f.channelId);
+      await chrome.storage.local.set({ removedPresets: [...ids], presetsDeclined: true });
+      return drop.length;
+    });
+  }
+
+  /** 一覧に残っている初期データのチャンネルのうち、まとめて外せるもの (ピックアップ以外) の数 */
+  async function presetCount() {
+    return (await list()).filter((f) => f.preset && !f.star).length;
   }
 
   async function removedPresetCount() {
@@ -140,15 +179,23 @@ const Favorites = (() => {
     return removedPresets.length;
   }
 
-  async function add(input) {
-    const info = await fetchChannel(input);
+  /**
+   * チャンネルを登録する (登録済みなら情報を更新)。star = ピックアップ (📌) にもする
+   * 保存先の名前は以前のまま 'favorites' (中身はチャンネル一覧。ピックアップは star: true の印)
+   */
+  async function add(input, { star = false } = {}) {
+    const info = await fetchChannel(input); // 取得は順番待ちの外で
+    return withListLock(() => addLocked(info, { star }));
+  }
+
+  async function addLocked(info, { star }) {
     const favs = await list();
     const preset = PRESET_FAVORITES.find((p) => p.channelId === info.channelId);
     const existing = favs.findIndex((f) => f.channelId === info.channelId);
     if (existing >= 0) {
-      favs[existing] = { ...favs[existing], ...info, name: favs[existing].name };
+      favs[existing] = { ...favs[existing], ...info, name: favs[existing].name, ...(star ? { star: true } : {}) };
     } else {
-      favs.push(preset ? { ...preset, preset: true } : info);
+      favs.push({ ...(preset ? { ...preset, preset: true } : info), ...(star ? { star: true } : {}) });
     }
     await saveList(favs);
     if (preset) {
@@ -158,7 +205,25 @@ const Favorites = (() => {
     return { info: localize(favs.find((f) => f.channelId === info.channelId)), added: existing < 0 };
   }
 
-  async function remove(channelId) {
+  /** ピックアップ (📌) の印を付ける / 外す */
+  function setStar(channelId, on) {
+    return withListLock(() => setStarLocked(channelId, on));
+  }
+
+  async function setStarLocked(channelId, on) {
+    const favs = await list();
+    const f = favs.find((x) => x.channelId === channelId);
+    if (!f) return;
+    if (on) f.star = true;
+    else delete f.star;
+    await saveList(favs);
+  }
+
+  function remove(channelId) {
+    return withListLock(() => removeLocked(channelId));
+  }
+
+  async function removeLocked(channelId) {
     const favs = await list();
     const target = favs.find((f) => f.channelId === channelId);
     await saveList(favs.filter((f) => f.channelId !== channelId));
@@ -173,7 +238,7 @@ const Favorites = (() => {
 
   // ------------------------------------------------------------ YouTube
   async function getHtml(url, opts = {}) {
-    const res = await fetch(url, opts);
+    const res = await fetch(url, withTimeout(opts));
     if (!res.ok) throw new Error(tr('fetchFail', res.status));
     return res.text();
   }
@@ -244,7 +309,7 @@ const Favorites = (() => {
   const oembedCache = new Map();
   function oembed(videoUrl) {
     if (!oembedCache.has(videoUrl)) {
-      const p = fetch(`${YT}/oembed?format=json&url=${encodeURIComponent(videoUrl)}`)
+      const p = fetch(`${YT}/oembed?format=json&url=${encodeURIComponent(videoUrl)}`, withTimeout())
         .then((r) => (r.ok ? r.json() : null))
         .then((j) => (j ? { authorUrl: String(j.author_url || '').replace(/^http:/, 'https:'), title: j.title || '' } : null))
         .catch(() => null);
@@ -360,7 +425,7 @@ const Favorites = (() => {
 
   /** ホロジュールから、ハンドル (小文字) → 配信状況 の対応表を作る */
   function fetchSchedule({ force = false, auto = false } = {}) {
-    // force (「⟳ 更新」) でも、直前 (5 秒以内) に取ったものは使い回す (お気に入りの件数分取りに行かないように)
+    // force (「⟳ 更新」) でも、直前 (5 秒以内) に取ったものは使い回す (チャンネルの件数分取りに行かないように)
     const maxAge = auto ? SCHED_AUTO_MS : force ? SCHED_MANUAL_MS : STATUS_TTL_MS;
     const age = scheduleCache ? Date.now() - scheduleCache.at : Infinity;
     if (age < maxAge) return scheduleCache.promise;
@@ -489,7 +554,7 @@ const Favorites = (() => {
   }
 
   return {
-    list, add, remove, seedPresets, restorePresets, removedPresetCount, fetchChannel, fetchStatus,
+    list, add, remove, setStar, seedPresets, restorePresets, removeAllPresets, presetCount, removedPresetCount, fetchStatus,
     checkAccess, rememberMembersOnly, isMembersBlock,
   };
 })();
