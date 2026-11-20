@@ -17,9 +17,11 @@ const LAYOUTS = (() => {
   }
 
   // ---- メイン + サブ (大きいメイン枠と小さいサブ枠)
-  // 名前は「メイン数+サブ数」。同じ組み合わせは 1 種類だけなので、位置 (右・下など) は書かない。
-  const add = (id, cols, rows, mains, subs) => {
-    list.push({ id, group: 'main', name: `${mains.length}+${subs.length}`, cols, rows, mains: mains.length, slots: [...mains, ...subs] });
+  // 名前は「メイン数+サブ数」。同じ組み合わせが 2 種類あるものだけ、サブ枠の位置を 1 文字で付ける
+  // (B = サブが下、R = サブが右)。メイン 2 枠・6 枠は、横に並べたもの (B) と縦に並べたもの (R) がある。
+  // 16:9 の枠は横長なので、縦に並べた方がメインどうしの中心が近く (約 0.56 倍)、視線の移動が少ない
+  const add = (id, cols, rows, mains, subs, pos = '') => {
+    list.push({ id, group: 'main', name: `${mains.length}+${subs.length}${pos}`, cols, rows, mains: mains.length, slots: [...mains, ...subs] });
   };
 
   /** x0..x1, y0..y1 の範囲を 1 マスずつのサブ枠で埋める */
@@ -50,20 +52,25 @@ const LAYOUTS = (() => {
     ...cells(0, 3, 4, 1),
   ]);
 
-  // メイン 2 (横に並べ、サブは下)
+  // メイン 2 (B = 横に並べてサブは下、R = 縦に並べてサブは右)
   add('m2s3', 6, 3, [[0, 0, 3, 2], [3, 0, 3, 2]], [[0, 2, 2, 1], [2, 2, 2, 1], [4, 2, 2, 1]]);
-  add('m2s4', 4, 3, mainGrid(2, 1, 2), cells(0, 2, 4, 1));
-  add('m2s8', 4, 4, mainGrid(2, 1, 2), cells(0, 2, 4, 2));
-  add('m2s12', 6, 5, mainGrid(2, 1, 3), cells(0, 3, 6, 2));
+  add('m2s4', 4, 3, mainGrid(2, 1, 2), cells(0, 2, 4, 1), 'B');
+  add('m2s4r', 3, 4, mainGrid(1, 2, 2), cells(2, 0, 1, 4), 'R');
+  add('m2s8', 4, 4, mainGrid(2, 1, 2), cells(0, 2, 4, 2), 'B');
+  add('m2s8r', 4, 4, mainGrid(1, 2, 2), cells(2, 0, 2, 4), 'R');
+  add('m2s12', 6, 5, mainGrid(2, 1, 3), cells(0, 3, 6, 2), 'B');
+  add('m2s12r', 5, 6, mainGrid(1, 2, 3), cells(3, 0, 2, 6), 'R');
 
   // メイン 4 (2 × 2)
   add('m4s4', 5, 4, mainGrid(2, 2, 2), cells(4, 0, 1, 4)); // サブが右
   add('m4s6', 6, 7, mainGrid(2, 2, 3), cells(0, 6, 6, 1)); // サブが下
   add('m4s9', 5, 5, mainGrid(2, 2, 2), [...cells(4, 0, 1, 4), ...cells(0, 4, 5, 1)]); // L 字
 
-  // メイン 6 (3 × 2) とメイン 8 (3 × 3 の 1 マスを 4 分割)
-  add('m6s6', 6, 5, mainGrid(3, 2, 2), cells(0, 4, 6, 1));
-  add('m6s9', 9, 7, mainGrid(3, 2, 3), cells(0, 6, 9, 1));
+  // メイン 6 (B = 3 列 × 2 段でサブは下、R = 2 列 × 3 段でサブは右) とメイン 8 (3 × 3 の 1 マスを 4 分割)
+  add('m6s6', 6, 5, mainGrid(3, 2, 2), cells(0, 4, 6, 1), 'B');
+  add('m6s6r', 5, 6, mainGrid(2, 3, 2), cells(4, 0, 1, 6), 'R');
+  add('m6s9', 9, 7, mainGrid(3, 2, 3), cells(0, 6, 9, 1), 'B');
+  add('m6s9r', 7, 9, mainGrid(2, 3, 3), cells(6, 0, 1, 9), 'R');
   add('m8s4', 6, 6, mainGrid(3, 3, 2).slice(0, 8), cells(4, 4, 2, 2));
 
   return list;

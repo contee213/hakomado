@@ -91,8 +91,8 @@ body.grid-fs .toolbar-hotzone {
   top: 0;
   left: 0;
   right: 0;
-  height: 8px;
-  z-index: 60;
+  height: 6px;
+  z-index: 62; /* 出ているバーの上端にも重ねて、上端に寄せている間は出し続ける */
 }
 body.grid-fs .toolbar {
   position: fixed;
@@ -104,9 +104,10 @@ body.grid-fs .toolbar {
   transition: transform .15s ease .1s;
   box-shadow: 0 4px 16px rgba(0, 0, 0, .5);
 }
-/* フォーカスで出しておくのはキーボード操作 (Tab) のときだけ。マウスで押したボタンにフォーカスが残っても隠れるように */
+/* 出しておくのは、上端に寄せている間・バーのボタンに乗せている間・キーボード操作 (Tab) でフォーカスがある間。
+   バーの空いた所へ下りたら引っ込めて、その下にある上段の枠の操作バーを押せるようにする */
 body.grid-fs .toolbar-hotzone:hover + .toolbar,
-body.grid-fs .toolbar:hover,
+body.grid-fs .toolbar:has(button:hover, select:hover),
 body.grid-fs .toolbar:has(:focus-visible) { transform: none; transition-delay: 0s; }
 body.grid-fs .grid { height: 100%; }
 
@@ -658,7 +659,8 @@ dialog.layout-dialog { width: min(760px, calc(100% - 32px)); }
   z-index: 3;
   cursor: grab;
 }
-.tile.is-empty .drag-zone { display: none; }
+.tile.is-empty .drag-zone, .tile:fullscreen .drag-zone { display: none; }
+.tile:fullscreen .bar { cursor: default; }
 body.dragging iframe { pointer-events: none; }
 .tile.drag-source { opacity: .5; }
 .tile.drag-over { outline: 3px dashed #8ab4ff; outline-offset: -3px; }
@@ -805,8 +807,13 @@ dialog.settings-dialog { width: min(400px, calc(100% - 32px)); }
 .settings-tabs button.selected { background: #2a2a31; color: var(--text); font-weight: 700; }
 /* タブの中身は同じ場所に重ねて置き、表示していないものは見えなくするだけにする。
    設定画面の高さがいちばん長いタブに合わせて決まり、タブを切り替えても画面の位置が動かない */
-.settings-form { display: grid; grid-template-columns: minmax(0, 1fr); }
-.settings-panel { grid-row: 2; grid-column: 1; display: flex; flex-direction: column; gap: 12px; }
+.settings-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
+  max-height: calc(100vh - 48px);
+}
+.settings-panel { grid-row: 2; grid-column: 1; display: flex; flex-direction: column; gap: 12px; min-height: 0; overflow-y: auto; }
 .settings-panel[hidden] { display: flex; visibility: hidden; }
 .settings-note { margin: 0; color: var(--muted); font-size: 12px; }
 .settings-form label { display: flex; flex-direction: column; gap: 4px; color: var(--muted); }

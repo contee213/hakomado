@@ -70,6 +70,9 @@
       setMuted(!!e.data.muted);
     } else if (e.data?.hukumado === 'fill') {
       document.documentElement.classList.toggle('hukumado-fill', !!e.data.on);
+    } else if (e.data?.hukumado === 'away') {
+      // マウスが枠の外に出ている間は、プレイヤーの操作 UI を隠す (watch.css)
+      document.documentElement.classList.toggle('hukumado-away', !!e.data.on);
     }
   });
 

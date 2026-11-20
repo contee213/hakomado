@@ -388,6 +388,10 @@ function buildTiles() {
       loadInput(i, el.querySelector('.url-input').value);
     });
     el.querySelector('.pick-fav').addEventListener('click', () => openFavorites(i));
+    // マウスが枠から離れたら、枠内の YouTube プレイヤーの操作 UI を隠させ、キー操作をこの画面に戻す
+    // (枠の上に重ねたつかみ範囲や操作バーを通って離れると、プレイヤー側は離れたことに気づかず UI が出たままになるため)
+    el.addEventListener('pointerenter', () => setTileAway(i, false));
+    el.addEventListener('pointerleave', () => setTileAway(i, true));
     el.querySelector('.bar').addEventListener('click', (e) => {
       const btn = e.target.closest('button[data-act]');
       if (btn) onBarAction(i, btn.dataset.act, e);
@@ -515,7 +519,10 @@ function renderTile(i, { reloadPlayer = false, reloadChat = false } = {}) {
     f.src = playerUrl(t);
     f.addEventListener('load', () => {
       f.dataset.loaded = '1';
-      setTimeout(() => applyAudio(i), 800);
+      setTimeout(() => {
+        applyAudio(i);
+        postToFrame(f, { hukumado: 'away', on: !el.matches(':hover') });
+      }, 800);
     });
     el.querySelector('.player-slot').appendChild(f);
     v.player = f;
@@ -548,6 +555,17 @@ function renderTile(i, { reloadPlayer = false, reloadChat = false } = {}) {
   setToggle(el.querySelector('.bar [data-act="danmaku"]'), t.danmaku);
   updateTileName(i);
   updateNowPlaying();
+}
+
+/**
+ * マウスが枠の外に出た (away) / 戻った。外に出たら、プレイヤーの操作 UI (シークバーなど) を隠させ、
+ * プレイヤーにキーボードのフォーカスが残っていればこの画面に戻す (数字キーや M などの操作が効くように)。
+ * チャット欄で入力中のときは、フォーカスを奪わない
+ */
+function setTileAway(i, away) {
+  const v = views[i];
+  postToFrame(v.player, { hukumado: 'away', on: away });
+  if (away && v.player && document.activeElement === v.player) v.player.blur();
 }
 
 /** 操作バーに出すその枠の名前 (お気に入りの名前 → 配信のチャンネル名 → 入力した内容) */
@@ -944,8 +962,20 @@ function setupLayoutPicker() {
     dialog.showModal();
   });
   document.getElementById('layoutClose').addEventListener('click', () => dialog.close());
+  closeOnBackdrop(dialog);
+}
+
+/**
+ * ダイアログの背景 (枠の外) をクリックしたら閉じる。
+ * 押した場所と離した場所の両方が背景のときだけ閉じる (スライダーや文字の選択を枠の外まで動かして
+ * 離したときは、クリックがダイアログ自身に届くので、それで閉じないように)
+ */
+function closeOnBackdrop(dialog) {
+  let downOnBackdrop = false;
+  dialog.addEventListener('pointerdown', (e) => (downOnBackdrop = e.target === dialog));
   dialog.addEventListener('click', (e) => {
-    if (e.target === dialog) dialog.close();
+    if (e.target === dialog && downOnBackdrop) dialog.close();
+    downOnBackdrop = false;
   });
 }
 
@@ -979,7 +1009,8 @@ function setupDragSwap() {
   }
 
   function onDragStart(e, i, v) {
-    if (pressedControl) {
+    // ボタンから動かしたとき・1 枠だけ全画面で見ているとき (入れ替える相手がいない) はドラッグしない
+    if (pressedControl || document.fullscreenElement === v.el) {
       e.preventDefault();
       return;
     }
@@ -1102,9 +1133,7 @@ function setupToolbar() {
   });
   updateGridFullscreen();
   // ダイアログは背景 (枠の外) をクリックしても閉じる
-  for (const d of document.querySelectorAll('#settings, #help')) {
-    d.addEventListener('click', (e) => e.target === d && d.close());
-  }
+  for (const d of document.querySelectorAll('#settings, #help')) closeOnBackdrop(d);
 
   // 設定画面のタブ (最後に開いていたタブを次回も開く)
   const tabs = dialog.querySelectorAll('.settings-tabs [data-tab]');
@@ -1662,6 +1691,7 @@ async function setAutoMode(on, { resume = false } = {}) {
   autoDismissed.clear();
   autoMissing.clear();
   membersAnnounced.clear();
+  membersBlocked.clear();
   autoBusy = true;
   // 確認中は文字を変えずにアイコンを回す (ボタンの幅を変えないため)
   btn.disabled = true;
@@ -1890,9 +1920,7 @@ function setupFavorites() {
     setCruise(!state.cruise);
   });
   // 背景クリックで閉じる
-  favDialog.addEventListener('click', (e) => {
-    if (e.target === favDialog) favDialog.close();
-  });
+  closeOnBackdrop(favDialog);
 
   const form = document.getElementById('favAdd');
   const input = form.querySelector('input');

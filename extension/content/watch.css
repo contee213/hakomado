@@ -38,3 +38,15 @@ html.hukumado-frame #movie_player video {
 html.hukumado-frame.hukumado-fill #movie_player video {
   object-fit: cover !important;
 }
+
+/* マウスが枠の外にある間は、プレイヤーの操作 UI (上下のバー・影・ツールチップ) を隠す。
+   枠の上に重ねた要素を通って離れると、プレイヤーが離れたことに気づかず UI が出たままになるため、親画面から知らせる */
+html.hukumado-frame.hukumado-away #movie_player .ytp-chrome-top,
+html.hukumado-frame.hukumado-away #movie_player .ytp-chrome-bottom,
+html.hukumado-frame.hukumado-away #movie_player .ytp-gradient-top,
+html.hukumado-frame.hukumado-away #movie_player .ytp-gradient-bottom,
+html.hukumado-frame.hukumado-away #movie_player .ytp-tooltip {
+  opacity: 0 !important;
+  pointer-events: none !important;
+  transition: opacity .25s !important;
+}

@@ -13,7 +13,7 @@ It uses the YouTube account you are signed in to in the browser, so members-only
 
 ## Features
 
-- **Split view**: uniform grids (9 sizes from 1×1 to 4×4 that make good use of the screen) and big main tiles + small sub tiles (1, 2, 4, 6 or 8 main tiles; 18 combinations such as 1+5, 2+8, 8+4)
+- **Split view**: uniform grids (9 sizes from 1×1 to 4×4 that make good use of the screen) and big main tiles + small sub tiles (1, 2, 4, 6 or 8 main tiles; 23 combinations such as 1+5, 2+8B, 8+4)
   - Tiles are sized automatically so every tile is exactly 16:9 (no black bars). A "Fill screen" mode is also available
   - Drag to swap tiles (no reload). Any single tile can go fullscreen
 - **Danmaku**: each tile's live chat scrolls from right to left. Emoji, member stamps and Super Chats are supported
@@ -84,7 +84,9 @@ If you fullscreen one tile with its ⛶ while in all-tiles fullscreen, Esc takes
 ### Layouts
 
 - Choose from "▦ layout" at the top. Tiles are numbered main → sub, and the stream in tile 1 stays in position 1 when you change layouts
-- The list is split into Uniform and Main + sub (fewest main tiles first). Names are "mains+subs" (e.g. 2+8 = 2 main tiles and 8 sub tiles)
+- The list is split into Uniform and Main + sub (fewest main tiles first). Names are "mains+subs" (e.g. 2+8B = 2 main tiles and 8 sub tiles).
+  Layouts with 2 or 6 main tiles come in two forms: mains side by side with subs below (ending in B) and mains stacked with subs on the right (ending in R).
+  Since 16:9 tiles are wide, stacked mains are closer together (about 0.56x the distance), so your eyes move less when watching both
 - At the top right you can choose how tiles fit
   - **Fit 16:9** (default): no black bars inside tiles. If the screen and layout ratios differ, the leftover space becomes outer margins.
     The % in the list is how much of the current screen the video uses (green at 90% or more)
@@ -104,7 +106,7 @@ If you fullscreen one tile with its ⛶ while in all-tiles fullscreen, Esc takes
 
 Turn on "▶ Auto play" (`L`) to keep playing every favorite that is live (up to 16).
 
-- When turned ON: every live stream is played in a layout that fits the count (layouts that are exactly filled are preferred, e.g. 5 → 2+3, 6 → 1+5, 10 → 1+9, 14 → 2+12; it depends on the screen ratio).
+- When turned ON: every live stream is played in a layout that fits the count (layouts that are exactly filled are preferred, e.g. 5 → 2+3, 6 → 1+5, 10 → 1+9, 14 → 2+12B; it depends on the screen ratio).
   Streams already shown are kept on the tile 1 (main) side without reloading, and tiles that aren't live are cleared
 - While ON: it checks every minute, adds a tile at the end (sub side) when a stream starts, and removes the tile and rearranges the layout when a stream ends
   - To avoid removing tiles because of a temporary miss, a tile is removed only after the stream is missing twice in a row. Nothing is removed when fetching fails
