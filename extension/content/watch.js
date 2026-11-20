@@ -102,6 +102,8 @@
       document.documentElement.classList.toggle('hukumado-fill', !!e.data.on);
     } else if (e.data?.hukumado === 'social' && ['subscribe', 'like'].includes(e.data.act)) {
       document.dispatchEvent(new CustomEvent('hukumado:social-act', { detail: e.data.act }));
+    } else if (e.data?.hukumado === 'playback') {
+      document.dispatchEvent(new CustomEvent('hukumado:playback', { detail: e.data.play ? 'play' : 'pause' }));
     } else if (e.data?.hukumado === 'away') {
       // マウスが枠の外に出ている間は、プレイヤーの操作 UI を隠す (watch.css)
       document.documentElement.classList.toggle('hukumado-away', !!e.data.on);

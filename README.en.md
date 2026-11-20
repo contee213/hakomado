@@ -12,10 +12,10 @@ This is an unofficial tool made by an individual. Please read the [Disclaimer](#
 
 - **Split view**: uniform, main + sub and PinP (small windows inside the main tile) layouts. Every tile is sized to 16:9 automatically
 - **Danmaku / chat panel**: show each tile's live chat as scrolling comments, or open it next to the video to post
-- **Channels**: lists live and upcoming streams of your registered channels (some channels are included as initial data. You can remove or restore them all at once in ⚙ Settings)
+- **Channels**: lists live and upcoming streams of the channels you added (some channels are included as initial data. You can remove or restore them all at once in ⚙ Settings)
 - **Auto play**: lays out live channels automatically and adds / removes tiles as streams start and end
-- **Pickup**: limit auto play and notices to the channels you are following right now (e.g. the members of a group event)
-- **Notices / saved / history**: notices when streams start, streams you saved (🔖), and a history of what you watched
+- **Pickup**: limit auto play and notifications to the channels you are following right now (e.g. the members of a group event)
+- **Notifications / saved / history**: notifications when streams start, streams you saved (🔖), and a history of what you watched
 - **Japanese / English**: follows the browser language (can be fixed in settings)
 
 ## Requirements
@@ -26,18 +26,19 @@ This is an unofficial tool made by an individual. Please read the [Disclaimer](#
 
 It is not on the Chrome Web Store, so load it in developer mode.
 
-1. Download this repository (Code → Download ZIP and extract it, or `git clone`)
+1. Download `hukumado-x.y.z.zip` from the [releases page](https://github.com/contee213/hukumado/releases/latest) and extract it
 2. Open `chrome://extensions` in Chrome (`edge://extensions` in Edge)
 3. Turn on "Developer mode" at the top right
-4. Click "Load unpacked" and choose the `extension` folder
+4. Click "Load unpacked" and choose the extracted folder (the one with `manifest.json` in it)
 5. Click the hukumado icon in the toolbar (pin it from the puzzle-piece menu) to open the multi-view page
 
-After updating, press "⟳" for the extension on the extensions page, then reload the multi-view page.
+To update, extract the new zip over the same folder, press "⟳" for the extension on the extensions page, then reload the multi-view page
+(if you move the folder, it is treated as a different extension and your settings and channels are not carried over).
 
 ## Quick start
 
 1. Open the multi-view page with the hukumado icon in the toolbar
-2. Press "▶ Auto play" at the top to lay out the channels that are live
+2. Press "Auto play" at the top to lay out the channels that are live
 3. To pick yourself, paste a URL / video ID / `@handle` into an empty tile, or use "📚 Pick from library"
 4. Switch which tile plays audio with 🔊 on the tile bar or the number keys (`1`–`9`)
 5. Change the arrangement from "▦ Layout" at the top
@@ -83,6 +84,9 @@ For more controls and keys, open "?" (help) at the top right. The tour shown the
 - Versions: `version` in `manifest.json` is the release version. `version_name` adds a build number (the commit count) and the date,
   and is shown at the bottom of the help (?) and settings (⚙) windows. A hook (`.githooks/pre-commit` → `tools/stamp-version.js`) writes `version_name` on every commit.
   After cloning, run `git config core.hooksPath .githooks` once (Node.js is required)
+- Releases: bump `version` in `manifest.json`, commit, and push a tag with the same number (e.g. `v0.2.0`).
+  GitHub Actions (`.github/workflows/release.yml`) zips the contents of `extension` and creates the release. It stops if the tag and `version` differ
+- For development, `git clone` the repository and load the `extension` folder to try changes right away
 - The embed player (`youtube.com/embed`) refuses to play from extension pages (error 152), so tiles use the regular watch page
 
 ## Disclaimer

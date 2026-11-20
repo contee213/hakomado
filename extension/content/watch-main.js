@@ -80,7 +80,8 @@
     } else {
       p.unMute();
       if (v) v.muted = false;
-      if (resume && typeof p.getPlayerState === 'function' && p.getPlayerState() === 2) p.playVideo?.();
+      // まとめて一時停止している間は、音を出す枠を変えても再生し直さない
+      if (resume && !pausedByParent && typeof p.getPlayerState === 'function' && p.getPlayerState() === 2) p.playVideo?.();
     }
     restoreVolumeSetting();
   }
@@ -88,6 +89,29 @@
   document.addEventListener('hukumado:set-muted', (e) => {
     desired = e.detail === '1';
     apply();
+  });
+
+  // ---- まとめて一時停止 / 再開 (親の上部バーのボタン・Space キー)
+  //   watch.js → ここ : 'hukumado:playback' detail 'pause' | 'play'
+  // 再開するとき、ライブ配信は止めていた位置ではなく最新の位置に戻す (遅れたまま見ないように)
+  let pausedByParent = false;
+  document.addEventListener('hukumado:playback', (e) => {
+    const p = player();
+    pausedByParent = e.detail === 'pause';
+    if (!p) return;
+    if (pausedByParent) {
+      p.pauseVideo?.();
+      return;
+    }
+    const live = !!p.getVideoData?.()?.isLive;
+    if (live) {
+      if (typeof p.seekToLiveHead === 'function') p.seekToLiveHead();
+      else {
+        const v = video();
+        if (v && v.seekable.length) v.currentTime = v.seekable.end(v.seekable.length - 1);
+      }
+    }
+    p.playVideo?.();
   });
 
   // 動画要素が作られた瞬間に音が出ないよう見張る

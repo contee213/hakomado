@@ -30,7 +30,7 @@ const DEFAULT_SETTINGS = {
   prestartMin: 10, // 開始の何分前から、配信予定の枠を用意しておくか (0 = しない)
   autoMaxTiles: 8, // 自動再生で同時に再生する最大の枠数 (回線が細いときは少なく)
   autoTarget: 'all', // 自動再生の対象: 'all' = チャンネル全部 / 'fav' = ピックアップ (📌) だけ
-  noticeTarget: 'all', // お知らせの対象: 'all' = チャンネル全部 / 'fav' = ピックアップだけ / 'off' = 知らせない
+  noticeTarget: 'all', // 通知の対象: 'all' = チャンネル全部 / 'fav' = ピックアップだけ / 'off' = 知らせない
 };
 
 const state = {
@@ -694,6 +694,8 @@ function renderTile(i, { reloadPlayer = false, reloadChat = false } = {}) {
       setTimeout(() => {
         applyAudio(i);
         postToFrame(f, { hukumado: 'away', on: !el.matches(':hover') });
+        // まとめて一時停止の間に読み込んだ枠も止めておく
+        if (pausedAll) postToFrame(f, { hukumado: 'playback', play: false });
       }, 800);
     });
     el.querySelector('.player-slot').appendChild(f);
@@ -993,6 +995,24 @@ function muteAll() {
 }
 
 /** 上部バーの音声ボタン / M キー: 音が出ていればミュート、全部ミュートなら直前の状態 (複数枠ならその全部) に戻す */
+// まとめて一時停止中か (開き直したときは再生に戻るので保存しない)
+let pausedAll = false;
+
+/** 全部の枠をまとめて一時停止 / 再開する (再開するとき、ライブ配信は最新の位置に戻す) */
+function togglePauseAll() {
+  pausedAll = !pausedAll;
+  for (const i of visibleIndexes()) postToFrame(views[i].player, { hukumado: 'playback', play: !pausedAll });
+  updatePauseButton();
+}
+
+function updatePauseButton() {
+  const btn = document.getElementById('pauseAll');
+  setToggle(btn, pausedAll);
+  // 再開の印は ⏯ (▶ は自動再生と同じになるので使わない)
+  btn.querySelector('.tb-icon').textContent = pausedAll ? '⏯' : '⏸';
+  btn.querySelector('.tb-label').textContent = tr(pausedAll ? 'resumeAll' : 'pauseLabel');
+}
+
 function toggleMuteAll() {
   if (audibleTiles().length) {
     muteAll();
@@ -1624,6 +1644,10 @@ function setupToolbar() {
   setupLayoutPicker();
 
   document.getElementById('nowPlaying').addEventListener('click', toggleMuteAll);
+  document.getElementById('pauseAll').addEventListener('click', (e) => {
+    e.currentTarget.blur(); // Space キーでボタンが押し直されないように
+    togglePauseAll();
+  });
 
   const dialog = document.getElementById('settings');
   document.getElementById('openSettings').addEventListener('click', () => {
@@ -1765,7 +1789,10 @@ function setupToolbar() {
       toggleGridFullscreen();
       return;
     }
-    if (e.key === 'm' || e.key === 'M') {
+    if (e.code === 'Space') {
+      e.preventDefault(); // ページのスクロールやボタンの押し直しにしない
+      togglePauseAll();
+    } else if (e.key === 'm' || e.key === 'M') {
       toggleMuteAll();
     } else if (e.key === 'd' || e.key === 'D') {
       toggleDanmakuAll();
@@ -2719,12 +2746,12 @@ function mutateNotices(fn) {
   };
   return navigator.locks
     .request('hukumado-notices', run)
-    .catch((e) => console.warn('hukumado: お知らせの保存に失敗', e))
+    .catch((e) => console.warn('hukumado: 通知の保存に失敗', e))
     .then(updateNoticeBadge);
 }
 
 /**
- * 確認の結果から、新しく始まった配信を見つけてお知らせに残す。
+ * 確認の結果から、新しく始まった配信を見つけて通知に残す。
  * quiet = 画面下の短いお知らせは出さない (自動再生が別に知らせるとき) / baselineOnly = 今の状態を覚えるだけ
  */
 function detectStarts(collected, { quiet = false, baselineOnly = false } = {}) {
@@ -2760,7 +2787,7 @@ function detectStarts(collected, { quiet = false, baselineOnly = false } = {}) {
   if (!quiet && announce.length) notify(tr('noticeStarted', announce.map((l) => l.f.name).join(tr('sep'))));
 }
 
-/** お知らせのための確認 (取得結果はタブ間・自動再生の確認と共有されるので、取りに行く回数はほとんど増えない) */
+/** 通知のための確認 (取得結果はタブ間・自動再生の確認と共有されるので、取りに行く回数はほとんど増えない) */
 async function noticeTick() {
   if (noticeBusy) return;
   if (state.settings.noticeTarget === 'off') {
@@ -2771,7 +2798,7 @@ async function noticeTick() {
   try {
     detectStarts(await collectLiveFavorites({ auto: true, target: state.settings.noticeTarget }));
   } catch (e) {
-    console.warn('hukumado: お知らせの確認に失敗', e);
+    console.warn('hukumado: 通知の確認に失敗', e);
   } finally {
     noticeBusy = false;
   }
@@ -2783,7 +2810,7 @@ function startNoticeWatch() {
   noticeTick();
 }
 
-/** 上部バーの「お知らせ」の未読数 */
+/** 上部バーの「通知」の未読数 */
 async function updateNoticeBadge() {
   const unread = (await readNotices()).filter((n) => !n.read).length;
   const badge = document.getElementById('noticeBadge');

@@ -1,0 +1,41 @@
+# v0.1.0 のようなタグをプッシュすると、extension フォルダの中身を ZIP にして GitHub のリリースを作る。
+# タグと manifest.json の version が違うときは止める (付け間違いで違う版を配らないように)。
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check the version
+        run: |
+          VER=$(node -p "require('./extension/manifest.json').version")
+          if [ "v$VER" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::タグ ($GITHUB_REF_NAME) と manifest.json の version ($VER) が違います"
+            exit 1
+          fi
+          echo "VER=$VER" >> "$GITHUB_ENV"
+
+      # ZIP の直下に manifest.json が来るようにする (展開したフォルダをそのまま読み込めるように)
+      - name: Make the zip
+        run: |
+          cd extension
+          zip -r -X "../hukumado-$VER.zip" . -x '.*'
+          cd ..
+          unzip -l "hukumado-$VER.zip"
+
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" "hukumado-$VER.zip" \
+            --title "hukumado $VER" \
+            --generate-notes
