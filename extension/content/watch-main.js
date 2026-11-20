@@ -104,4 +104,31 @@
     apply();
     if (++ticks > 40) clearInterval(timer);
   }, 300);
+
+  // ---- この動画を見られるか (メンバー限定でメンバーではない、など) を親に知らせる
+  //   ここ → watch.js : 'hukumado:playability' detail JSON {status, text}
+  const playerResponse = () => {
+    try {
+      return player()?.getPlayerResponse?.() || window.ytInitialPlayerResponse || null;
+    } catch {
+      return null;
+    }
+  };
+  let psTicks = 0;
+  const psTimer = setInterval(() => {
+    const ps = playerResponse()?.playabilityStatus;
+    if (ps?.status || ++psTicks > 30) {
+      clearInterval(psTimer);
+      if (!ps?.status) return;
+      let text = '';
+      try {
+        text = JSON.stringify(ps).slice(0, 8000);
+      } catch {
+        /* ignore */
+      }
+      document.dispatchEvent(
+        new CustomEvent('hukumado:playability', { detail: JSON.stringify({ status: String(ps.status), text }) }),
+      );
+    }
+  }, 500);
 })();

@@ -15,6 +15,7 @@
   <header class="toolbar">
     <span class="brand">hukumado</span>
     <button id="autoMode" class="toggle" type="button" aria-pressed="false" title="自動再生 (L): ON にすると配信中のお気に入りを全部 (最大 16) 再生し、その後も 1 分ごとに、配信が始まったら枠を足し、終わったら枠を消す。ON の間に ✕ で閉じた配信は入れ直さない (OFF → ON で戻る)"><span class="tb-icon">▶</span><span class="tb-label">自動再生</span></button>
+    <button id="cruise" class="toggle" type="button" aria-pressed="false" title="クルーズ (C): 一定時間ごとにメイン枠と音声を次の配信へ回して、いろいろな配信を少しずつ見る。間隔は ⚙ 設定 →「自動再生」で変えられる"><span class="tb-icon">⟳</span><span class="tb-label">クルーズ</span><i class="cruise-progress" aria-hidden="true"></i></button>
     <button id="openFavorites" type="button" title="お気に入り (F)"><span class="tb-icon">★</span><span class="tb-label">お気に入り</span></button>
     <button id="nowPlaying" class="now-playing" type="button">🔇 ミュート中</button>
 
@@ -49,6 +50,7 @@
           <button type="button" role="tab" data-tab="danmaku">弾幕</button>
           <button type="button" role="tab" data-tab="audio">音声の枠</button>
           <button type="button" role="tab" data-tab="chat">チャット欄</button>
+          <button type="button" role="tab" data-tab="auto">自動再生</button>
         </div>
       </header>
 
@@ -106,6 +108,15 @@
       </label>
       <label class="check"><input type="checkbox" id="chatHideAvatars"> 投稿者のアイコンを隠す</label>
       </section>
+
+      <section class="settings-panel" data-panel="auto" role="tabpanel" hidden>
+      <label class="check"><input type="checkbox" id="skipMembersOnly"> メンバーになっていないメンバー限定配信は再生しない</label>
+      <p class="settings-note">「▶ 自動再生」で枠に入れる前に、ログイン中のアカウントで見られるかを確認します。自分で読み込んだ枠はそのまま表示します</p>
+      <label>クルーズの間隔 <output id="cruiseSecOut"></output>
+        <input type="range" id="cruiseSec" min="30" max="600" step="30">
+      </label>
+      <p class="settings-note">「⟳ クルーズ」が ON の間、この間隔でメイン枠と音声を次の配信へ回します。均等レイアウトでは並びはそのままで、音声だけ次の枠へ移ります。自動再生中は「メイン + サブ」のレイアウトを優先します</p>
+      </section>
     </form>
   </dialog>
 
@@ -119,6 +130,7 @@
         <li>空の枠に URL / 動画 ID / <code>@チャンネル名</code> を貼るか、「★ お気に入りから選ぶ」で配信を読み込みます</li>
         <li>枠にカーソルを乗せると操作バーが出ます。左端の ⠿ をドラッグすると枠を入れ替えます</li>
         <li>「▶ 自動再生」を ON にすると、配信中のお気に入りを全部並べ、始まった / 終わった配信に合わせて枠を増減します</li>
+        <li>「⟳ クルーズ」を ON にすると、一定時間ごとにメイン枠と音声が次の配信へ移り、いろいろな配信を少しずつ見られます</li>
         <li>枠内のプレイヤーのスピーカーで音を出すと、他の枠を止めずに複数の枠を同時に聞けます</li>
       </ul>
       <h3>キー操作</h3>
@@ -128,6 +140,7 @@
         <tr><th><kbd>Shift</kbd> + <kbd>F</kbd></th><td>分割したまま全画面 (上端にマウスを寄せるとバーが出る)</td></tr>
         <tr><th><kbd>M</kbd></th><td>ミュート ⇄ 直前の状態に戻す</td></tr>
         <tr><th><kbd>L</kbd></th><td>自動再生の ON / OFF</td></tr>
+        <tr><th><kbd>C</kbd></th><td>クルーズの ON / OFF</td></tr>
         <tr><th><kbd>F</kbd></th><td>お気に入りを開く</td></tr>
         <tr><th><kbd>D</kbd></th><td>全枠の弾幕の表示切り替え</td></tr>
         <tr><th><kbd>?</kbd></th><td>この画面を開く</td></tr>

@@ -293,5 +293,51 @@ const Favorites = (() => {
     return status;
   }
 
-  return { list, add, remove, seedPresets, restorePresets, removedPresetCount, fetchChannel, fetchStatus };
+  // ------------------------------------------------------------ メンバー限定
+  // 動画ページの playabilityStatus を見て、今のログイン状態で見られるかを調べる。
+  // 見られる結果は変わらないので覚えておく。それ以外 (メンバーに入ることもある) は 10 分だけ
+  const accessCache = new Map(); // videoId -> {at, result}
+  const ACCESS_NG_TTL_MS = 10 * 60 * 1000;
+
+  /** playabilityStatus (JSON の一部) がメンバー限定で見られないことを表しているか */
+  function isMembersBlock(text) {
+    return /sponsors?_only|members?_?only|ypcoffer|メンバー限定|メンバーシップ|membership/i.test(text);
+  }
+
+  /**
+   * その配信を今のアカウントで見られるか
+   * @returns {Promise<'ok'|'members'|'unknown'>} members = メンバー限定でメンバーではない。
+   *   unknown = 判定できない (ログイン状態が分からない / 取得失敗など)。unknown では除外しない
+   */
+  async function checkAccess(videoId) {
+    const c = accessCache.get(videoId);
+    if (c && (c.result === 'ok' || Date.now() - c.at < ACCESS_NG_TTL_MS)) return c.result;
+    let result = 'unknown';
+    try {
+      const html = await getHtml(`${YT}/watch?v=${encodeURIComponent(videoId)}`, { credentials: 'include' });
+      const at = html.indexOf('"playabilityStatus":{');
+      const ps = at >= 0 ? html.slice(at, at + 6000) : '';
+      const status = ps.match(/"status":"(\w+)"/)?.[1];
+      if (status === 'OK') result = 'ok';
+      // ログインしていない状態で取れたページだと、メンバーでも見られない扱いになるので判定しない
+      else if (status && /"LOGGED_IN":true/.test(html) && (isMembersBlock(ps) || /BADGE_STYLE_TYPE_MEMBERS_ONLY/.test(html))) {
+        result = 'members';
+      }
+    } catch (e) {
+      console.warn('hukumado: 視聴できるかの確認に失敗', videoId, e);
+    }
+    // 判定できなかったときも 10 分は同じ結果を使う (1 分ごとの確認で毎回ページを取りに行かない)
+    accessCache.set(videoId, { at: Date.now(), result });
+    return result;
+  }
+
+  /** 枠の中のプレイヤーが「メンバー限定で見られない」と知らせてきたとき、結果を覚えておく */
+  function rememberMembersOnly(videoId) {
+    accessCache.set(videoId, { at: Date.now(), result: 'members' });
+  }
+
+  return {
+    list, add, remove, seedPresets, restorePresets, removedPresetCount, fetchChannel, fetchStatus,
+    checkAccess, rememberMembersOnly, isMembersBlock,
+  };
 })();

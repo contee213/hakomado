@@ -64,6 +64,21 @@ button.toggle.on { color: #fff; border-color: var(--on); background: var(--on-bg
 button.toggle.busy .tb-icon { animation: spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
+/* クルーズ: ボタンの下の線が、次にメイン枠を回すまでの残り時間を表す */
+#cruise { position: relative; overflow: hidden; }
+#cruise .cruise-progress {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  background: var(--on);
+  transform-origin: left;
+  transform: scaleX(0);
+}
+#cruise.on .cruise-progress { animation: cruise-progress var(--cruise-dur, 120s) linear forwards; }
+@keyframes cruise-progress { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+
 /* ---- 分割したままの全画面 / F11: 上部バーを隠して画面全体を枠に使う。
    上端 (hotzone) にマウスを寄せるか、バーにフォーカスがあるとバーが重なって出る */
 .toolbar-hotzone { display: none; }
@@ -98,7 +113,7 @@ body.grid-fs .grid { height: 100%; }
   #openFavorites .tb-label, #danmakuAll .tb-label { display: none; }
 }
 @media (max-width: 640px) {
-  #autoMode .tb-label, #openLayout .tb-label { display: none; }
+  #autoMode .tb-label, #cruise .tb-label, #openLayout .tb-label { display: none; }
 }
 
 /* ---------- grid ---------- */

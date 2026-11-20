@@ -22,6 +22,9 @@ const DEFAULT_SETTINGS = {
   chatZoom: 0.8,
   chatWidth: 0.28,
   chatHideAvatars: false,
+  // 自動再生
+  skipMembersOnly: true, // メンバーになっていないメンバー限定配信は入れない
+  cruiseSec: 120, // クルーズでメイン枠 (と音声) を次の配信に回す間隔 (秒)
 };
 
 const state = {
@@ -39,6 +42,8 @@ const state = {
   fit: 'fit',
   // 自動再生: 配信中のお気に入りを全部再生し、配信開始で枠を足し、配信終了で枠を消す
   autoMode: false,
+  // クルーズ: 一定時間ごとにメイン枠と音声を次の配信へ回す (いろいろな配信を少しずつ見る)
+  cruise: false,
   danmakuAll: true,
   settings: { ...DEFAULT_SETTINGS },
   // 枠ごとの保存内容。枠数を減らしても全枠分保持しておき、増やしたときに復元する
@@ -77,6 +82,7 @@ function applySession(saved = {}) {
   state.layoutId = DEFAULT_LAYOUT_ID;
   state.danmakuAll = typeof saved.danmakuAll === 'boolean' ? saved.danmakuAll : true;
   state.autoMode = saved.autoMode === true;
+  state.cruise = saved.cruise === true;
   if (saved.fit === 'fit' || saved.fit === 'fill') state.fit = saved.fit;
   if (Array.isArray(saved.tiles)) {
     // 知っている項目だけ取り込む (古い版の項目や壊れた値を持ち込まない)
@@ -138,6 +144,7 @@ function saveNow() {
       order: state.order,
       fit: state.fit,
       autoMode: state.autoMode,
+      cruise: state.cruise,
       danmakuAll: state.danmakuAll,
       tiles: state.tiles.map(({ muted, ...rest }) => rest),
       updatedAt: Date.now(),
@@ -155,10 +162,12 @@ function saveSettings() {
 // 他のタブで共通設定が変わったら、このタブにも反映する
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area !== 'local' || !changes.settings?.newValue) return;
+  const cruiseBefore = state.settings.cruiseSec;
   state.settings = { ...DEFAULT_SETTINGS, ...changes.settings.newValue };
   applyHighlight();
   applyChatLook();
   syncSettingsInputs();
+  if (state.settings.cruiseSec !== cruiseBefore) restartCruise();
 });
 
 // ---------------------------------------------------------------- input parsing
@@ -250,11 +259,17 @@ function filledArea(l, n) {
 /**
  * n 本の配信を並べるのに向いたレイアウトを選ぶ。
  * 枠数がちょうど n のレイアウトがあればその中で映像が一番大きくなるもの、
- * 無ければ (空き枠が出ても) 映像が一番大きくなるもの。同じくらいなら枠数の少ない方
+ * 無ければ (空き枠が出ても) 映像が一番大きくなるもの。同じくらいなら枠数の少ない方。
+ * クルーズ中は、メイン枠を回して見られるよう「メイン + サブ」のレイアウトを優先する (合うものが無ければ均等)
  */
 function chooseLayoutFor(n) {
-  const exact = LAYOUTS.filter((l) => l.slots.length === n);
-  const candidates = exact.length ? exact : LAYOUTS.filter((l) => l.slots.length >= n);
+  let pool = LAYOUTS;
+  if (state.cruise && n >= 3) {
+    const withMain = LAYOUTS.filter((l) => l.mains > 0 && l.slots.length >= n);
+    if (withMain.length) pool = withMain;
+  }
+  const exact = pool.filter((l) => l.slots.length === n);
+  const candidates = exact.length ? exact : pool.filter((l) => l.slots.length >= n);
   let best = null;
   for (const l of candidates) {
     const score = filledArea(l, n);
@@ -325,6 +340,7 @@ function swapTiles(i, j) {
   [state.order[a], state.order[b]] = [state.order[b], state.order[a]];
   layout();
   save();
+  restartCruise(); // 自分で並べ替えた直後に回さない
 }
 
 // ---------------------------------------------------------------- tiles
@@ -563,6 +579,7 @@ function setAudio(i, { solo, on } = {}) {
     t.muted = on != null ? !on : !t.muted;
   }
   refreshAudio();
+  restartCruise(); // 自分で音を切り替えた直後に回さない
 }
 
 /** list の枠だけ音を出す (他はミュート) */
@@ -780,8 +797,34 @@ window.addEventListener('message', (e) => {
     views[i].meta = { title: String(data.title || ''), channel: String(data.channel || '') };
     updateTileName(i);
     updateNowPlaying();
+  } else if (data.hukumado === 'playability') {
+    onPlayability(i, String(data.status || ''), String(data.text || ''));
   }
 });
+
+/**
+ * 枠のプレイヤーが「見られない」と知らせてきたとき。メンバー限定でメンバーではない配信を
+ * 自動再生で入れていたなら (設定が ON のとき) 枠を外す。自分で読み込んだ枠はそのまま
+ */
+function onPlayability(i, status, text) {
+  const t = state.tiles[i];
+  if (!t.videoId || status === 'OK' || !Favorites.isMembersBlock(text)) return;
+  Favorites.rememberMembersOnly(t.videoId);
+  membersBlocked.add(t.videoId);
+  if (!state.settings.skipMembersOnly || !state.autoMode || !t.auto) return;
+  const name = tileName(i);
+  const wasAudible = !t.muted;
+  state.tiles[i] = newTileState();
+  views[i].danmaku.clear();
+  if (document.fullscreenElement === views[i].el) document.exitFullscreen().catch(() => {});
+  renderTile(i);
+  compactToContent();
+  if (wasAudible && audibleTiles().length === 0) {
+    const first = visibleIndexes().find((j) => state.tiles[j].videoId);
+    if (first != null) setAudioSet([first]);
+  }
+  notify(`🔒 メンバー限定のため外しました: ${name}`);
+}
 
 // ---------------------------------------------------------------- layout picker
 
@@ -916,8 +959,9 @@ const SETTING_FORMATS = {
   chatWidth: (v) => `${Math.round(v * 100)}%`,
   hlWidth: (v) => `${v} px`,
   hlGlow: (v) => (v === 0 ? 'なし' : `${Math.round(v * 100)}%`),
+  cruiseSec: (v) => formatCruise(v),
 };
-const SETTING_CHECKBOXES = ['showAuthor', 'showPaid', 'chatHideAvatars', 'hlAnimate'];
+const SETTING_CHECKBOXES = ['showAuthor', 'showPaid', 'chatHideAvatars', 'hlAnimate', 'skipMembersOnly'];
 
 /** 設定画面の入力欄を state.settings に合わせる (他のタブで設定が変わったときも呼ぶ) */
 function syncSettingsInputs() {
@@ -1003,6 +1047,7 @@ function setupToolbar() {
       applyDanmakuArea();
       flashDanmakuArea();
     }
+    if (key === 'cruiseSec') restartCruise();
     saveSettings();
   };
   // 弾幕の流れる位置 (上 / 中央 / 下)
@@ -1079,6 +1124,8 @@ function setupToolbar() {
       openFavorites(null);
     } else if (e.key === 'l' || e.key === 'L') {
       setAutoMode(!state.autoMode);
+    } else if (e.key === 'c' || e.key === 'C') {
+      setCruise(!state.cruise);
     } else if (/^[1-9]$/.test(e.key)) {
       const i = visibleIndexes()[parseInt(e.key, 10) - 1];
       if (i != null) setAudio(i, { solo: true });
@@ -1354,8 +1401,14 @@ async function collectLiveFavorites({ force = false } = {}) {
  */
 async function startAllLive() {
   let { lives } = await collectLiveFavorites({ force: true });
+  const { ok, blocked } = await filterAccessible(lives);
+  lives = ok;
   if (lives.length === 0) {
-    notify('いま配信中のお気に入りはありません。配信が始まったら自動で追加します');
+    notify(
+      blocked.length
+        ? `配信中は メンバー限定 (${blocked.join('、')}) だけでした。配信が始まったら自動で追加します`
+        : 'いま配信中のお気に入りはありません。配信が始まったら自動で追加します',
+    );
     return;
   }
   const total = lives.length;
@@ -1412,11 +1465,40 @@ async function startAllLive() {
   renderAll();
   save();
   if (favDialog.open) favDialog.close();
+  restartCruise();
+  const skipped = blocked.length ? ` (メンバー限定 ${blocked.length} 件を除外)` : '';
   notify(
-    total > MAX_TILES
+    (total > MAX_TILES
       ? `配信中 ${total} 件のうち ${MAX_TILES} 件を「${layout.name}」で再生しています`
-      : `配信中 ${total} 件を「${layout.name}」で再生しています`,
+      : `配信中 ${total} 件を「${layout.name}」で再生しています`) + skipped,
   );
+}
+
+// ---- メンバー限定の除外
+const membersBlocked = new Set(); // 枠のプレイヤーが「メンバー限定で見られない」と知らせてきた配信
+const membersAnnounced = new Set(); // 除外したことを知らせた配信 (同じ配信を何度も知らせない)
+
+/**
+ * 設定が ON なら、メンバー限定でメンバーではない配信を除く。
+ * @returns {Promise<{ok: Array, blocked: string[]}>} blocked = 今回初めて除外した配信の名前
+ */
+async function filterAccessible(lives) {
+  if (!state.settings.skipMembersOnly || lives.length === 0) return { ok: lives, blocked: [] };
+  const results = new Array(lives.length);
+  let next = 0;
+  const worker = async () => {
+    while (next < lives.length) {
+      const k = next++;
+      const id = lives[k].st.videoId;
+      results[k] = membersBlocked.has(id) ? 'members' : await Favorites.checkAccess(id);
+    }
+  };
+  await Promise.all(Array.from({ length: 4 }, worker));
+  const ok = lives.filter((_, k) => results[k] !== 'members');
+  const blocked = lives
+    .filter((l, k) => results[k] === 'members' && !membersAnnounced.has(l.st.videoId))
+    .map((l) => (membersAnnounced.add(l.st.videoId), l.f.name));
+  return { ok, blocked };
 }
 
 const AUTO_INTERVAL_MS = 60 * 1000;
@@ -1443,6 +1525,7 @@ async function setAutoMode(on, { resume = false } = {}) {
 
   autoDismissed.clear();
   autoMissing.clear();
+  membersAnnounced.clear();
   autoBusy = true;
   // 確認中は文字を変えずにアイコンを回す (ボタンの幅を変えないため)
   btn.disabled = true;
@@ -1507,11 +1590,17 @@ async function autoTickOnce() {
     // 始まった配信 (まだ表示していないもの。自分で閉じたものは除く)
     const shownIds = new Set(visible.map((i) => state.tiles[i].videoId));
     const keep = visible.filter((i) => !ended.includes(i));
-    const started = lives
-      .filter((l) => !shownIds.has(l.st.videoId) && !autoDismissed.has(l.st.videoId))
-      .slice(0, Math.max(0, MAX_TILES - keep.length));
+    const candidates = lives.filter((l) => !shownIds.has(l.st.videoId) && !autoDismissed.has(l.st.videoId));
+    // メンバー限定の確認は、まだ表示していない配信だけ (表示中のものは枠のプレイヤーが知らせてくる)
+    const { ok: accessible, blocked } = await filterAccessible(candidates);
+    if (!state.autoMode) return; // 確認している間に OFF にされた
+    const started = accessible.slice(0, Math.max(0, MAX_TILES - keep.length));
+    const blockedMsg = blocked.length ? `🔒 メンバー限定のため除外: ${blocked.join('、')}` : '';
 
-    if (ended.length === 0 && started.length === 0) return;
+    if (ended.length === 0 && started.length === 0) {
+      if (blockedMsg) notify(blockedMsg);
+      return;
+    }
 
     const audibleBefore = audibleTiles();
     const endedNames = ended.map((i) => state.tiles[i].label || views[i].meta?.channel || state.tiles[i].input);
@@ -1558,10 +1647,83 @@ async function autoTickOnce() {
     const msgs = [];
     if (started.length) msgs.push(`▶ 配信開始: ${started.map((l) => l.f.name).join('、')}`);
     if (endedNames.length) msgs.push(`■ 配信終了: ${endedNames.join('、')}`);
+    if (blockedMsg) msgs.push(blockedMsg);
     notify(msgs.join(' / '));
   } catch (e) {
     console.warn('hukumado: 自動再生の確認に失敗', e);
   }
+}
+
+// ---------------------------------------------------------------- cruise
+// クルーズ: 一定時間ごとに、表示中の配信の並びを 1 つずつ回す (サブ枠の先頭がメイン枠へ、メイン枠は最後尾へ)。
+// 音声はメイン枠 (1 番) に付いていく。均等レイアウトでは並びはそのままで、音声だけ次の枠へ移る。
+// 枠の要素は動かさず CSS の位置だけ変えるので、配信は読み込み直さない。
+
+let cruiseTimer = 0;
+
+function formatCruise(sec) {
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  if (m === 0) return `${s} 秒`;
+  return s ? `${m} 分 ${s} 秒` : `${m} 分`;
+}
+
+function setCruise(on) {
+  state.cruise = on;
+  setToggle(document.getElementById('cruise'), on);
+  save();
+  // 自動再生中は枠の数に合わせてレイアウトを選び直す (クルーズ中は「メイン + サブ」を優先)
+  if (state.autoMode && visibleIndexes().some((i) => state.tiles[i].videoId)) compactToContent();
+  restartCruise();
+  if (on) notify(`クルーズ ON: ${formatCruise(state.settings.cruiseSec)}ごとにメイン枠と音声を次の配信へ回します`);
+}
+
+/** 次に回すまでの時間を最初から数え直す (自分で音や並びを変えた直後に回さないため) */
+function restartCruise() {
+  clearTimeout(cruiseTimer);
+  cruiseTimer = 0;
+  const bar = document.querySelector('#cruise .cruise-progress');
+  if (!state.cruise) return;
+  const sec = Math.max(10, Number(state.settings.cruiseSec) || 120);
+  cruiseTimer = setTimeout(cruiseStep, sec * 1000);
+  // ボタンの下の線で、次に回すまでの残り時間を見せる
+  if (bar) {
+    bar.style.animation = 'none';
+    void bar.offsetWidth;
+    bar.style.animation = '';
+    bar.style.setProperty('--cruise-dur', `${sec}s`);
+  }
+}
+
+function cruiseStep() {
+  cruiseTimer = 0;
+  if (!state.cruise) return;
+  // 1 枠だけ全画面で見ている / ドラッグ中は回さない (待って次の回に)
+  if (!isTileFullscreen() && !document.body.classList.contains('dragging')) rotateCruise();
+  restartCruise();
+}
+
+function rotateCruise() {
+  const vis = visibleIndexes();
+  const pos = vis.map((_, k) => k).filter((k) => state.tiles[vis[k]].videoId); // 中身のある場所
+  if (pos.length < 2) return;
+  const tiles = pos.map((k) => vis[k]);
+  const muted = audibleTiles().length === 0; // 全部ミュート中なら音は出さないまま
+  let target;
+  if (state.layout.mains > 0) {
+    const rotated = [...tiles.slice(1), tiles[0]];
+    pos.forEach((k, n) => (state.order[k] = rotated[n]));
+    layout();
+    target = rotated[0];
+  } else {
+    const cur = tiles.indexOf(audibleTiles()[0]);
+    target = tiles[(cur + 1) % tiles.length];
+  }
+  if (!muted) {
+    state.tiles.forEach((t, j) => (t.muted = j !== target));
+    refreshAudio();
+  }
+  save();
 }
 
 /** 画面下中央に短いお知らせを出す */
@@ -1578,6 +1740,10 @@ function setupFavorites() {
   document.getElementById('favClose').addEventListener('click', () => favDialog.close());
   document.getElementById('favRefresh').addEventListener('click', () => refreshFavorites(true));
   document.getElementById('autoMode').addEventListener('click', () => setAutoMode(!state.autoMode));
+  document.getElementById('cruise').addEventListener('click', (e) => {
+    e.currentTarget.blur(); // 全画面中に上部バーを隠すため
+    setCruise(!state.cruise);
+  });
   // 背景クリックで閉じる
   favDialog.addEventListener('click', (e) => {
     if (e.target === favDialog) favDialog.close();
@@ -1821,6 +1987,8 @@ async function chooseSession() {
 
   renderAll();
   save();
+  setToggle(document.getElementById('cruise'), state.cruise);
+  restartCruise();
   if (startAuto) setAutoMode(true);
   // 自動再生 ON のまま閉じたセッションを続けるときは、今の枠のまま確認を再開
   else if (state.autoMode) setAutoMode(true, { resume: true });

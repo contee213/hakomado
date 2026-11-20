@@ -26,6 +26,20 @@
     window.parent.postMessage({ hukumado: 'userAudio', muted }, PARENT_ORIGIN);
   });
 
+  // 見られるか (playabilityStatus) → 親に知らせる (メンバー限定の配信を自動再生から外すため)
+  document.addEventListener('hukumado:playability', (e) => {
+    let d;
+    try {
+      d = JSON.parse(e.detail);
+    } catch {
+      return;
+    }
+    window.parent.postMessage(
+      { hukumado: 'playability', status: String(d.status || ''), text: String(d.text || '').slice(0, 8000) },
+      PARENT_ORIGIN,
+    );
+  });
+
   // ---- 配信のタイトルとチャンネル名を親に知らせる (上部バーの「今の音声」表示用)
   let sentMeta = '';
   const sendMeta = () => {
