@@ -1,9 +1,10 @@
 {
   "manifest_version": 3,
-  "name": "hukumado - YouTube マルチビュー",
+  "name": "__MSG_extName__",
   "short_name": "hukumado",
   "version": "0.1.0",
-  "description": "YouTube の配信を最大 16 枠で同時視聴。各枠にチャットの弾幕を流せます。",
+  "description": "__MSG_extDescription__",
+  "default_locale": "en",
   "minimum_chrome_version": "111",
   "icons": {
     "16": "icons/icon-16.png",
@@ -12,7 +13,7 @@
     "128": "icons/icon-128.png"
   },
   "action": {
-    "default_title": "hukumado を開く",
+    "default_title": "__MSG_actionTitle__",
     "default_icon": {
       "16": "icons/icon-16.png",
       "32": "icons/icon-32.png"

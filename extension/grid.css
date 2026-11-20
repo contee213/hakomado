@@ -448,6 +448,7 @@ dialog.fav-dialog {
 .dialog-close { width: 28px; height: 26px; padding: 0; flex: none; }
 .settings-title { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .settings-title h2 { margin: 0; font-size: 15px; }
+.lang-select { height: 26px; font-size: 12px; max-width: 12em; }
 
 .fav-list {
   list-style: none;

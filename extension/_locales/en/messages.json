@@ -1,0 +1,14 @@
+{
+  "extName": {
+    "message": "hukumado - YouTube multi-view",
+    "description": "Extension name"
+  },
+  "extDescription": {
+    "message": "Watch up to 16 YouTube streams at once, with scrolling live chat (danmaku) on each tile.",
+    "description": "Extension description"
+  },
+  "actionTitle": {
+    "message": "Open hukumado",
+    "description": "Tooltip of the toolbar icon"
+  }
+}

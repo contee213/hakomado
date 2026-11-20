@@ -9,23 +9,24 @@
   <link rel="stylesheet" href="grid.css">
 </head>
 <body>
+  <!-- 文言は日本語で書き、data-i18n* の付いたものは英語表示のときに i18n.js が差し替える -->
   <!-- 上部バー: 左 = よく使うもの (自動再生・お気に入り・今の音声)、右 = たまに使うもの (レイアウト・弾幕・設定・使い方) -->
   <!-- 全画面のとき、ここにマウスを寄せると上部バーが出る -->
   <div class="toolbar-hotzone" aria-hidden="true"></div>
   <header class="toolbar">
     <span class="brand">hukumado</span>
-    <button id="autoMode" class="toggle" type="button" aria-pressed="false" title="自動再生 (L): ON にすると配信中のお気に入りを全部 (最大 16) 再生し、その後も 1 分ごとに、配信が始まったら枠を足し、終わったら枠を消す。ON の間に ✕ で閉じた配信は入れ直さない (OFF → ON で戻る)"><span class="tb-icon">▶</span><span class="tb-label">自動再生</span></button>
-    <button id="cruise" class="toggle" type="button" aria-pressed="false" title="クルーズ (C): 一定時間ごとにメイン枠と音声を次の配信へ回して、いろいろな配信を少しずつ見る。間隔は ⚙ 設定 →「自動再生」で変えられる"><span class="tb-icon">⟳</span><span class="tb-label">クルーズ</span><i class="cruise-progress" aria-hidden="true"></i></button>
-    <button id="openFavorites" type="button" title="お気に入り (F)"><span class="tb-icon">★</span><span class="tb-label">お気に入り</span></button>
-    <button id="nowPlaying" class="now-playing" type="button">🔇 ミュート中</button>
+    <button id="autoMode" class="toggle" type="button" aria-pressed="false" data-i18n-title="auto.title" title="自動再生 (L): ON にすると配信中のお気に入りを全部 (最大 16) 再生し、その後も 1 分ごとに、配信が始まったら枠を足し、終わったら枠を消す。ON の間に ✕ で閉じた配信は入れ直さない (OFF → ON で戻る)"><span class="tb-icon">▶</span><span class="tb-label" data-i18n="auto.label">自動再生</span></button>
+    <button id="cruise" class="toggle" type="button" aria-pressed="false" data-i18n-title="cruise.title" title="クルーズ (C): 一定時間ごとにメイン枠と音声を次の配信へ回して、いろいろな配信を少しずつ見る。間隔は ⚙ 設定 →「自動再生」で変えられる"><span class="tb-icon">⟳</span><span class="tb-label" data-i18n="cruise.label">クルーズ</span><i class="cruise-progress" aria-hidden="true"></i></button>
+    <button id="openFavorites" type="button" data-i18n-title="fav.title" title="お気に入り (F)"><span class="tb-icon">★</span><span class="tb-label" data-i18n="fav.label">お気に入り</span></button>
+    <button id="nowPlaying" class="now-playing" type="button" data-i18n="nowPlaying">🔇 ミュート中</button>
 
     <span class="spacer"></span>
 
-    <button id="openLayout" type="button" title="レイアウトを選ぶ"><span class="tb-icon">▦</span><span id="layoutName" class="tb-label"></span></button>
-    <button id="danmakuAll" class="toggle on" type="button" aria-pressed="true" title="全枠の弾幕の表示 (D)"><span class="tb-icon">≋</span><span class="tb-label">弾幕</span></button>
-    <button id="gridFullscreen" class="icon-only" type="button" title="分割したまま全画面 (Shift+F)。上端にマウスを寄せると、このバーが出ます">⛶</button>
-    <button id="openSettings" class="icon-only" type="button" title="設定">⚙</button>
-    <button id="openHelp" class="icon-only" type="button" title="使い方とキー操作 (?)">?</button>
+    <button id="openLayout" type="button" data-i18n-title="layout.title" title="レイアウトを選ぶ"><span class="tb-icon">▦</span><span id="layoutName" class="tb-label"></span></button>
+    <button id="danmakuAll" class="toggle on" type="button" aria-pressed="true" data-i18n-title="danmakuAll.title" title="全枠の弾幕の表示 (D)"><span class="tb-icon">≋</span><span class="tb-label" data-i18n="danmakuAll.label">弾幕</span></button>
+    <button id="gridFullscreen" class="icon-only" type="button" data-i18n-title="gridFs.title" title="分割したまま全画面 (Shift+F)。上端にマウスを寄せると、このバーが出ます">⛶</button>
+    <button id="openSettings" class="icon-only" type="button" data-i18n-title="settings.title" title="設定">⚙</button>
+    <button id="openHelp" class="icon-only" type="button" data-i18n-title="help.title" title="使い方とキー操作 (?)">?</button>
   </header>
 
   <main id="grid" class="grid"></main>
@@ -43,34 +44,40 @@
     <form method="dialog" class="settings-form">
       <header class="settings-head">
         <div class="settings-title">
-          <h2>⚙ 設定</h2>
-          <button value="close" class="dialog-close" title="閉じる (Esc)">✕</button>
+          <h2 data-i18n="settings.h">⚙ 設定</h2>
+          <span class="spacer"></span>
+          <select id="langSelect" class="lang-select" data-i18n-title="lang.title" title="表示する言語">
+            <option value="auto" data-i18n="lang.auto">自動 (ブラウザの言語)</option>
+            <option value="ja">日本語</option>
+            <option value="en">English</option>
+          </select>
+          <button value="close" class="dialog-close" data-i18n-title="close" title="閉じる (Esc)">✕</button>
         </div>
         <div class="settings-tabs" role="tablist">
-          <button type="button" role="tab" data-tab="danmaku">弾幕</button>
-          <button type="button" role="tab" data-tab="audio">音声の枠</button>
-          <button type="button" role="tab" data-tab="chat">チャット欄</button>
-          <button type="button" role="tab" data-tab="auto">自動再生</button>
+          <button type="button" role="tab" data-tab="danmaku" data-i18n="tab.danmaku">弾幕</button>
+          <button type="button" role="tab" data-tab="audio" data-i18n="tab.audio">音声の枠</button>
+          <button type="button" role="tab" data-tab="chat" data-i18n="tab.chat">チャット欄</button>
+          <button type="button" role="tab" data-tab="auto" data-i18n="tab.auto">自動再生</button>
         </div>
       </header>
 
       <section class="settings-panel" data-panel="danmaku" role="tabpanel">
-      <label>流れる時間 <output id="durationOut"></output>
+      <label><span data-i18n="dm.duration">流れる時間</span> <output id="durationOut"></output>
         <input type="range" id="duration" min="3" max="15" step="0.5">
       </label>
-      <label>文字サイズ <output id="fontScaleOut"></output>
+      <label><span data-i18n="dm.fontScale">文字サイズ</span> <output id="fontScaleOut"></output>
         <input type="range" id="fontScale" min="0.5" max="2" step="0.1">
       </label>
-      <label>不透明度 <output id="opacityOut"></output>
+      <label><span data-i18n="dm.opacity">不透明度</span> <output id="opacityOut"></output>
         <input type="range" id="opacity" min="0.2" max="1" step="0.05">
       </label>
       <div class="dm-area">
         <div class="dm-area-controls">
-          <span class="field-label">流れる場所</span>
-          <span class="seg dm-pos-seg" role="radiogroup" aria-label="流れる位置">
-            <button type="button" data-pos="top">上</button><button type="button" data-pos="middle">中央</button><button type="button" data-pos="bottom">下</button>
+          <span class="field-label" data-i18n="dm.area">流れる場所</span>
+          <span class="seg dm-pos-seg" role="radiogroup" data-i18n-aria="dm.pos" aria-label="流れる位置">
+            <button type="button" data-pos="top" data-i18n="dm.top">上</button><button type="button" data-pos="middle" data-i18n="dm.middle">中央</button><button type="button" data-pos="bottom" data-i18n="dm.bottom">下</button>
           </span>
-          <label>高さ <output id="areaOut"></output>
+          <label><span data-i18n="dm.height">高さ</span> <output id="areaOut"></output>
             <input type="range" id="area" min="0.2" max="1" step="0.05">
           </label>
         </div>
@@ -79,43 +86,43 @@
           <div class="dm-preview-band"><i></i><i></i><i></i></div>
         </div>
       </div>
-      <label>同時表示の上限 (1枠あたり) <output id="maxOnScreenOut"></output>
+      <label><span data-i18n="dm.max">同時表示の上限 (1枠あたり)</span> <output id="maxOnScreenOut"></output>
         <input type="range" id="maxOnScreen" min="10" max="200" step="5">
       </label>
-      <label class="check"><input type="checkbox" id="showAuthor"> 投稿者名を表示</label>
-      <label class="check"><input type="checkbox" id="showPaid"> スーパーチャットを強調表示</label>
+      <label class="check"><input type="checkbox" id="showAuthor"> <span data-i18n="dm.author">投稿者名を表示</span></label>
+      <label class="check"><input type="checkbox" id="showPaid"> <span data-i18n="dm.paid">スーパーチャットを強調表示</span></label>
       </section>
 
       <section class="settings-panel" data-panel="audio" role="tabpanel" hidden>
-      <p class="settings-note">音が出ている枠に付ける線の見た目</p>
+      <p class="settings-note" data-i18n="hl.note">音が出ている枠に付ける線の見た目</p>
       <div class="hl-swatches" id="hlSwatches"></div>
-      <label>線の太さ <output id="hlWidthOut"></output>
+      <label><span data-i18n="hl.width">線の太さ</span> <output id="hlWidthOut"></output>
         <input type="range" id="hlWidth" min="1" max="4" step="0.5">
       </label>
-      <label>光の強さ <output id="hlGlowOut"></output>
+      <label><span data-i18n="hl.glow">光の強さ</span> <output id="hlGlowOut"></output>
         <input type="range" id="hlGlow" min="0" max="1" step="0.05">
       </label>
-      <label class="check"><input type="checkbox" id="hlAnimate"> グラデーションをゆっくり動かす</label>
+      <label class="check"><input type="checkbox" id="hlAnimate"> <span data-i18n="hl.animate">グラデーションをゆっくり動かす</span></label>
       </section>
 
       <section class="settings-panel" data-panel="chat" role="tabpanel" hidden>
-      <p class="settings-note">枠の 💬 で開くチャット欄の見た目 (開いているチャット欄にすぐ反映)</p>
-      <label>文字サイズ <output id="chatZoomOut"></output>
+      <p class="settings-note" data-i18n="chat.note">枠の 💬 で開くチャット欄の見た目 (開いているチャット欄にすぐ反映)</p>
+      <label><span data-i18n="chat.zoom">文字サイズ</span> <output id="chatZoomOut"></output>
         <input type="range" id="chatZoom" min="0.5" max="1" step="0.05">
       </label>
-      <label>幅 (枠に対して) <output id="chatWidthOut"></output>
+      <label><span data-i18n="chat.width">幅 (枠に対して)</span> <output id="chatWidthOut"></output>
         <input type="range" id="chatWidth" min="0.15" max="0.5" step="0.01">
       </label>
-      <label class="check"><input type="checkbox" id="chatHideAvatars"> 投稿者のアイコンを隠す</label>
+      <label class="check"><input type="checkbox" id="chatHideAvatars"> <span data-i18n="chat.noav">投稿者のアイコンを隠す</span></label>
       </section>
 
       <section class="settings-panel" data-panel="auto" role="tabpanel" hidden>
-      <label class="check"><input type="checkbox" id="skipMembersOnly"> メンバーになっていないメンバー限定配信は再生しない</label>
-      <p class="settings-note">「▶ 自動再生」で枠に入れる前に、ログイン中のアカウントで見られるかを確認します。自分で読み込んだ枠はそのまま表示します</p>
-      <label>クルーズの間隔 <output id="cruiseSecOut"></output>
+      <label class="check"><input type="checkbox" id="skipMembersOnly"> <span data-i18n="auto.skip">メンバーになっていないメンバー限定配信は再生しない</span></label>
+      <p class="settings-note" data-i18n="auto.skipNote">「▶ 自動再生」で枠に入れる前に、ログイン中のアカウントで見られるかを確認します。自分で読み込んだ枠はそのまま表示します</p>
+      <label><span data-i18n="auto.cruise">クルーズの間隔</span> <output id="cruiseSecOut"></output>
         <input type="range" id="cruiseSec" min="30" max="600" step="30">
       </label>
-      <p class="settings-note">「⟳ クルーズ」が ON の間、この間隔でメイン枠と音声を次の配信へ回します。均等レイアウトでは並びはそのままで、音声だけ次の枠へ移ります。自動再生中は「メイン + サブ」のレイアウトを優先します</p>
+      <p class="settings-note" data-i18n="auto.cruiseNote">「⟳ クルーズ」が ON の間、この間隔でメイン枠と音声を次の配信へ回します。均等レイアウトでは並びはそのままで、音声だけ次の枠へ移ります。自動再生中は「メイン + サブ」のレイアウトを優先します</p>
       </section>
     </form>
   </dialog>
@@ -123,27 +130,27 @@
   <dialog id="help" class="help-dialog">
     <form method="dialog" class="help-form">
       <div class="settings-title">
-        <h2>? 使い方</h2>
-        <button value="close" class="dialog-close" title="閉じる (Esc)">✕</button>
+        <h2 data-i18n="help.h">? 使い方</h2>
+        <button value="close" class="dialog-close" data-i18n-title="close" title="閉じる (Esc)">✕</button>
       </div>
       <ul class="help-tips">
-        <li>空の枠に URL / 動画 ID / <code>@チャンネル名</code> を貼るか、「★ お気に入りから選ぶ」で配信を読み込みます</li>
-        <li>枠にカーソルを乗せると操作バーが出ます。左端の ⠿ をドラッグすると枠を入れ替えます</li>
-        <li>「▶ 自動再生」を ON にすると、配信中のお気に入りを全部並べ、始まった / 終わった配信に合わせて枠を増減します</li>
-        <li>「⟳ クルーズ」を ON にすると、一定時間ごとにメイン枠と音声が次の配信へ移り、いろいろな配信を少しずつ見られます</li>
-        <li>枠内のプレイヤーのスピーカーで音を出すと、他の枠を止めずに複数の枠を同時に聞けます</li>
+        <li data-i18n-html="help.tip1">空の枠に URL / 動画 ID / <code>@チャンネル名</code> を貼るか、「★ お気に入りから選ぶ」で配信を読み込みます</li>
+        <li data-i18n="help.tip2">枠にカーソルを乗せると操作バーが出ます。左端の ⠿ をドラッグすると枠を入れ替えます</li>
+        <li data-i18n="help.tip3">「▶ 自動再生」を ON にすると、配信中のお気に入りを全部並べ、始まった / 終わった配信に合わせて枠を増減します</li>
+        <li data-i18n="help.tip4">「⟳ クルーズ」を ON にすると、一定時間ごとにメイン枠と音声が次の配信へ移り、いろいろな配信を少しずつ見られます</li>
+        <li data-i18n="help.tip5">枠内のプレイヤーのスピーカーで音を出すと、他の枠を止めずに複数の枠を同時に聞けます</li>
       </ul>
-      <h3>キー操作</h3>
+      <h3 data-i18n="help.keys">キー操作</h3>
       <table class="help-keys">
-        <tr><th><kbd>1</kbd>〜<kbd>9</kbd></th><td>その枠だけ音を出す</td></tr>
-        <tr><th><kbd>Shift</kbd> + <kbd>1</kbd>〜<kbd>9</kbd></th><td>その枠を全画面 (<kbd>Esc</kbd> で戻る)</td></tr>
-        <tr><th><kbd>Shift</kbd> + <kbd>F</kbd></th><td>分割したまま全画面 (上端にマウスを寄せるとバーが出る)</td></tr>
-        <tr><th><kbd>M</kbd></th><td>ミュート ⇄ 直前の状態に戻す</td></tr>
-        <tr><th><kbd>L</kbd></th><td>自動再生の ON / OFF</td></tr>
-        <tr><th><kbd>C</kbd></th><td>クルーズの ON / OFF</td></tr>
-        <tr><th><kbd>F</kbd></th><td>お気に入りを開く</td></tr>
-        <tr><th><kbd>D</kbd></th><td>全枠の弾幕の表示切り替え</td></tr>
-        <tr><th><kbd>?</kbd></th><td>この画面を開く</td></tr>
+        <tr><th><kbd>1</kbd>〜<kbd>9</kbd></th><td data-i18n="key.audio">その枠だけ音を出す</td></tr>
+        <tr><th><kbd>Shift</kbd> + <kbd>1</kbd>〜<kbd>9</kbd></th><td data-i18n-html="key.tileFs">その枠を全画面 (<kbd>Esc</kbd> で戻る)</td></tr>
+        <tr><th><kbd>Shift</kbd> + <kbd>F</kbd></th><td data-i18n="key.gridFs">分割したまま全画面 (上端にマウスを寄せるとバーが出る)</td></tr>
+        <tr><th><kbd>M</kbd></th><td data-i18n="key.mute">ミュート ⇄ 直前の状態に戻す</td></tr>
+        <tr><th><kbd>L</kbd></th><td data-i18n="key.auto">自動再生の ON / OFF</td></tr>
+        <tr><th><kbd>C</kbd></th><td data-i18n="key.cruise">クルーズの ON / OFF</td></tr>
+        <tr><th><kbd>F</kbd></th><td data-i18n="key.fav">お気に入りを開く</td></tr>
+        <tr><th><kbd>D</kbd></th><td data-i18n="key.danmaku">全枠の弾幕の表示切り替え</td></tr>
+        <tr><th><kbd>?</kbd></th><td data-i18n="key.help">この画面を開く</td></tr>
       </table>
     </form>
   </dialog>
@@ -151,15 +158,15 @@
   <dialog id="layoutPicker" class="layout-dialog">
     <div class="layout-wrap">
       <header class="fav-head">
-        <h2>▦ レイアウト</h2>
+        <h2 data-i18n="layout.h">▦ レイアウト</h2>
         <span class="spacer"></span>
         <span class="seg fit-seg">
-          <button type="button" data-fit="fit" title="どの枠も 16:9 ちょうどの大きさにする。画面と比率が合わない分は外側の余白になる">16:9 に合わせる</button><button type="button" data-fit="fill" title="余白なしで画面を埋める。映像は枠に合わせて拡大し、はみ出た端は切れる">画面いっぱい</button>
+          <button type="button" data-fit="fit" data-i18n="fit.fit" data-i18n-title="fit.fitTitle" title="どの枠も 16:9 ちょうどの大きさにする。画面と比率が合わない分は外側の余白になる">16:9 に合わせる</button><button type="button" data-fit="fill" data-i18n="fit.fill" data-i18n-title="fit.fillTitle" title="余白なしで画面を埋める。映像は枠に合わせて拡大し、はみ出た端は切れる">画面いっぱい</button>
         </span>
-        <button type="button" id="layoutClose" class="dialog-close" title="閉じる (Esc)">✕</button>
+        <button type="button" id="layoutClose" class="dialog-close" data-i18n-title="close" title="閉じる (Esc)">✕</button>
       </header>
-      <p class="layout-note">濃い枠がメイン。読み込んだ配信は 1 番 (メイン) から順に入ります。枠の ⠿ をドラッグで入れ替え。
-        <span class="use-legend">％ は今の画面サイズで映像が占める割合 (16:9 に合わせる場合)</span></p>
+      <p class="layout-note"><span data-i18n="layout.note">濃い枠がメイン。読み込んだ配信は 1 番 (メイン) から順に入ります。枠の ⠿ をドラッグで入れ替え。</span>
+        <span class="use-legend" data-i18n="layout.use">％ は今の画面サイズで映像が占める割合 (16:9 に合わせる場合)</span></p>
       <div id="layoutGroups" class="layout-groups"></div>
     </div>
   </dialog>
@@ -167,24 +174,24 @@
   <dialog id="favorites" class="fav-dialog">
     <div class="fav">
       <header class="fav-head">
-        <h2>★ お気に入り</h2>
+        <h2 data-i18n="fav.h">★ お気に入り</h2>
         <span id="favLiveCount" class="fav-live-count"></span>
         <span class="spacer"></span>
-        <button type="button" id="favRefresh" title="配信状況を取り直す">⟳ 更新</button>
-        <button type="button" id="favClose" class="dialog-close" title="閉じる (Esc)">✕</button>
+        <button type="button" id="favRefresh" data-i18n="fav.refresh" data-i18n-title="fav.refreshTitle" title="配信状況を取り直す">⟳ 更新</button>
+        <button type="button" id="favClose" class="dialog-close" data-i18n-title="close" title="閉じる (Esc)">✕</button>
       </header>
       <div class="fav-tools">
-        <input type="search" id="favFilter" placeholder="名前・@チャンネル名で絞り込み" spellcheck="false">
+        <input type="search" id="favFilter" data-i18n-placeholder="fav.filter" placeholder="名前・@チャンネル名で絞り込み" spellcheck="false">
         <span class="fav-target"></span>
       </div>
 
       <div id="favList" class="fav-list"></div>
-      <p id="favEmpty" class="fav-empty">まだ登録がありません。下の欄にチャンネルを入力して追加してください。</p>
+      <p id="favEmpty" class="fav-empty" data-i18n="fav.empty">まだ登録がありません。下の欄にチャンネルを入力して追加してください。</p>
 
       <footer class="fav-foot">
         <form id="favAdd" class="fav-add">
-          <input type="text" placeholder="追加: @チャンネル名 / チャンネルURL / 動画URL" spellcheck="false">
-          <button type="submit">追加</button>
+          <input type="text" data-i18n-placeholder="fav.addInput" placeholder="追加: @チャンネル名 / チャンネルURL / 動画URL" spellcheck="false">
+          <button type="submit" data-i18n="fav.add">追加</button>
         </form>
         <button type="button" id="favRestore" class="fav-restore" hidden></button>
         <div id="favError" class="fav-error"></div>
@@ -200,7 +207,7 @@
         <div class="fav-title"></div>
       </div>
       <img class="fav-thumb" alt="" referrerpolicy="no-referrer">
-      <button type="button" class="fav-del" title="お気に入りから外す">✕</button>
+      <button type="button" class="fav-del" data-i18n-title="fav.del" title="お気に入りから外す">✕</button>
     </li>
   </template>
 
@@ -212,26 +219,26 @@
         <div class="toast" role="status"></div>
         <form class="empty">
           <div class="empty-title"></div>
-          <input class="url-input" type="text" placeholder="URL / 動画ID / @チャンネル を貼り付け" spellcheck="false">
+          <input class="url-input" type="text" data-i18n-placeholder="tile.input" placeholder="URL / 動画ID / @チャンネル を貼り付け" spellcheck="false">
           <div class="empty-actions">
-            <button type="submit">読み込む</button>
-            <button type="button" class="pick-fav">★ お気に入りから選ぶ</button>
+            <button type="submit" data-i18n="tile.load">読み込む</button>
+            <button type="button" class="pick-fav" data-i18n="tile.pickFav">★ お気に入りから選ぶ</button>
           </div>
           <div class="error"></div>
         </form>
         <!-- 枠の操作バー: 左 = 入れ替え・番号・名前、右 = 操作 (すべて並べる。狭い枠では折り返す) -->
         <div class="bar">
-          <span class="grip" draggable="true" title="ドラッグして他の枠と入れ替え">⠿</span>
+          <span class="grip" draggable="true" data-i18n-title="tile.grip" title="ドラッグして他の枠と入れ替え">⠿</span>
           <span class="index"></span>
           <span class="tile-name"></span>
           <span class="bar-buttons">
-            <button type="button" data-act="audio" title="この枠だけ音を出す (他の枠はミュート)。複数枠で同時に聞くときは枠内のプレイヤーのスピーカーで"></button>
-            <button type="button" data-act="chat" class="toggle" title="チャット欄の表示">💬</button>
-            <button type="button" data-act="danmaku" class="toggle" title="この枠の弾幕の表示">≋</button>
-            <button type="button" data-act="fav" title="この枠のチャンネルをお気に入りに登録">★</button>
-            <button type="button" data-act="reload" title="再読み込み (映像やチャットの調子が悪いとき)">⟳</button>
-            <button type="button" data-act="max" title="この枠を全画面で見る (Shift+数字キーでも可。Esc で戻る)">⛶</button>
-            <button type="button" data-act="clear" class="close" title="この枠を閉じる">✕</button>
+            <button type="button" data-act="audio" data-i18n-title="tile.audio" title="この枠だけ音を出す (他の枠はミュート)。複数枠で同時に聞くときは枠内のプレイヤーのスピーカーで"></button>
+            <button type="button" data-act="chat" class="toggle" data-i18n-title="tile.chat" title="チャット欄の表示">💬</button>
+            <button type="button" data-act="danmaku" class="toggle" data-i18n-title="tile.danmaku" title="この枠の弾幕の表示">≋</button>
+            <button type="button" data-act="fav" data-i18n-title="tile.fav" title="この枠のチャンネルをお気に入りに登録">★</button>
+            <button type="button" data-act="reload" data-i18n-title="tile.reload" title="再読み込み (映像やチャットの調子が悪いとき)">⟳</button>
+            <button type="button" data-act="max" data-i18n-title="tile.max" title="この枠を全画面で見る (Shift+数字キーでも可。Esc で戻る)">⛶</button>
+            <button type="button" data-act="clear" class="close" data-i18n-title="tile.clear" title="この枠を閉じる">✕</button>
           </span>
         </div>
       </div>
@@ -239,6 +246,7 @@
     </section>
   </template>
 
+  <script src="i18n.js"></script>
   <script src="layouts.js"></script>
   <script src="danmaku.js"></script>
   <script src="presets.js"></script>

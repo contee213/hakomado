@@ -4,7 +4,7 @@
 //   (YouTube のチャンネルページは 1 件 1MB 以上あり、数十件を毎回取りに行くと重いため)
 // - それ以外のチャンネルは YouTube の /live ページを個別に見る
 /* exported Favorites */
-/* global PRESET_VERSION, PRESET_FAVORITES */
+/* global PRESET_VERSION, PRESET_FAVORITES, LANG, tr */
 'use strict';
 
 const Favorites = (() => {
@@ -14,13 +14,30 @@ const Favorites = (() => {
   const statusCache = new Map(); // channelId -> {at, status}
 
   // ------------------------------------------------------------ storage
+  // 既定のチャンネル (ホロライブ) は、英語表示のときは英語の名前・グループ名で見せる。
+  // 保存するのは日本語のまま (表示言語を切り替えても元に戻せるように)
+  const presetById = new Map(PRESET_FAVORITES.map((p) => [p.channelId, p]));
+
+  function localize(f) {
+    const p = f.preset && LANG !== 'ja' ? presetById.get(f.channelId) : null;
+    if (!p) return f;
+    return { ...f, name: p.nameEn || f.name, group: p.groupEn || f.group, nameJa: p.name };
+  }
+
+  function delocalize(f) {
+    const p = f.preset ? presetById.get(f.channelId) : null;
+    if (!p || !('nameJa' in f)) return f;
+    const { nameJa, ...rest } = f;
+    return { ...rest, name: nameJa, group: p.group };
+  }
+
   async function list() {
     const { favorites = [] } = await chrome.storage.local.get('favorites');
-    return favorites;
+    return favorites.map(localize);
   }
 
   async function saveList(favs) {
-    await chrome.storage.local.set({ favorites: favs });
+    await chrome.storage.local.set({ favorites: favs.map(delocalize) });
   }
 
   /** 既定のお気に入り (ホロライブ) を、まだ入れていなければ追加する。外したものは戻さない */
@@ -70,7 +87,7 @@ const Favorites = (() => {
       const { removedPresets = [] } = await chrome.storage.local.get('removedPresets');
       await chrome.storage.local.set({ removedPresets: removedPresets.filter((id) => id !== info.channelId) });
     }
-    return { info: favs.find((f) => f.channelId === info.channelId), added: existing < 0 };
+    return { info: localize(favs.find((f) => f.channelId === info.channelId)), added: existing < 0 };
   }
 
   async function remove(channelId) {
@@ -89,7 +106,7 @@ const Favorites = (() => {
   // ------------------------------------------------------------ YouTube
   async function getHtml(url, opts = {}) {
     const res = await fetch(url, opts);
-    if (!res.ok) throw new Error(`取得できませんでした (${res.status})`);
+    if (!res.ok) throw new Error(tr('fetchFail', res.status));
     return res.text();
   }
 
@@ -114,7 +131,7 @@ const Favorites = (() => {
   /** 入力 (@handle / チャンネルURL / 動画URL / 動画ID) をチャンネルページの URL に */
   async function channelUrlFrom(input) {
     const s = input.trim();
-    if (!s) throw new Error('@チャンネル名 か URL を入力してください');
+    if (!s) throw new Error(tr('enterChannel'));
     if (/^@[\w.\-]+$/.test(s)) return `${YT}/${s}`;
     if (/^UC[\w-]{22}$/.test(s)) return `${YT}/channel/${s}`;
 
@@ -122,7 +139,7 @@ const Favorites = (() => {
     try {
       url = new URL(/^https?:\/\//.test(s) ? s : 'https://' + s);
     } catch {
-      throw new Error('URL として読み取れませんでした');
+      throw new Error(tr('notUrl'));
     }
     const host = url.hostname.replace(/^(www|m)\./, '');
     if (host === 'youtube.com') {
@@ -135,7 +152,7 @@ const Favorites = (() => {
       const o = await oembed(videoUrl);
       if (o?.authorUrl) return o.authorUrl;
     }
-    throw new Error('YouTube のチャンネルが見つかりませんでした');
+    throw new Error(tr('channelNotFound'));
   }
 
   /** チャンネル名・アイコン・ID を取得 */
@@ -144,7 +161,7 @@ const Favorites = (() => {
     const html = await getHtml(url, { credentials: 'include' });
     const canon = html.match(/<link rel="canonical" href="https:\/\/www\.youtube\.com\/channel\/(UC[\w-]{22})"/);
     const channelId = canon?.[1] || html.match(/"externalId":"(UC[\w-]{22})"/)?.[1];
-    if (!channelId) throw new Error('チャンネルの情報を読み取れませんでした');
+    if (!channelId) throw new Error(tr('channelReadFail'));
     const handle = html.match(/"canonicalBaseUrl":"\/(@[^"]+)"/)?.[1] || '';
     return {
       channelId,

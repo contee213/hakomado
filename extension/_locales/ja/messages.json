@@ -1,0 +1,14 @@
+{
+  "extName": {
+    "message": "hukumado - YouTube マルチビュー",
+    "description": "拡張機能の名前"
+  },
+  "extDescription": {
+    "message": "YouTube の配信を最大 16 枠で同時視聴。各枠にチャットの弾幕を流せます。",
+    "description": "拡張機能の説明"
+  },
+  "actionTitle": {
+    "message": "hukumado を開く",
+    "description": "ツールバーのアイコンに乗せたときの説明"
+  }
+}

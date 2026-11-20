@@ -1,4 +1,4 @@
-/* global Danmaku, LAYOUTS, DEFAULT_LAYOUT_ID, MAX_SLOTS, getLayout, solveTracks */
+/* global Danmaku, LAYOUTS, DEFAULT_LAYOUT_ID, MAX_SLOTS, getLayout, solveTracks, LANG, LANG_PREF, tr, setLangPref */
 'use strict';
 
 const MAX_TILES = MAX_SLOTS;
@@ -177,7 +177,7 @@ const ID_RE = /^[A-Za-z0-9_-]{11}$/;
 /** URL / 動画ID / @handle / チャンネルURL から動画IDを得る */
 async function resolveVideoId(raw) {
   const input = raw.trim();
-  if (!input) throw new Error('URL か動画IDを入力してください');
+  if (!input) throw new Error(tr('inputEmpty'));
   if (ID_RE.test(input)) return input;
 
   if (/^@[\w.\-]+$/.test(input)) return resolveLive(`${YT}/${input}/live`);
@@ -186,7 +186,7 @@ async function resolveVideoId(raw) {
   try {
     url = new URL(/^https?:\/\//.test(input) ? input : 'https://' + input);
   } catch {
-    throw new Error('URL として読み取れませんでした');
+    throw new Error(tr('notUrl'));
   }
   const host = url.hostname.replace(/^(www|m|music)\./, '');
   if (host === 'youtu.be') {
@@ -201,17 +201,17 @@ async function resolveVideoId(raw) {
     const ch = url.pathname.match(/^\/(@[\w.\-]+|channel\/UC[\w-]+|c\/[^/]+|user\/[^/]+)/);
     if (ch) return resolveLive(`${YT}/${ch[1]}/live`);
   }
-  throw new Error('YouTube の動画・配信・チャンネルの URL ではないようです');
+  throw new Error(tr('notYouTube'));
 }
 
 /** チャンネルの /live ページから、現在配信中 (または待機所) の動画IDを取り出す */
 async function resolveLive(liveUrl) {
   const res = await fetch(liveUrl, { credentials: 'include' });
-  if (!res.ok) throw new Error(`チャンネルを開けませんでした (${res.status})`);
+  if (!res.ok) throw new Error(tr('channelOpenFail', res.status));
   const html = await res.text();
   const m = html.match(/<link rel="canonical" href="https:\/\/www\.youtube\.com\/watch\?v=([A-Za-z0-9_-]{11})"/);
   if (m) return m[1];
-  throw new Error('このチャンネルは今配信していないようです');
+  throw new Error(tr('channelNotLive'));
 }
 
 // ---------------------------------------------------------------- layout
@@ -304,7 +304,7 @@ function layout() {
     el.style.gridRow = `${y + 1} / span ${h}`;
     el.classList.toggle('main', k < l.mains);
     el.querySelector('.index').textContent = String(k + 1);
-    el.querySelector('.empty-title').textContent = k < l.mains ? `メイン ${k + 1}` : `枠 ${k + 1}`;
+    el.querySelector('.empty-title').textContent = k < l.mains ? tr('slotMain', k + 1) : tr('slot', k + 1);
   });
   document.getElementById('layoutName').textContent = l.name;
 }
@@ -350,7 +350,7 @@ function buildTiles() {
     const el = template.content.firstElementChild.cloneNode(true);
     el.dataset.index = String(i);
     el.querySelector('.index').textContent = String(i + 1);
-    el.querySelector('.empty-title').textContent = `枠 ${i + 1}`;
+    el.querySelector('.empty-title').textContent = tr('slot', i + 1);
     const danmaku = new Danmaku(el.querySelector('.danmaku-layer'), () => state.settings);
     const view = { el, danmaku, player: null, chatFrame: null };
     views.push(view);
@@ -370,7 +370,7 @@ function buildTiles() {
 
 async function loadInput(i, raw) {
   const errEl = views[i].el.querySelector('.error');
-  errEl.textContent = '読み込み中…';
+  errEl.textContent = tr('loading');
   try {
     const id = await resolveVideoId(raw);
     errEl.textContent = '';
@@ -419,12 +419,12 @@ function chatUrl(t) {
 // 音が出ている枠の線の色 (グラデーション)。glow は光の色 (r, g, b)
 // 音が出ている枠の線の色 (6 色)。映像の上でも見分けやすい、はっきりした色に絞っている
 const HL_PRESETS = {
-  sky: { name: '水色', colors: ['#8fe9ff', '#29a9ff', '#5b8cff'], glow: [41, 169, 255] },
-  pink: { name: 'ピンク', colors: ['#ffc1e0', '#ff7ab8', '#ff4f9a'], glow: [255, 110, 170] },
-  orange: { name: 'オレンジ', colors: ['#ffd180', '#ff9800', '#f57c00'], glow: [255, 152, 0] },
-  green: { name: 'グリーン', colors: ['#b9f6ca', '#00e676', '#00b248'], glow: [0, 230, 118] },
-  purple: { name: 'パープル', colors: ['#e1bee7', '#b388ff', '#7c4dff'], glow: [150, 110, 255] },
-  white: { name: 'ホワイト', colors: ['#ffffff', '#dfe6ee', '#ffffff'], glow: [255, 255, 255] },
+  sky: { name: tr('colorSky'), colors: ['#8fe9ff', '#29a9ff', '#5b8cff'], glow: [41, 169, 255] },
+  pink: { name: tr('colorPink'), colors: ['#ffc1e0', '#ff7ab8', '#ff4f9a'], glow: [255, 110, 170] },
+  orange: { name: tr('colorOrange'), colors: ['#ffd180', '#ff9800', '#f57c00'], glow: [255, 152, 0] },
+  green: { name: tr('colorGreen'), colors: ['#b9f6ca', '#00e676', '#00b248'], glow: [0, 230, 118] },
+  purple: { name: tr('colorPurple'), colors: ['#e1bee7', '#b388ff', '#7c4dff'], glow: [150, 110, 255] },
+  white: { name: tr('colorWhite'), colors: ['#ffffff', '#dfe6ee', '#ffffff'], glow: [255, 255, 255] },
 };
 
 // 以前の版で選べた色は、近い色に読み替える
@@ -635,8 +635,8 @@ function updateNowPlaying() {
   const now = audibleTiles();
   btn.classList.toggle('on', now.length > 0);
   if (now.length === 0) {
-    btn.replaceChildren('🔇 ミュート中');
-    btn.title = 'クリック (M) で直前の枠の音に戻す';
+    btn.replaceChildren(tr('muted'));
+    btn.title = tr('mutedTitle');
     return;
   }
   const order = visibleIndexes();
@@ -648,10 +648,10 @@ function updateNowPlaying() {
   num.textContent = parts.map((p) => p.n).join('・');
   const name = document.createElement('span');
   name.className = 'np-name';
-  name.textContent = parts.length === 1 ? parts[0].name : `${parts.length} 枠を同時再生`;
+  name.textContent = parts.length === 1 ? parts[0].name : tr('multiAudio', parts.length);
   btn.replaceChildren('🔊 ', num, name);
-  const list = parts.map((p) => `${p.n}: ${p.name || '(読み込み中)'}`).join('\n');
-  btn.title = `${list}\nクリック (M) でミュート`;
+  const list = parts.map((p) => `${p.n}: ${p.name || tr('loadingName')}`).join('\n');
+  btn.title = `${list}\n${tr('clickToMute')}`;
 }
 
 // ---------------------------------------------------------------- bar actions
@@ -823,7 +823,7 @@ function onPlayability(i, status, text) {
     const first = visibleIndexes().find((j) => state.tiles[j].videoId);
     if (first != null) setAudioSet([first]);
   }
-  notify(`🔒 メンバー限定のため外しました: ${name}`);
+  notify(tr('membersRemoved', name));
 }
 
 // ---------------------------------------------------------------- layout picker
@@ -851,15 +851,15 @@ function setupLayoutPicker() {
     const section = document.createElement('section');
     section.className = 'layout-group';
     const h = document.createElement('h3');
-    h.textContent = g;
+    h.textContent = g === 'uniform' ? tr('groupUniform') : tr('groupMain');
     const list = document.createElement('div');
-    list.className = g === '均等' ? 'layout-list uniform' : 'layout-list';
+    list.className = g === 'uniform' ? 'layout-list uniform' : 'layout-list';
     for (const l of LAYOUTS.filter((x) => x.group === g)) {
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'layout-option';
       btn.dataset.id = l.id;
-      btn.title = `${l.name} (${l.slots.length} 枠)`;
+      btn.title = tr('layoutTitle', l.name, l.slots.length);
       const label = document.createElement('span');
       label.className = 'layout-name';
       label.textContent = l.name;
@@ -950,15 +950,15 @@ function openHelp() {
 
 // 設定画面のスライダーの表示形式
 const SETTING_FORMATS = {
-  duration: (v) => `${v} 秒`,
+  duration: (v) => tr('sec', v),
   fontScale: (v) => `${Math.round(v * 100)}%`,
   opacity: (v) => `${Math.round(v * 100)}%`,
   area: (v) => `${Math.round(v * 100)}%`,
-  maxOnScreen: (v) => `${v} 件`,
+  maxOnScreen: (v) => tr('items', v),
   chatZoom: (v) => `${Math.round(v * 100)}%`,
   chatWidth: (v) => `${Math.round(v * 100)}%`,
   hlWidth: (v) => `${v} px`,
-  hlGlow: (v) => (v === 0 ? 'なし' : `${Math.round(v * 100)}%`),
+  hlGlow: (v) => (v === 0 ? tr('off') : `${Math.round(v * 100)}%`),
   cruiseSec: (v) => formatCruise(v),
 };
 const SETTING_CHECKBOXES = ['showAuthor', 'showPaid', 'chatHideAvatars', 'hlAnimate', 'skipMembersOnly'];
@@ -1030,6 +1030,15 @@ function setupToolbar() {
     }
   };
   for (const t of tabs) t.addEventListener('click', () => showTab(t.dataset.tab));
+
+  // 表示言語 (変えたらページを読み込み直す。視聴中の枠はこのタブのセッションとしてそのまま戻る)
+  const langSelect = document.getElementById('langSelect');
+  langSelect.value = LANG_PREF;
+  langSelect.addEventListener('change', async () => {
+    setLangPref(langSelect.value);
+    await saveNow();
+    location.reload();
+  });
   let initialTab = 'danmaku';
   try {
     initialTab = localStorage.getItem('hukumado.settingsTab') || initialTab;
@@ -1157,7 +1166,7 @@ function openFavorites(target) {
   favTarget = target;
   favErrorEl.textContent = '';
   document.querySelector('.fav-target').textContent =
-    target != null ? `→ 枠 ${displayNumber(target)} に読み込みます` : '→ クリックで空いている枠に読み込みます';
+    target != null ? tr('favTarget', displayNumber(target)) : tr('favTargetAny');
   if (!favDialog.open) favDialog.showModal();
   refreshFavorites(false);
   updateRestoreLink();
@@ -1211,7 +1220,7 @@ function formatStart(ms) {
   if (!ms) return '';
   const d = new Date(ms);
   const sameDay = d.toDateString() === new Date().toDateString();
-  const hm = d.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
+  const hm = d.toLocaleTimeString(LANG === 'ja' ? 'ja-JP' : undefined, { hour: '2-digit', minute: '2-digit' });
   return sameDay ? hm : `${d.getMonth() + 1}/${d.getDate()} ${hm}`;
 }
 
@@ -1244,7 +1253,7 @@ function favSection(title, items, { cls = '', action = null } = {}) {
 function renderFavorites(favs) {
   const q = favFilter.trim().toLowerCase();
   const shown = q
-    ? favs.filter((f) => [f.name, f.handle, f.group].some((s) => (s || '').toLowerCase().includes(q)))
+    ? favs.filter((f) => [f.name, f.nameJa, f.handle, f.group].some((s) => (s || '').toLowerCase().includes(q)))
     : favs;
   const entries = shown.map((f) => ({ f, st: favStatus.get(f.channelId) }));
   const live = entries.filter((e) => e.st?.state === 'live').sort((a, b) => (a.st.startAt || 0) - (b.st.startAt || 0));
@@ -1256,25 +1265,25 @@ function renderFavorites(favs) {
   const sections = [];
   if (live.length) {
     sections.push(
-      favSection('● 配信中', live.map(favItem), {
+      favSection(tr('secLive'), live.map(favItem), {
         cls: 'live-sec',
         action: {
-          label: '空いている枠に入れる',
-          title: 'まだ表示していない配信中のチャンネルを、空いている枠に順に入れる (今の枠はそのまま)',
+          label: tr('fillEmpty'),
+          title: tr('fillEmptyTitle'),
           onClick: fillLiveIntoEmptyTiles,
         },
       }),
     );
   }
-  if (upcoming.length) sections.push(favSection('予定', upcoming.map(favItem)));
+  if (upcoming.length) sections.push(favSection(tr('secUpcoming'), upcoming.map(favItem)));
   // それ以外はまとめて 1 つの一覧 (自分で追加したチャンネル → 既定のチャンネルの順)
   rest.sort((a, b) => Number(!!a.f.preset) - Number(!!b.f.preset));
-  if (rest.length) sections.push(favSection(live.length || upcoming.length ? 'その他' : 'すべて', rest.map(favItem), { cls: 'rest-sec' }));
+  if (rest.length) sections.push(favSection(live.length || upcoming.length ? tr('secOther') : tr('secAll'), rest.map(favItem), { cls: 'rest-sec' }));
   favListEl.replaceChildren(...sections);
   document.getElementById('favEmpty').textContent = q
-    ? `「${favFilter}」に一致するお気に入りはありません。`
-    : 'まだ登録がありません。下の欄にチャンネルを入力して追加してください。';
-  document.getElementById('favLiveCount').textContent = live.length ? `配信中 ${live.length}` : '';
+    ? tr('favNoMatch', favFilter)
+    : tr('favEmpty');
+  document.getElementById('favLiveCount').textContent = live.length ? tr('liveCount', live.length) : '';
 }
 
 function favItem({ f, st }) {
@@ -1293,26 +1302,26 @@ function favItem({ f, st }) {
   const thumb = li.querySelector('.fav-thumb');
   if (st === 'loading') {
     li.classList.add('loading');
-    badge.textContent = '確認中…';
+    badge.textContent = tr('checking');
   } else if (st === 'error' || !st) {
     li.classList.add('error');
-    badge.textContent = '取得できませんでした';
+    badge.textContent = tr('unavailable');
   } else if (st.state === 'offline') {
     li.classList.add('offline');
     badge.textContent = '';
   } else {
     li.classList.add(st.state);
-    badge.textContent = st.state === 'live' ? '● LIVE' : `予定 ${formatStart(st.startAt)}`.trim();
+    badge.textContent = st.state === 'live' ? '● LIVE' : tr('upcomingAt', formatStart(st.startAt)).trim();
     title.textContent = st.title || '';
     thumb.src = `https://i.ytimg.com/vi/${st.videoId}/mqdefault.jpg`;
     const shownIn = visibleIndexes().filter((i) => state.tiles[i].videoId === st.videoId);
-    if (shownIn.length) li.querySelector('.fav-where').textContent = `枠 ${shownIn.map(displayNumber).join(', ')} で表示中`;
+    if (shownIn.length) li.querySelector('.fav-where').textContent = tr('shownIn', shownIn.map(displayNumber).join(', '));
     li.addEventListener('click', () => pickFavorite(f, st));
   }
 
   li.querySelector('.fav-del').addEventListener('click', async (e) => {
     e.stopPropagation();
-    if (!confirm(`「${f.name}」をお気に入りから外しますか?`)) return;
+    if (!confirm(tr('confirmRemove', f.name))) return;
     await Favorites.remove(f.channelId);
     favStatus.delete(f.channelId);
     renderFavorites(await Favorites.list());
@@ -1325,13 +1334,13 @@ async function updateRestoreLink() {
   const n = await Favorites.removedPresetCount();
   const btn = document.getElementById('favRestore');
   btn.hidden = n === 0;
-  btn.textContent = `外したホロライブのチャンネルを戻す (${n})`;
+  btn.textContent = tr('restorePresets', n);
 }
 
 function pickFavorite(f, st) {
   const target = favTarget ?? firstEmptyTile();
   if (target == null) {
-    favErrorEl.textContent = '空いている枠がありません。枠の ★ ボタンから開くと、その枠に読み込めます。';
+    favErrorEl.textContent = tr('noEmptyTile');
     return;
   }
   setTileVideo(target, st.videoId, f.handle || `https://www.youtube.com/channel/${f.channelId}`);
@@ -1341,7 +1350,7 @@ function pickFavorite(f, st) {
 async function fillLiveIntoEmptyTiles() {
   const favs = await Favorites.list();
   if (favs.some((f) => favStatus.get(f.channelId) === 'loading')) {
-    favErrorEl.textContent = '配信状況を確認中です。終わってからもう一度押してください。';
+    favErrorEl.textContent = tr('stillChecking');
     return;
   }
   const shown = new Set(state.tiles.filter((_, i) => isVisible(i)).map((t) => t.videoId));
@@ -1355,8 +1364,8 @@ async function fillLiveIntoEmptyTiles() {
     setTileVideo(i, st.videoId, f.handle || f.channelId);
     placed++;
   }
-  if (lives.length === 0) favErrorEl.textContent = 'まだ表示していない配信中のチャンネルはありません。';
-  else if (placed < lives.length) favErrorEl.textContent = `空き枠が足りず、${lives.length - placed} 件は入りませんでした。分割数を増やしてください。`;
+  if (lives.length === 0) favErrorEl.textContent = tr('noUnshownLive');
+  else if (placed < lives.length) favErrorEl.textContent = tr('notEnoughTiles', lives.length - placed);
   else favDialog.close();
 }
 
@@ -1406,8 +1415,8 @@ async function startAllLive() {
   if (lives.length === 0) {
     notify(
       blocked.length
-        ? `配信中は メンバー限定 (${blocked.join('、')}) だけでした。配信が始まったら自動で追加します`
-        : 'いま配信中のお気に入りはありません。配信が始まったら自動で追加します',
+        ? tr('onlyMembers', blocked.join(tr('sep')))
+        : tr('noneLive'),
     );
     return;
   }
@@ -1466,11 +1475,11 @@ async function startAllLive() {
   save();
   if (favDialog.open) favDialog.close();
   restartCruise();
-  const skipped = blocked.length ? ` (メンバー限定 ${blocked.length} 件を除外)` : '';
+  const skipped = blocked.length ? tr('skippedCount', blocked.length) : '';
   notify(
     (total > MAX_TILES
-      ? `配信中 ${total} 件のうち ${MAX_TILES} 件を「${layout.name}」で再生しています`
-      : `配信中 ${total} 件を「${layout.name}」で再生しています`) + skipped,
+      ? tr('playingSome', total, MAX_TILES, layout.name)
+      : tr('playingAll', total, layout.name)) + skipped,
   );
 }
 
@@ -1534,7 +1543,7 @@ async function setAutoMode(on, { resume = false } = {}) {
     if (resume) await autoTickOnce();
     else await startAllLive();
   } catch (e) {
-    notify(`配信状況を取得できませんでした: ${e.message || e}`);
+    notify(tr('statusFailed', e.message || e));
   } finally {
     autoBusy = false;
     btn.disabled = false;
@@ -1595,7 +1604,7 @@ async function autoTickOnce() {
     const { ok: accessible, blocked } = await filterAccessible(candidates);
     if (!state.autoMode) return; // 確認している間に OFF にされた
     const started = accessible.slice(0, Math.max(0, MAX_TILES - keep.length));
-    const blockedMsg = blocked.length ? `🔒 メンバー限定のため除外: ${blocked.join('、')}` : '';
+    const blockedMsg = blocked.length ? tr('membersSkipped', blocked.join(tr('sep'))) : '';
 
     if (ended.length === 0 && started.length === 0) {
       if (blockedMsg) notify(blockedMsg);
@@ -1645,8 +1654,8 @@ async function autoTickOnce() {
     save();
 
     const msgs = [];
-    if (started.length) msgs.push(`▶ 配信開始: ${started.map((l) => l.f.name).join('、')}`);
-    if (endedNames.length) msgs.push(`■ 配信終了: ${endedNames.join('、')}`);
+    if (started.length) msgs.push(tr('started', started.map((l) => l.f.name).join(tr('sep'))));
+    if (endedNames.length) msgs.push(tr('ended', endedNames.join(tr('sep'))));
     if (blockedMsg) msgs.push(blockedMsg);
     notify(msgs.join(' / '));
   } catch (e) {
@@ -1664,8 +1673,8 @@ let cruiseTimer = 0;
 function formatCruise(sec) {
   const m = Math.floor(sec / 60);
   const s = sec % 60;
-  if (m === 0) return `${s} 秒`;
-  return s ? `${m} 分 ${s} 秒` : `${m} 分`;
+  if (m === 0) return tr('sec', s);
+  return s ? tr('minSec', m, s) : tr('min', m);
 }
 
 function setCruise(on) {
@@ -1675,7 +1684,7 @@ function setCruise(on) {
   // 自動再生中は枠の数に合わせてレイアウトを選び直す (クルーズ中は「メイン + サブ」を優先)
   if (state.autoMode && visibleIndexes().some((i) => state.tiles[i].videoId)) compactToContent();
   restartCruise();
-  if (on) notify(`クルーズ ON: ${formatCruise(state.settings.cruiseSec)}ごとにメイン枠と音声を次の配信へ回します`);
+  if (on) notify(tr('cruiseOn', formatCruise(state.settings.cruiseSec)));
 }
 
 /** 次に回すまでの時間を最初から数え直す (自分で音や並びを変えた直後に回さないため) */
@@ -1776,14 +1785,14 @@ async function addTileToFavorites(i) {
   if (!t.videoId) return;
   const btn = views[i].el.querySelector('[data-act="fav"]');
   btn.disabled = true;
-  showToast(i, 'お気に入りに登録中…');
+  showToast(i, tr('favAdding'));
   try {
     const { info, added } = await Favorites.add(t.videoId);
     favStatus.delete(info.channelId);
-    showToast(i, added ? `★ 「${info.name}」をお気に入りに登録しました` : `「${info.name}」は登録済みです`);
+    showToast(i, added ? tr('favAdded', info.name) : tr('favExists', info.name));
     btn.classList.add('on');
   } catch (e) {
-    showToast(i, `登録できませんでした: ${e.message || e}`);
+    showToast(i, tr('favAddFailed', e.message || e));
   } finally {
     btn.disabled = false;
   }
@@ -1798,10 +1807,10 @@ function showToast(i, text) {
 }
 
 async function addFavorite(raw, onSuccess) {
-  favErrorEl.textContent = '追加中…';
+  favErrorEl.textContent = tr('adding');
   try {
     const { info, added } = await Favorites.add(raw);
-    favErrorEl.textContent = added ? '' : `「${info.name}」は登録済みです`;
+    favErrorEl.textContent = added ? '' : tr('favExists', info.name);
     onSuccess?.();
     favStatus.delete(info.channelId);
     await refreshFavorites(false);
@@ -1894,12 +1903,12 @@ function describeSession(data) {
     .map((i) => data.tiles?.[i])
     .filter((t) => t?.videoId);
   const names = shown.map((t) => t.label || t.input || t.videoId);
-  const when = data.updatedAt ? new Date(data.updatedAt).toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+  const when = data.updatedAt ? new Date(data.updatedAt).toLocaleString(LANG === 'ja' ? 'ja-JP' : undefined, { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
   const lines = [
-    [when, layoutName, `${shown.length} 件`, data.autoMode ? '自動再生' : ''].filter(Boolean).join(' ・ '),
+    [when, layoutName, tr('streams', shown.length), data.autoMode ? tr('autoTag') : ''].filter(Boolean).join(' ・ '),
     ...names.slice(0, SESSION_NAMES_SHOWN).map((n) => `・${n}`),
   ];
-  if (names.length > SESSION_NAMES_SHOWN) lines.push(`ほか ${names.length - SESSION_NAMES_SHOWN} 件`);
+  if (names.length > SESSION_NAMES_SHOWN) lines.push(tr('more', names.length - SESSION_NAMES_SHOWN));
   return { count: shown.length, lines };
 }
 
@@ -1946,19 +1955,19 @@ async function chooseSession() {
   }
   const choices = resumable.map((s, n) => ({
     value: 'resume:' + s.id,
-    label: n === 0 ? '▶ 前回の続きから' : '▶ この内容で再開',
+    label: n === 0 ? tr('resumeLatest') : tr('resumeThis'),
     note: describeSession(s.data).lines,
   }));
   choices.push(
-    { value: 'new', label: '新しく始める', note: '空の枠から始めます' },
-    { value: 'auto', label: '▶ 自動再生で始める', note: '配信中のお気に入りを全部再生します' },
+    { value: 'new', label: tr('startNew'), note: tr('startNewNote') },
+    { value: 'auto', label: tr('startAuto'), note: tr('startAutoNote') },
   );
   const body = document.createElement('p');
   body.textContent =
     inUse.size > 0
-      ? `ほかのタブ (ウィンドウ) で ${inUse.size} つ使用中です。そちらとは別に、このタブで視聴します。`
-      : '前回の視聴内容が残っています。';
-  const choice = await askChoice({ title: 'どの内容で視聴しますか?', body, choices });
+      ? tr('inUse', inUse.size)
+      : tr('leftover');
+  const choice = await askChoice({ title: tr('chooseTitle'), body, choices });
   if (choice.startsWith('resume:')) {
     const s = resumable.find((x) => 'resume:' + x.id === choice);
     sessionId = s.id;
