@@ -62,7 +62,8 @@
     });
   }
 
-  function apply() {
+  // resume = ミュートを外したとき、止まっていれば再生し直す (親から音を出す指示が来たとき。見張りで直すときはしない)
+  function apply({ resume = true } = {}) {
     const p = player();
     const v = video();
     if (!p) {
@@ -79,7 +80,7 @@
     } else {
       p.unMute();
       if (v) v.muted = false;
-      if (typeof p.getPlayerState === 'function' && p.getPlayerState() === 2) p.playVideo?.();
+      if (resume && typeof p.getPlayerState === 'function' && p.getPlayerState() === 2) p.playVideo?.();
     }
     restoreVolumeSetting();
   }
@@ -104,6 +105,15 @@
     apply();
     if (++ticks > 40) clearInterval(timer);
   }, 300);
+
+  // その後も 2 秒ごとに、実際のミュート状態が親の指定とずれていないか確かめて直す。
+  // YouTube のプレイヤーは、広告の前後やライブ配信のつなぎ直しなどで中身を作り直すとき、保存されている音量設定
+  // (別の枠がミュートにしたときの値) でミュートになることがあり、そのときは onVolumeChange が来ない
+  // (音を出しているはずのメイン枠が、別の枠を足したあとで勝手にミュートになる)。
+  // 枠内で操作した直後 (自分でミュートを切り替えた可能性がある) は触らない
+  setInterval(() => {
+    if (performance.now() - lastInput > 3000) apply({ resume: false });
+  }, 2000);
 
   // ---- この動画を見られるか (メンバー限定でメンバーではない、など) を親に知らせる
   //   ここ → watch.js : 'hukumado:playability' detail JSON {status, text}

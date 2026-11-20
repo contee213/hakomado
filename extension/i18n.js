@@ -102,6 +102,7 @@ const MESSAGES = {
   secAll: ['すべて', 'All'],
   favNoMatch: ['「{0}」に一致するお気に入りはありません。', 'No favorites match "{0}".'],
   settingsResetConfirm: ['設定をすべて初期値に戻しますか？ (表示言語はそのまま)', 'Reset all settings to their defaults? (The display language is kept.)'],
+  rateLimited: ['YouTube から取得を制限されたため、しばらく取りに行きません', 'YouTube is limiting requests; pausing for a while'],
   historyEmpty: ['まだ履歴がありません。枠で配信や動画を読み込むと、ここに残ります。', 'No history yet. Streams and videos you load into tiles will show up here.'],
   historyNoMatch: ['「{0}」に一致する履歴はありません。', 'No history matches "{0}".'],
   historyDel: ['履歴から消す', 'Remove from history'],

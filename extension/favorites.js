@@ -13,6 +13,74 @@ const Favorites = (() => {
   const STATUS_TTL_MS = 60 * 1000;
   const statusCache = new Map(); // channelId -> {at, status}
 
+  // ------------------------------------------------------------ 取得の負荷を抑える
+  // - 取得結果はタブ間で共有する (chrome.storage.session。ブラウザを閉じると消える)。
+  //   他のタブが少し前に取ったものはそのまま使い、タブがいくつあっても取得は 1 つ分で済むようにする
+  // - YouTube へのページ取得はタブ間で 1 件ずつ、間を空けて行う (一度にまとめて取らない)
+  // - YouTube に制限 (429) をかけられたら、しばらく取りに行かない (5 分 → 10 分 → … 最大 60 分)
+  const shared = chrome.storage.session || chrome.storage.local;
+  const SHARED_KEY = 'statusShared'; // {sched: {at, byHandle}, yt: {channelId: {at, status}}, backoff: {until, step}, lastYtFetch}
+  const YT_AUTO_MS = 3 * 60 * 1000; // 自動再生・一覧を開いたとき: ホロライブ以外のチャンネルは 3 分に 1 回まで
+  const YT_MANUAL_MS = 30 * 1000; // 「⟳ 更新」や自動再生を ON にしたとき
+  const SCHED_AUTO_MS = 55 * 1000; // ホロジュールは 1 分ごと
+  const SCHED_MANUAL_MS = 5 * 1000;
+  const YT_GAP_MS = 1000; // YouTube へのページ取得の間隔
+  const YT_STALE_MS = 10 * 60 * 1000; // 取りに行けなかったときに使ってよい、前の結果の古さ
+  const BACKOFF_BASE_MS = 5 * 60 * 1000;
+  const BACKOFF_MAX_MS = 60 * 60 * 1000;
+
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  // 同じ名前のロックは、この拡張機能のどのタブとも共有される (順番待ち)
+  const withLock = (name, fn) => (navigator.locks ? navigator.locks.request(name, fn) : fn());
+
+  async function readShared() {
+    const { [SHARED_KEY]: v } = await shared.get(SHARED_KEY);
+    return v && typeof v === 'object' ? v : {};
+  }
+  function updateShared(fn) {
+    return withLock('hukumado-status-store', async () => {
+      const v = await readShared();
+      fn(v);
+      await shared.set({ [SHARED_KEY]: v });
+    });
+  }
+
+  class RateLimitedError extends Error {}
+
+  /**
+   * YouTube のページを取る順番が来たら fn(fetchText) を呼ぶ (タブ間で 1 件ずつ)。
+   * 制限中は取りに行かずに RateLimitedError を投げる (呼び出し側では「取得失敗」扱い)
+   */
+  function ytTurn(fn) {
+    return withLock('hukumado-yt-fetch', async () => {
+      const st = await readShared();
+      if ((st.backoff?.until || 0) > Date.now()) throw new RateLimitedError(tr('rateLimited'));
+      const fetchText = async (url, opts) => {
+        const wait = (st.lastYtFetch || 0) + YT_GAP_MS - Date.now();
+        if (wait > 0) await sleep(wait);
+        let res;
+        try {
+          res = await fetch(url, opts);
+        } finally {
+          await updateShared((v) => (v.lastYtFetch = Date.now()));
+        }
+        // 制限 (429、または「ロボットではありません」の確認ページに飛ばされた)
+        if (res.status === 429 || /\/sorry\//.test(res.url)) {
+          await updateShared((v) => {
+            const step = Math.min((v.backoff?.step || 0) + 1, 10);
+            v.backoff = { step, until: Date.now() + Math.min(BACKOFF_BASE_MS * 2 ** (step - 1), BACKOFF_MAX_MS) };
+          });
+          throw new RateLimitedError(tr('rateLimited'));
+        }
+        if (!res.ok) throw new Error(tr('fetchFail', res.status));
+        const text = await res.text();
+        if (st.backoff) await updateShared((v) => delete v.backoff);
+        return text;
+      };
+      return fn(fetchText);
+    });
+  }
+
   // ------------------------------------------------------------ storage
   // 既定のチャンネル (ホロライブ) は、英語表示のときは英語の名前・グループ名で見せる。
   // 保存するのは日本語のまま (表示言語を切り替えても元に戻せるように)
@@ -188,9 +256,32 @@ const Favorites = (() => {
     return oembedCache.get(videoUrl);
   }
 
-  /** YouTube の /live ページを見て配信状況を判定 (ホロジュールに載らないチャンネル用) */
-  async function fetchStatusFromYouTube(channelId) {
-    const html = await getHtml(`${YT}/channel/${channelId}/live`, { credentials: 'include' });
+  /**
+   * YouTube の /live ページを見た配信状況 (ホロジュールに載らないチャンネル用)。
+   * maxAge より新しい結果 (他のタブが取ったものも含む) があればそれを使う。
+   * budget.yt (この回に取りに行ってよい件数) を使い切っていて、古くても結果があればそれを使う
+   */
+  async function youtubeStatus(channelId, { maxAge, budget }) {
+    const fresh = (c) => c && Date.now() - c.at < maxAge;
+    const cached = (await readShared()).yt?.[channelId];
+    if (fresh(cached)) return cached.status;
+    // (10 分より古い結果は使わない。制限中などで取れなければ「取得失敗」扱いにして、古い状態で枠を足し引きしない)
+    if (cached && budget && budget.yt <= 0 && Date.now() - cached.at < YT_STALE_MS) return cached.status;
+    if (budget) budget.yt--;
+    return ytTurn(async (fetchText) => {
+      // 順番を待つ間に他のタブが取っていれば、それを使う
+      const again = (await readShared()).yt?.[channelId];
+      if (fresh(again)) return again.status;
+      const status = parseLivePage(await fetchText(`${YT}/channel/${channelId}/live`, { credentials: 'include' }));
+      await updateShared((v) => {
+        v.yt = v.yt || {};
+        v.yt[channelId] = { at: Date.now(), status };
+      });
+      return status;
+    });
+  }
+
+  function parseLivePage(html) {
     const vid = html.match(/<link rel="canonical" href="https:\/\/www\.youtube\.com\/watch\?v=([A-Za-z0-9_-]{11})"/)?.[1];
     if (!vid) return { state: 'offline' };
     // ytInitialPlayerResponse.videoDetails の中の isLive / isUpcoming を見る
@@ -268,43 +359,19 @@ const Favorites = (() => {
   }
 
   /** ホロジュールから、ハンドル (小文字) → 配信状況 の対応表を作る */
-  function fetchSchedule({ force = false } = {}) {
+  function fetchSchedule({ force = false, auto = false } = {}) {
     // force (「⟳ 更新」) でも、直前 (5 秒以内) に取ったものは使い回す (お気に入りの件数分取りに行かないように)
+    const maxAge = auto ? SCHED_AUTO_MS : force ? SCHED_MANUAL_MS : STATUS_TTL_MS;
     const age = scheduleCache ? Date.now() - scheduleCache.at : Infinity;
-    if (age < (force ? 5000 : STATUS_TTL_MS)) return scheduleCache.promise;
-    const promise = (async () => {
-      const entries = parseSchedule(await getHtml(SCHEDULE_URL));
-      const now = Date.now();
-      // 配信中と、これから始まる枠 (少し遅れて始まる待機中の枠も含む) だけ調べる
-      const relevant = entries.filter((e) => e.live || (e.startAt >= now - 30 * 60e3 && e.startAt <= now + 48 * 3600e3));
-      const byHandle = new Map();
-      let i = 0;
-      const worker = async () => {
-        while (i < relevant.length) {
-          const e = relevant[i++];
-          const o = await oembed(`${YT}/watch?v=${e.videoId}`);
-          // 配信予定の動画は oEmbed が投稿者もタイトルも返さない → ホロジュールのアイコン・名前で既定のチャンネルを探す
-          const handle = o?.authorUrl.match(/youtube\.com\/(@[^/?]+)/)?.[1] || presetHandleFor(e);
-          if (!handle) continue;
-          const key = decodeURIComponent(handle).toLowerCase();
-          const title = o?.title || '';
-          const status = e.live
-            ? { state: 'live', videoId: e.videoId, title, startAt: e.startAt }
-            : { state: 'upcoming', videoId: e.videoId, title, startAt: e.startAt };
-          const prev = byHandle.get(key);
-          // 配信中を優先。予定どうしなら早い方
-          if (
-            !prev ||
-            (status.state === 'live' && prev.state !== 'live') ||
-            (status.state === prev.state && status.startAt < prev.startAt)
-          ) {
-            byHandle.set(key, status);
-          }
-        }
-      };
-      await Promise.all(Array.from({ length: 6 }, worker));
+    if (age < maxAge) return scheduleCache.promise;
+    // 他のタブが少し前に取った結果があれば、それを使う (取りに行くのはタブ間で 1 つずつ)
+    const promise = withLock('hukumado-schedule', async () => {
+      const sh = (await readShared()).sched;
+      if (sh && Date.now() - sh.at < maxAge && sh.byHandle) return new Map(Object.entries(sh.byHandle));
+      const byHandle = await buildSchedule();
+      await updateShared((v) => (v.sched = { at: Date.now(), byHandle: Object.fromEntries(byHandle) }));
       return byHandle;
-    })();
+    });
     scheduleCache = { at: Date.now(), promise };
     promise.catch(() => {
       if (scheduleCache?.promise === promise) scheduleCache = null;
@@ -312,25 +379,63 @@ const Favorites = (() => {
     return promise;
   }
 
+  /** ホロジュールを取って、ハンドル (小文字) → 配信状況 の対応表を作る */
+  async function buildSchedule() {
+    const entries = parseSchedule(await getHtml(SCHEDULE_URL));
+    const now = Date.now();
+    // 配信中と、これから始まる枠 (少し遅れて始まる待機中の枠も含む) だけ調べる
+    const relevant = entries.filter((e) => e.live || (e.startAt >= now - 30 * 60e3 && e.startAt <= now + 48 * 3600e3));
+    const byHandle = new Map();
+    let i = 0;
+    const worker = async () => {
+      while (i < relevant.length) {
+        const e = relevant[i++];
+        const o = await oembed(`${YT}/watch?v=${e.videoId}`);
+        // 配信予定の動画は oEmbed が投稿者もタイトルも返さない → ホロジュールのアイコン・名前で既定のチャンネルを探す
+        const handle = o?.authorUrl.match(/youtube\.com\/(@[^/?]+)/)?.[1] || presetHandleFor(e);
+        if (!handle) continue;
+        const key = decodeURIComponent(handle).toLowerCase();
+        const title = o?.title || '';
+        const status = e.live
+          ? { state: 'live', videoId: e.videoId, title, startAt: e.startAt }
+          : { state: 'upcoming', videoId: e.videoId, title, startAt: e.startAt };
+        const prev = byHandle.get(key);
+        // 配信中を優先。予定どうしなら早い方
+        if (
+          !prev ||
+          (status.state === 'live' && prev.state !== 'live') ||
+          (status.state === prev.state && status.startAt < prev.startAt)
+        ) {
+          byHandle.set(key, status);
+        }
+      }
+    };
+    await Promise.all(Array.from({ length: 6 }, worker));
+    return byHandle;
+  }
+
   /**
    * 今の配信状況
    * @param {{channelId: string, handle?: string, preset?: boolean}} fav
    * @returns {Promise<{state: 'live'|'upcoming'|'offline', videoId?: string, title?: string, startAt?: number}>}
    */
-  async function fetchStatus(fav, { force = false } = {}) {
+  async function fetchStatus(fav, { force = false, auto = false, budget = null } = {}) {
     const cached = statusCache.get(fav.channelId);
-    if (!force && cached && Date.now() - cached.at < STATUS_TTL_MS) return cached.status;
+    if (!force && !auto && cached && Date.now() - cached.at < STATUS_TTL_MS) return cached.status;
 
     let status;
     const key = (fav.handle || '').toLowerCase();
     if (fav.preset && key) {
       // ホロライブ所属: ホロジュールに載っていなければ配信なし
-      const schedule = await fetchSchedule({ force });
+      const schedule = await fetchSchedule({ force, auto });
       status = schedule.get(key) || { state: 'offline' };
     } else {
       // ホロジュールに載っていればそれを使い、無ければ YouTube を個別に見る
-      const schedule = key ? await fetchSchedule({ force }).catch(() => null) : null;
-      status = schedule?.get(key) || (await fetchStatusFromYouTube(fav.channelId));
+      // (配信の終了は枠のプレイヤーが知らせてくるので、ここは新しく始まった配信を見つけるためだけ。3 分に 1 回まで)
+      const schedule = key ? await fetchSchedule({ force, auto }).catch(() => null) : null;
+      status =
+        schedule?.get(key) ||
+        (await youtubeStatus(fav.channelId, { maxAge: force && !auto ? YT_MANUAL_MS : YT_AUTO_MS, budget }));
     }
     statusCache.set(fav.channelId, { at: Date.now(), status });
     return status;
@@ -357,7 +462,9 @@ const Favorites = (() => {
     if (c && (c.result === 'ok' || Date.now() - c.at < ACCESS_NG_TTL_MS)) return c.result;
     let result = 'unknown';
     try {
-      const html = await getHtml(`${YT}/watch?v=${encodeURIComponent(videoId)}`, { credentials: 'include' });
+      const html = await ytTurn((fetchText) =>
+        fetchText(`${YT}/watch?v=${encodeURIComponent(videoId)}`, { credentials: 'include' }),
+      );
       const at = html.indexOf('"playabilityStatus":{');
       const ps = at >= 0 ? html.slice(at, at + 6000) : '';
       const status = ps.match(/"status":"(\w+)"/)?.[1];

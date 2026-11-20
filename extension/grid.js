@@ -1829,8 +1829,11 @@ async function fillLiveIntoEmptyTiles() {
  * errors = 取得に失敗した件数、failedKeys = 取得に失敗したチャンネルの ID と @ハンドル (小文字)。
  * 自動再生は、取得に失敗したチャンネルの枠だけ消さない (1 件の失敗で全体の片付けが止まらないように)
  */
-async function collectLiveFavorites({ force = false } = {}) {
+async function collectLiveFavorites({ force = false, auto = false } = {}) {
   const favs = await Favorites.list();
+  // 自動再生の 1 分ごとの確認では、ホロライブ以外のチャンネルを取りに行くのは 1 回あたり 3 分の 1 ずつ
+  // (残りは前に取った結果を使う。取りに行く時期が少しずつずれて、一度にまとめて取らなくなる)
+  const budget = auto ? { yt: Math.max(2, Math.ceil(favs.filter((f) => !f.preset).length / 3)) } : null;
   const results = [];
   let errors = 0;
   const failedKeys = new Set();
@@ -1839,7 +1842,7 @@ async function collectLiveFavorites({ force = false } = {}) {
     while (next < favs.length) {
       const f = favs[next++];
       try {
-        const st = await Favorites.fetchStatus(f, { force });
+        const st = await Favorites.fetchStatus(f, { force, auto, budget });
         favStatus.set(f.channelId, st);
         results.push({ f, st });
       } catch (e) {
@@ -2077,7 +2080,7 @@ async function autoTick() {
 
 async function autoTickOnce() {
   try {
-    const collected = await collectLiveFavorites({ force: true });
+    const collected = await collectLiveFavorites({ force: true, auto: true });
     const { failedKeys } = collected;
     const { targets: lives } = autoTargets(collected); // 配信中 + まもなく始まる予定 (配信中が無ければ近い予定)
     const liveIds = new Set(lives.map((l) => l.st.videoId));

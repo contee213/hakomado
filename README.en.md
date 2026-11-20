@@ -106,7 +106,9 @@ If you fullscreen one tile with its ⛶ while in all-tiles fullscreen, Esc takes
   - Filter by name / @handle in the top field; add an `@handle` / channel URL / video URL in the bottom field
   - "Fill empty tiles" in the "● Live" header puts live channels that aren't shown yet into empty tiles
 - Built-in channels can be removed with ✕ (they don't come back on their own; use "Restore removed hololive channels")
-- Live status is cached for 1 minute. Press "⟳ Refresh" to check again
+- Live status is checked every minute for hololive channels (via the hololive schedule) and at most every 3 minutes for other channels (via their YouTube page). Press "⟳ Refresh" to check again
+  - Results are shared by all tabs (no matter how many tabs are open, each check is fetched once). YouTube pages are fetched one at a time with a short gap
+  - If YouTube limits requests (429), fetching pauses for a while (5 minutes, up to 60). Meanwhile auto play does not remove those channels' tiles
 - In English, built-in hololive channels are shown with their English names
 
 ### History
