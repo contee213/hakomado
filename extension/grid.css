@@ -64,20 +64,20 @@ button.toggle.on { color: #fff; border-color: var(--on); background: var(--on-bg
 button.toggle.busy .tb-icon { animation: spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-/* クルーズ: ボタンの下の線が、次にメイン枠を回すまでの残り時間を表す */
-#cruise { position: relative; overflow: hidden; }
+/* クルーズ: ON の間、ボタン全体が左から明るい青で満ちていき、満ちたら次の配信へ回す */
+#cruise { position: relative; overflow: hidden; isolation: isolate; }
+#cruise > span { position: relative; z-index: 1; }
 #cruise .cruise-progress {
   position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 2px;
-  background: var(--on);
+  inset: 0;
+  z-index: 0;
+  background: linear-gradient(90deg, rgba(41, 169, 255, .25), rgba(41, 169, 255, .6));
   transform-origin: left;
   transform: scaleX(0);
+  pointer-events: none;
 }
 #cruise.on .cruise-progress { animation: cruise-progress var(--cruise-dur, 120s) linear forwards; }
-@keyframes cruise-progress { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+@keyframes cruise-progress { from { transform: scaleX(0); } to { transform: scaleX(1); } }
 
 /* ---- 分割したままの全画面 / F11: 上部バーを隠して画面全体を枠に使う。
    上端 (hotzone) にマウスを寄せるか、バーにフォーカスがあるとバーが重なって出る */

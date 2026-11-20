@@ -1686,7 +1686,7 @@ function restartCruise() {
   if (!state.cruise) return;
   const sec = Math.max(10, Number(state.settings.cruiseSec) || 120);
   cruiseTimer = setTimeout(cruiseStep, sec * 1000);
-  // ボタンの下の線で、次に回すまでの残り時間を見せる
+  // ボタン全体が左から満ちていく表示で、次に回すまでの時間を見せる
   if (bar) {
     bar.style.animation = 'none';
     void bar.offsetWidth;
