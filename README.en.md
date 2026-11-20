@@ -124,10 +124,10 @@ Turn on "▶ Auto play" (`L`) to keep playing every favorite that is live (up to
 
 - When turned ON: every live stream is played in a layout that fits the count (layouts that are exactly filled are preferred, e.g. 5 → 2+3, 6 → 1+5, 10 → 1+9, 14 → 2+12B; it depends on the screen ratio).
   Streams already shown are kept on the tile 1 (main) side without reloading, and tiles that aren't live are cleared
-- While ON: it checks every minute, adds a tile at the end (sub side) when a stream starts, and removes the tile and rearranges the layout when a stream ends. When a premiere or stream plays through to the end, its tile is removed right away without waiting for the next check
-  - To avoid removing tiles because of a temporary miss, a tile is removed only after the stream is missing twice in a row. Nothing is removed when fetching fails
+- While ON: it checks every minute, adds a tile at the end (sub side) when a stream starts, and removes the tile and rearranges the layout when a stream ends. When a premiere or stream plays through to the end, its tile is removed without waiting for the next check (not when an ad ends; a live stream is removed after waiting 1 minute, since it may come back from a short interruption)
+  - To avoid removing tiles because of a temporary miss, a tile is removed only after the stream is missing twice in a row. If fetching the live status of a channel fails, that channel's tiles are kept for that round (tiles of other channels are cleaned up as usual)
   - Tiles you loaded yourself while ON are also removed once they play through to the end (a live stream ends, or an archive / video finishes). Until then they are kept even if they are not in the live list
-- Streams you close with ✕ while ON are not added back. Turn it OFF → ON to add them again
+- Streams you close with ✕ while ON are not added back. Turn it OFF → ON to add them again (streams judged as ended are also re-checked when you turn it OFF → ON)
 - Turning it OFF keeps the current tiles and just stops adding / removing
 - **Tiles for upcoming streams**: from 30 minutes before the start (⚙ Settings → Auto play: Off / 5 / 10 / 15 / 30 / 60 min), a tile is prepared for an upcoming stream.
   When it starts, the same tile switches to the stream, so you can watch from the very beginning. A stream that starts a little late stays for a while (up to 30 minutes past its scheduled time for streams on the hololive schedule)
@@ -165,6 +165,7 @@ Turn on "🚢 Cruise" (`C`) to rotate the shown streams one step at a set interv
 - **Chat**: text size, width, author icons
 - **Auto play**: whether to skip members-only streams, how early to prepare tiles for upcoming streams, cruise interval
 - **Display language** (top right of Settings): Auto (browser language) / 日本語 / English. Changing it reloads the page (your tiles come back as they were)
+- "Reset all to defaults" at the bottom of Settings restores every setting except the display language (asks first; applies to all tabs)
 
 Settings and tile contents are saved in the browser (see "Reopening and multiple windows" below).
 

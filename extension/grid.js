@@ -186,15 +186,28 @@ function saveSettings() {
   settingsTimer = setTimeout(() => chrome.storage.local.set({ settings: state.settings }), 200);
 }
 
-// 他のタブで共通設定が変わったら、このタブにも反映する
-chrome.storage.onChanged.addListener((changes, area) => {
-  if (area !== 'local' || !changes.settings?.newValue) return;
+/** 共通設定をまとめて差し替えて、画面に反映する (他のタブでの変更・初期値に戻す) */
+function replaceSettings(next) {
   const cruiseBefore = state.settings.cruiseSec;
-  state.settings = { ...DEFAULT_SETTINGS, ...changes.settings.newValue };
+  state.settings = { ...DEFAULT_SETTINGS, ...next };
   applyHighlight();
   applyChatLook();
   syncSettingsInputs();
   if (state.settings.cruiseSec !== cruiseBefore) restartCruise();
+}
+
+/** 設定をすべて初期値に戻す (確認してから。表示言語は別に保存しているのでそのまま) */
+function resetSettings() {
+  if (!confirm(tr('settingsResetConfirm'))) return;
+  replaceSettings({});
+  clearTimeout(settingsTimer);
+  chrome.storage.local.set({ settings: state.settings });
+}
+
+// 他のタブで共通設定が変わったら、このタブにも反映する
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area !== 'local' || !changes.settings?.newValue) return;
+  replaceSettings(changes.settings.newValue);
 });
 
 // ---------------------------------------------------------------- input parsing
@@ -508,9 +521,12 @@ function playerUrl(t) {
 function chatUrl(t) {
   const p = new URLSearchParams({
     v: t.videoId,
-    embed_domain: location.hostname,
+    // ポップアウト (別ウィンドウ) 用のチャット画面にする。埋め込み用のチャット画面は、フィードバックなどの画面を
+    // 自分では出さず、親のページ (普段は YouTube の視聴ページ) に出してもらう作りなので、この画面では出ない。
+    // embed_domain (外部サイトへの埋め込み用) は付けない。付けるとコメントの ⋮ →「報告」「ブロック」の画面が出なくなる
+    // (iframe への表示は background.js で X-Frame-Options を外して許可している)
+    is_popout: '1',
     hukumado: '1',
-    hukumado_zoom: String(state.settings.chatZoom),
     hukumado_noav: state.settings.chatHideAvatars ? '1' : '0',
   });
   return `${YT}/live_chat?${p}`;
@@ -558,8 +574,9 @@ function applyHighlight() {
 function applyChatLook() {
   const s = state.settings;
   document.documentElement.style.setProperty('--chat-width', `${Math.round(s.chatWidth * 100)}%`);
+  document.documentElement.style.setProperty('--chat-zoom', String(Math.min(1, Math.max(0.4, Number(s.chatZoom) || 1))));
   for (const v of views) {
-    postToFrame(v.chatFrame, { hukumado: 'chatLook', zoom: s.chatZoom, hideAvatars: s.chatHideAvatars });
+    postToFrame(v.chatFrame, { hukumado: 'chatLook', hideAvatars: s.chatHideAvatars });
   }
 }
 
@@ -1323,6 +1340,7 @@ function setupToolbar() {
 
   const dialog = document.getElementById('settings');
   document.getElementById('openSettings').addEventListener('click', () => dialog.showModal());
+  document.getElementById('settingsReset').addEventListener('click', resetSettings);
   document.getElementById('openHelp').addEventListener('click', openHelp);
   document.getElementById('gridFullscreen').addEventListener('click', (e) => {
     // 押したボタンにフォーカスを残さない (全画面中に上部バーを隠すため)
@@ -1808,12 +1826,14 @@ async function fillLiveIntoEmptyTiles() {
 /**
  * お気に入り全部の配信状況を (待って) 取り、配信中のものと配信予定を返す。
  * lives = 配信中 (お気に入りの並び順)、upcoming = 配信予定 (開始が早い順。配信中と同じ配信は除く)
- * errors = 取得に失敗した件数 (失敗があった回は、自動再生は枠を消さない)
+ * errors = 取得に失敗した件数、failedKeys = 取得に失敗したチャンネルの ID と @ハンドル (小文字)。
+ * 自動再生は、取得に失敗したチャンネルの枠だけ消さない (1 件の失敗で全体の片付けが止まらないように)
  */
 async function collectLiveFavorites({ force = false } = {}) {
   const favs = await Favorites.list();
   const results = [];
   let errors = 0;
+  const failedKeys = new Set();
   let next = 0;
   const worker = async () => {
     while (next < favs.length) {
@@ -1826,6 +1846,7 @@ async function collectLiveFavorites({ force = false } = {}) {
         console.warn('hukumado: 配信状況の取得に失敗', f.name, e);
         favStatus.set(f.channelId, 'error');
         errors++;
+        for (const k of [f.channelId, f.handle]) if (k) failedKeys.add(favKey(k));
       }
     }
   };
@@ -1839,7 +1860,7 @@ async function collectLiveFavorites({ force = false } = {}) {
   const upcoming = results
     .filter(({ st }) => st?.state === 'upcoming' && st.startAt && !seen.has(st.videoId) && seen.add(st.videoId))
     .sort((a, b) => a.st.startAt - b.st.startAt || order.get(a.f.channelId) - order.get(b.f.channelId));
-  return { lives, upcoming, errors };
+  return { lives, upcoming, errors, failedKeys };
 }
 
 const FALLBACK_WINDOW_MS = 60 * 60 * 1000; // 配信中が無いときに載せる配信予定の範囲 (1 時間以内)
@@ -2009,6 +2030,7 @@ async function setAutoMode(on, { resume = false } = {}) {
   if (!on) return; // OFF: 今の枠はそのまま、増減だけ止める
 
   autoDismissed.clear();
+  finishedIds.clear(); // 「終わった」の誤判定もやり直せるように
   autoMissing.clear();
   membersAnnounced.clear();
   membersBlocked.clear();
@@ -2056,12 +2078,12 @@ async function autoTick() {
 async function autoTickOnce() {
   try {
     const collected = await collectLiveFavorites({ force: true });
-    const { errors } = collected;
+    const { failedKeys } = collected;
     const { targets: lives } = autoTargets(collected); // 配信中 + まもなく始まる予定 (配信中が無ければ近い予定)
     const liveIds = new Set(lives.map((l) => l.st.videoId));
     const visible = visibleIndexes().filter((i) => state.tiles[i].videoId);
 
-    // 終わった配信 (自動で入れた枠だけ。取得に失敗した回は消さない)
+    // 終わった配信 (自動で入れた枠だけ。その配信のチャンネルの取得に失敗した回は消さない)
     const ended = [];
     for (const i of visible) {
       const t = state.tiles[i];
@@ -2069,7 +2091,10 @@ async function autoTickOnce() {
         autoMissing.delete(t.videoId);
         continue;
       }
-      if (!t.auto || errors > 0) continue;
+      // 自動で入れた枠だけ。その配信のチャンネルの取得に失敗した回は消さない
+      if (!t.auto) continue;
+      const m = views[i].meta;
+      if ([t.input, m?.handle, m?.channelId].some((k) => k && failedKeys.has(favKey(k)))) continue;
       const n = (autoMissing.get(t.videoId) || 0) + 1;
       autoMissing.set(t.videoId, n);
       if (n >= AUTO_MISS_LIMIT) ended.push(i);

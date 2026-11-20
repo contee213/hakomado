@@ -9,17 +9,13 @@
 
   const PARENT_ORIGIN = 'chrome-extension://' + chrome.runtime.id;
 
-  // ---- 見た目 (文字サイズ・アイコン): 狭い枠でもチャット欄を読み書きしやすくする
+  // ---- 見た目 (投稿者アイコン): 狭い枠でもチャット欄を読みやすくする
+  // (文字サイズは親画面が iframe ごと縮小する。ここで縮小すると YouTube のメニューの位置計算がずれて出なくなる)
   const lookStyle = document.createElement('style');
   document.documentElement.appendChild(lookStyle);
 
-  function applyLook({ zoom, hideAvatars }) {
-    const z = Math.min(1, Math.max(0.4, Number(zoom) || 1));
-    // チャット画面の本体だけ縮小し、縮んだ分は幅・高さを広げて枠いっぱいに戻す
-    let css =
-      z < 1
-        ? `yt-live-chat-app { zoom: ${z}; width: calc(100vw / ${z}) !important; height: calc(100vh / ${z}) !important; min-height: 0 !important; }`
-        : '';
+  function applyLook({ hideAvatars }) {
+    let css = '';
     if (hideAvatars) {
       css += `
         yt-live-chat-text-message-renderer #author-photo,
@@ -29,7 +25,7 @@
     lookStyle.textContent = css;
   }
 
-  applyLook({ zoom: params.get('hukumado_zoom'), hideAvatars: params.get('hukumado_noav') === '1' });
+  applyLook({ hideAvatars: params.get('hukumado_noav') === '1' });
   window.addEventListener('message', (e) => {
     if (e.origin !== PARENT_ORIGIN || e.source !== window.parent) return;
     if (e.data?.hukumado === 'chatLook') applyLook(e.data);

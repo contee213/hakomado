@@ -140,7 +140,11 @@
 
   // ---- 配信・動画が終わったことを親に知らせる (自動再生中に枠を片付けるため)
   //   ここ → watch.js : 'hukumado:ended' detail 'played' | 'already'
-  //   played  = 再生が最後まで行った (プレイヤーの状態 0 = 終了。開始前の待機画面の宣伝動画が終わったときは除く)
+  //   played  = 再生が最後まで行った (プレイヤーの状態 0 = 終了)。次のときは終わったことにしない:
+  //             - 開始前の待機画面の宣伝動画が終わった
+  //             - 広告が終わった (広告の再生中・広告の後に本編が始まった)
+  //             - ライブ配信の一時中断 (配信者の回線切れなど): 少し待って、本編が再生に戻っていれば終わっていない
+  //             少し待つ間に YouTube が次の動画に自動で移ったときは、終わったことにする
   //   already = 開いた時点でもう終わっていた配信 (liveBroadcastDetails に終了時刻があり、今は配信中ではない)。
   //             アーカイブを開いたときもこれになるので、親は自動再生で入れた枠にだけ使う
   const endedSent = new Set();
@@ -169,15 +173,37 @@
       return false;
     }
   };
+  const myVideoId = params.get('v') || '';
+  const adShowing = () => !!document.querySelector('#movie_player.ad-showing, #movie_player.ad-interrupting');
+  const videoData = () => {
+    try {
+      return player()?.getVideoData?.() || {};
+    } catch {
+      return {};
+    }
+  };
+  // 状態 0 になってから確かめ直すまでの時間。ライブ配信は一時中断から戻るのを長めに待つ
+  const CONFIRM_VOD_MS = 5000;
+  const CONFIRM_LIVE_MS = 60000;
+  let endCheck = 0;
+  const onPlayerState = (s) => {
+    if (s !== 0 || endCheck || adShowing() || waitingRoom()) return;
+    const wait = videoData().isLive ? CONFIRM_LIVE_MS : CONFIRM_VOD_MS;
+    endCheck = setTimeout(() => {
+      endCheck = 0;
+      if (adShowing() || waitingRoom()) return;
+      const id = videoData().video_id || '';
+      const movedOn = !!id && !!myVideoId && id !== myVideoId; // 次の動画に自動で移った
+      if (movedOn || player()?.getPlayerState?.() === 0) reportEnded('played');
+    }, wait);
+  };
   let endTicks = 0;
   let endHooked = false;
   const endTimer = setInterval(() => {
     const p = player();
     if (p && !endHooked) {
       endHooked = true;
-      p.addEventListener('onStateChange', (s) => {
-        if (s === 0 && !waitingRoom()) reportEnded('played');
-      });
+      p.addEventListener('onStateChange', onPlayerState);
     }
     if (alreadyEnded()) reportEnded('already');
     if ((endHooked && window.ytInitialPlayerResponse) || ++endTicks > 60) clearInterval(endTimer);
