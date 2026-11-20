@@ -50,6 +50,7 @@ The current-audio button changes width with the channel name, so it is last on t
 | Button | What it does |
 |---|---|
 | ▦ layout name | Choose a layout and how tiles fit the screen |
+| ＋ / − | Add a tile / remove an empty tile. The layout changes to fit the number of tiles (see below) |
 | ▶ Auto play | Keeps playing every live favorite (see below). Blue when ON |
 | 🚢 Cruise | Moves the main tile and audio to the next stream at a set interval (see below). While ON, the button fills with blue from left to right and switches when full |
 | ≋ Danmaku | Danmaku on all tiles (blue when ON) |
@@ -86,6 +87,10 @@ If you fullscreen one tile with its ⛶ while in all-tiles fullscreen, Esc takes
 - Choose from "▦ layout" at the top. Tiles are numbered main → sub, and the stream in tile 1 stays in position 1 when you change layouts
 - The list is split into Uniform and Main + sub (fewest main tiles first). Names are "mains+subs" (e.g. 2+8B = 2 main tiles and 8 sub tiles).
   Layouts with 2 or 6 main tiles come in two forms: mains side by side with subs below (ending in B) and mains stacked with subs on the right (ending in R).
+- "＋" at the top adds a tile. The layout changes to one that fits the current count + 1 (chosen the same way as auto play); current streams keep their order and an empty tile is added at the end.
+  There are no layouts with exactly 7 or 11 tiles, so 6 → 8 or 10 → 12 adds two empty tiles. It is disabled at 16 tiles
+- "−" removes empty tiles (tiles with no stream loaded) from the end and switches to a layout with fewer tiles. The ✕ on an empty tile removes that tile.
+  Tiles with a stream are never removed, and the buttons are disabled when the loaded streams would no longer fit (e.g. 7 streams in 1+7)
   Since 16:9 tiles are wide, stacked mains are closer together (about 0.56x the distance), so your eyes move less when watching both
 - At the top right you can choose how tiles fit
   - **Fit 16:9** (default): no black bars inside tiles. If the screen and layout ratios differ, the leftover space becomes outer margins.

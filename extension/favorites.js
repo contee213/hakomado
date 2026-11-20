@@ -171,17 +171,19 @@ const Favorites = (() => {
     };
   }
 
-  // 動画 → 投稿チャンネル (oEmbed。1 件 1KB 程度と軽い)。動画の投稿者は変わらないので覚えておく
+  // 動画 → 投稿チャンネル (oEmbed。1 件 1KB 程度と軽い)。動画の投稿者は変わらないので覚えておく。
+  // ただし配信予定の動画は投稿者・タイトルが空で返るので、それは覚えない (始まったら取り直す)
   const oembedCache = new Map();
   function oembed(videoUrl) {
     if (!oembedCache.has(videoUrl)) {
-      oembedCache.set(
-        videoUrl,
-        fetch(`${YT}/oembed?format=json&url=${encodeURIComponent(videoUrl)}`)
-          .then((r) => (r.ok ? r.json() : null))
-          .then((j) => (j ? { authorUrl: String(j.author_url || '').replace(/^http:/, 'https:'), title: j.title || '' } : null))
-          .catch(() => null),
-      );
+      const p = fetch(`${YT}/oembed?format=json&url=${encodeURIComponent(videoUrl)}`)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((j) => (j ? { authorUrl: String(j.author_url || '').replace(/^http:/, 'https:'), title: j.title || '' } : null))
+        .catch(() => null);
+      oembedCache.set(videoUrl, p);
+      p.then((o) => {
+        if (!o?.authorUrl && oembedCache.get(videoUrl) === p) oembedCache.delete(videoUrl);
+      });
     }
     return oembedCache.get(videoUrl);
   }
@@ -238,9 +240,31 @@ const Favorites = (() => {
         startAt: Date.UTC(year, month - 1, day, Number(hm[1]) - 9, Number(hm[2])),
         live: /border:\s*3px\s+red/.test(el.getAttribute('style') || ''),
         name: el.querySelector('.name')?.textContent.trim() || '',
+        // 配信者のアイコン (コラボは複数並ぶが、先頭が配信者)
+        icon: iconKey(el.querySelector('img[src*="yt3."]')?.getAttribute('src')),
       });
     }
     return entries;
+  }
+
+  /** アイコン画像の URL から、画像ごとの部分 (サイズ指定の前まで) を取り出す。配信元のドメインが違っても同じになる */
+  function iconKey(url) {
+    return (url || '').split('?')[0].split('/').pop().split('=')[0];
+  }
+
+  // ホロジュールの枠 → 既定のチャンネル (ホロライブ所属) のハンドル。
+  // 配信予定の動画は oEmbed が投稿者を返さないので、ホロジュールに載っているアイコンと名前で突き合わせる
+  // (アイコンは差し替わることがあり、英語の名前は短い呼び名 (Calli など) なので、両方を使う)
+  let presetIndex = null;
+  function presetHandleFor(e) {
+    if (!presetIndex) {
+      presetIndex = new Map();
+      for (const p of PRESET_FAVORITES) {
+        if (!p.handle) continue;
+        for (const k of [iconKey(p.icon), p.name, p.nameEn]) if (k) presetIndex.set(k.toLowerCase(), p.handle);
+      }
+    }
+    return presetIndex.get(e.icon.toLowerCase()) || presetIndex.get(e.name.toLowerCase()) || '';
   }
 
   /** ホロジュールから、ハンドル (小文字) → 配信状況 の対応表を作る */
@@ -259,12 +283,14 @@ const Favorites = (() => {
         while (i < relevant.length) {
           const e = relevant[i++];
           const o = await oembed(`${YT}/watch?v=${e.videoId}`);
-          const handle = o?.authorUrl.match(/youtube\.com\/(@[^/?]+)/)?.[1];
+          // 配信予定の動画は oEmbed が投稿者もタイトルも返さない → ホロジュールのアイコン・名前で既定のチャンネルを探す
+          const handle = o?.authorUrl.match(/youtube\.com\/(@[^/?]+)/)?.[1] || presetHandleFor(e);
           if (!handle) continue;
           const key = decodeURIComponent(handle).toLowerCase();
+          const title = o?.title || '';
           const status = e.live
-            ? { state: 'live', videoId: e.videoId, title: o.title, startAt: e.startAt }
-            : { state: 'upcoming', videoId: e.videoId, title: o.title, startAt: e.startAt };
+            ? { state: 'live', videoId: e.videoId, title, startAt: e.startAt }
+            : { state: 'upcoming', videoId: e.videoId, title, startAt: e.startAt };
           const prev = byHandle.get(key);
           // 配信中を優先。予定どうしなら早い方
           if (

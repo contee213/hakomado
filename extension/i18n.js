@@ -70,6 +70,9 @@ const MESSAGES = {
   groupUniform: ['均等', 'Uniform'],
   groupMain: ['メイン + サブ', 'Main + sub'],
   layoutTitle: ['{0} ({1} 枠)', '{0} ({1} tiles)'],
+  tileClear: ['この枠を閉じる', 'Close this tile'],
+  tileRemove: ['この空き枠を消す (枠の数に合ったレイアウトに変わります)', 'Remove this empty tile (the layout changes to fit the number of tiles)'],
+  tileRemoveNo: ['これ以上枠を減らせません (読み込んだ配信が入りきらなくなるため)', 'Cannot remove more tiles (the loaded streams would not fit)'],
 
   // 設定の値
   sec: ['{0} 秒', '{0} s'],
@@ -181,6 +184,8 @@ const HTML_EN = {
   'fav.label': 'Favorites',
   'nowPlaying': '🔇 Muted',
   'layout.title': 'Choose a layout',
+  'addTile.title': 'Add a tile (the layout changes to fit the number of tiles)',
+  'removeTile.title': 'Remove an empty tile (the layout changes to fit the number of tiles). Tiles with a stream are not removed',
   'danmakuAll.title': 'Scrolling chat (danmaku) on all tiles (D)',
   'danmakuAll.label': 'Danmaku',
   'gridFs.title': 'Fullscreen with all tiles (Shift+F). Move the mouse to the top edge to show this bar',

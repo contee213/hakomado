@@ -286,7 +286,7 @@ function filledArea(l, n) {
 /**
  * n 本の配信を並べるのに向いたレイアウトを選ぶ。
  * 枠数がちょうど n のレイアウトがあればその中で映像が一番大きくなるもの、
- * 無ければ (空き枠が出ても) 映像が一番大きくなるもの。同じくらいなら枠数の少ない方。
+ * 無ければ n より多い中で一番少ない枠数のものから選ぶ (空き枠をなるべく出さない)。
  * クルーズ中は、メイン枠を回して見られるよう「メイン + サブ」のレイアウトを優先する (合うものが無ければ均等)。
  * 使うのは自動再生が枠を組み替えるときだけ (クルーズを ON にしただけではレイアウトを変えない)
  */
@@ -296,8 +296,10 @@ function chooseLayoutFor(n) {
     const withMain = LAYOUTS.filter((l) => l.mains > 0 && l.slots.length >= n);
     if (withMain.length) pool = withMain;
   }
-  const exact = pool.filter((l) => l.slots.length === n);
-  const candidates = exact.length ? exact : pool.filter((l) => l.slots.length >= n);
+  // 枠数がちょうど n のものが無ければ、n より多い中で一番少ない枠数のもの (空き枠をなるべく出さない)
+  const enough = pool.filter((l) => l.slots.length >= n);
+  const fewest = Math.min(...enough.map((l) => l.slots.length));
+  const candidates = enough.filter((l) => l.slots.length === fewest);
   let best = null;
   for (const l of candidates) {
     const score = filledArea(l, n);
@@ -335,6 +337,71 @@ function layout() {
     el.querySelector('.empty-title').textContent = k < l.mains ? tr('slotMain', k + 1) : tr('slot', k + 1);
   });
   document.getElementById('layoutName').textContent = l.name;
+  updateSlotButtons();
+}
+
+/**
+ * 空き枠を減らすときのレイアウト: 今より枠数の少ないレイアウトのうち、読み込んだ配信が全部入るもの。
+ * 枠数ごとの選び方は chooseLayoutFor。ちょうど合うものが無い枠数 (7・11) は飛ばすので、
+ * 空き枠が一度に 2 つ消えることがある。減らせなければ null
+ */
+function shrinkTarget() {
+  const shown = visibleIndexes();
+  const filled = shown.filter((j) => state.tiles[j].videoId).length;
+  for (let k = shown.length - 1; k >= Math.max(1, filled); k--) {
+    const l = chooseLayoutFor(k);
+    if (l.slots.length < shown.length) return l;
+  }
+  return null;
+}
+
+/** 上部バーの「＋」「−」と、空き枠の ✕ を押せるかどうか (枠の中身が変わるたびにまとめて 1 回) */
+let slotButtonsQueued = false;
+function updateSlotButtons() {
+  if (slotButtonsQueued) return;
+  slotButtonsQueued = true;
+  queueMicrotask(() => {
+    slotButtonsQueued = false;
+    const canShrink = !!shrinkTarget();
+    document.getElementById('addTile').disabled = state.count >= MAX_TILES;
+    document.getElementById('removeTile').disabled = !canShrink;
+    for (let i = 0; i < MAX_TILES; i++) {
+      const btn = views[i].el.querySelector('[data-act="clear"]');
+      const empty = !state.tiles[i].videoId;
+      btn.disabled = empty && !canShrink;
+      btn.title = !empty ? tr('tileClear') : canShrink ? tr('tileRemove') : tr('tileRemoveNo');
+    }
+  });
+}
+
+/**
+ * 空き枠を消して、枠数の少ないレイアウトにする (上部バーの「−」と、空き枠の ✕)。
+ * 読み込んだ配信は並び順のまま残す。prefer を渡すとその空き枠を先に消し、残りは後ろの空き枠から消す
+ */
+function removeEmptySlot(prefer = null) {
+  const l = shrinkTarget();
+  if (!l) return;
+  const shown = visibleIndexes();
+  const empties = shown.filter((j) => !state.tiles[j].videoId).reverse();
+  const pick = empties.includes(prefer) ? [prefer, ...empties.filter((j) => j !== prefer)] : empties;
+  const removed = pick.slice(0, shown.length - l.slots.length);
+  state.order = [...shown.filter((j) => !removed.includes(j)), ...removed, ...state.order.slice(state.count)];
+  setLayout(l.id);
+}
+
+/**
+ * 上部バーの「＋」: 枠を 1 つ足し、今の枠数 + 1 に合ったレイアウトにする (枠数ごとの選び方は chooseLayoutFor)。
+ * 今見えている枠は並び順も中身 (空き枠も) もそのまま。足した位置には空き枠が来るようにする
+ * (ちょうど合うレイアウトが無い枠数では、空き枠が 2 つ以上増えることがある)
+ */
+function addTileSlot() {
+  if (state.count >= MAX_TILES) return;
+  const shown = visibleIndexes();
+  const hidden = state.order.slice(state.count);
+  const empty = hidden.filter((j) => !state.tiles[j].videoId);
+  // 隠れている枠に中身が残っていても、それは出さずに空き枠から使う
+  state.order = [...shown, ...empty, ...hidden.filter((j) => state.tiles[j].videoId)];
+  setLayout(chooseLayoutFor(shown.length + 1).id);
 }
 
 function setFit(mode) {
@@ -503,6 +570,7 @@ function renderTile(i, { reloadPlayer = false, reloadChat = false } = {}) {
   el.hidden = !visible;
   el.classList.toggle('is-empty', !t.videoId);
   el.querySelector('.url-input').value = t.input;
+  updateSlotButtons();
 
   const danmakuOn = state.danmakuAll && t.danmaku;
   const needChat = visible && !!t.videoId && (t.chat || danmakuOn);
@@ -733,6 +801,11 @@ function onBarAction(i, act, e) {
       toggleFullscreen(i);
       return;
     case 'clear':
+      // 空き枠の ✕ は枠ごと消して、枠数の少ないレイアウトにする
+      if (!t.videoId) {
+        removeEmptySlot(i);
+        return;
+      }
       // 自動再生 ON の間に自分で閉じた配信は入れ直さない
       if (t.videoId) autoDismissed.add(t.videoId);
       state.tiles[i] = newTileState();
@@ -963,6 +1036,8 @@ function setupLayoutPicker() {
   });
   document.getElementById('layoutClose').addEventListener('click', () => dialog.close());
   closeOnBackdrop(dialog);
+  document.getElementById('addTile').addEventListener('click', addTileSlot);
+  document.getElementById('removeTile').addEventListener('click', () => removeEmptySlot());
 }
 
 /**

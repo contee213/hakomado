@@ -61,6 +61,9 @@ button:hover, select:hover { border-color: #444450; }
 /* 幅は grid.js がいちばん長いレイアウト名に合わせて固定する (切り替えても後ろのボタンが動かないように) */
 #openLayout .tb-label { max-width: 9em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
+/* 枠を増やす / 減らすボタン (押せないときは薄く) */
+#addTile:disabled, #removeTile:disabled, .bar .close:disabled { opacity: .35; cursor: default; }
+
 /* ON / OFF のボタンは文字を変えずに色で状態を出す */
 button.toggle { color: var(--muted); }
 button.toggle.on { color: #fff; border-color: var(--on); background: var(--on-bg); }
@@ -342,8 +345,9 @@ body.hl-animate .tile.audible::before { animation: hl-flow 6s ease-in-out infini
   transition: opacity .15s;
 }
 .tile:hover .bar, .tile:focus-within .bar { opacity: 1; }
-/* 空の枠では、入れ替え (⠿) 以外の操作は出さない */
-.tile.is-empty .bar-buttons, .tile.is-empty .tile-name { display: none; }
+/* 空の枠では、入れ替え (⠿) と、空き枠を消す ✕ だけ出す */
+.tile.is-empty .tile-name, .tile.is-empty .bar-buttons > :not(.close) { display: none; }
+.tile.is-empty .bar-buttons { margin-left: auto; }
 
 /* 名前は残りの幅いっぱいに出し、長ければ省略。ボタンは右に寄せて縮めない */
 .bar .tile-name {
@@ -437,11 +441,14 @@ body.hl-animate .tile.audible::before { animation: hl-flow 6s ease-in-out infini
 .empty-actions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; }
 
 /* ---------- favorites ---------- */
+/* 高さは枠 (dialog) だけで決め、スクロールするのは一覧だけにする (枠と中身の両方に上限があると、枠線の分だけはみ出して二重スクロールになる) */
 dialog.fav-dialog {
   width: min(720px, calc(100% - 32px));
   max-height: calc(100% - 64px);
+  overflow: hidden;
 }
-.fav { display: flex; flex-direction: column; max-height: calc(100vh - 64px); }
+dialog.fav-dialog[open] { display: flex; flex-direction: column; }
+.fav { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
 .fav-head {
   display: flex;
   align-items: center;
@@ -545,6 +552,8 @@ dialog.fav-dialog {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* 配信予定はタイトルが取れないことがある (YouTube が返さない) */
+.fav-title:empty { display: none; }
 .fav-where { flex: none; color: #8ab4ff; font-size: 11px; white-space: nowrap; }
 
 .badge {
