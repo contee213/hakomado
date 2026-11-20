@@ -13,7 +13,7 @@ It uses the YouTube account you are signed in to in the browser, so members-only
 
 ## Features
 
-- **Split view**: uniform grids (9 sizes from 1×1 to 4×4 that make good use of the screen) and big main tiles + small sub tiles (12 combinations such as 1+5, 2+8, 3+9)
+- **Split view**: uniform grids (9 sizes from 1×1 to 4×4 that make good use of the screen) and big main tiles + small sub tiles (1, 2, 4, 6 or 8 main tiles; 18 combinations such as 1+5, 2+8, 8+4)
   - Tiles are sized automatically so every tile is exactly 16:9 (no black bars). A "Fill screen" mode is also available
   - Drag to swap tiles (no reload). Any single tile can go fullscreen
 - **Danmaku**: each tile's live chat scrolls from right to left. Emoji, member stamps and Super Chats are supported
@@ -44,16 +44,17 @@ After updating, press "⟳" for the extension on the extensions page, then reloa
 
 ### Top bar
 
-Frequently used buttons are on the left, occasional ones on the right.
+The left side controls what you see and how it flows (layout, auto play, cruise, danmaku, current audio); favorites, fullscreen and settings are on the right.
+The current-audio button changes width with the channel name, so it is last on the left, and the layout name has a fixed width, so the other buttons never shift.
 
 | Button | What it does |
 |---|---|
-| ▶ Auto play | Keeps playing every live favorite (see below). Blue when ON |
-| ⟳ Cruise | Moves the main tile and audio to the next stream at a set interval (see below). While ON, the button fills with blue from left to right and switches when full |
-| ★ Favorites | Your favorites and their live status |
-| 🔊 number name | The tile playing audio. Click to mute ⇄ restore the previous audio |
 | ▦ layout name | Choose a layout and how tiles fit the screen |
+| ▶ Auto play | Keeps playing every live favorite (see below). Blue when ON |
+| 🚢 Cruise | Moves the main tile and audio to the next stream at a set interval (see below). While ON, the button fills with blue from left to right and switches when full |
 | ≋ Danmaku | Danmaku on all tiles (blue when ON) |
+| 🔊 number name | The tile playing audio. Click to mute ⇄ restore the previous audio |
+| ★ Favorites | Your favorites and their live status |
 | ⛶ | Fullscreen with all tiles (the top bar hides; move the mouse to the top edge to show it. Esc to exit) |
 | ⚙ / ? | Settings / help and keyboard shortcuts |
 
@@ -83,6 +84,7 @@ If you fullscreen one tile with its ⛶ while in all-tiles fullscreen, Esc takes
 ### Layouts
 
 - Choose from "▦ layout" at the top. Tiles are numbered main → sub, and the stream in tile 1 stays in position 1 when you change layouts
+- The list is split into Uniform and Main + sub (fewest main tiles first). Names are "mains+subs" (e.g. 2+8 = 2 main tiles and 8 sub tiles)
 - At the top right you can choose how tiles fit
   - **Fit 16:9** (default): no black bars inside tiles. If the screen and layout ratios differ, the leftover space becomes outer margins.
     The % in the list is how much of the current screen the video uses (green at 90% or more)
@@ -102,7 +104,7 @@ If you fullscreen one tile with its ⛶ while in all-tiles fullscreen, Esc takes
 
 Turn on "▶ Auto play" (`L`) to keep playing every favorite that is live (up to 16).
 
-- When turned ON: every live stream is played in a layout that fits the count (layouts that are exactly filled are preferred, e.g. 5 → 2+3, 7 → 3+4, 12 → 3+9).
+- When turned ON: every live stream is played in a layout that fits the count (layouts that are exactly filled are preferred, e.g. 5 → 2+3, 6 → 1+5, 10 → 1+9, 14 → 2+12; it depends on the screen ratio).
   Streams already shown are kept on the tile 1 (main) side without reloading, and tiles that aren't live are cleared
 - While ON: it checks every minute, adds a tile at the end (sub side) when a stream starts, and removes the tile and rearranges the layout when a stream ends
   - To avoid removing tiles because of a temporary miss, a tile is removed only after the stream is missing twice in a row. Nothing is removed when fetching fails
@@ -115,11 +117,12 @@ Turn on "▶ Auto play" (`L`) to keep playing every favorite that is live (up to
 
 ### Cruise
 
-Turn on "⟳ Cruise" (`C`) to rotate the shown streams one step at a set interval (2 minutes by default; 30 seconds to 10 minutes in ⚙ Settings → Auto play).
+Turn on "🚢 Cruise" (`C`) to rotate the shown streams one step at a set interval (2 minutes by default; 10 seconds to 30 minutes in ⚙ Settings → Auto play). It also works with tiles you arranged yourself, without auto play.
 
 - In main + sub layouts, the first sub tile moves to the main tile and the previous main stream goes to the last sub tile. Audio follows the main tile (tile 1)
 - In uniform layouts the order stays the same and only the audio moves to the next tile
-- Together with auto play, main + sub layouts that fit the count are preferred
+- Empty tiles are skipped, and turning cruise on does not change the layout
+- Together with auto play, main + sub layouts are preferred when auto play rearranges tiles (as streams start and end)
 - Streams are never reloaded (only tile positions change). If everything is muted, only the order rotates and no audio is turned on
 - Switching audio or swapping tiles yourself restarts the countdown. Cruise pauses while a single tile is fullscreen
 

@@ -75,26 +75,27 @@ class Danmaku {
     const gap = fontSize; // コメント間の最低すき間
     const now = performance.now();
 
+    // 帯の端 (上寄せなら一番上、下寄せなら一番下) の行から順に、空いている行を探す
     let lane = -1;
     for (let i = 0; i < laneCount; i++) {
-      const last = this.lanes[i];
-      if (!last) { lane = i; break; }
-      const travelled = ((now - last.startedAt) / 1000) * last.speed;
-      if (travelled >= last.width + gap && last.speed >= speed) { lane = i; break; }
+      if (this.laneFree(this.lanes[i], now, W, speed, gap)) {
+        lane = i;
+        break;
+      }
     }
     if (lane < 0) {
       el.remove();
       return;
     }
 
-    this.lanes[lane] = { startedAt: now, width, speed };
-    // 下寄せのときは下の行から埋める (画面の下の方にまとまって流れるように)
+    const distance = W + width;
+    this.lanes[lane] = { startedAt: now, startX: W, width, speed, endsAt: now + (distance / speed) * 1000 };
+    // 上寄せ・中央は上の行から、下寄せは下の行から埋める (選んだ側の端にまとまって流れるように)
     const top = s.areaPos === 'bottom' ? bandBottom - (lane + 1) * laneHeight : bandTop + lane * laneHeight;
     el.style.top = Math.round(top) + 'px';
     el.style.visibility = '';
     this.active++;
 
-    const distance = W + width;
     const anim = el.animate(
       [{ transform: `translateX(${W}px)` }, { transform: `translateX(${-width}px)` }],
       { duration: (distance / speed) * 1000, easing: 'linear' },
@@ -105,6 +106,24 @@ class Danmaku {
     };
     anim.onfinish = done;
     anim.oncancel = done;
+  }
+
+  /**
+   * 行の最後のコメント last がいる行に、今から新しいコメント (画面幅 W・速さ speed) を流してよいか。
+   * 位置はどれも枠の左端からの px (枠の幅が変わっても同じ基準)。
+   * - 前のコメントの後ろ端が、まだ右端の近く (gap 以内) にある → だめ
+   * - 新しいコメントの方が遅いか同じ → 追いつかないので空き
+   * - 新しいコメントの方が速い (枠が広がった直後) → 前のコメントが画面から出るまでに追いつかなければ空き
+   */
+  laneFree(last, now, W, speed, gap) {
+    if (!last || now >= last.endsAt) return true;
+    const elapsed = (now - last.startedAt) / 1000;
+    const tail = last.startX - last.speed * elapsed + last.width; // 前のコメントの後ろ端
+    if (tail + gap > W) return false;
+    if (speed <= last.speed) return true;
+    const exitIn = tail / last.speed; // 前のコメントが画面から出るまでの秒数
+    const catchIn = (W - tail - gap) / (speed - last.speed); // 新しいコメントが追いつくまでの秒数
+    return catchIn >= exitIn;
   }
 
   render(msg, s) {

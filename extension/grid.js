@@ -260,7 +260,8 @@ function filledArea(l, n) {
  * n 本の配信を並べるのに向いたレイアウトを選ぶ。
  * 枠数がちょうど n のレイアウトがあればその中で映像が一番大きくなるもの、
  * 無ければ (空き枠が出ても) 映像が一番大きくなるもの。同じくらいなら枠数の少ない方。
- * クルーズ中は、メイン枠を回して見られるよう「メイン + サブ」のレイアウトを優先する (合うものが無ければ均等)
+ * クルーズ中は、メイン枠を回して見られるよう「メイン + サブ」のレイアウトを優先する (合うものが無ければ均等)。
+ * 使うのは自動再生が枠を組み替えるときだけ (クルーズを ON にしただけではレイアウトを変えない)
  */
 function chooseLayoutFor(n) {
   let pool = LAYOUTS;
@@ -843,7 +844,22 @@ function layoutThumb(l) {
   return box;
 }
 
+/**
+ * 上部バーのレイアウト名の幅を、いちばん長い名前に合わせて固定する
+ * (自動再生でレイアウトが変わるたびに、後ろのボタンが左右に動かないように)。
+ * 狭い画面で名前を隠しているときも測れるよう、canvas で文字の幅を測る
+ */
+function fixLayoutLabelWidth() {
+  const label = document.getElementById('layoutName');
+  const ctx = document.createElement('canvas').getContext('2d');
+  const cs = getComputedStyle(label);
+  ctx.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+  const w = Math.max(...LAYOUTS.map((l) => ctx.measureText(l.name).width));
+  label.style.width = `${Math.ceil(w) + 2}px`;
+}
+
 function setupLayoutPicker() {
+  fixLayoutLabelWidth();
   const dialog = document.getElementById('layoutPicker');
   const body = document.getElementById('layoutGroups');
   const groups = [...new Set(LAYOUTS.map((l) => l.group))];
@@ -961,13 +977,38 @@ const SETTING_FORMATS = {
   hlGlow: (v) => (v === 0 ? tr('off') : `${Math.round(v * 100)}%`),
   cruiseSec: (v) => formatCruise(v),
 };
+// 決まった値から選ぶスライダー (スライダーの位置 = 配列の番号)。クルーズの間隔は細かく選ぶ必要がないので、
+// 短い間隔は細かく、長い間隔は大きく刻む
+const SETTING_STEPS = {
+  cruiseSec: [10, 15, 20, 30, 45, 60, 90, 120, 180, 300, 600, 900, 1200, 1800],
+};
+
+/** 保存されている値にいちばん近い段階の番号 (以前の版の半端な値も近いものに寄せる) */
+function stepIndex(key, v) {
+  const steps = SETTING_STEPS[key];
+  let best = 0;
+  for (let k = 1; k < steps.length; k++) {
+    if (Math.abs(Math.log(steps[k] / v)) < Math.abs(Math.log(steps[best] / v))) best = k;
+  }
+  return best;
+}
+
 const SETTING_CHECKBOXES = ['showAuthor', 'showPaid', 'chatHideAvatars', 'hlAnimate', 'skipMembersOnly'];
 
 /** 設定画面の入力欄を state.settings に合わせる (他のタブで設定が変わったときも呼ぶ) */
 function syncSettingsInputs() {
   for (const [key, fmt] of Object.entries(SETTING_FORMATS)) {
-    document.getElementById(key).value = String(state.settings[key]);
-    document.getElementById(key + 'Out').textContent = fmt(state.settings[key]);
+    const steps = SETTING_STEPS[key];
+    const input = document.getElementById(key);
+    if (steps) {
+      const k = stepIndex(key, Number(state.settings[key]) || steps[0]);
+      Object.assign(input, { min: '0', max: String(steps.length - 1), step: '1' });
+      input.value = String(k);
+      document.getElementById(key + 'Out').textContent = fmt(steps[k]);
+    } else {
+      input.value = String(state.settings[key]);
+      document.getElementById(key + 'Out').textContent = fmt(state.settings[key]);
+    }
   }
   for (const key of SETTING_CHECKBOXES) document.getElementById(key).checked = !!state.settings[key];
   for (const b of document.querySelectorAll('.hl-swatch')) b.classList.toggle('selected', b.dataset.id === normalizeHlStyle(state.settings.hlStyle));
@@ -1070,7 +1111,8 @@ function setupToolbar() {
   for (const key of Object.keys(SETTING_FORMATS)) {
     const input = document.getElementById(key);
     input.addEventListener('input', () => {
-      state.settings[key] = parseFloat(input.value);
+      const steps = SETTING_STEPS[key];
+      state.settings[key] = steps ? steps[Math.round(parseFloat(input.value))] : parseFloat(input.value);
       document.getElementById(key + 'Out').textContent = SETTING_FORMATS[key](state.settings[key]);
       onSettingChanged(key);
     });
@@ -1681,8 +1723,7 @@ function setCruise(on) {
   state.cruise = on;
   setToggle(document.getElementById('cruise'), on);
   save();
-  // 自動再生中は枠の数に合わせてレイアウトを選び直す (クルーズ中は「メイン + サブ」を優先)
-  if (state.autoMode && visibleIndexes().some((i) => state.tiles[i].videoId)) compactToContent();
+  // ON にしただけではレイアウトは変えない (空き枠もそのまま。回すのは中身のある枠だけ)
   restartCruise();
   if (on) notify(tr('cruiseOn', formatCruise(state.settings.cruiseSec)));
 }
@@ -1693,7 +1734,7 @@ function restartCruise() {
   cruiseTimer = 0;
   const bar = document.querySelector('#cruise .cruise-progress');
   if (!state.cruise) return;
-  const sec = Math.max(10, Number(state.settings.cruiseSec) || 120);
+  const sec = Math.min(1800, Math.max(10, Number(state.settings.cruiseSec) || 120));
   cruiseTimer = setTimeout(cruiseStep, sec * 1000);
   // ボタン全体が左から満ちていく表示で、次に回すまでの時間を見せる
   if (bar) {

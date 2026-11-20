@@ -10,20 +10,21 @@
 </head>
 <body>
   <!-- 文言は日本語で書き、data-i18n* の付いたものは英語表示のときに i18n.js が差し替える -->
-  <!-- 上部バー: 左 = よく使うもの (自動再生・お気に入り・今の音声)、右 = たまに使うもの (レイアウト・弾幕・設定・使い方) -->
+  <!-- 上部バー: 左 = 見え方と流れの操作 (レイアウト・自動再生・クルーズ・弾幕・今の音声)、右 = お気に入り・全画面・設定・使い方 -->
+  <!-- 今の音声はチャンネル名で幅が変わるので左側の最後に置く (他のボタンが動かないように) -->
   <!-- 全画面のとき、ここにマウスを寄せると上部バーが出る -->
   <div class="toolbar-hotzone" aria-hidden="true"></div>
   <header class="toolbar">
     <span class="brand">hukumado</span>
+    <button id="openLayout" type="button" data-i18n-title="layout.title" title="レイアウトを選ぶ"><span class="tb-icon">▦</span><span id="layoutName" class="tb-label"></span></button>
     <button id="autoMode" class="toggle" type="button" aria-pressed="false" data-i18n-title="auto.title" title="自動再生 (L): ON にすると配信中のお気に入りを全部 (最大 16) 再生し、その後も 1 分ごとに、配信が始まったら枠を足し、終わったら枠を消す。ON の間に ✕ で閉じた配信は入れ直さない (OFF → ON で戻る)"><span class="tb-icon">▶</span><span class="tb-label" data-i18n="auto.label">自動再生</span></button>
-    <button id="cruise" class="toggle" type="button" aria-pressed="false" data-i18n-title="cruise.title" title="クルーズ (C): 一定時間ごとにメイン枠と音声を次の配信へ回して、いろいろな配信を少しずつ見る。間隔は ⚙ 設定 →「自動再生」で変えられる"><span class="tb-icon">⟳</span><span class="tb-label" data-i18n="cruise.label">クルーズ</span><i class="cruise-progress" aria-hidden="true"></i></button>
-    <button id="openFavorites" type="button" data-i18n-title="fav.title" title="お気に入り (F)"><span class="tb-icon">★</span><span class="tb-label" data-i18n="fav.label">お気に入り</span></button>
+    <button id="cruise" class="toggle" type="button" aria-pressed="false" data-i18n-title="cruise.title" title="クルーズ (C): 一定時間ごとにメイン枠と音声を次の配信へ回して、いろいろな配信を少しずつ見る。自動再生と関係なく、複数の枠を並べていれば使える。間隔は ⚙ 設定 →「自動再生」で変えられる"><span class="tb-icon"><svg class="ship" viewBox="0 0 16 16" aria-hidden="true"><path d="M9 2.5h2v2.5H9z"/><path d="M4.5 5h8v2h-8z"/><path d="M3.5 7.5h10v2h-10z"/><path d="M1 10h14l-2.4 3.5H3.4z"/></svg></span><span class="tb-label" data-i18n="cruise.label">クルーズ</span><i class="cruise-progress" aria-hidden="true"></i></button>
+    <button id="danmakuAll" class="toggle on" type="button" aria-pressed="true" data-i18n-title="danmakuAll.title" title="全枠の弾幕の表示 (D)"><span class="tb-icon">≋</span><span class="tb-label" data-i18n="danmakuAll.label">弾幕</span></button>
     <button id="nowPlaying" class="now-playing" type="button" data-i18n="nowPlaying">🔇 ミュート中</button>
 
     <span class="spacer"></span>
 
-    <button id="openLayout" type="button" data-i18n-title="layout.title" title="レイアウトを選ぶ"><span class="tb-icon">▦</span><span id="layoutName" class="tb-label"></span></button>
-    <button id="danmakuAll" class="toggle on" type="button" aria-pressed="true" data-i18n-title="danmakuAll.title" title="全枠の弾幕の表示 (D)"><span class="tb-icon">≋</span><span class="tb-label" data-i18n="danmakuAll.label">弾幕</span></button>
+    <button id="openFavorites" type="button" data-i18n-title="fav.title" title="お気に入り (F)"><span class="tb-icon">★</span><span class="tb-label" data-i18n="fav.label">お気に入り</span></button>
     <button id="gridFullscreen" class="icon-only" type="button" data-i18n-title="gridFs.title" title="分割したまま全画面 (Shift+F)。上端にマウスを寄せると、このバーが出ます">⛶</button>
     <button id="openSettings" class="icon-only" type="button" data-i18n-title="settings.title" title="設定">⚙</button>
     <button id="openHelp" class="icon-only" type="button" data-i18n-title="help.title" title="使い方とキー操作 (?)">?</button>
@@ -120,9 +121,9 @@
       <label class="check"><input type="checkbox" id="skipMembersOnly"> <span data-i18n="auto.skip">メンバーになっていないメンバー限定配信は再生しない</span></label>
       <p class="settings-note" data-i18n="auto.skipNote">「▶ 自動再生」で枠に入れる前に、ログイン中のアカウントで見られるかを確認します。自分で読み込んだ枠はそのまま表示します</p>
       <label><span data-i18n="auto.cruise">クルーズの間隔</span> <output id="cruiseSecOut"></output>
-        <input type="range" id="cruiseSec" min="30" max="600" step="30">
+        <input type="range" id="cruiseSec" min="0" max="13" step="1">
       </label>
-      <p class="settings-note" data-i18n="auto.cruiseNote">「⟳ クルーズ」が ON の間、この間隔でメイン枠と音声を次の配信へ回します。均等レイアウトでは並びはそのままで、音声だけ次の枠へ移ります。自動再生中は「メイン + サブ」のレイアウトを優先します</p>
+      <p class="settings-note" data-i18n="auto.cruiseNote">「クルーズ」が ON の間、この間隔でメイン枠と音声を次の配信へ回します。自動再生を使わず、自分で並べた枠でも使えます。均等レイアウトでは並びはそのままで、音声だけ次の枠へ移ります。空き枠は回さず、レイアウトも変えません。自動再生で枠を組み替えるときは「メイン + サブ」のレイアウトを優先します</p>
       </section>
     </form>
   </dialog>
@@ -137,7 +138,7 @@
         <li data-i18n-html="help.tip1">空の枠に URL / 動画 ID / <code>@チャンネル名</code> を貼るか、「★ お気に入りから選ぶ」で配信を読み込みます</li>
         <li data-i18n="help.tip2">枠にカーソルを乗せると操作バーが出ます。左端の ⠿ をドラッグすると枠を入れ替えます</li>
         <li data-i18n="help.tip3">「▶ 自動再生」を ON にすると、配信中のお気に入りを全部並べ、始まった / 終わった配信に合わせて枠を増減します</li>
-        <li data-i18n="help.tip4">「⟳ クルーズ」を ON にすると、一定時間ごとにメイン枠と音声が次の配信へ移り、いろいろな配信を少しずつ見られます</li>
+        <li data-i18n="help.tip4">「クルーズ」を ON にすると、一定時間ごとにメイン枠と音声が次の配信へ移り、いろいろな配信を少しずつ見られます (自動再生を使わず、自分で並べた枠でも使えます)</li>
         <li data-i18n="help.tip5">枠内のプレイヤーのスピーカーで音を出すと、他の枠を止めずに複数の枠を同時に聞けます</li>
       </ul>
       <h3 data-i18n="help.keys">キー操作</h3>

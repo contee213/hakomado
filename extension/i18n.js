@@ -69,9 +69,6 @@ const MESSAGES = {
   // レイアウト
   groupUniform: ['均等', 'Uniform'],
   groupMain: ['メイン + サブ', 'Main + sub'],
-  dirRight: ['右', 'right'],
-  dirBottom: ['下', 'bottom'],
-  dirCenter: ['中央', 'center'],
   layoutTitle: ['{0} ({1} 枠)', '{0} ({1} tiles)'],
 
   // 設定の値
@@ -169,7 +166,7 @@ const HTML_EN = {
     'Auto play (L): when ON, plays all your live favorites (up to 16), then checks every minute, adding a tile when a stream starts and removing it when the stream ends. Streams you close with ✕ while ON are not added back (turn it OFF → ON to bring them back)',
   'auto.label': 'Auto play',
   'cruise.title':
-    'Cruise (C): at a set interval, moves the main tile and audio to the next stream so you can watch many streams a little at a time. Change the interval in ⚙ Settings → Auto play',
+    'Cruise (C): at a set interval, moves the main tile and audio to the next stream so you can watch many streams a little at a time. Works with any tiles, with or without auto play. Change the interval in ⚙ Settings → Auto play',
   'cruise.label': 'Cruise',
   'fav.title': 'Favorites (F)',
   'fav.label': 'Favorites',
@@ -215,14 +212,14 @@ const HTML_EN = {
     'Before ▶ Auto play adds a stream, it checks whether the signed-in account can watch it. Tiles you load yourself are always shown',
   'auto.cruise': 'Cruise interval',
   'auto.cruiseNote':
-    'While ⟳ Cruise is ON, the main tile and audio move to the next stream at this interval. In uniform layouts the order stays and only the audio moves. During auto play, main + sub layouts are preferred',
+    'While Cruise is ON, the main tile and audio move to the next stream at this interval. It also works with tiles you arranged yourself, without auto play. In uniform layouts the order stays and only the audio moves. Empty tiles are skipped and the layout is not changed. When auto play rearranges tiles, main + sub layouts are preferred',
 
   // 使い方
   'help.h': '? Help',
   'help.tip1': 'Paste a URL / video ID / <code>@handle</code> into an empty tile, or load a stream with “★ Pick from favorites”',
   'help.tip2': 'Hover a tile to show its control bar. Drag ⠿ at the left to swap tiles',
   'help.tip3': 'Turn on “▶ Auto play” to show all your live favorites; tiles are added and removed as streams start and end',
-  'help.tip4': 'Turn on “⟳ Cruise” to move the main tile and audio to the next stream at a set interval, so you can watch many streams a little at a time',
+  'help.tip4': 'Turn on “Cruise” to move the main tile and audio to the next stream at a set interval, so you can watch many streams a little at a time (also with tiles you arranged yourself, without auto play)',
   'help.tip5': 'Use the speaker in a tile’s player to listen to several tiles at once without muting the others',
   'help.keys': 'Keyboard',
   'key.audio': 'Play audio only from that tile',
