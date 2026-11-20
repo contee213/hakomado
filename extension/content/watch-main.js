@@ -137,4 +137,126 @@
     if (reportPlayability() || ++psTicks > 30) clearInterval(psTimer);
   }, 500);
   setInterval(reportPlayability, 20000);
+
+  // ---- 配信・動画が終わったことを親に知らせる (自動再生中に枠を片付けるため)
+  //   ここ → watch.js : 'hukumado:ended' detail 'played' | 'already'
+  //   played  = 再生が最後まで行った (プレイヤーの状態 0 = 終了。開始前の待機画面の宣伝動画が終わったときは除く)
+  //   already = 開いた時点でもう終わっていた配信 (liveBroadcastDetails に終了時刻があり、今は配信中ではない)。
+  //             アーカイブを開いたときもこれになるので、親は自動再生で入れた枠にだけ使う
+  const endedSent = new Set();
+  const reportEnded = (reason) => {
+    if (endedSent.has(reason)) return;
+    endedSent.add(reason);
+    document.dispatchEvent(new CustomEvent('hukumado:ended', { detail: reason }));
+  };
+  // 開始前の待機画面: 宣伝動画 (トレーラー) が流れることがあり、それが終わっても状態 0 になる。
+  // そのときのプレイヤーの情報は「配信予定」(isUpcoming / LIVE_STREAM_OFFLINE) のままなので、それで見分ける
+  const waitingRoom = () => {
+    try {
+      const pr = player()?.getPlayerResponse?.() || window.ytInitialPlayerResponse;
+      if (!pr) return true; // 分からないときは終わったことにしない
+      return !!pr.videoDetails?.isUpcoming || (pr.playabilityStatus?.status || 'OK') !== 'OK';
+    } catch {
+      return true;
+    }
+  };
+  const alreadyEnded = () => {
+    try {
+      const pr = window.ytInitialPlayerResponse;
+      const lbd = pr?.microformat?.playerMicroformatRenderer?.liveBroadcastDetails;
+      return !!(lbd && lbd.endTimestamp && lbd.isLiveNow === false && !pr?.videoDetails?.isUpcoming);
+    } catch {
+      return false;
+    }
+  };
+  let endTicks = 0;
+  let endHooked = false;
+  const endTimer = setInterval(() => {
+    const p = player();
+    if (p && !endHooked) {
+      endHooked = true;
+      p.addEventListener('onStateChange', (s) => {
+        if (s === 0 && !waitingRoom()) reportEnded('played');
+      });
+    }
+    if (alreadyEnded()) reportEnded('already');
+    if ((endHooked && window.ytInitialPlayerResponse) || ++endTicks > 60) clearInterval(endTimer);
+  }, 1000);
+
+  // ---- チャンネル登録・高評価 (親画面の枠のバーにあるボタンから操作する)
+  //   ここ → watch.js : 'hukumado:social'     detail JSON {loggedIn, subscribed, liked, failed?}
+  //   watch.js → ここ : 'hukumado:social-act' detail 'subscribe' | 'like' (する方だけ。解除・取り消しはしない)
+  //   ボタンは枠内では隠している (watch.css の #below) が、YouTube 自身のボタンを押して操作する
+  //   (登録状態の保存などは YouTube 側の処理に任せる)
+  const textOf = (r) => r?.simpleText || (r?.runs || []).map((x) => x.text).join('') || '';
+  const subRenderer = () => document.querySelector('ytd-watch-metadata #subscribe-button ytd-subscribe-button-renderer');
+  const likeButton = () =>
+    document.querySelector('ytd-watch-metadata #top-level-buttons-computed like-button-view-model button');
+  const isSubscribed = () => {
+    const r = subRenderer();
+    const d = r?.data;
+    if (!d) return null;
+    // 表示中の文字 (「登録済み」/「チャンネル登録」) で判定。分からなければ読み込み時の値
+    const shown = r.querySelector('yt-button-shape button')?.textContent.trim() || '';
+    if (shown && shown === textOf(d.subscribedButtonText)) return true;
+    if (shown && shown === textOf(d.unsubscribedButtonText)) return false;
+    return !!d.subscribed;
+  };
+  const socialState = () => {
+    let loggedIn = false;
+    try {
+      loggedIn = !!window.ytcfg?.get?.('LOGGED_IN');
+    } catch {
+      /* ignore */
+    }
+    const lb = likeButton();
+    return { loggedIn, subscribed: isSubscribed(), liked: lb ? lb.getAttribute('aria-pressed') === 'true' : null };
+  };
+  let lastSocial = '';
+  const reportSocial = (extra = null) => {
+    const st = { ...socialState(), ...extra };
+    const key = JSON.stringify(st);
+    if (key === lastSocial && !extra) return;
+    lastSocial = key;
+    document.dispatchEvent(new CustomEvent('hukumado:social', { detail: key }));
+  };
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const waitFor = async (find, ms = 3000) => {
+    for (let t = 0; t < ms; t += 100) {
+      const el = find();
+      if (el) return el;
+      await sleep(100);
+    }
+    return null;
+  };
+  // 登録・高評価をする (済んでいるときは何もしない。解除・取り消しはしない)
+  document.addEventListener('hukumado:social-act', async (e) => {
+    const act = e.detail;
+    const before = socialState();
+    const key = act === 'like' ? 'liked' : 'subscribed';
+    if (!before.loggedIn || before[key] !== false) {
+      reportSocial();
+      return;
+    }
+    let ok = true;
+    try {
+      if (act === 'like') likeButton().click();
+      else subRenderer().querySelector('yt-button-shape button').click();
+      // 反映を待って、変わったかどうかを確かめる
+      ok = !!(await waitFor(() => socialState()[key] === true || null, 4000));
+    } catch {
+      ok = false;
+    }
+    reportSocial(ok ? null : { failed: act });
+  });
+
+  // 状態を時々確かめて、変わったら知らせる (読み込み直後は 1 秒ごと、その後は 5 秒ごと)
+  let socialTicks = 0;
+  const socialTimer = setInterval(() => {
+    reportSocial();
+    if (++socialTicks > 20) {
+      clearInterval(socialTimer);
+      setInterval(reportSocial, 5000);
+    }
+  }, 1000);
 })();

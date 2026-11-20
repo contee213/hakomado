@@ -75,7 +75,9 @@ If you fullscreen one tile with its ⛶ while in all-tiles fullscreen, Esc takes
 | 🔇 / 🔊 | Play audio only from this tile (others are muted) |
 | 💬 | Show the chat panel to the right of the tile (you can post from it) |
 | ≋ | Danmaku on this tile |
-| ★ | Add this tile's channel to favorites |
+| ★ | Add this tile's channel to favorites (hidden if already a favorite) |
+| 🔔 | Subscribe on YouTube (hidden if already subscribed). Only while signed in to YouTube |
+| 👍 | Like on YouTube (hidden if already liked). To unsubscribe or remove a like, use YouTube itself |
 | ⟳ | Reload (if the video or chat misbehaves) |
 | ⛶ | Watch this tile in fullscreen (plays its audio; Esc returns to the previous audio) |
 | ✕ | Close the tile |
@@ -107,15 +109,24 @@ If you fullscreen one tile with its ⛶ while in all-tiles fullscreen, Esc takes
 - Live status is cached for 1 minute. Press "⟳ Refresh" to check again
 - In English, built-in hololive channels are shown with their English names
 
+### History
+
+- The "🕘 History" tab in the favorites window keeps the latest 100 streams / videos loaded into tiles, newest first. It is shared by all tabs (stored only on this computer)
+- Entries that left a tile show why (Ended / Closed / Members-only / Replaced)
+- Click an entry to load it into a tile. If there's no empty tile, one is added
+  - Streams auto play judged as ended, or that you closed with ✕, come back when loaded from history (to undo a misjudgment or a misclick)
+  - While auto play is ON, a live stream of a favorite channel loaded from history is treated as an auto play tile (removed when it ends)
+- Remove entries one by one with ✕, or all at once with "Clear all history"
+
 ### Auto play
 
 Turn on "▶ Auto play" (`L`) to keep playing every favorite that is live (up to 16).
 
 - When turned ON: every live stream is played in a layout that fits the count (layouts that are exactly filled are preferred, e.g. 5 → 2+3, 6 → 1+5, 10 → 1+9, 14 → 2+12B; it depends on the screen ratio).
   Streams already shown are kept on the tile 1 (main) side without reloading, and tiles that aren't live are cleared
-- While ON: it checks every minute, adds a tile at the end (sub side) when a stream starts, and removes the tile and rearranges the layout when a stream ends
+- While ON: it checks every minute, adds a tile at the end (sub side) when a stream starts, and removes the tile and rearranges the layout when a stream ends. When a premiere or stream plays through to the end, its tile is removed right away without waiting for the next check
   - To avoid removing tiles because of a temporary miss, a tile is removed only after the stream is missing twice in a row. Nothing is removed when fetching fails
-  - Tiles you loaded yourself with a URL while ON are never removed
+  - Tiles you loaded yourself while ON are also removed once they play through to the end (a live stream ends, or an archive / video finishes). Until then they are kept even if they are not in the live list
 - Streams you close with ✕ while ON are not added back. Turn it OFF → ON to add them again
 - Turning it OFF keeps the current tiles and just stops adding / removing
 - **Tiles for upcoming streams**: from 30 minutes before the start (⚙ Settings → Auto play: Off / 5 / 10 / 15 / 30 / 60 min), a tile is prepared for an upcoming stream.

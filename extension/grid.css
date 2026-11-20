@@ -383,6 +383,10 @@ body.hl-animate .tile.audible::before { animation: hl-flow 6s ease-in-out infini
 /* 弾幕 / チャット欄が OFF のときは控えめに */
 .bar-buttons button.toggle:not(.on) { color: var(--muted); }
 .bar-buttons .close { margin-left: 3px; }
+/* 済んだもの (お気に入り登録済み・チャンネル登録済み・高評価済み) のボタンは隠す */
+.bar-buttons button[hidden] { display: none; }
+/* YouTube のチャンネル登録・高評価: 押せないとき (未ログイン・確認中・操作中) は薄く */
+.bar-buttons button.social:disabled { opacity: .35; cursor: default; }
 /* 狭い枠: 名前を省いてボタンを小さくし、入りきらない分は 2 段目に折り返す (どのボタンも押せるように) */
 @container (max-width: 300px) {
   .bar .tile-name { display: none; }
@@ -457,6 +461,15 @@ dialog.fav-dialog[open] { display: flex; flex-direction: column; }
   border-bottom: 1px solid var(--line);
 }
 .fav-head h2 { margin: 0; font-size: 15px; white-space: nowrap; }
+/* お気に入り / 履歴 の切り替えで隠すもの (display を指定している要素も隠れるように) */
+.fav [hidden] { display: none !important; }
+/* お気に入り / 履歴 の切り替え */
+.fav-tabs { flex: none; }
+.fav-tabs button { flex: none; padding: 4px 12px; font-size: 13px; white-space: nowrap; }
+/* 履歴: 見た日時と、枠から外れた理由 */
+.fav-item.history .fav-where { color: var(--muted); }
+.fav-item.history .badge { background: #3a3a44; color: #fff; }
+.fav-item.history .fav-icon { display: none; }
 .fav-target { color: var(--muted); font-size: 12px; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 
 /* ダイアログ右上の閉じるボタン (どのダイアログも同じ見た目・位置) */

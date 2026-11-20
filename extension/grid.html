@@ -181,7 +181,10 @@
   <dialog id="favorites" class="fav-dialog">
     <div class="fav">
       <header class="fav-head">
-        <h2 data-i18n="fav.h">★ お気に入り</h2>
+        <div class="fav-tabs settings-tabs" role="tablist">
+          <button type="button" role="tab" data-favtab="fav" data-i18n="fav.h">★ お気に入り</button>
+          <button type="button" role="tab" data-favtab="history" data-i18n="fav.history" data-i18n-title="fav.historyTitle" title="この拡張機能で見た配信・動画 (新しい順に 100 件。すべてのタブで共通)">🕘 履歴</button>
+        </div>
         <span id="favLiveCount" class="fav-live-count"></span>
         <span class="spacer"></span>
         <button type="button" id="favRefresh" data-i18n="fav.refresh" data-i18n-title="fav.refreshTitle" title="配信状況を取り直す">⟳ 更新</button>
@@ -201,6 +204,7 @@
           <button type="submit" data-i18n="fav.add">追加</button>
         </form>
         <button type="button" id="favRestore" class="fav-restore" hidden></button>
+        <button type="button" id="historyClear" class="fav-restore" data-i18n="fav.historyClear" hidden>履歴を全部消す</button>
         <div id="favError" class="fav-error"></div>
       </footer>
     </div>
@@ -246,6 +250,8 @@
             <button type="button" data-act="chat" class="toggle" data-i18n-title="tile.chat" title="チャット欄の表示">💬</button>
             <button type="button" data-act="danmaku" class="toggle" data-i18n-title="tile.danmaku" title="この枠の弾幕の表示">≋</button>
             <button type="button" data-act="fav" data-i18n-title="tile.fav" title="この枠のチャンネルをお気に入りに登録">★</button>
+            <button type="button" data-act="subscribe" class="toggle social" disabled>🔔</button>
+            <button type="button" data-act="like" class="toggle social" disabled>👍</button>
             <button type="button" data-act="reload" data-i18n-title="tile.reload" title="再読み込み (映像やチャットの調子が悪いとき)">⟳</button>
             <button type="button" data-act="max" data-i18n-title="tile.max" title="この枠を全画面で見る (Shift+数字キーでも可。Esc で戻る)">⛶</button>
             <button type="button" data-act="clear" class="close" data-i18n-title="tile.clear" title="この枠を閉じる">✕</button>
@@ -261,6 +267,7 @@
   <script src="danmaku.js"></script>
   <script src="presets.js"></script>
   <script src="favorites.js"></script>
+  <script src="history.js"></script>
   <script src="grid.js"></script>
 </body>
 </html>

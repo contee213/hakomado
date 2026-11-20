@@ -72,6 +72,11 @@ const MESSAGES = {
   layoutTitle: ['{0} ({1} 枠)', '{0} ({1} tiles)'],
   tileClear: ['この枠を閉じる', 'Close this tile'],
   tileRemove: ['この空き枠を消す (枠の数に合ったレイアウトに変わります)', 'Remove this empty tile (the layout changes to fit the number of tiles)'],
+  ytLogin: ['YouTube にログインすると使えます', 'Sign in to YouTube to use this'],
+  ytChecking: ['YouTube の状態を確認中…', 'Checking YouTube…'],
+  ytSubscribe: ['YouTube でチャンネル登録する', 'Subscribe on YouTube'],
+  ytLike: ['YouTube で高評価する', 'Like on YouTube'],
+  ytFailed: ['YouTube の操作に失敗しました。YouTube で直接操作してください: {0}', 'The YouTube action failed. Please do it on YouTube directly: {0}'],
   tileRemoveNo: ['これ以上枠を減らせません (読み込んだ配信が入りきらなくなるため)', 'Cannot remove more tiles (the loaded streams would not fit)'],
 
   // 設定の値
@@ -96,6 +101,15 @@ const MESSAGES = {
   secOther: ['その他', 'Others'],
   secAll: ['すべて', 'All'],
   favNoMatch: ['「{0}」に一致するお気に入りはありません。', 'No favorites match "{0}".'],
+  historyEmpty: ['まだ履歴がありません。枠で配信や動画を読み込むと、ここに残ります。', 'No history yet. Streams and videos you load into tiles will show up here.'],
+  historyNoMatch: ['「{0}」に一致する履歴はありません。', 'No history matches "{0}".'],
+  historyDel: ['履歴から消す', 'Remove from history'],
+  historyClearConfirm: ['履歴を全部 ({0} 件) 消しますか？', 'Clear all history ({0} items)?'],
+  historyPick: ['クリックで枠に読み込む', 'Click to load into a tile'],
+  reasonEnded: ['配信終了', 'Ended'],
+  reasonClosed: ['✕ で閉じた', 'Closed'],
+  reasonMembers: ['メンバー限定', 'Members-only'],
+  reasonReplaced: ['入れ替え', 'Replaced'],
   favEmpty: ['まだ登録がありません。下の欄にチャンネルを入力して追加してください。', 'No favorites yet. Enter a channel below to add one.'],
   liveCount: ['配信中 {0}', '{0} live'],
   checking: ['確認中…', 'Checking…'],
@@ -260,6 +274,9 @@ const HTML_EN = {
 
   // お気に入り
   'fav.h': '★ Favorites',
+  'fav.history': '🕘 History',
+  'fav.historyTitle': 'Streams and videos watched in this extension (latest 100, shared by all tabs)',
+  'fav.historyClear': 'Clear all history',
   'fav.refresh': '⟳ Refresh',
   'fav.refreshTitle': 'Check live status again',
   'fav.filter': 'Filter by name or @handle',

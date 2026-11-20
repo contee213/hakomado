@@ -480,9 +480,10 @@ async function loadInput(i, raw) {
 }
 
 function setTileVideo(i, videoId, input) {
+  const prev = state.tiles[i].videoId;
+  if (prev && prev !== videoId) WatchHistory.removed(prev, 'replaced');
   views[i].el.querySelector('.error').textContent = '';
   views[i].danmaku.clear();
-  views[i].el.querySelector('[data-act="fav"]').classList.remove('on');
   // 手で読み込んだ枠は自動再生でも消さない
   Object.assign(state.tiles[i], { input, videoId, auto: false, label: '' });
   // 新しく読み込んだ枠は、他に音の出ている枠が無ければ音を出す
@@ -580,6 +581,7 @@ function renderTile(i, { reloadPlayer = false, reloadChat = false } = {}) {
     v.player?.remove();
     v.player = null;
     v.meta = null;
+    v.social = null;
   } else if (!v.player || reloadPlayer) {
     v.player?.remove();
     const f = document.createElement('iframe');
@@ -594,7 +596,9 @@ function renderTile(i, { reloadPlayer = false, reloadChat = false } = {}) {
     });
     el.querySelector('.player-slot').appendChild(f);
     v.player = f;
-    if (reloadPlayer) v.meta = null;
+    WatchHistory.opened(t.videoId, { label: t.label, input: t.input });
+    v.meta = null;
+    v.social = null;
   }
 
   // --- chat (チャット欄 表示中 or 弾幕 ON のときだけ読み込む)
@@ -621,9 +625,76 @@ function renderTile(i, { reloadPlayer = false, reloadChat = false } = {}) {
   el.classList.toggle('audible', visible && !!t.videoId && !t.muted && state.count > 1);
   setToggle(el.querySelector('.bar [data-act="chat"]'), t.chat);
   setToggle(el.querySelector('.bar [data-act="danmaku"]'), t.danmaku);
+  updateSocialButtons(i);
+  updateFavButton(i);
   updateTileName(i);
   updateNowPlaying();
 }
+
+/**
+ * 枠のバーの「チャンネル登録」「高評価」ボタン。状態は枠のプレイヤー (YouTube のページ) が知らせてくる。
+ * 済んでいれば隠す。YouTube にログインしていない / まだ分からない / 操作中は押せない
+ */
+function updateSocialButtons(i) {
+  const v = views[i];
+  const s = v.social;
+  for (const [act, key, offTitle] of [
+    ['subscribe', 'subscribed', 'ytSubscribe'],
+    ['like', 'liked', 'ytLike'],
+  ]) {
+    const btn = v.el.querySelector(`.bar [data-act="${act}"]`);
+    const known = !!s?.loggedIn && typeof s[key] === 'boolean';
+    // 済んでいるときはボタンを出さない (解除・取り消しはしない)
+    btn.hidden = known && s[key];
+    btn.disabled = !known || !!v.socialBusy;
+    btn.title = !s ? tr('ytChecking') : !s.loggedIn ? tr('ytLogin') : !known ? tr('ytChecking') : tr(offTitle);
+  }
+}
+
+/** チャンネル登録 / 高評価を、枠のプレイヤー (YouTube のページ) に頼む。済んでいるときは何もしない (解除・取り消しはしない) */
+function socialAction(i, act) {
+  const v = views[i];
+  const s = v.social;
+  if (!s?.loggedIn || v.socialBusy || s[act === 'like' ? 'liked' : 'subscribed'] !== false) return;
+  v.socialBusy = true;
+  updateSocialButtons(i);
+  postToFrame(v.player, { hukumado: 'social', act });
+  // 返事が来なければ (プレイヤーの読み込み直しなど) 押せる状態に戻す
+  setTimeout(() => {
+    if (!v.socialBusy) return;
+    v.socialBusy = false;
+    updateSocialButtons(i);
+  }, 12000);
+}
+
+// ---- 枠の ★ (お気に入りに登録): もうお気に入りに入っているチャンネルなら隠す
+let favKeys = new Set(); // お気に入りのチャンネル ID と @ハンドル (小文字)
+const favKey = (s) => {
+  try {
+    return decodeURIComponent(s).toLowerCase();
+  } catch {
+    return String(s).toLowerCase();
+  }
+};
+
+async function refreshFavKeys() {
+  const list = await Favorites.list();
+  favKeys = new Set(list.flatMap((f) => [f.channelId, f.handle].filter(Boolean).map(favKey)));
+  for (let i = 0; i < MAX_TILES; i++) updateFavButton(i);
+}
+
+function updateFavButton(i) {
+  const t = state.tiles[i];
+  const m = views[i].meta;
+  // 自動再生で入れた枠などは入力 (@ハンドル / チャンネル ID) で、それ以外は枠のプレイヤーが知らせてきたチャンネルで判定
+  const keys = [t.input, m?.handle, m?.channelId].filter(Boolean).map(favKey);
+  views[i].el.querySelector('[data-act="fav"]').hidden = !!t.videoId && keys.some((k) => favKeys.has(k));
+}
+
+// お気に入りが変わったら (このタブでも他のタブでも) ★ の表示を直す
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === 'local' && changes.favorites) refreshFavKeys().catch(() => {});
+});
 
 /**
  * マウスが枠の外に出た (away) / 戻った。外に出たら、プレイヤーの操作 UI (シークバーなど) を隠させ、
@@ -797,6 +868,10 @@ function onBarAction(i, act, e) {
     case 'fav':
       addTileToFavorites(i);
       return;
+    case 'subscribe':
+    case 'like':
+      socialAction(i, act);
+      return;
     case 'max':
       toggleFullscreen(i);
       return;
@@ -808,6 +883,7 @@ function onBarAction(i, act, e) {
       }
       // 自動再生 ON の間に自分で閉じた配信は入れ直さない
       if (t.videoId) autoDismissed.add(t.videoId);
+      WatchHistory.removed(t.videoId, 'closed');
       state.tiles[i] = newTileState();
       views[i].danmaku.clear();
       renderTile(i);
@@ -914,13 +990,59 @@ window.addEventListener('message', (e) => {
     // 枠内のプレイヤーのスピーカーで切り替え → この枠だけ切り替える (他の枠はそのまま。複数枠の同時再生用)
     setAudio(i, { on: !data.muted });
   } else if (data.hukumado === 'meta') {
-    views[i].meta = { title: String(data.title || ''), channel: String(data.channel || '') };
+    views[i].meta = {
+      title: String(data.title || ''),
+      channel: String(data.channel || ''),
+      handle: String(data.handle || ''),
+      channelId: String(data.channelId || ''),
+    };
     updateTileName(i);
+    updateFavButton(i);
+    WatchHistory.update(state.tiles[i].videoId, { ...views[i].meta, label: state.tiles[i].label });
     updateNowPlaying();
   } else if (data.hukumado === 'playability') {
     onPlayability(i, String(data.status || ''), String(data.text || ''));
+  } else if (data.hukumado === 'ended') {
+    onEnded(i, data.reason === 'played' ? 'played' : 'already');
+  } else if (data.hukumado === 'social') {
+    views[i].social = {
+      loggedIn: !!data.loggedIn,
+      subscribed: typeof data.subscribed === 'boolean' ? data.subscribed : null,
+      liked: typeof data.liked === 'boolean' ? data.liked : null,
+    };
+    views[i].socialBusy = false;
+    updateSocialButtons(i);
+    if (data.failed) notify(tr('ytFailed', tileName(i)));
   }
 });
+
+/**
+ * 枠のプレイヤーが「配信・動画が終わった」と知らせてきたとき。終わった配信として覚え (自動再生で入れ直さない)、
+ * 自動再生中なら枠をすぐ外す:
+ *  - played (最後まで再生した): 自分で読み込んだ枠も含めて外す (ライブ配信・アーカイブ・動画のどれでも)
+ *  - already (開いた時点でもう終わっていた): 自動再生で入れた枠だけ (自分で開いたアーカイブはすぐ消さない)
+ * 自動再生が OFF のときはどの枠もそのまま
+ */
+function onEnded(i, reason) {
+  const t = state.tiles[i];
+  if (!t.videoId) return;
+  finishedIds.add(t.videoId);
+  if (!state.autoMode || (!t.auto && reason !== 'played')) return;
+  const name = tileName(i);
+  const wasAudible = !t.muted;
+  autoMissing.delete(t.videoId);
+  WatchHistory.removed(t.videoId, 'ended');
+  state.tiles[i] = newTileState();
+  views[i].danmaku.clear();
+  if (document.fullscreenElement === views[i].el) document.exitFullscreen().catch(() => {});
+  renderTile(i);
+  compactToContent();
+  if (wasAudible && audibleTiles().length === 0) {
+    const first = visibleIndexes().find((j) => state.tiles[j].videoId);
+    if (first != null) setAudioSet([first]);
+  }
+  notify(tr('ended', name));
+}
 
 /**
  * 枠のプレイヤーが「見られない」と知らせてきたとき。メンバー限定でメンバーではない配信を
@@ -935,6 +1057,7 @@ function onPlayability(i, status, text) {
   if (!state.settings.skipMembersOnly || !state.autoMode || !t.auto) return;
   const name = tileName(i);
   const wasAudible = !t.muted;
+  WatchHistory.removed(t.videoId, 'members');
   state.tiles[i] = newTileState();
   views[i].danmaku.clear();
   if (document.fullscreenElement === views[i].el) document.exitFullscreen().catch(() => {});
@@ -1365,7 +1488,8 @@ function openFavorites(target) {
     target != null ? tr('favTarget', displayNumber(target)) : tr('favTargetAny');
   if (!favDialog.open) favDialog.showModal();
   refreshFavorites(false);
-  updateRestoreLink();
+  if (favMode === 'history') renderHistory();
+  else updateRestoreLink();
 }
 
 // 配信状況の取得待ち行列。同時に取りに行くのは 4 件まで
@@ -1447,6 +1571,7 @@ function favSection(title, items, { cls = '', action = null } = {}) {
 }
 
 function renderFavorites(favs) {
+  if (favMode === 'history') return; // 履歴を表示中 (配信状況の取得が終わって描き直すときなど)
   const q = favFilter.trim().toLowerCase();
   const shown = q
     ? favs.filter((f) => [f.name, f.nameJa, f.handle, f.group].some((s) => (s || '').toLowerCase().includes(q)))
@@ -1526,10 +1651,123 @@ function favItem({ f, st }) {
   return li;
 }
 
+// ---------------------------------------------------------------- 視聴履歴 (お気に入り画面の「履歴」タブ)
+
+let favMode = 'fav'; // 'fav' | 'history'
+
+/** お気に入り / 履歴 を切り替える。履歴ではチャンネルの追加欄・更新ボタンを隠す */
+function setFavMode(mode, { render = true } = {}) {
+  favMode = mode === 'history' ? 'history' : 'fav';
+  try {
+    localStorage.setItem('hukumado.favTab', favMode);
+  } catch {
+    /* ignore */
+  }
+  const isHistory = favMode === 'history';
+  for (const b of document.querySelectorAll('[data-favtab]')) {
+    const on = b.dataset.favtab === favMode;
+    b.classList.toggle('selected', on);
+    b.setAttribute('aria-selected', String(on));
+  }
+  document.getElementById('favRefresh').hidden = isHistory;
+  document.getElementById('favLiveCount').hidden = isHistory;
+  document.getElementById('favAdd').hidden = isHistory;
+  if (isHistory) document.getElementById('favRestore').hidden = true;
+  else updateRestoreLink();
+  document.getElementById('historyClear').hidden = !isHistory;
+  favErrorEl.textContent = '';
+  if (render) renderFavPane();
+}
+
+async function renderFavPane() {
+  if (favMode === 'history') await renderHistory();
+  else renderFavorites(await Favorites.list());
+}
+
+const REASON_KEYS = { ended: 'reasonEnded', closed: 'reasonClosed', members: 'reasonMembers', replaced: 'reasonReplaced' };
+
+async function renderHistory() {
+  if (favMode !== 'history') return;
+  const all = await WatchHistory.list();
+  const q = favFilter.trim().toLowerCase();
+  const shown = q
+    ? all.filter((h) => [h.title, h.channel, h.handle, h.label, h.input].some((s) => (s || '').toLowerCase().includes(q)))
+    : all;
+  if (favMode !== 'history') return; // 読み込んでいる間に切り替えられた
+  const ul = document.createElement('ul');
+  ul.className = 'fav-sub';
+  ul.append(...shown.map(historyItem));
+  favListEl.replaceChildren(...(shown.length ? [ul] : []));
+  document.getElementById('favEmpty').textContent = q ? tr('historyNoMatch', favFilter) : tr('historyEmpty');
+  document.getElementById('historyClear').hidden = all.length === 0;
+}
+
+function historyItem(h) {
+  const li = document.getElementById('favItemTemplate').content.firstElementChild.cloneNode(true);
+  li.classList.add('history');
+  li.title = tr('historyPick');
+  li.querySelector('.fav-name').textContent = h.label || h.channel || h.handle || h.videoId;
+  li.querySelector('.fav-title').textContent = h.title || '';
+  li.querySelector('.badge').textContent = h.reason ? tr(REASON_KEYS[h.reason] || 'reasonReplaced') : '';
+  const where = [formatStart(h.at)];
+  const shownIn = visibleIndexes().filter((i) => state.tiles[i].videoId === h.videoId);
+  if (shownIn.length) where.push(tr('shownIn', shownIn.map(displayNumber).join(', ')));
+  li.querySelector('.fav-where').textContent = where.filter(Boolean).join(' ・ ');
+  const thumb = li.querySelector('.fav-thumb');
+  thumb.addEventListener('error', () => thumb.removeAttribute('src'), { once: true });
+  thumb.loading = 'lazy';
+  thumb.src = `https://i.ytimg.com/vi/${h.videoId}/mqdefault.jpg`;
+  li.addEventListener('click', () => loadFromHistory(h));
+  const del = li.querySelector('.fav-del');
+  del.title = tr('historyDel');
+  del.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    await WatchHistory.remove(h.videoId);
+    renderHistory();
+  });
+  return li;
+}
+
+/**
+ * 履歴から枠に読み込む。空いている枠が無ければ (16 枠未満なら) 枠を 1 つ足す。
+ * 誤判定や誤操作から戻せるように、自動再生の「終わった」「✕ で閉じた」「メンバー限定」の記録はこの配信について消す。
+ * 自動再生中で、いま配信中・配信予定のお気に入りの配信なら自動再生の枠として扱う (終わったら片付ける)
+ */
+function loadFromHistory(h) {
+  let target = favTarget ?? firstEmptyTile();
+  if (target == null && state.count < MAX_TILES) {
+    addTileSlot();
+    target = firstEmptyTile();
+  }
+  if (target == null) {
+    favErrorEl.textContent = tr('noEmptyTile');
+    return;
+  }
+  for (const set of [finishedIds, autoDismissed, membersBlocked]) set.delete(h.videoId);
+  autoMissing.delete(h.videoId);
+  setTileVideo(target, h.videoId, h.input || `https://www.youtube.com/watch?v=${h.videoId}`);
+  const t = state.tiles[target];
+  t.label = h.label || '';
+  const st = [...favStatus.values()].find(
+    (s) => s && typeof s === 'object' && s.videoId === h.videoId && (s.state === 'live' || s.state === 'upcoming'),
+  );
+  if (state.autoMode && st) t.auto = true;
+  updateTileName(target);
+  updateFavButton(target);
+  updateNowPlaying();
+  save();
+  favDialog.close();
+}
+
+// 他のタブで見たものも含め、履歴が変わったら表示中の一覧を描き直す
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === 'local' && changes[WatchHistory.KEY] && favDialog.open && favMode === 'history') renderHistory();
+});
+
 async function updateRestoreLink() {
   const n = await Favorites.removedPresetCount();
   const btn = document.getElementById('favRestore');
-  btn.hidden = n === 0;
+  btn.hidden = n === 0 || favMode === 'history';
   btn.textContent = tr('restorePresets', n);
 }
 
@@ -1613,7 +1851,10 @@ const FALLBACK_WINDOW_MS = 60 * 60 * 1000; // 配信中が無いときに載せ�
  *   (同じ時刻に始まるものは全部)
  * @returns {{targets: Array, fallback: boolean}} fallback = 配信中が無いので配信予定を載せている
  */
-function autoTargets({ lives, upcoming }) {
+function autoTargets(collected) {
+  // 終わったと分かっている配信は除く (ホロジュールにはしばらく残る)
+  const lives = collected.lives.filter((l) => !finishedIds.has(l.st.videoId));
+  const upcoming = collected.upcoming.filter((u) => !finishedIds.has(u.st.videoId));
   const now = Date.now();
   const preMs = (Number(state.settings.prestartMin) || 0) * 60 * 1000;
   const soon = preMs > 0 ? upcoming.filter((u) => u.st.startAt - now <= preMs) : [];
@@ -1677,6 +1918,7 @@ async function startAllLive() {
   // 使わない枠は空にする (隠れても再生し続けないように)
   state.tiles.forEach((t, j) => {
     if (!used.has(j) && t.videoId) {
+      WatchHistory.removed(t.videoId, 'replaced');
       state.tiles[j] = newTileState();
       views[j].danmaku.clear();
     }
@@ -1745,6 +1987,9 @@ const AUTO_INTERVAL_MS = 60 * 1000;
 const AUTO_MISS_LIMIT = 2; // 何回続けて「配信中に無い」なら枠を消すか (一時的な取りこぼしで消さないため)
 const autoMissing = new Map(); // videoId -> 続けて見つからなかった回数
 const autoDismissed = new Set(); // 自分で ✕ で閉じた配信 (自動で入れ直さない)
+// 枠のプレイヤーが「終わった」と知らせてきた配信。プレミア公開はホロジュールで赤枠にならず、
+// 開始時刻から 30 分ほど「予定」のまま載り続けるので、これで除かないと終わった後も枠が残る
+const finishedIds = new Set();
 let autoTimer = 0;
 let autoBusy = false;
 
@@ -1852,7 +2097,9 @@ async function autoTickOnce() {
     const endedNames = ended.filter((i) => !upcomingIds.has(state.tiles[i].videoId)).map(nameOf);
     const clearedNames = ended.filter((i) => upcomingIds.has(state.tiles[i].videoId)).map(nameOf);
     for (const i of ended) {
-      autoMissing.delete(state.tiles[i].videoId);
+      const vid = state.tiles[i].videoId;
+      autoMissing.delete(vid);
+      WatchHistory.removed(vid, upcomingIds.has(vid) ? 'replaced' : 'ended');
       state.tiles[i] = newTileState();
       views[i].danmaku.clear();
     }
@@ -1863,6 +2110,7 @@ async function autoTickOnce() {
     const free = [...others.filter((j) => !state.tiles[j].videoId), ...others.filter((j) => state.tiles[j].videoId)];
     const added = started.map((l, k) => {
       const i = free[k];
+      if (state.tiles[i].videoId) WatchHistory.removed(state.tiles[i].videoId, 'replaced');
       Object.assign(state.tiles[i], {
         ...newTileState(),
         input: l.f.handle || l.f.channelId,
@@ -2008,7 +2256,23 @@ function setupFavorites() {
   const filter = document.getElementById('favFilter');
   filter.addEventListener('input', async () => {
     favFilter = filter.value;
-    renderFavorites(await Favorites.list());
+    renderFavPane();
+  });
+
+  // お気に入り / 履歴 の切り替え (前回見ていた方を覚えておく)
+  for (const b of document.querySelectorAll('[data-favtab]')) b.addEventListener('click', () => setFavMode(b.dataset.favtab));
+  let savedMode = 'fav';
+  try {
+    savedMode = localStorage.getItem('hukumado.favTab') === 'history' ? 'history' : 'fav';
+  } catch {
+    /* ignore */
+  }
+  setFavMode(savedMode, { render: false });
+  document.getElementById('historyClear').addEventListener('click', async () => {
+    const n = (await WatchHistory.list()).length;
+    if (!n || !confirm(tr('historyClearConfirm', n))) return;
+    await WatchHistory.clear();
+    renderHistory();
   });
 
   document.getElementById('favRestore').addEventListener('click', async () => {
@@ -2029,7 +2293,9 @@ async function addTileToFavorites(i) {
     const { info, added } = await Favorites.add(t.videoId);
     favStatus.delete(info.channelId);
     showToast(i, added ? tr('favAdded', info.name) : tr('favExists', info.name));
-    btn.classList.add('on');
+    // 入れたチャンネルの ID も覚えておく (枠のプレイヤーが知らせてくるのが @ハンドルだけでないときのため)
+    favKeys.add(favKey(info.channelId));
+    updateFavButton(i);
   } catch (e) {
     showToast(i, tr('favAddFailed', e.message || e));
   } finally {
@@ -2221,6 +2487,7 @@ async function chooseSession() {
 (async function main() {
   await Promise.all([loadSettings(), Favorites.seedPresets()]);
   buildTiles();
+  refreshFavKeys().catch(() => {});
   setupDragSwap();
   setupToolbar();
   layout();

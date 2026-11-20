@@ -40,6 +40,32 @@
     );
   });
 
+  // 配信・動画が終わった → 親に知らせる (自動再生中に枠を片付けるため)
+  document.addEventListener('hukumado:ended', (e) => {
+    const reason = e.detail === 'played' ? 'played' : 'already';
+    window.parent.postMessage({ hukumado: 'ended', reason }, PARENT_ORIGIN);
+  });
+
+  // チャンネル登録・高評価の状態 → 親に知らせる (枠のバーのボタンの表示用)
+  document.addEventListener('hukumado:social', (e) => {
+    let d;
+    try {
+      d = JSON.parse(e.detail);
+    } catch {
+      return;
+    }
+    window.parent.postMessage(
+      {
+        hukumado: 'social',
+        loggedIn: !!d.loggedIn,
+        subscribed: typeof d.subscribed === 'boolean' ? d.subscribed : null,
+        liked: typeof d.liked === 'boolean' ? d.liked : null,
+        failed: typeof d.failed === 'string' ? d.failed : '',
+      },
+      PARENT_ORIGIN,
+    );
+  });
+
   // ---- 配信のタイトルとチャンネル名を親に知らせる (上部バーの「今の音声」表示用)
   let sentMeta = '';
   const sendMeta = () => {
@@ -50,10 +76,14 @@
       document.querySelector('ytd-watch-metadata #owner #channel-name a, #owner ytd-channel-name a, #upload-info #channel-name a')
         ?.textContent?.trim() ||
       '';
-    const key = title + '\n' + channel;
+    // チャンネルの URL (@ハンドル または /channel/UC…) → お気に入りに入っているかの判定用
+    const url = document.querySelector('span[itemprop="author"] link[itemprop="url"]')?.getAttribute('href') || '';
+    const handle = url.match(/\/(@[^/?#]+)/)?.[1] || '';
+    const channelId = url.match(/\/channel\/(UC[\w-]{22})/)?.[1] || '';
+    const key = [title, channel, handle, channelId].join('\n');
     if (!channel || key === sentMeta) return;
     sentMeta = key;
-    window.parent.postMessage({ hukumado: 'meta', title, channel }, PARENT_ORIGIN);
+    window.parent.postMessage({ hukumado: 'meta', title, channel, handle, channelId }, PARENT_ORIGIN);
   };
   let metaTicks = 0;
   const metaTimer = setInterval(() => {
@@ -70,6 +100,8 @@
       setMuted(!!e.data.muted);
     } else if (e.data?.hukumado === 'fill') {
       document.documentElement.classList.toggle('hukumado-fill', !!e.data.on);
+    } else if (e.data?.hukumado === 'social' && ['subscribe', 'like'].includes(e.data.act)) {
+      document.dispatchEvent(new CustomEvent('hukumado:social-act', { detail: e.data.act }));
     } else if (e.data?.hukumado === 'away') {
       // マウスが枠の外に出ている間は、プレイヤーの操作 UI を隠す (watch.css)
       document.documentElement.classList.toggle('hukumado-away', !!e.data.on);
