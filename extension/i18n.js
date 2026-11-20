@@ -77,6 +77,8 @@ const MESSAGES = {
   minSec: ['{0} 分 {1} 秒', '{0} min {1} s'],
   items: ['{0} 件', '{0}'],
   off: ['なし', 'Off'],
+  never: ['しない', 'Off'],
+  minBefore: ['{0} 分前から', '{0} min before'],
 
   // お気に入り
   favTarget: ['→ 枠 {0} に読み込みます', '→ Loads into tile {0}'],
@@ -131,6 +133,13 @@ const MESSAGES = {
   playingAll: ['配信中 {0} 件を「{1}」で再生しています', 'Playing {0} live streams in "{1}"'],
   statusFailed: ['配信状況を取得できませんでした: {0}', 'Could not get live status: {0}'],
   started: ['▶ 配信開始: {0}', '▶ Started: {0}'],
+  soonAdded: ['⏰ まもなく開始: {0}', '⏰ Starting soon: {0}'],
+  playingWithSoon: ['配信中 {0} 件・まもなく開始 {1} 件を「{2}」で再生しています', 'Playing {0} live and {1} starting soon in "{2}"'],
+  upcomingCleared: ['配信予定の枠を外しました: {0}', 'Removed upcoming: {0}'],
+  upcomingShown: [
+    'いま配信中のお気に入りはありません。配信予定 {0} を「{1}」で表示しています',
+    'None of your favorites are live. Showing upcoming {0} in "{1}"',
+  ],
   ended: ['■ 配信終了: {0}', '■ Ended: {0}'],
   cruiseOn: ['クルーズ ON: {0}ごとにメイン枠と音声を次の配信へ回します', 'Cruise ON: the main tile and audio move to the next stream every {0}'],
 
@@ -163,7 +172,7 @@ function tr(key, ...args) {
 const HTML_EN = {
   // 上部バー
   'auto.title':
-    'Auto play (L): when ON, plays all your live favorites (up to 16), then checks every minute, adding a tile when a stream starts and removing it when the stream ends. Streams you close with ✕ while ON are not added back (turn it OFF → ON to bring them back)',
+    'Auto play (L): when ON, plays all your live favorites (up to 16), then checks every minute, adding a tile when a stream starts and removing it when the stream ends. Streams starting soon get a tile before they start (⚙ Settings → Auto play), and when nothing is live, upcoming streams are shown. Streams you close with ✕ while ON are not added back (turn it OFF → ON to bring them back)',
   'auto.label': 'Auto play',
   'cruise.title':
     'Cruise (C): at a set interval, moves the main tile and audio to the next stream so you can watch many streams a little at a time. Works with any tiles, with or without auto play. Change the interval in ⚙ Settings → Auto play',
@@ -210,6 +219,9 @@ const HTML_EN = {
   'auto.skip': "Skip members-only streams you're not a member of",
   'auto.skipNote':
     'Before ▶ Auto play adds a stream, it checks whether the signed-in account can watch it. Tiles you load yourself are always shown',
+  'auto.prestart': 'Prepare tiles for upcoming streams',
+  'auto.prestartNote':
+    'Adds a tile this long before an upcoming stream starts, so you can watch from the very beginning. When nothing is live, streams starting within an hour (or the next one) are shown instead',
   'auto.cruise': 'Cruise interval',
   'auto.cruiseNote':
     'While Cruise is ON, the main tile and audio move to the next stream at this interval. It also works with tiles you arranged yourself, without auto play. In uniform layouts the order stays and only the audio moves. Empty tiles are skipped and the layout is not changed. When auto play rearranges tiles, main + sub layouts are preferred',
@@ -218,7 +230,7 @@ const HTML_EN = {
   'help.h': '? Help',
   'help.tip1': 'Paste a URL / video ID / <code>@handle</code> into an empty tile, or load a stream with “★ Pick from favorites”',
   'help.tip2': 'Hover a tile to show its control bar. Drag ⠿ at the left to swap tiles',
-  'help.tip3': 'Turn on “▶ Auto play” to show all your live favorites; tiles are added and removed as streams start and end',
+  'help.tip3': 'Turn on “▶ Auto play” to show all your live favorites; tiles are added and removed as streams start and end. Streams starting soon get a tile before they start, and when nothing is live, upcoming streams are shown',
   'help.tip4': 'Turn on “Cruise” to move the main tile and audio to the next stream at a set interval, so you can watch many streams a little at a time (also with tiles you arranged yourself, without auto play)',
   'help.tip5': 'Use the speaker in a tile’s player to listen to several tiles at once without muting the others',
   'help.keys': 'Keyboard',

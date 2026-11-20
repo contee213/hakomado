@@ -336,6 +336,8 @@ const Favorites = (() => {
       const ps = at >= 0 ? html.slice(at, at + 6000) : '';
       const status = ps.match(/"status":"(\w+)"/)?.[1];
       if (status === 'OK') result = 'ok';
+      // 開始前 (待機画面) はメンバーでも OK にならないので判定しない (始まってから枠のプレイヤーで判定)
+      else if (status === 'LIVE_STREAM_OFFLINE') result = 'unknown';
       // ログインしていない状態で取れたページだと、メンバーでも見られない扱いになるので判定しない
       else if (status && /"LOGGED_IN":true/.test(html) && (isMembersBlock(ps) || /BADGE_STYLE_TYPE_MEMBERS_ONLY/.test(html))) {
         result = 'members';

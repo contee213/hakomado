@@ -20,7 +20,7 @@ It uses the YouTube account you are signed in to in the browser, so members-only
 - **Chat panel**: shown beside the tile, and you can post from it. Text size and width are adjustable
 - **Audio**: normally one tile plays audio (shown by an outline around the tile and in the top bar). You can also listen to several tiles at once with each player's speaker button
 - **Favorites**: 67 current hololive talents and 8 official channels are included from the start. Live and upcoming streams are listed
-- **Auto play**: plays every favorite that is live, adds a tile when a stream starts and removes it when it ends. Members-only streams you can't watch are skipped (can be turned off)
+- **Auto play**: plays every favorite that is live, adds a tile when a stream starts and removes it when it ends. Streams starting soon get a tile before they start, and upcoming streams are shown when nothing is live. Members-only streams you can't watch are skipped (can be turned off)
 - **Cruise**: at a set interval, moves the main tile and audio to the next stream so you can watch many streams a little at a time
 - **Japanese / English**: follows the browser language (English for anything other than Japanese). You can also pick a language in Settings
 
@@ -111,6 +111,10 @@ Turn on "▶ Auto play" (`L`) to keep playing every favorite that is live (up to
   - Tiles you loaded yourself with a URL while ON are never removed
 - Streams you close with ✕ while ON are not added back. Turn it OFF → ON to add them again
 - Turning it OFF keeps the current tiles and just stops adding / removing
+- **Tiles for upcoming streams**: from 30 minutes before the start (⚙ Settings → Auto play: Off / 5 / 10 / 15 / 30 / 60 min), a tile is prepared for an upcoming stream.
+  When it starts, the same tile switches to the stream, so you can watch from the very beginning. A stream that starts a little late stays for a while (up to 30 minutes past its scheduled time for streams on the hololive schedule)
+- **When nothing is live**: all upcoming streams starting within an hour are shown. If there are none, the next upcoming stream is shown (all of them if several start at the same time).
+  They are replaced once streams go live
 - Members-only streams you are not a member of are skipped (toggle in ⚙ Settings → Auto play; ON by default).
   Before adding a stream, it checks on the watch page whether the signed-in account can watch it. If that can't be determined, the stream is added and
   then removed once the tile's player reports that it is members-only. Tiles you loaded yourself are never removed
@@ -141,7 +145,7 @@ Turn on "🚢 Cruise" (`C`) to rotate the shown streams one step at a set interv
 - **Audio outline**: color of the outline around the tile playing audio (Sky / Pink / Orange / Green / Purple / White), width, glow, animation.
   The audio indicator in the top bar is always the same blue as other ON buttons, regardless of the outline color
 - **Chat**: text size, width, author icons
-- **Auto play**: whether to skip members-only streams, cruise interval
+- **Auto play**: whether to skip members-only streams, how early to prepare tiles for upcoming streams, cruise interval
 - **Display language** (top right of Settings): Auto (browser language) / 日本語 / English. Changing it reloads the page (your tiles come back as they were)
 
 Settings and tile contents are saved in the browser (see "Reopening and multiple windows" below).

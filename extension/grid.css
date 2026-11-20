@@ -365,14 +365,14 @@ body.hl-animate .tile.audible::before { animation: hl-flow 6s ease-in-out infini
   min-width: 0;
 }
 .bar-buttons button {
-  width: 26px;
-  height: 24px;
+  width: 32px;
+  height: 30px;
   padding: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   background: rgba(20, 20, 24, .85);
-  font-size: 12px;
+  font-size: 15px;
 }
 .bar-buttons button.on { border-color: var(--on); color: #fff; }
 /* 弾幕 / チャット欄が OFF のときは控えめに */
@@ -382,8 +382,12 @@ body.hl-animate .tile.audible::before { animation: hl-flow 6s ease-in-out infini
 @container (max-width: 300px) {
   .bar .tile-name { display: none; }
   .bar-buttons { flex: 1 1 0; gap: 2px; }
-  .bar-buttons button { width: 22px; height: 22px; font-size: 11px; }
+  .bar-buttons button { width: 26px; height: 26px; font-size: 13px; }
   .bar-buttons .close { margin-left: 0; }
+}
+/* とても狭い枠 (サブ枠がたくさん並ぶとき) は、折り返しが増えすぎないよう以前の大きさに */
+@container (max-width: 200px) {
+  .bar-buttons button { width: 22px; height: 22px; font-size: 11px; }
 }
 /* 2 択の切り替え (選ばれている方を塗りつぶす) */
 .seg { display: inline-flex; }
@@ -636,12 +640,25 @@ dialog.layout-dialog { width: min(760px, calc(100% - 32px)); }
 
 /* ---------- drag to swap ---------- */
 .grip {
-  cursor: grab;
   color: var(--muted);
   padding: 0 3px;
-  font-size: 14px;
+  font-size: 16px;
   user-select: none;
 }
+/* 操作バーのボタン以外と、枠の上 2 割 (配信を入れた枠だけ) はつかんで入れ替えられる */
+.bar { cursor: grab; }
+.bar button { cursor: pointer; }
+.drag-zone {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 20%;
+  min-height: 40px;
+  z-index: 3;
+  cursor: grab;
+}
+.tile.is-empty .drag-zone { display: none; }
 body.dragging iframe { pointer-events: none; }
 .tile.drag-source { opacity: .5; }
 .tile.drag-over { outline: 3px dashed #8ab4ff; outline-offset: -3px; }

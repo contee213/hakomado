@@ -25,6 +25,7 @@ const DEFAULT_SETTINGS = {
   // 自動再生
   skipMembersOnly: true, // メンバーになっていないメンバー限定配信は入れない
   cruiseSec: 120, // クルーズでメイン枠 (と音声) を次の配信に回す間隔 (秒)
+  prestartMin: 30, // 開始の何分前から、配信予定の枠を用意しておくか (0 = しない)
 };
 
 const state = {
@@ -809,7 +810,8 @@ window.addEventListener('message', (e) => {
  */
 function onPlayability(i, status, text) {
   const t = state.tiles[i];
-  if (!t.videoId || status === 'OK' || !Favorites.isMembersBlock(text)) return;
+  // 開始前 (待機画面) はメンバーでも OK にならないので判定しない。始まると枠のプレイヤーがもう一度知らせてくる
+  if (!t.videoId || status === 'OK' || status === 'LIVE_STREAM_OFFLINE' || !Favorites.isMembersBlock(text)) return;
   Favorites.rememberMembersOnly(t.videoId);
   membersBlocked.add(t.videoId);
   if (!state.settings.skipMembersOnly || !state.autoMode || !t.auto) return;
@@ -924,22 +926,15 @@ function setupLayoutPicker() {
 
 function setupDragSwap() {
   let dragFrom = null;
+  // ボタンを押したまま少し動かしたときは、ドラッグではなくボタンの操作として扱う
+  let pressedControl = false;
+  document.addEventListener('pointerdown', (e) => (pressedControl = !!e.target.closest?.('button, input, select')), true);
   for (const [i, v] of views.entries()) {
-    const grip = v.el.querySelector('.grip');
-    grip.addEventListener('dragstart', (e) => {
-      dragFrom = i;
-      e.dataTransfer.effectAllowed = 'move';
-      e.dataTransfer.setData('text/plain', String(i));
-      e.dataTransfer.setDragImage(v.el, 20, 20);
-      // iframe の上ではドラッグのイベントが取れないので、ドラッグ中は iframe を無視させる
-      document.body.classList.add('dragging');
-      v.el.classList.add('drag-source');
-    });
-    grip.addEventListener('dragend', () => {
-      dragFrom = null;
-      document.body.classList.remove('dragging');
-      views.forEach((x) => x.el.classList.remove('drag-source', 'drag-over'));
-    });
+    // つかめる場所: 操作バー (ボタン以外) と、枠の上 2 割
+    for (const handle of [v.el.querySelector('.bar'), v.el.querySelector('.drag-zone')]) {
+      handle.addEventListener('dragstart', (e) => onDragStart(e, i, v));
+      handle.addEventListener('dragend', onDragEnd);
+    }
     v.el.addEventListener('dragover', (e) => {
       if (dragFrom == null || dragFrom === i) return;
       e.preventDefault();
@@ -954,6 +949,32 @@ function setupDragSwap() {
       v.el.classList.remove('drag-over');
       if (dragFrom != null && dragFrom !== i) swapTiles(dragFrom, i);
     });
+  }
+
+  function onDragStart(e, i, v) {
+    if (pressedControl) {
+      e.preventDefault();
+      return;
+    }
+    {
+      dragFrom = i;
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', String(i));
+      // ドラッグ中の影は、つかんだ場所がカーソルの下に来るように出す (枠の左上に固定すると、右の方をつかんだときに影がずれる)
+      const r = v.el.getBoundingClientRect();
+      const x = Math.min(Math.max(0, e.clientX - r.left), r.width);
+      const y = Math.min(Math.max(0, e.clientY - r.top), r.height);
+      e.dataTransfer.setDragImage(v.el, Math.round(x), Math.round(y));
+      // iframe の上ではドラッグのイベントが取れないので、ドラッグ中は iframe を無視させる
+      document.body.classList.add('dragging');
+      v.el.classList.add('drag-source');
+    }
+  }
+
+  function onDragEnd() {
+    dragFrom = null;
+    document.body.classList.remove('dragging');
+    views.forEach((x) => x.el.classList.remove('drag-source', 'drag-over'));
   }
 }
 
@@ -976,11 +997,13 @@ const SETTING_FORMATS = {
   hlWidth: (v) => `${v} px`,
   hlGlow: (v) => (v === 0 ? tr('off') : `${Math.round(v * 100)}%`),
   cruiseSec: (v) => formatCruise(v),
+  prestartMin: (v) => (v ? tr('minBefore', v) : tr('never')),
 };
 // 決まった値から選ぶスライダー (スライダーの位置 = 配列の番号)。クルーズの間隔は細かく選ぶ必要がないので、
 // 短い間隔は細かく、長い間隔は大きく刻む
 const SETTING_STEPS = {
   cruiseSec: [10, 15, 20, 30, 45, 60, 90, 120, 180, 300, 600, 900, 1200, 1800],
+  prestartMin: [0, 5, 10, 15, 30, 60],
 };
 
 /** 保存されている値にいちばん近い段階の番号 (以前の版の半端な値も近いものに寄せる) */
@@ -1414,7 +1437,8 @@ async function fillLiveIntoEmptyTiles() {
 // ---------------------------------------------------------------- 自動再生
 
 /**
- * お気に入り全部の配信状況を (待って) 取り、配信中のものを返す。
+ * お気に入り全部の配信状況を (待って) 取り、配信中のものと配信予定を返す。
+ * lives = 配信中 (お気に入りの並び順)、upcoming = 配信予定 (開始が早い順。配信中と同じ配信は除く)
  * errors = 取得に失敗した件数 (失敗があった回は、自動再生は枠を消さない)
  */
 async function collectLiveFavorites({ force = false } = {}) {
@@ -1443,7 +1467,36 @@ async function collectLiveFavorites({ force = false } = {}) {
   const lives = results
     .filter(({ st }) => st?.state === 'live' && !seen.has(st.videoId) && seen.add(st.videoId))
     .sort((a, b) => order.get(a.f.channelId) - order.get(b.f.channelId));
-  return { lives, errors };
+  const upcoming = results
+    .filter(({ st }) => st?.state === 'upcoming' && st.startAt && !seen.has(st.videoId) && seen.add(st.videoId))
+    .sort((a, b) => a.st.startAt - b.st.startAt || order.get(a.f.channelId) - order.get(b.f.channelId));
+  return { lives, upcoming, errors };
+}
+
+const FALLBACK_WINDOW_MS = 60 * 60 * 1000; // 配信中が無いときに載せる配信予定の範囲 (1 時間以内)
+
+/**
+ * 自動再生で枠に載せる配信を決める。
+ * - 配信中のもの + 開始まで prestartMin 分以内の配信予定 (始まる前から枠を用意して、最初から見られるように)
+ * - 配信中が 1 つも無いときは、1 時間以内に始まる配信予定を全部。それも無ければ一番近い配信予定
+ *   (同じ時刻に始まるものは全部)
+ * @returns {{targets: Array, fallback: boolean}} fallback = 配信中が無いので配信予定を載せている
+ */
+function autoTargets({ lives, upcoming }) {
+  const now = Date.now();
+  const preMs = (Number(state.settings.prestartMin) || 0) * 60 * 1000;
+  const soon = preMs > 0 ? upcoming.filter((u) => u.st.startAt - now <= preMs) : [];
+  if (lives.length) return { targets: [...lives, ...soon], fallback: false };
+  const within = upcoming.filter((u) => u.st.startAt - now <= Math.max(preMs, FALLBACK_WINDOW_MS));
+  if (within.length) return { targets: within, fallback: true };
+  if (!upcoming.length) return { targets: [], fallback: false };
+  const first = upcoming[0].st.startAt;
+  return { targets: upcoming.filter((u) => u.st.startAt === first), fallback: true };
+}
+
+/** 配信予定なら「名前 (開始時刻)」、配信中なら名前だけ */
+function targetLabel({ f, st }) {
+  return st.state === 'upcoming' ? `${f.name} (${formatStart(st.startAt)})` : f.name;
 }
 
 /**
@@ -1451,9 +1504,10 @@ async function collectLiveFavorites({ force = false } = {}) {
  * 表示中の配信は読み込み直さずに残し、配信中でない枠は空にする
  */
 async function startAllLive() {
-  let { lives } = await collectLiveFavorites({ force: true });
-  const { ok, blocked } = await filterAccessible(lives);
-  lives = ok;
+  const collected = await collectLiveFavorites({ force: true });
+  const { targets, fallback } = autoTargets(collected);
+  const { ok, blocked } = await filterAccessible(targets);
+  let lives = ok;
   if (lives.length === 0) {
     notify(
       blocked.length
@@ -1518,11 +1572,15 @@ async function startAllLive() {
   if (favDialog.open) favDialog.close();
   restartCruise();
   const skipped = blocked.length ? tr('skippedCount', blocked.length) : '';
-  notify(
-    (total > MAX_TILES
+  const soonCount = lives.filter((l) => l.st.state === 'upcoming').length;
+  const head = fallback
+    ? tr('upcomingShown', lives.map(targetLabel).join(tr('sep')), layout.name)
+    : total > MAX_TILES
       ? tr('playingSome', total, MAX_TILES, layout.name)
-      : tr('playingAll', total, layout.name)) + skipped,
-  );
+      : soonCount
+        ? tr('playingWithSoon', total - soonCount, soonCount, layout.name)
+        : tr('playingAll', total, layout.name);
+  notify(head + skipped);
 }
 
 // ---- メンバー限定の除外
@@ -1620,7 +1678,9 @@ async function autoTick() {
 
 async function autoTickOnce() {
   try {
-    const { lives, errors } = await collectLiveFavorites({ force: true });
+    const collected = await collectLiveFavorites({ force: true });
+    const { errors } = collected;
+    const { targets: lives } = autoTargets(collected); // 配信中 + まもなく始まる予定 (配信中が無ければ近い予定)
     const liveIds = new Set(lives.map((l) => l.st.videoId));
     const visible = visibleIndexes().filter((i) => state.tiles[i].videoId);
 
@@ -1654,7 +1714,11 @@ async function autoTickOnce() {
     }
 
     const audibleBefore = audibleTiles();
-    const endedNames = ended.map((i) => state.tiles[i].label || views[i].meta?.channel || state.tiles[i].input);
+    // 外す枠のうち、まだ始まっていない配信予定の枠 (配信中のものが出てきたので片付ける) は「配信終了」と分けて知らせる
+    const upcomingIds = new Set(collected.upcoming.map((u) => u.st.videoId));
+    const nameOf = (i) => state.tiles[i].label || views[i].meta?.channel || state.tiles[i].input;
+    const endedNames = ended.filter((i) => !upcomingIds.has(state.tiles[i].videoId)).map(nameOf);
+    const clearedNames = ended.filter((i) => upcomingIds.has(state.tiles[i].videoId)).map(nameOf);
     for (const i of ended) {
       autoMissing.delete(state.tiles[i].videoId);
       state.tiles[i] = newTileState();
@@ -1696,8 +1760,12 @@ async function autoTickOnce() {
     save();
 
     const msgs = [];
-    if (started.length) msgs.push(tr('started', started.map((l) => l.f.name).join(tr('sep'))));
+    const startedLive = started.filter((l) => l.st.state !== 'upcoming');
+    const startedSoon = started.filter((l) => l.st.state === 'upcoming');
+    if (startedLive.length) msgs.push(tr('started', startedLive.map((l) => l.f.name).join(tr('sep'))));
+    if (startedSoon.length) msgs.push(tr('soonAdded', startedSoon.map(targetLabel).join(tr('sep'))));
     if (endedNames.length) msgs.push(tr('ended', endedNames.join(tr('sep'))));
+    if (clearedNames.length) msgs.push(tr('upcomingCleared', clearedNames.join(tr('sep'))));
     if (blockedMsg) msgs.push(blockedMsg);
     notify(msgs.join(' / '));
   } catch (e) {

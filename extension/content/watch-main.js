@@ -107,6 +107,7 @@
 
   // ---- この動画を見られるか (メンバー限定でメンバーではない、など) を親に知らせる
   //   ここ → watch.js : 'hukumado:playability' detail JSON {status, text}
+  //   開始前の待機画面から配信が始まると状態が変わるので、その後も時々確かめて、変わったら知らせ直す
   const playerResponse = () => {
     try {
       return player()?.getPlayerResponse?.() || window.ytInitialPlayerResponse || null;
@@ -114,21 +115,26 @@
       return null;
     }
   };
+  let lastStatus = '';
+  const reportPlayability = () => {
+    const ps = playerResponse()?.playabilityStatus;
+    if (!ps?.status || ps.status === lastStatus) return !!ps?.status;
+    lastStatus = ps.status;
+    let text = '';
+    try {
+      text = JSON.stringify(ps).slice(0, 8000);
+    } catch {
+      /* ignore */
+    }
+    document.dispatchEvent(
+      new CustomEvent('hukumado:playability', { detail: JSON.stringify({ status: String(ps.status), text }) }),
+    );
+    return true;
+  };
+  // 読み込み直後は 0.5 秒ごと (最初に分かったら終わり)、その後は 20 秒ごとに変化だけ見る
   let psTicks = 0;
   const psTimer = setInterval(() => {
-    const ps = playerResponse()?.playabilityStatus;
-    if (ps?.status || ++psTicks > 30) {
-      clearInterval(psTimer);
-      if (!ps?.status) return;
-      let text = '';
-      try {
-        text = JSON.stringify(ps).slice(0, 8000);
-      } catch {
-        /* ignore */
-      }
-      document.dispatchEvent(
-        new CustomEvent('hukumado:playability', { detail: JSON.stringify({ status: String(ps.status), text }) }),
-      );
-    }
+    if (reportPlayability() || ++psTicks > 30) clearInterval(psTimer);
   }, 500);
+  setInterval(reportPlayability, 20000);
 })();
