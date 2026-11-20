@@ -12,7 +12,7 @@ const Tour = (() => {
     { key: 'tourPick', target: () => [firstTile()?.querySelector('.url-input'), firstTile()?.querySelector('.empty-actions')] },
     // 枠の操作バーはマウスを乗せないと出ないので、ツアー中は見本のバーを枠の上に出して見せる
     { key: 'tourTile', target: () => mockBar, enter: showMockBar, leave: hideMockBar },
-    { key: 'tourMore', target: () => ['openNotices', 'openFavorites', 'gridFullscreen', 'openSettings', 'openHelp'].map((id) => document.getElementById(id)) },
+    { key: 'tourMore', target: () => ['openNotices', 'openChannels', 'openFavorites', 'gridFullscreen', 'openSettings', 'openHelp'].map((id) => document.getElementById(id)) },
     // 最後は自動再生のボタンを実際に押してもらう (押すとツアーを閉じて自動再生が始まる)。
     // 途中で押すとレイアウトや空き枠が変わって説明と合わなくなるので、最後の一歩にする
     { key: 'tourAuto', target: () => document.getElementById('autoMode'), action: true },
@@ -233,5 +233,5 @@ const Tour = (() => {
     render();
   }
 
-  return { start, isOpen: () => !!root };
+  return { start };
 })();

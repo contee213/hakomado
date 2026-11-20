@@ -29,6 +29,12 @@
   window.addEventListener('message', (e) => {
     if (e.origin !== PARENT_ORIGIN || e.source !== window.parent) return;
     if (e.data?.hukumado === 'chatLook') applyLook(e.data);
+    else if (e.data?.hukumado === 'progress' && Number.isFinite(e.data.t)) {
+      // アーカイブのチャットのリプレイ: 枠の再生位置を、YouTube の視聴ページが送るのと同じ形で、このページ自身に送る
+      // (リプレイは YouTube 以外のページから来た知らせを受け付けないので、こちらで中継する)
+      const id = typeof e.data.id === 'string' && /^[\w-]{11}$/.test(e.data.id) ? e.data.id : '';
+      window.postMessage({ 'yt-player-video-progress': e.data.t, 'yt-player-video-id': id }, location.origin);
+    }
   });
   const MESSAGE_TAGS = new Set(['YT-LIVE-CHAT-TEXT-MESSAGE-RENDERER', 'YT-LIVE-CHAT-PAID-MESSAGE-RENDERER']);
   // 開いた直後に表示される過去ログは流さない

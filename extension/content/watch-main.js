@@ -208,6 +208,43 @@
     }
   };
   const myVideoId = params.get('v') || '';
+
+  // ---- ライブ配信中か (親が枠に「LIVE」の印を付ける)。開始前の待機画面は配信中にしない
+  //   ここ → watch.js : 'hukumado:live' detail '1' | '0' (変わったときだけ)
+  let liveSent = null;
+  setInterval(() => {
+    if (!player()) return;
+    const live = !!videoData().isLive && !waitingRoom();
+    if (live === liveSent) return;
+    liveSent = live;
+    document.dispatchEvent(new CustomEvent('hukumado:live', { detail: live ? '1' : '0' }));
+  }, 1000);
+
+  // ---- ライブ配信のアーカイブ: チャットのリプレイを出せるよう、親に知らせ、再生位置を送り続ける
+  //   ここ → watch.js : 'hukumado:replay' detail リプレイを開く鍵 (continuation) / 'hukumado:progress' detail 再生位置 (秒)
+  // 親は live_chat_replay?continuation=… を枠に読み込み、YouTube の視聴ページと同じ形で再生位置を渡す (チャットがその位置まで進む)。
+  // リプレイは動画 ID では開けず、視聴ページのデータに入っている continuation が要る (チャットを切っていた配信には無い)
+  const replayContinuation = () => {
+    try {
+      const bar = window.ytInitialData?.contents?.twoColumnWatchNextResults?.conversationBar?.liveChatRenderer;
+      const c = bar?.continuations?.[0]?.reloadContinuationData?.continuation;
+      return typeof c === 'string' && /^[\w%=-]{10,2000}$/.test(c) ? c : '';
+    } catch {
+      return '';
+    }
+  };
+  let replaySent = false;
+  setInterval(() => {
+    if (!alreadyEnded()) return;
+    if (!replaySent) {
+      const c = replayContinuation();
+      if (!c) return;
+      replaySent = true;
+      document.dispatchEvent(new CustomEvent('hukumado:replay', { detail: c }));
+    }
+    const t = player()?.getCurrentTime?.();
+    if (typeof t === 'number' && Number.isFinite(t)) document.dispatchEvent(new CustomEvent('hukumado:progress', { detail: String(t) }));
+  }, 500);
   const adShowing = () => !!document.querySelector('#movie_player.ad-showing, #movie_player.ad-interrupting');
   const videoData = () => {
     try {

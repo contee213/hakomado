@@ -27,7 +27,8 @@
     <span class="spacer"></span>
 
     <button id="openNotices" type="button" data-i18n-title="notice.title" title="通知 (チャンネルの配信開始)"><span class="tb-icon">🔔</span><span class="tb-label" data-i18n="notice.label">通知</span><span id="noticeBadge" class="notice-badge" hidden></span></button>
-    <button id="openFavorites" type="button" data-i18n-title="fav.title" title="ライブラリ (F)"><span class="tb-icon">📚</span><span class="tb-label" data-i18n="fav.label">ライブラリ</span></button>
+    <button id="openChannels" type="button" data-i18n-title="ch.title" title="チャンネル (F): 配信中・配信予定と、チャンネルの追加・ピックアップ"><span class="tb-icon">📺</span><span class="tb-label" data-i18n="ch.label">チャンネル</span></button>
+    <button id="openFavorites" type="button" data-i18n-title="fav.title" title="ライブラリ (B): 最近の配信・視聴履歴・あとで見る"><span class="tb-icon">📚</span><span class="tb-label" data-i18n="fav.label">ライブラリ</span></button>
     <button id="gridFullscreen" class="icon-only" type="button" data-i18n-title="gridFs.title" title="分割したまま全画面 (Shift+F)。上端にマウスを寄せると、このバーが出ます">⛶</button>
     <button id="openSettings" class="icon-only" type="button" data-i18n-title="settings.title" title="設定">⚙</button>
     <button id="openHelp" class="icon-only" type="button" data-i18n-title="help.title" title="使い方とキー操作 (?)">?</button>
@@ -59,7 +60,7 @@
         </div>
         <div class="settings-tabs" role="tablist">
           <button type="button" role="tab" data-tab="danmaku" data-i18n="tab.danmaku">弾幕</button>
-          <button type="button" role="tab" data-tab="audio" data-i18n="tab.audio">音声の枠</button>
+          <button type="button" role="tab" data-tab="audio" data-i18n="tab.audio">枠の線</button>
           <button type="button" role="tab" data-tab="chat" data-i18n="tab.chat">チャット欄</button>
           <button type="button" role="tab" data-tab="auto" data-i18n="tab.auto">自動再生</button>
           <button type="button" role="tab" data-tab="channels" data-i18n="tab.channels">チャンネル</button>
@@ -123,6 +124,8 @@
         <div class="settings-col">
         <p class="settings-note" data-i18n="hl.note">音が出ている枠に付ける線の見た目</p>
           <div class="hl-swatches" id="hlSwatches"></div>
+          <p class="settings-note" data-i18n="hl.liveNote">ライブ配信中の枠に付ける線の色 (音が出ている枠は、音の線を優先します)</p>
+          <div class="hl-swatches" id="liveSwatches"></div>
         </div>
         <div class="settings-col">
         <label><span data-i18n="hl.width">線の太さ</span> <output id="hlWidthOut"></output>
@@ -170,6 +173,8 @@
           <input type="range" id="prestartMin" min="0" max="5" step="1">
         </label>
         <p class="settings-note" data-i18n="auto.prestartNote">配信予定の枠を開始前に作っておき、最初から見られるようにします。配信中のものが 1 つも無いときは、次に始まる配信予定と、その開始から 1 時間以内に始まる配信予定を表示します</p>
+        <label class="check"><input type="checkbox" id="autoArchive"> <span data-i18n="auto.archive">配信中が無いときは、最近の配信を流す</span></label>
+        <p class="settings-note" data-i18n="auto.archiveNote">深夜などライブが 1 本も無いときに、チャンネルの最近終わった配信を 4 枠流します (ピックアップ (📌) のチャンネルが先、一度見たものは除く)。ライブが始まったら片付けます</p>
         <label><span data-i18n="auto.cruise">クルーズの間隔</span> <output id="cruiseSecOut"></output>
           <input type="range" id="cruiseSec" min="0" max="13" step="1">
         </label>
@@ -189,7 +194,7 @@
       </section>
       <footer class="settings-foot">
         <span class="app-version"></span>
-        <button type="button" id="settingsReset" data-i18n="settings.reset" data-i18n-title="settings.resetTitle" title="弾幕・音声の枠・チャット欄・自動再生の設定を、すべて最初の状態に戻す (表示言語とチャンネルはそのまま)">すべて初期値に戻す</button>
+        <button type="button" id="settingsReset" data-i18n="settings.reset" data-i18n-title="settings.resetTitle" title="弾幕・枠の線・チャット欄・自動再生の設定を、すべて最初の状態に戻す (表示言語とチャンネルはそのまま)">すべて初期値に戻す</button>
       </footer>
     </form>
   </dialog>
@@ -201,7 +206,7 @@
         <button value="close" class="dialog-close" data-i18n-title="close" title="閉じる (Esc)">✕</button>
       </div>
       <ul class="help-tips">
-        <li data-i18n-html="help.tip1">空き枠に URL / 動画 ID / <code>@チャンネル名</code> を貼るか、「📚 ライブラリから選ぶ」で配信を読み込みます</li>
+        <li data-i18n-html="help.tip1">空き枠に URL / 動画 ID / <code>@チャンネル名</code> を貼るか、今の配信は「📺 チャンネルから選ぶ」、終わった配信は「📚 ライブラリから選ぶ」で読み込みます</li>
         <li data-i18n="help.tip2">配信の入った枠にマウスを乗せると、操作バーが出ます。左端の ⠿ をドラッグすると枠を入れ替えます</li>
         <li data-i18n="help.tip3">「自動再生」を ON にすると、配信中のチャンネルを全部並べ、始まった / 終わった配信に合わせて枠を増減します。もうすぐ始まる配信は開始前から枠を用意し、配信中のものが無いときは配信予定を表示します</li>
         <li data-i18n="help.tip4">「クルーズ」を ON にすると、一定時間ごとにメイン枠と音声が次の配信へ移り、いろいろな配信を少しずつ見られます (自動再生を使わず、自分で並べた枠でも使えます)</li>
@@ -217,7 +222,8 @@
         <tr><th><kbd>Space</kbd></th><td data-i18n="key.pause">全部の枠をまとめて一時停止 ⇄ 再開 (ライブ配信は最新の位置から再開)</td></tr>
         <tr><th><kbd>L</kbd></th><td data-i18n="key.auto">自動再生の ON / OFF</td></tr>
         <tr><th><kbd>C</kbd></th><td data-i18n="key.cruise">クルーズの ON / OFF</td></tr>
-        <tr><th><kbd>F</kbd></th><td data-i18n="key.fav">ライブラリを開く</td></tr>
+        <tr><th><kbd>F</kbd></th><td data-i18n="key.fav">チャンネルを開く</td></tr>
+        <tr><th><kbd>B</kbd></th><td data-i18n="key.lib">ライブラリを開く</td></tr>
         <tr><th><kbd>D</kbd></th><td data-i18n="key.danmaku">全部の枠の弾幕を一時的に消す ⇄ 戻す (弾幕は、枠の ≋ で決めていなければメイン枠だけに出ます)</td></tr>
         <tr><th><kbd>?</kbd></th><td data-i18n="key.help">この画面を開く</td></tr>
       </table>
@@ -233,7 +239,7 @@
       <header class="fav-head">
         <h2 data-i18n="layout.h">▦ レイアウト</h2>
         <span class="spacer"></span>
-        <span class="seg fit-seg">
+        <span class="seg">
           <button type="button" data-fit="fit" data-i18n="fit.fit" data-i18n-title="fit.fitTitle" title="どの枠も 16:9 ちょうどの大きさにする。画面と比率が合わない分は外側の余白になる">標準</button><button type="button" data-fit="fill" data-i18n="fit.fill" data-i18n-title="fit.fillTitle" title="余白なしで画面を埋める。映像は枠に合わせて拡大し、はみ出た端は切れる">ストレッチ</button>
         </span>
         <button type="button" id="layoutClose" class="dialog-close" data-i18n-title="close" title="閉じる (Esc)">✕</button>
@@ -251,20 +257,27 @@
   <dialog id="favorites" class="fav-dialog">
     <div class="fav">
       <header class="fav-head">
+        <!-- 同じ画面を 2 つの入り口で使い分ける: 📺 チャンネル (今の配信状況とチャンネルの管理) / 📚 ライブラリ (終わった配信・動画)。
+             見出しとタブは開いた入り口で切り替える。どちらでも「📺 すべて / 📌 ピックアップ」で対象のチャンネルを絞れる -->
+        <h2 id="favTitle"></h2>
         <div class="fav-tabs settings-tabs" role="tablist">
-          <button type="button" role="tab" data-favtab="star" data-i18n="fav.h" data-i18n-title="fav.starTitle" title="今注目しているチャンネル (📌)。自動再生・通知の対象を「ピックアップ (📌) だけ」にすると、ここのチャンネルだけになる">📌 ピックアップ</button>
-          <button type="button" role="tab" data-favtab="all" data-i18n="fav.channels" data-i18n-title="fav.channelsTitle" title="追加したチャンネル全部">📺 チャンネル</button>
-          <button type="button" role="tab" data-favtab="saved" data-i18n="fav.saved" data-i18n-title="fav.savedTitle" title="自分で保存した配信・動画 (🔖)。100 件まで。外すまで消えない (すべてのタブで共通)">🔖 保存</button>
-          <button type="button" role="tab" data-favtab="history" data-i18n="fav.history" data-i18n-title="fav.historyTitle" title="この拡張機能で見た配信・動画 (新しい順に 100 件。すべてのタブで共通)">🕘 履歴</button>
+          <button type="button" role="tab" data-favtab="archive" data-i18n="fav.archive" data-i18n-title="fav.archiveTitle" title="チャンネルの、最近 7 日に終わった配信 (新しい順)">🎞 最近の配信</button>
+          <button type="button" role="tab" data-favtab="history" data-i18n="fav.history" data-i18n-title="fav.historyTitle" title="この拡張機能で見た配信・動画 (新しい順に 100 件。すべてのタブで共通)">🕘 視聴履歴</button>
+          <button type="button" role="tab" data-favtab="saved" data-i18n="fav.saved" data-i18n-title="fav.savedTitle" title="あとで見たい配信・動画 (🔖)。100 件まで。最後まで再生するか、🔖 を外すと消える (すべてのタブで共通)">🔖 あとで見る</button>
         </div>
-        <span id="favLiveCount" class="fav-live-count"></span>
-        <span id="savedCount" class="fav-live-count" hidden></span>
         <span class="spacer"></span>
+        <button type="button" id="queuePlay" class="primary-action" data-i18n="queue.play" data-i18n-title="queue.playTitle" title="あとで見るを、今ある枠で入れた順に再生する。最後まで見た枠には次が入る (枠は増やさない。自動再生は止める)" hidden>▶ 今の枠で順に再生</button>
         <button type="button" id="favRefresh" data-i18n="fav.refresh" data-i18n-title="fav.refreshTitle" title="配信状況を取り直す">⟳ 更新</button>
         <button type="button" id="favClose" class="dialog-close" data-i18n-title="close" title="閉じる (Esc)">✕</button>
       </header>
       <div class="fav-tools">
+        <span id="libScope" class="seg lib-scope" role="radiogroup" data-i18n-title="scope.title" title="対象のチャンネル: すべて / ピックアップ (📌) に入れたものだけ (どのタブでも共通)">
+          <button type="button" data-scope="all" data-i18n="scope.all">📺 すべて</button><button type="button" data-scope="star" data-i18n="scope.star">📌 ピックアップ</button>
+        </span>
         <input type="search" id="favFilter" data-i18n-placeholder="fav.filter" placeholder="名前・@チャンネル名で絞り込み" spellcheck="false">
+        <!-- 件数は一覧のすぐ上 (絞り込み欄の右) に。タブの横に出すとタブの位置と紛らわしいので -->
+        <span id="favLiveCount" class="fav-count live"></span>
+        <span id="savedCount" class="fav-count" hidden></span>
         <span class="fav-target"></span>
       </div>
 
@@ -276,7 +289,7 @@
           <input type="text" data-i18n-placeholder="fav.addInput" placeholder="追加: @チャンネル名 / チャンネルの URL / 動画の URL" spellcheck="false">
           <button type="submit" data-i18n="fav.add">追加</button>
         </form>
-        <button type="button" id="historyClear" class="fav-restore" data-i18n="fav.historyClear" hidden>履歴を全部消す</button>
+        <button type="button" id="historyClear" class="fav-restore" data-i18n="fav.historyClear" hidden>視聴履歴を全部消す</button>
         <div id="favError" class="fav-error"></div>
       </footer>
     </div>
@@ -310,6 +323,7 @@
         <div class="fav-title"></div>
       </div>
       <img class="fav-thumb" alt="" referrerpolicy="no-referrer">
+      <button type="button" class="fav-arch"></button>
       <button type="button" class="fav-star"></button>
       <button type="button" class="fav-del" data-i18n-title="fav.del" title="チャンネル一覧から外す">✕</button>
     </li>
@@ -326,7 +340,9 @@
           <input class="url-input" type="text" data-i18n-placeholder="tile.input" placeholder="URL / 動画 ID / @チャンネル名 を貼り付け" spellcheck="false">
           <div class="empty-actions">
             <button type="submit" data-i18n="tile.load">読み込む</button>
+            <button type="button" class="pick-ch" data-i18n="tile.pickCh">📺 チャンネルから選ぶ</button>
             <button type="button" class="pick-fav" data-i18n="tile.pickFav">📚 ライブラリから選ぶ</button>
+            <button type="button" class="pick-any" data-i18n="tile.pickAny" data-i18n-title="tile.pickAnyTitle" title="まだ出ていない配信を 1 本入れる: ピックアップ (📌) のライブ → ほかのライブ → ピックアップの最近の配信 → ほかの最近の配信 の順で探し、その中からランダムに選ぶ">🎲 おまかせ</button>
           </div>
           <div class="error"></div>
         </form>
@@ -337,13 +353,15 @@
         <div class="bar" draggable="true">
           <span class="grip" data-i18n-title="tile.grip" title="ドラッグして他の枠と入れ替え">⠿</span>
           <span class="index"></span>
+          <!-- ライブ配信中の枠の印 (アーカイブ・動画には出さない) -->
+          <span class="live-badge" aria-hidden="true">LIVE</span>
           <span class="tile-name"></span>
           <span class="bar-buttons">
             <button type="button" data-act="audio" data-i18n-title="tile.audio" title="この枠だけ音を出す (他の枠はミュート)。複数枠で同時に聞くときは枠内のプレイヤーのスピーカーで"></button>
             <button type="button" data-act="chat" class="toggle" data-i18n-title="tile.chat" title="チャット欄の表示">💬</button>
             <button type="button" data-act="danmaku" class="toggle" data-i18n-title="tile.danmaku" title="この枠の弾幕の表示">≋</button>
             <button type="button" data-act="fav" class="toggle" title="この枠のチャンネルをピックアップに入れる">📌</button>
-            <button type="button" data-act="save" class="toggle" title="この配信を保存する">🔖</button>
+            <button type="button" data-act="save" class="toggle" title="この配信をあとで見る">🔖</button>
             <button type="button" data-act="subscribe" class="toggle social" disabled><svg class="sub-icon" viewBox="0 0 16 16" aria-hidden="true"><circle cx="6" cy="4.6" r="2.8"/><path d="M0.8 14.2c0-3.1 2.3-5.4 5.2-5.4s5.2 2.3 5.2 5.4z"/><path d="M12.25 5.5h1.5v2.25H16v1.5h-2.25v2.25h-1.5V9.25H10v-1.5h2.25z"/></svg></button>
             <button type="button" data-act="like" class="toggle social" disabled>👍</button>
             <button type="button" data-act="reload" data-i18n-title="tile.reload" title="再読み込み (映像やチャットの調子が悪いとき)">⟳</button>

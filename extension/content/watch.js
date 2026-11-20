@@ -40,6 +40,19 @@
     );
   });
 
+  // ライブ配信中か (watch-main.js から)
+  document.addEventListener('hukumado:live', (e) => window.parent.postMessage({ hukumado: 'live', on: e.detail === '1' }, PARENT_ORIGIN));
+
+  // アーカイブのチャットリプレイ用 (watch-main.js から)
+  document.addEventListener('hukumado:replay', (e) => {
+    const c = String(e.detail || '');
+    if (/^[\w%=-]{10,2000}$/.test(c)) window.parent.postMessage({ hukumado: 'replay', continuation: c }, PARENT_ORIGIN);
+  });
+  document.addEventListener('hukumado:progress', (e) => {
+    const t = Number(e.detail);
+    if (Number.isFinite(t)) window.parent.postMessage({ hukumado: 'progress', t }, PARENT_ORIGIN);
+  });
+
   // 配信・動画が終わった → 親に知らせる (自動再生中に枠を片付けるため)
   document.addEventListener('hukumado:ended', (e) => {
     const reason = e.detail === 'played' ? 'played' : 'already';

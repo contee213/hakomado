@@ -2,8 +2,25 @@
 // 保存先は chrome.storage.local なので、どのタブで見たものも同じ履歴に入る (このパソコンの中だけ)。
 // 枠から外れたときは理由 (配信終了 / ✕ で閉じた / メンバー限定 / 入れ替え) も書き足し、
 // 勝手に消えた・間違えて閉じた配信を履歴から戻せるようにする。
+// 視聴履歴・あとで見るで共通: 保存されている 1 件が正しい形か (壊れたデータや古い版のデータで一覧が止まらないように) と、
+// 残す項目だけを取り出す (長すぎる文字は切る)
+const VideoEntry = (() => {
+  'use strict';
+  const VIDEO_ID_RE = /^[A-Za-z0-9_-]{11}$/;
+  const valid = (h) => h && typeof h === 'object' && typeof h.videoId === 'string' && VIDEO_ID_RE.test(h.videoId);
+  const pick = (info) => {
+    const out = {};
+    for (const k of ['title', 'channel', 'handle', 'channelId', 'label', 'input']) {
+      if (typeof info?.[k] === 'string' && info[k]) out[k] = info[k].slice(0, 300);
+    }
+    return out;
+  };
+  return { valid, pick };
+})();
+
 const WatchHistory = (() => {
   'use strict';
+  const { valid, pick } = VideoEntry;
 
   const KEY = 'history';
   const MAX = 100;
@@ -28,17 +45,7 @@ const WatchHistory = (() => {
     return chain;
   }
 
-  /** 保存されている 1 件が正しい形か (壊れたデータや古い版のデータで一覧が止まらないように) */
-  const VIDEO_ID_RE = /^[A-Za-z0-9_-]{11}$/;
-  const valid = (h) => h && typeof h === 'object' && typeof h.videoId === 'string' && VIDEO_ID_RE.test(h.videoId);
 
-  const pick = (info) => {
-    const out = {};
-    for (const k of ['title', 'channel', 'handle', 'label', 'input']) {
-      if (typeof info?.[k] === 'string' && info[k]) out[k] = info[k].slice(0, 300);
-    }
-    return out;
-  };
 
   /** 新しい順の一覧 */
   async function list() {
@@ -94,23 +101,15 @@ const WatchHistory = (() => {
   return { KEY, list, opened, update, removed, remove, clear };
 })();
 
-// hukumado: 保存した配信・動画 (ライブラリの「保存」タブ)。枠のバーの 🔖 や履歴から、自分で選んだものだけを残す。
-// 履歴と違って古いものから勝手に消えることはなく、100 件でいっぱいになったら外すまで増やせない。
+// hukumado: あとで見る (ライブラリの「🔖 あとで見る」タブ)。枠のバーの 🔖 や視聴履歴から、自分で選んだものを入れる。
+// 最後まで再生するか 🔖 を外すと消える。履歴と違って古いものから勝手には消えず、100 件でいっぱいになったら外すまで増やせない。
 // 保存先は chrome.storage.local (すべてのタブで共通)。
 const SavedVideos = (() => {
   'use strict';
+  const { valid, pick } = VideoEntry;
 
   const KEY = 'saved';
   const MAX = 100;
-  const VIDEO_ID_RE = /^[A-Za-z0-9_-]{11}$/;
-  const valid = (h) => h && typeof h === 'object' && typeof h.videoId === 'string' && VIDEO_ID_RE.test(h.videoId);
-  const pick = (info) => {
-    const out = {};
-    for (const k of ['title', 'channel', 'handle', 'label', 'input']) {
-      if (typeof info?.[k] === 'string' && info[k]) out[k] = info[k].slice(0, 300);
-    }
-    return out;
-  };
 
   // 読み書きの順番待ち (履歴と同じく、このタブの中は promise の列、タブ間はロック)
   let chain = Promise.resolve();

@@ -120,7 +120,7 @@ body.grid-fs .grid { height: 100%; }
 /* 狭いウィンドウでは文字を減らす (アイコンとツールチップで分かる) */
 @media (max-width: 900px) {
   .brand { display: none; }
-  #openFavorites .tb-label { display: none; }
+  #openChannels .tb-label, #openFavorites .tb-label { display: none; }
 }
 @media (max-width: 640px) {
   #autoMode .tb-label, #cruise .tb-label, #openLayout .tb-label { display: none; }
@@ -160,6 +160,8 @@ body.grid-fs .grid { height: 100%; }
 }
 .tile > .stage, .tile > .chat-slot { overflow: hidden; }
 .tile.audible { z-index: 2; }
+/* ライブ配信中の枠も、音の枠と同じ形の線を、別の色で引く (音が出ている枠は音の線を優先。色は設定で選ぶ) */
+body:not(.live-off) .tile.is-live:not(.is-empty):not(.audible)::before,
 .tile.audible::before {
   content: "";
   position: absolute;
@@ -175,6 +177,7 @@ body.grid-fs .grid { height: 100%; }
   mask-composite: exclude;
   pointer-events: none;
 }
+body:not(.live-off) .tile.is-live:not(.is-empty):not(.audible)::after,
 .tile.audible::after {
   content: "";
   position: absolute;
@@ -184,6 +187,8 @@ body.grid-fs .grid { height: 100%; }
   box-shadow: var(--hl-glow);
   pointer-events: none;
 }
+body:not(.live-off) .tile.is-live:not(.is-empty):not(.audible)::before { background: var(--live-gradient); background-size: 300% 300%; }
+body:not(.live-off) .tile.is-live:not(.is-empty):not(.audible)::after { box-shadow: var(--live-glow); }
 body.hl-animate .tile.audible::before { animation: hl-flow 6s ease-in-out infinite; }
 @keyframes hl-flow {
   0%, 100% { background-position: 0% 50%; }
@@ -355,6 +360,21 @@ body.hl-animate .tile.audible::before { animation: hl-flow 6s ease-in-out infini
   transition: opacity .15s;
 }
 .tile:hover .bar, .tile:focus-within .bar { opacity: 1; }
+/* ライブ配信中の印: 操作バーの、チャンネル名の前に小さく */
+.live-badge {
+  flex: none;
+  display: none;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: #e62117;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .03em;
+  line-height: 1.4;
+  pointer-events: none;
+}
+.tile.is-live:not(.is-empty) .live-badge { display: inline-block; }
 /* 空の枠では、入れ替え (⠿) と、空き枠を消す ✕ だけ出す */
 .tile.is-empty .tile-name, .tile.is-empty .bar-buttons > :not(.close) { display: none; }
 .tile.is-empty .bar-buttons { margin-left: auto; }
@@ -465,8 +485,10 @@ body.hl-animate .tile.audible::before { animation: hl-flow 6s ease-in-out infini
 
 /* ---------- favorites ---------- */
 /* 高さは枠 (dialog) だけで決め、スクロールするのは一覧だけにする (枠と中身の両方に上限があると、枠線の分だけはみ出して二重スクロールになる) */
+/* 画面を広く使う。高さは固定 (タブや件数で大きさが変わらず、左上も動かない) */
 dialog.fav-dialog {
-  width: min(720px, calc(100% - 32px));
+  width: min(1240px, calc(100% - 32px));
+  height: calc(100% - 64px);
   max-height: calc(100% - 64px);
   overflow: hidden;
 }
@@ -480,9 +502,9 @@ dialog.fav-dialog[open] { display: flex; flex-direction: column; }
   border-bottom: 1px solid var(--line);
 }
 .fav-head h2 { margin: 0; font-size: 15px; white-space: nowrap; }
-/* ピックアップ / チャンネル / 履歴 の切り替えで隠すもの (display を指定している要素も隠れるように) */
+/* チャンネル / 最近の配信 / 視聴履歴 / あとで見る の切り替えで隠すもの (display を指定している要素も隠れるように) */
 .fav [hidden] { display: none !important; }
-/* ピックアップ / チャンネル / 履歴 の切り替え */
+/* ライブラリのタブ (最近の配信 / 視聴履歴 / あとで見る) */
 .fav-tabs { flex: none; }
 .fav-tabs button { flex: none; padding: 4px 12px; font-size: 13px; white-space: nowrap; }
 /* 履歴: 見た日時と、枠から外れた理由 */
@@ -504,20 +526,19 @@ dialog.fav-dialog[open] { display: flex; flex-direction: column; }
   overflow-y: auto;
   flex: 1;
 }
+/* 一覧が空のときの説明は、一覧の場所 (上) に出す */
 .fav-empty { color: var(--muted); padding: 16px 14px; margin: 0; }
-.fav-live-count {
-  font-size: 12px;
-  font-weight: 700;
-  color: #fff;
-  background: var(--accent);
-  border-radius: 999px;
-  padding: 1px 8px;
-}
-.fav-live-count:empty { display: none; }
-/* 保存の件数 (配信中の数と区別して落ち着いた色に) */
-#savedCount { background: #3a3a44; font-weight: 400; }
-#savedCount[hidden] { display: none; }
+.fav-list:empty { display: none; }
+.fav-list:empty + .fav-empty { flex: 1; }
+/* 件数 (一覧の上、絞り込み欄の右)。配信中の数だけ赤 */
+.fav-count { flex: none; color: var(--muted); font-size: 12px; white-space: nowrap; }
+.fav-count:empty { display: none; }
+.fav-count.live { color: var(--accent); font-weight: 700; }
 .fav-tools { display: flex; align-items: center; gap: 10px; padding: 8px 14px 0; }
+/* 一覧の上: 📺 すべて / 📌 ピックアップ の絞り込み */
+.lib-scope { flex: none; }
+/* 一覧の上の目立つボタン (あとで見るの「▶ 今の枠で順に再生」) */
+.primary-action { border-color: var(--on); background: var(--on-bg); color: #fff; }
 .fav-tools input {
   flex: 1;
   min-width: 0;
@@ -527,6 +548,30 @@ dialog.fav-dialog[open] { display: flex; flex-direction: column; }
   padding: 5px 8px;
 }
 .fav-sub { list-style: none; margin: 0; padding: 0; }
+/* チャンネルの行は、広ければ複数列に並べる */
+.fav-section > .fav-sub { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 0 12px; }
+.fav-section > .fav-sub > .fav-arch-list { grid-column: 1 / -1; }
+/* 配信中・配信予定はサムネイルとタイトルがあるので、1 列を広めに */
+.fav-section.live-sec > .fav-sub, .fav-section.upcoming-sec > .fav-sub { grid-template-columns: repeat(auto-fill, minmax(480px, 1fr)); }
+
+/* 最近の配信・視聴履歴・あとで見る: サムネイルが上のカードを並べる */
+.video-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; padding: 4px; }
+.video-grid.compact { grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px; }
+.video-grid .fav-item { position: relative; flex-direction: column; align-items: stretch; gap: 6px; padding: 6px; }
+.video-grid .fav-thumb { order: -1; width: 100%; border-radius: 6px; }
+.video-grid .fav-name-row { flex-wrap: wrap; row-gap: 2px; }
+.video-grid .fav-title {
+  white-space: normal;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  line-height: 1.4;
+}
+/* 🔖 と ✕ はサムネイルの右上に重ねる */
+.video-grid .fav-star, .video-grid .fav-del { position: absolute; top: 10px; background: rgba(0, 0, 0, .65); border-color: transparent; }
+.video-grid .fav-star { right: 10px; }
+.video-grid .fav-del { right: 46px; }
+.video-grid .fav-star:not(.on) { opacity: .75; }
 .fav-section { margin: 2px 0 6px; }
 .fav-section > h3 {
   display: flex;
@@ -617,6 +662,14 @@ dialog.fav-dialog[open] { display: flex; flex-direction: column; }
 
 /* 📌 = ピックアップ。入っていないチャンネルは色を抜いて控えめに出す */
 .fav-star { flex: none; padding: 1px 7px; }
+/* ▸ 最近のアーカイブ (チャンネルの行だけ。最近の配信・視聴履歴・あとで見るの行では使わない) */
+.fav-arch { flex: none; padding: 1px 7px; color: var(--muted); }
+.fav-arch.on { color: var(--text); }
+.fav-item.history .fav-arch { display: none; }
+.fav-arch-list { padding: 2px 0 6px 34px; }
+.fav-arch-list .fav-item { padding-top: 4px; padding-bottom: 4px; }
+.fav-arch-list .fav-name { display: none; } /* チャンネルの行の下なので、名前は繰り返さない */
+.fav-arch-msg { margin: 4px 0; color: var(--muted); font-size: 12px; }
 .fav-star:not(.on) { filter: grayscale(1); opacity: .45; }
 .fav-item:hover .fav-star:not(.on) { opacity: .8; }
 /* 枠のバーの 📌 も、入っていないときは色を抜く */
@@ -874,7 +927,8 @@ body.dm-author-staff .dm-sample .dm.moderator .author { display: inline; }
 body.show-dm-area .tile:not(.is-empty):not([hidden]) .stage::after { display: flex; }
 /* 設定画面を開いている間は背景を暗くしすぎない (弾幕や線の色の変化を後ろの枠で確かめられるように) */
 dialog.settings-dialog::backdrop { background: rgba(0, 0, 0, .15); }
-.hl-swatches { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px; }
+.hl-swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(42px, 1fr)); gap: 6px; }
+.hl-swatch.none i { background: repeating-linear-gradient(135deg, #2a2a31 0 4px, #18181c 4px 8px); border: 1px solid var(--line); box-sizing: border-box; }
 .hl-swatch {
   display: flex;
   flex-direction: column;
@@ -941,7 +995,8 @@ dialog.settings-dialog { width: min(780px, calc(100% - 32px)); overflow: hidden;
   color: var(--muted);
   padding: 5px 6px;
 }
-.settings-tabs button.selected { background: #2a2a31; color: var(--text); font-weight: 700; }
+/* 選んだタブは太字にしない (文字の幅が変わってタブが動くので)。影で少し太く見せる */
+.settings-tabs button.selected { background: #2a2a31; color: var(--text); text-shadow: 0 0 .6px currentColor, 0 0 .6px currentColor; }
 /* タブの中身は同じ場所に重ねて置き、表示していないものは見えなくするだけにする。
    設定画面の高さがいちばん長いタブに合わせて決まり、タブを切り替えても画面の位置が動かない */
 .settings-form {

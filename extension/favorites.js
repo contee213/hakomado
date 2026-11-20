@@ -84,6 +84,50 @@ const Favorites = (() => {
     });
   }
 
+  // ------------------------------------------------------------ 配信のアーカイブ (YouTube のフィード)
+  // チャンネルの「ライブ配信」の再生リスト (UULV + チャンネル ID の 3 文字目以降) のフィードから、新しい順 15 件を取る。
+  // ログイン不要の軽い XML。取った結果は 30 分覚えておく (タブ間で共有。何度開いても取りに行かない)
+  // 配信予定 (待機所) もこの再生リストに入るが、再生数が 0 なので除く。日時は「枠を作った日時」なので、日時では区別できない
+  const ARCHIVE_KEY = 'archiveCache2'; // {channelId: {at, items: [{videoId, title, at}]}} (2 = 配信予定を除くようにした版)
+  const ARCHIVE_TTL_MS = 30 * 60 * 1000;
+  const CHANNEL_ID_RE = /^UC[\w-]{22}$/;
+  const VIDEO_RE = /^[A-Za-z0-9_-]{11}$/;
+
+  /** そのチャンネルの最近の配信アーカイブ (新しい順)。force = 覚えている結果を使わずに取り直す */
+  async function fetchArchives(channelId, { force = false } = {}) {
+    if (!CHANNEL_ID_RE.test(channelId)) return [];
+    const { [ARCHIVE_KEY]: cache = {} } = await shared.get(ARCHIVE_KEY);
+    const hit = cache[channelId];
+    if (!force && hit && Date.now() - hit.at < ARCHIVE_TTL_MS && Array.isArray(hit.items)) return hit.items;
+    const res = await fetch(`${YT}/feeds/videos.xml?playlist_id=UULV${channelId.slice(2)}`, withTimeout({ credentials: 'omit' }));
+    // 配信をしたことがないチャンネルは、再生リストが無いので 404
+    let items = [];
+    if (res.ok) items = parseFeed(await res.text());
+    else if (res.status !== 404) throw new Error(tr('fetchFail', res.status));
+    await withLock('hukumado-archive-store', async () => {
+      const { [ARCHIVE_KEY]: c = {} } = await shared.get(ARCHIVE_KEY);
+      // 古いものは捨てる (セッションの間にたまり続けないように)
+      for (const [k, v] of Object.entries(c)) if (Date.now() - (v?.at || 0) > ARCHIVE_TTL_MS * 4) delete c[k];
+      c[channelId] = { at: Date.now(), items };
+      await shared.set({ [ARCHIVE_KEY]: c });
+    });
+    return items;
+  }
+
+  function parseFeed(xml) {
+    const doc = new DOMParser().parseFromString(xml, 'application/xml');
+    const text = (el, name) => el.getElementsByTagNameNS('*', name)[0]?.textContent?.trim() || '';
+    return [...doc.getElementsByTagNameNS('*', 'entry')]
+      .map((e) => ({
+        videoId: text(e, 'videoId'),
+        title: text(e, 'title').slice(0, 300),
+        at: Date.parse(text(e, 'published')) || 0,
+        views: Number(e.getElementsByTagNameNS('*', 'statistics')[0]?.getAttribute('views') ?? NaN),
+      }))
+      .filter((v) => VIDEO_RE.test(v.videoId) && v.views > 0)
+      .map(({ views, ...v }) => v);
+  }
+
   // ------------------------------------------------------------ storage
   // 既定のチャンネル (ホロライブ) は、英語表示のときは英語の名前・グループ名で見せる。
   // 保存するのは日本語のまま (表示言語を切り替えても元に戻せるように)
@@ -554,7 +598,7 @@ const Favorites = (() => {
   }
 
   return {
-    list, add, remove, setStar, seedPresets, restorePresets, removeAllPresets, presetCount, removedPresetCount, fetchStatus,
+    list, add, remove, setStar, seedPresets, restorePresets, removeAllPresets, presetCount, removedPresetCount, fetchStatus, fetchArchives,
     checkAccess, rememberMembersOnly, isMembersBlock,
   };
 })();

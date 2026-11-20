@@ -12,10 +12,11 @@ This is an unofficial tool made by an individual. Please read the [Disclaimer](#
 
 - **Split view**: uniform, main + sub and PinP (small windows inside the main tile) layouts. Every tile is sized to 16:9 automatically
 - **Danmaku / chat panel**: show each tile's live chat as scrolling comments, or open it next to the video to post
-- **Channels**: lists live and upcoming streams of the channels you added (some channels are included as initial data. You can remove or restore them all at once in ⚙ Settings)
+- **Channels**: lists live and upcoming streams and recently ended streams of the channels you added (some channels are included as initial data. You can remove or restore them all at once in ⚙ Settings)
 - **Auto play**: lays out live channels automatically and adds / removes tiles as streams start and end
+- **🎲 Surprise me**: a button on empty tiles adds one stream not shown yet (pickup live → other live → recent streams). Auto play can also play recent streams when nothing is live
 - **Pickup**: limit auto play and notifications to the channels you are following right now (e.g. the members of a group event)
-- **Notifications / saved / history**: notifications when streams start, streams you saved (🔖), and a history of what you watched
+- **Notifications / watch history / watch later**: notifications when streams start, a history of what you watched, and streams to watch later (🔖; play them in order in the current tiles, removed once watched to the end)
 - **Japanese / English**: follows the browser language (can be fixed in settings)
 
 ## Requirements
@@ -39,14 +40,14 @@ To update, extract the new zip over the same folder, press "⟳" for the extensi
 
 1. Open the multi-view page with the hukumado icon in the toolbar
 2. Press "Auto play" at the top to lay out the channels that are live
-3. To pick yourself, paste a URL / video ID / `@handle` into an empty tile, or use "📚 Pick from library"
+3. To pick yourself, paste a URL / video ID / `@handle` into an empty tile, or use "📺 Pick from channels" for live streams and "📚 Pick from library" for past ones
 4. Switch which tile plays audio with 🔊 on the tile bar or the number keys (`1`–`9`)
 5. Change the arrangement from "▦ Layout" at the top
 
 For more controls and keys, open "?" (help) at the top right. The tour shown the first time you open it after installing can be replayed from there too. Settings are under "⚙".
 
 > [!TIP]
-> - If a channel you want isn't listed, add it from the field at the bottom of the "Channels" tab in "📚 Library"
+> - If a channel you want isn't listed, add it from the field at the bottom of the "📺 Channels" window
 > - To show only certain channels, pick them up with 📌 and set "Auto play plays" in ⚙ Settings to "Pickup (📌) only"
 > - To watch more than 16, open another one in a separate window (auto play skips streams shown in another tab)
 
@@ -71,7 +72,7 @@ For more controls and keys, open "?" (help) at the top right. The tour shown the
 
 - More tiles means more load. Adjust the number of tiles to your PC (the max tiles for auto play can be changed in settings)
 - For the initial data channels, surprise streams that aren't on the schedule site may not show as "Live"
-- Chat replay of archives (after a stream ends) is not supported for danmaku
+- For archives (after a stream ends), YouTube's chat replay is shown as danmaku and in the chat panel. Streams without a chat replay (e.g. chat was turned off) show nothing
 - The initial data channels reflect information as of November 2026
 - Only Japanese and English are available. Other browser languages are shown in English
 
