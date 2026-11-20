@@ -94,13 +94,38 @@ function applySession(saved = {}) {
       state.tiles[i] = { ...newTileState(), ...picked, muted: true };
     });
   }
-  if (typeof saved.layoutId === 'string' && LAYOUTS.some((l) => l.id === saved.layoutId)) {
-    state.layoutId = saved.layoutId;
+  // どのチャンネルがどの枠だったか (並び順) も戻す。今は無いレイアウトなら、同じ枠数に合うものに置き換える
+  const layoutId = savedLayoutId(saved);
+  if (layoutId) {
+    state.layoutId = layoutId;
     if (isPermutation(saved.order)) state.order = saved.order;
   }
-  // 起動時は最初の 1 枠だけ音を出す
-  const first = state.tiles.findIndex((t, i) => isVisible(i) && t.videoId);
-  if (first >= 0) state.tiles[first].muted = false;
+  // 音: 閉じたときに音が出ていた枠を戻す (全部ミュートだったらミュートのまま)。
+  // 記録の無い以前の版のセッションは、1 番の枠だけ音を出す
+  const filled = visibleIndexes().filter((i) => state.tiles[i].videoId);
+  const audible = Array.isArray(saved.audible) ? saved.audible.filter((i) => filled.includes(i)) : null;
+  if (audible && (audible.length || saved.audible.length === 0)) {
+    for (const i of audible) state.tiles[i].muted = false;
+    if (!audible.length && filled.length) lastAudibleSet = [filled[0]]; // M キーで戻す先
+  } else if (filled.length) {
+    state.tiles[filled[0]].muted = false;
+  }
+}
+
+// 以前の版にあって今は無いレイアウト → その枠数。開き直したときは、同じ枠数に合うレイアウトに置き換える
+const RETIRED_LAYOUT_SLOTS = { m3s4: 7, m3s9: 12 };
+
+/** 保存されているレイアウト (今は無いものは置き換え先)。分からなければ null */
+function savedLayoutId(saved) {
+  if (typeof saved.layoutId !== 'string') return null;
+  if (LAYOUTS.some((l) => l.id === saved.layoutId)) return saved.layoutId;
+  const n = RETIRED_LAYOUT_SLOTS[saved.layoutId];
+  return n ? chooseLayoutFor(n).id : null;
+}
+
+/** 保存されているセッションで表示されていた枠の数 */
+function savedVisibleCount(saved) {
+  return RETIRED_LAYOUT_SLOTS[saved.layoutId] || getLayout(saved.layoutId).slots.length;
 }
 
 /** 保存されている視聴セッションの一覧 (新しい順) */
@@ -148,6 +173,7 @@ function saveNow() {
       cruise: state.cruise,
       danmakuAll: state.danmakuAll,
       tiles: state.tiles.map(({ muted, ...rest }) => rest),
+      audible: audibleTiles(), // 音が出ている枠 (開き直したときに戻す。[] = 全部ミュート)
       updatedAt: Date.now(),
     },
   });
@@ -595,6 +621,7 @@ function setAudioSet(list) {
 function refreshAudio() {
   const now = audibleTiles();
   if (now.length) lastAudibleSet = now;
+  save(); // どの枠の音が出ているかも視聴セッションに残す
   for (let j = 0; j < MAX_TILES; j++) {
     applyAudio(j);
     renderTile(j);
@@ -1941,6 +1968,7 @@ async function registerTab() {
   const res = await chrome.runtime.sendMessage({ type: 'register-grid-tab' });
   if (!res?.ok) console.warn('hukumado: ルールの登録に失敗しました', res);
   window.addEventListener('pagehide', () => {
+    saveNow(); // 閉じる直前の状態 (音声の切り替えなど、まだ保存していない分) を残す
     chrome.runtime.sendMessage({ type: 'unregister-grid-tab' }).catch(() => {});
   });
 }
@@ -2005,13 +2033,13 @@ const SESSION_NAMES_SHOWN = 5; // 再開画面に名前を出す件数 (それ�
 
 /** 保存されたセッションの説明。lines = [「11/20 01:29・1 + 2・3 件」, 名前 (1 行 1 件、最大 5 件), 「ほか N 件」] */
 function describeSession(data) {
-  const layoutName = getLayout(data.layoutId).name;
+  const layoutName = getLayout(savedLayoutId(data)).name;
   const order = isPermutation(data.order) ? data.order : Array.from({ length: MAX_TILES }, (_, i) => i);
-  const shown = order
-    .slice(0, getLayout(data.layoutId).slots.length)
-    .map((i) => data.tiles?.[i])
-    .filter((t) => t?.videoId);
-  const names = shown.map((t) => t.label || t.input || t.videoId);
+  const audible = new Set(Array.isArray(data.audible) ? data.audible : []);
+  const shownIdx = order.slice(0, savedVisibleCount(data)).filter((i) => data.tiles?.[i]?.videoId);
+  const shown = shownIdx.map((i) => data.tiles[i]);
+  // 音が出ていた配信には 🔊 を付ける
+  const names = shownIdx.map((i) => (audible.has(i) ? '🔊 ' : '') + (data.tiles[i].label || data.tiles[i].input || data.tiles[i].videoId));
   const when = data.updatedAt ? new Date(data.updatedAt).toLocaleString(LANG === 'ja' ? 'ja-JP' : undefined, { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
   const lines = [
     [when, layoutName, tr('streams', shown.length), data.autoMode ? tr('autoTag') : ''].filter(Boolean).join(' ・ '),

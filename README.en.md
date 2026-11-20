@@ -157,6 +157,8 @@ Settings and tile contents are saved in the browser (see "Reopening and multiple
 - When you open the page, you can choose a previous session that isn't in use in another tab
   - **Continue where you left off** (with several sessions, "Resume this" for each) / **Start fresh** / **Start with auto play**
   - Each session shows the date, layout, count and stream names (up to 5; the rest as "N more")
+  - Which stream was in which tile (the order) and which tiles had audio on (or that everything was muted) are restored too, so you can recover a tab you closed by accident
+  - In the list, streams that had audio on are marked with 🔊
   - Reloading the same tab continues without asking
 - To watch on several displays, open hukumado in separate windows to show different streams in each.
   The toolbar icon opens a new tab every time (several tabs in the same window are separate viewing sessions too)
