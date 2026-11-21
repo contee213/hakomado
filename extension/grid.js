@@ -1285,13 +1285,16 @@ window.addEventListener('message', (e) => {
 // コラボ配信を、参加者それぞれの視点のアーカイブで、同じ瞬間にそろえて見る。
 // - そろえる基準は実際の時刻: 各アーカイブの 0 秒 = その配信が始まった時刻 (動画の liveBroadcastDetails.startTimestamp)。
 //   枠ごとのずれ (配信の遅延の違いなど) は、枠のバーの ⏱ で ±0.1 秒単位で直せる (tile.syncOffset)
-// - 全体で 1 つの「同期の時計」(実際の時刻) を持つ。音を出している枠 (無ければ先頭の枠) を基準にし、時計は基準の枠の
-//   再生位置に合わせて進む (基準の枠の中で一時停止・シークすると、ほかの枠もついてくる)。ほかの枠は時計に合わせて
+// - 全体で 1 つの「同期の時計」(実際の時刻) を持つ。時計は基準の枠の再生位置に合わせて進む (基準の枠の中で
+//   一時停止・シークすると、ほかの枠もついてくる)。ほかの枠は時計に合わせて
 //   シーク・一時停止・再生・速度の微調整 (少しのずれは速度で吸収し、大きくずれたときだけシーク) を受ける
 // - 基準の枠と配信の時間帯 (開始〜終了) が重ならないアーカイブは同期しない (同じ瞬間が無いため)。重なっていれば、
 //   開始の差に上限は無い。まだ始まっていない / もう終わっている時刻の枠は止めて、そのことを枠に出す
 // - 広告中の枠は待たずに進め、広告が終わったら追いつかせる
 // - 上部バーのシークバーで、同期している全部のアーカイブを同じ時刻に動かせる
+// - 基準の枠は、同期を始めたときに音を出している枠 (複数ならレイアウトで一番前、無ければ先頭のアーカイブ)。
+//   その後は音を切り替えても変わらない (音を聞き比べるたびに基準が黙って変わらないように)。基準の枠には「基準」の印を付け、
+//   上部バーの「基準: …」や、枠の ⏱ の「この枠を基準にする」で選び直せる。基準の枠を閉じたら、同じ決め方で選び直して知らせる
 // ON / OFF は保存しない (開き直したら OFF)。ずれの微調整は枠ごとに保存する
 const Sync = (() => {
   const TICK_MS = 500;
@@ -1305,6 +1308,7 @@ const Sync = (() => {
   let clock = { R0: 0, at: 0, playing: true }; // R = 実際の時刻 (ミリ秒)
   let holdUntil = 0; // シークバーで動かした直後は、基準の枠が追いつくまで時計を基準に合わせない
   let dragging = false;
+  let refTile = null; // 基準の枠 (同期中だけ)
   const sent = new Map(); // i -> {seekAt, cmd, cmdAt, rate}
   const forceSeek = new Set(); // ずれを微調整した枠 (速度で詰めず、すぐシークする)
 
@@ -1329,10 +1333,32 @@ const Sync = (() => {
   const realOf = (i, t) => views[i].archive.start + (t - off(i)) * 1000;
   const targetOf = (i, R) => (R - views[i].archive.start) / 1000 + off(i);
 
-  /** 基準の枠: 音を出しているアーカイブ。無ければ先頭のアーカイブ */
-  function reference() {
+  /** 基準にする枠の初期値: 音を出しているアーカイブ (複数ならレイアウトで一番前)。無ければ先頭のアーカイブ */
+  function initialReference() {
     const list = visibleIndexes().filter(archived);
     return list.find((i) => !state.tiles[i].muted) ?? list[0] ?? null;
+  }
+  /** 基準の枠 (同期中は選んだ枠。閉じられていたら選び直して知らせる) */
+  function reference() {
+    if (!on) return initialReference();
+    if (refTile == null || !archived(refTile)) {
+      const prev = refTile;
+      refTile = initialReference();
+      if (prev != null && refTile != null) notify(tr('syncRefMoved', refLabel(refTile)));
+    }
+    return refTile;
+  }
+  const refLabel = (i) => `${visibleIndexes().indexOf(i) + 1} ${tileName(i) || ''}`.trim();
+
+  /** 基準の枠を選び直す (時計はそのまま。新しい基準の枠も、今の時刻に合っているので飛ばない) */
+  function setReference(i) {
+    if (!on || !archived(i) || i === refTile) return;
+    refTile = i;
+    holdUntil = 0;
+    forceSeek.delete(i);
+    rate(i, 1);
+    refresh();
+    tick();
   }
   /** 同期する枠 (基準の枠と時間帯が重なるアーカイブ) */
   function members(ref) {
@@ -1456,6 +1482,7 @@ const Sync = (() => {
       }
     }
     updateBar(list);
+    updateMarks(ref, list);
   }
 
   /** 上部バーのシークバー: 同期している枠の時間帯を全部まとめた範囲 */
@@ -1473,8 +1500,9 @@ const Sync = (() => {
   }
 
   function start() {
-    const ref = reference();
+    const ref = initialReference();
     if (ref == null) return;
+    refTile = ref;
     const p = posOf(ref);
     setClock(p != null ? realOf(ref, p) : rangeOf(ref)[0], !pausedAll);
     holdUntil = 0;
@@ -1489,6 +1517,7 @@ const Sync = (() => {
 
   function stop() {
     on = false;
+    refTile = null;
     clearInterval(timer);
     timer = 0;
     for (let i = 0; i < MAX_TILES; i++) {
@@ -1515,14 +1544,41 @@ const Sync = (() => {
     setToggle(btn, on);
     document.getElementById('syncBar').hidden = !on;
     const ref = on ? reference() : null;
-    const list = ref != null ? members(ref) : [];
+    updateMarks(ref, ref != null ? members(ref) : []);
+  }
+
+  let marksKey = '';
+  /** 枠の「基準」の印・⏱・「この枠を基準にする」と、上部バーの「基準: …」(同期の処理のたびにも呼ぶ。変わったときだけ書き換える) */
+  function updateMarks(ref, list) {
+    const key = JSON.stringify([on, ref, list, visibleIndexes().filter(archived)]);
+    if (key === marksKey) return;
+    marksKey = key;
+    updateRefSelect(ref);
     for (let i = 0; i < MAX_TILES; i++) {
       const inSync = on && list.includes(i);
       views[i].el.querySelector('.sync-adj').hidden = !inSync;
+      views[i].el.querySelector('.sync-ref-badge').hidden = !(on && i === ref);
+      views[i].el.querySelector('.sync-set-ref').hidden = !inSync || i === ref;
       if (!inSync) views[i].el.querySelector('.sync-panel').hidden = true;
       if (!archived(i) || !on) overlay(i, '');
       updateAdj(i);
     }
+  }
+
+  /** 上部バーの「基準: …」(同期できるアーカイブから選ぶ) */
+  function updateRefSelect(ref) {
+    const sel = document.getElementById('syncRef');
+    if (!on || ref == null) return;
+    const options = visibleIndexes()
+      .filter(archived)
+      .map((i) => {
+        const o = document.createElement('option');
+        o.value = String(i);
+        o.textContent = tr('syncRefOpt', refLabel(i));
+        return o;
+      });
+    sel.replaceChildren(...options);
+    sel.value = String(ref);
   }
 
   function updateAdj(i) {
@@ -1542,6 +1598,10 @@ const Sync = (() => {
     el.querySelector('.sync-panel').addEventListener('click', (e) => {
       const b = e.target.closest('button[data-sync]');
       if (!b) return;
+      if (b.dataset.sync === 'ref') {
+        setReference(i);
+        return;
+      }
       const d = Number(b.dataset.sync);
       const t = state.tiles[i];
       t.syncOffset = d === 0 ? 0 : Math.round(((Number(t.syncOffset) || 0) + d) * 10) / 10;
@@ -1558,6 +1618,11 @@ const Sync = (() => {
       e.currentTarget.blur(); // Space キーでボタンが押し直されないように
       if (on) stop();
       else start();
+    });
+    const refSel = document.getElementById('syncRef');
+    refSel.addEventListener('change', () => {
+      refSel.blur();
+      setReference(Number(refSel.value));
     });
     const seekEl = document.getElementById('syncSeek');
     seekEl.addEventListener('input', () => {

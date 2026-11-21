@@ -1196,6 +1196,22 @@ code { font-size: 12px; background: #222228; padding: 0 4px; border-radius: 3px;
 .sync-overlay[hidden] { display: none; }
 .sync-adj { font-variant-numeric: tabular-nums; }
 .sync-adj[hidden] { display: none; }
+.sync-ref { flex: 0 1 auto; max-width: 170px; font-size: 12px; }
+/* 同期の基準の枠の印 (枠のバーの、チャンネル名の前) */
+.sync-ref-badge {
+  flex: none;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+.sync-ref-badge[hidden], .sync-set-ref[hidden] { display: none; }
+/* 同期中は、基準の印を、マウスを乗せなくても出しておく (バーごと出すと映像の邪魔になるので印だけ) */
+.tile:not(:hover) .bar:has(.sync-ref-badge:not([hidden])) { opacity: 1; background: none; }
+.tile:not(:hover) .bar:has(.sync-ref-badge:not([hidden])) > :not(.sync-ref-badge) { visibility: hidden; }
 /* ずれの微調整 (枠の上部、バーの下) */
 .sync-panel {
   position: absolute;
