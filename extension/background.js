@@ -101,11 +101,28 @@ chrome.tabs.onRemoved.addListener((tabId) => {
   removeTab(tabId);
 });
 
-// グリッド画面から別ページへ移動した場合もルールを外す。
-// tabs 権限が無いので、移動先が他のサイトだと URL は分からない → 読み込みが始まった時点で、いったん外す。
-// マルチビュー画面自身の読み込み (再読み込みなど) なら、画面が開いたときに登録し直すので問題ない
-chrome.tabs.onUpdated.addListener((tabId, info) => {
-  if (info.status === 'loading' || (info.url && !info.url.startsWith(chrome.runtime.getURL('grid.html')))) {
+// グリッド画面から別ページへ移動した場合もルールを外す (普段は画面の pagehide で外れるので、その取りこぼし用)。
+// 注意: タブの status は、枠 (iframe) の読み込みだけでも 'loading' になる (チャット欄の読み込み直し・
+// 自動再生での切り替えなど)。'loading' だけで外すと、画面を開いたままルールが消え、それ以降に読み込んだ
+// チャット欄が「www.youtube.com で接続が拒否されました」になってしまう。
+// → タブにまだマルチビュー画面が開いているかを確かめ、開いていなければ外す
+async function hasGridPage(tabId) {
+  const gridUrl = chrome.runtime.getURL('grid.html');
+  const contexts = await chrome.runtime.getContexts({ contextTypes: ['TAB'], tabIds: [tabId] });
+  return contexts.some((c) => c.documentUrl?.startsWith(gridUrl));
+}
+
+chrome.tabs.onUpdated.addListener(async (tabId, info) => {
+  if (!info.status && !info.url) return;
+  if (!(await getGridTabs()).includes(tabId)) return;
+  if (info.url && !info.url.startsWith(chrome.runtime.getURL('grid.html'))) {
     removeTab(tabId);
+    return;
   }
+  try {
+    if (await hasGridPage(tabId)) return;
+  } catch {
+    /* 確かめられないときは外す側に倒す */
+  }
+  removeTab(tabId);
 });
