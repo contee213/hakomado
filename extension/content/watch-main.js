@@ -430,6 +430,74 @@
     }
   });
 
+  // ---- 枠の情報 (親の「ℹ 枠の情報」の一覧と、アーカイブ同期ボタンが使えない理由の表示用)
+  //   ここ → watch.js : 'hakomado:info'     detail JSON {kind, viewers, views, start, end, publish, dur, t}
+  //   watch.js → ここ : 'hakomado:info-req' (一覧を開いている間だけ、親が数秒ごとに求める)
+  //   kind = 'live' (ライブ配信中) | 'upcoming' (配信前) | 'archive' (配信のアーカイブ) | 'video' (ふつうの動画) | '' (まだ分からない)
+  //   種類が変わったときは、求められなくても知らせる (親が同期ボタンの理由を出せるように)
+  //   今の視聴者数は、隠している説明欄 (#below) の「◯人が視聴中」を読む (YouTube が数秒ごとに更新している)
+  const kindNow = () => {
+    const pr = playerResponse();
+    if (!pr || !player()) return '';
+    if (pr.videoDetails?.isUpcoming) return 'upcoming';
+    if (videoData().isLive) return waitingRoom() ? 'upcoming' : 'live';
+    if (alreadyEnded()) return 'archive';
+    return pr.videoDetails?.isLiveContent ? '' : 'video'; // 配信が終わった直後などは、アーカイブになるまで分からない
+  };
+  const numOrNull = (v) => (Number.isFinite(v) ? v : null);
+  const viewersNow = () => {
+    const label = document.querySelector('ytd-watch-metadata #view-count')?.getAttribute('aria-label') || '';
+    const digits = label.replace(/\D/g, '');
+    if (digits) return Number(digits);
+    try {
+      const rs = window.ytInitialData?.contents?.twoColumnWatchNextResults?.results?.results?.contents || [];
+      const vc = rs.find((c) => c.videoPrimaryInfoRenderer)?.videoPrimaryInfoRenderer?.viewCount?.videoViewCountRenderer;
+      return vc?.isLive ? numOrNull(Number(vc.originalViewCount)) : null;
+    } catch {
+      return null;
+    }
+  };
+  const infoNow = () => {
+    const kind = kindNow();
+    const pr = playerResponse();
+    const mf = window.ytInitialPlayerResponse?.microformat?.playerMicroformatRenderer;
+    const lbd = mf?.liveBroadcastDetails;
+    const p = player();
+    let dur = null;
+    let t = null;
+    if (kind === 'archive' || kind === 'video') {
+      try {
+        dur = numOrNull(Number(p?.getDuration?.()));
+        t = numOrNull(Number(p?.getCurrentTime?.()));
+      } catch {
+        /* ignore */
+      }
+    }
+    return {
+      kind,
+      viewers: kind === 'live' ? viewersNow() : null,
+      views: numOrNull(Number(pr?.videoDetails?.viewCount ?? NaN)),
+      start: numOrNull(Date.parse(lbd?.startTimestamp || '')),
+      end: numOrNull(Date.parse(lbd?.endTimestamp || '')),
+      publish: numOrNull(Date.parse(mf?.publishDate || '')),
+      dur,
+      t,
+    };
+  };
+  const reportInfo = () => {
+    const id = videoData().video_id || '';
+    if (id && myVideoId && id !== myVideoId) return; // 次の動画に自動で移った (読み込み時の情報は前の動画のもの)
+    document.dispatchEvent(new CustomEvent('hakomado:info', { detail: JSON.stringify(infoNow()) }));
+  };
+  document.addEventListener('hakomado:info-req', reportInfo);
+  let kindSent = null;
+  setInterval(() => {
+    const kind = kindNow();
+    if (kind === kindSent) return;
+    kindSent = kind;
+    reportInfo();
+  }, 2000);
+
   // 状態を時々確かめて、変わったら知らせる (読み込み直後は 1 秒ごと、その後は 5 秒ごと)
   let socialTicks = 0;
   const socialTimer = setInterval(() => {

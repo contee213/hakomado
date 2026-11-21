@@ -761,6 +761,8 @@ function renderTile(i, { reloadPlayer = false, reloadChat = false } = {}) {
     v.player?.remove();
     v.player = null;
     v.archive = null;
+    v.info = null;
+    v.playStatus = '';
     v.ss = null;
     Diagnose.clear(i);
     v.meta = null;
@@ -790,6 +792,8 @@ function renderTile(i, { reloadPlayer = false, reloadChat = false } = {}) {
     el.classList.remove('is-live'); // ライブかどうかも、読み込んだプレイヤーが知らせてくる
     v.archive = null; // アーカイブなら、読み込んだプレイヤーが配信の時刻を知らせてくる (同期再生用)
     v.ss = null;
+    v.info = null; // 種類・視聴者数など (「ℹ 枠の情報」・同期ボタン用)。読み込んだプレイヤーが知らせてくる
+    v.playStatus = ''; // 見られるか (playabilityStatus.status)
   }
 
   // --- chat (チャット欄 表示中 or 弾幕 ON のときだけ読み込む)
@@ -824,6 +828,9 @@ function renderTile(i, { reloadPlayer = false, reloadChat = false } = {}) {
   updateFavButton(i);
   updateTileName(i);
   updateNowPlaying();
+  // 枠を閉じた・別の動画にしたとき、アーカイブ同期のボタン (使えるか・理由) と「ℹ 枠の情報」も合わせる
+  Sync.refresh();
+  TileInfo.update();
 }
 
 /**
@@ -955,6 +962,22 @@ function setTileAway(i, away) {
 function tileName(i) {
   const t = state.tiles[i];
   return t.label || views[i].meta?.channel || t.input || '';
+}
+
+/**
+ * 枠の種類 (「ℹ 枠の情報」と、アーカイブ同期ボタンが使えない理由に使う)
+ * 'empty' | 'live' (ライブ配信中) | 'upcoming' (配信前) | 'archive' (配信のアーカイブ) | 'video' (ふつうの動画) |
+ * 'blocked' (メンバー限定などで見られない) | 'loading' (まだ分からない)
+ */
+function tileKind(i) {
+  const v = views[i];
+  if (!v || !isVisible(i) || !state.tiles[i].videoId) return 'empty';
+  if (v.el.classList.contains('is-live')) return 'live';
+  if (v.archive) return 'archive';
+  const st = v.playStatus;
+  if (st && !['OK', 'LIVE_STREAM_OFFLINE', 'CONTENT_CHECK_REQUIRED'].includes(st)) return 'blocked';
+  if (v.info?.kind) return v.info.kind;
+  return st === 'LIVE_STREAM_OFFLINE' ? 'upcoming' : 'loading';
 }
 
 function updateTileName(i) {
@@ -1668,12 +1691,47 @@ const Sync = (() => {
       return;
     }
     for (const i of [...waiting.keys()]) if (!archived(i)) waiting.delete(i); // 閉じた・別の動画にした枠は待つのをやめる
+    // ボタンはいつも出す (アーカイブを並べるまで隠れていると、機能に気づけないため)。使えないときは薄くして、理由を出す
     const btn = document.getElementById('syncToggle');
-    btn.hidden = !can && !on;
+    const off = !can && !on;
+    btn.classList.toggle('unavailable', off);
+    btn.setAttribute('aria-disabled', String(off));
+    btn.title = off ? [tr('syncTitle'), '', ...whyNot()].join('\n') : tr('syncTitle');
     setToggle(btn, on);
     document.getElementById('syncBar').hidden = !on;
     const ref = on ? reference() : null;
     updateMarks(ref, ref != null ? members(ref) : []);
+  }
+
+  /** 同期できないときの理由 (ボタンのツールチップ・押したときのお知らせ)。1 行目は使える条件、続けて今の枠で足りないこと */
+  function whyNot() {
+    const kinds = visibleIndexes().map(tileKind).filter((k) => k !== 'empty');
+    const count = (k) => kinds.filter((x) => x === k).length;
+    const lines = [tr('syncWhyNeed')];
+    if (!kinds.length) return [...lines, tr('syncWhyEmpty')];
+    if (count('archive') >= 2) return [...lines, tr('syncWhyNoOverlap')];
+    lines.push(tr('syncWhyArchives', count('archive')));
+    if (count('live')) lines.push(tr('syncWhyLive', count('live')));
+    if (count('upcoming')) lines.push(tr('syncWhyUpcoming', count('upcoming')));
+    if (count('video')) lines.push(tr('syncWhyVideo', count('video')));
+    if (count('blocked')) lines.push(tr('syncWhyBlocked', count('blocked')));
+    if (count('loading')) lines.push(tr('syncWhyLoading', count('loading')));
+    return lines;
+  }
+
+  /** 枠ごとの同期の状態 (「ℹ 枠の情報」の一覧用): {ok: 同期中・同期できる, text} */
+  function tileStatus(i) {
+    const kind = tileKind(i);
+    if (kind === 'archive' && !archived(i)) return { ok: false, text: tr('infoSync_loading') }; // 配信の時刻がまだ届いていない
+    if (kind === 'archive') {
+      const ref = reference();
+      if (on && members(ref).includes(i)) return { ok: true, text: tr(i === ref ? 'infoSyncRef' : 'infoSyncOn') };
+      if (on) return { ok: false, text: tr('infoSyncNoOverlap') };
+      const others = visibleIndexes().filter((j) => j !== i && archived(j));
+      if (others.some((j) => overlaps(i, j))) return { ok: true, text: tr('infoSyncCan') };
+      return { ok: false, text: tr(others.length ? 'infoSyncNoOverlap' : 'infoSyncAlone') };
+    }
+    return { ok: false, text: tr('infoSync_' + kind) };
   }
 
   let marksKey = '';
@@ -1941,7 +1999,8 @@ const Sync = (() => {
     document.getElementById('syncToggle').addEventListener('click', (e) => {
       e.currentTarget.blur(); // Space キーでボタンが押し直されないように
       if (on) stop();
-      else start();
+      else if (available()) start();
+      else notify(whyNot().join('\n'));
     });
     const refSel = document.getElementById('syncRef');
     refSel.addEventListener('change', () => {
@@ -1972,10 +2031,131 @@ const Sync = (() => {
     startWhenReady,
     offsetsChanged,
     isOn: () => on,
+    tileStatus,
     resumePoint,
     isWaiting: (i) => on && waiting.has(i),
     refIfOn: () => (on ? reference() : null),
   };
+})();
+
+// ---------------------------------------------------------------- ℹ 枠の情報
+// 表示中の枠ごとに、種類 (ライブ・配信前・アーカイブ・動画)・チャンネル・タイトル・配信の時間や公開日・
+// 今の視聴者数 (ライブ配信中だけ)・再生数・再生位置・アーカイブ同期できるかを一覧で見る。
+// 情報は枠の中のプレイヤーが知らせてくる (watch-main.js の 'hakomado:info')。開いている間だけ、数秒ごとに求め直す
+const TileInfo = (() => {
+  const REQ_MS = 5000;
+  const dialog = document.getElementById('infoDialog');
+  let timer = 0;
+  let renderQueued = false;
+  const numText = (n) => (n == null ? '—' : n.toLocaleString(LANG === 'ja' ? 'ja-JP' : 'en-US'));
+  const dateText = (ms) => {
+    const d = new Date(ms);
+    const sameYear = d.getFullYear() === new Date().getFullYear();
+    const date = sameYear ? `${d.getMonth() + 1}/${d.getDate()}` : `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`;
+    return `${date} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  };
+
+  /**
+   * 「開始 / 公開」「終了」「長さ」の 3 欄
+   * ライブ = 配信開始・「配信中」・配信している長さ / アーカイブ = 配信の開始・終了・配信していた長さ /
+   * 配信前 = 開始予定 / 動画 = 公開日・動画の長さ
+   */
+  function timeCells(kind, info) {
+    const none = ['—', '—', '—'];
+    if (!info) return none;
+    if (kind === 'live' && info.start != null) return [dateText(info.start), tr('infoLiveNow'), hms((Date.now() - info.start) / 1000)];
+    if (kind === 'archive' && info.start != null) {
+      const end = info.end ?? (info.dur != null ? info.start + info.dur * 1000 : null);
+      return [dateText(info.start), end != null ? dateText(end) : '—', end != null ? hms((end - info.start) / 1000) : '—'];
+    }
+    if (kind === 'upcoming' && info.start != null) return [tr('infoPlanned', dateText(info.start)), '—', '—'];
+    if (kind === 'video' && info.publish != null) return [dateText(info.publish).split(' ')[0], '—', info.dur ? hms(info.dur) : '—'];
+    return none;
+  }
+  /** 再生位置 (アーカイブ・動画だけ)。同期の知らせ (0.5 秒ごと) があればそちら、無ければ最後に求めたときの位置 */
+  function posText(i, kind, info) {
+    if (kind !== 'archive' && kind !== 'video') return '—';
+    const ss = views[i].ss;
+    const t = ss ? ss.t + (ss.ps === 1 && !ss.ad ? ((performance.now() - ss.at) / 1000) * (ss.r || 1) : 0) : info?.t;
+    if (t == null) return '—';
+    return info?.dur ? `${hms(t)} / ${hms(info.dur)}` : hms(t);
+  }
+
+  function row(i, n) {
+    const kind = tileKind(i);
+    const info = views[i].info;
+    const meta = views[i].meta;
+    const tr_ = document.createElement('tr');
+    const td = (text, cls) => {
+      const c = document.createElement('td');
+      if (cls) c.className = cls;
+      c.textContent = text;
+      tr_.append(c);
+      return c;
+    };
+    td(String(n), 'info-num');
+    td(tr('infoKind_' + kind), 'info-kind kind-' + kind);
+    const v = document.createElement('td');
+    v.className = 'info-video';
+    const ch = document.createElement('div');
+    ch.className = 'info-channel';
+    ch.textContent = meta?.channel || tileName(i) || '—';
+    const ti = document.createElement('div');
+    ti.className = 'info-title';
+    ti.textContent = meta?.title || '';
+    ti.title = meta?.title || '';
+    v.append(ch, ti);
+    tr_.append(v);
+    for (const text of timeCells(kind, info)) td(text, 'info-time');
+    td(kind === 'live' ? numText(info?.viewers) : '—', 'info-n');
+    td(numText(info?.views), 'info-n');
+    td(posText(i, kind, info), 'info-n');
+    const st = Sync.tileStatus(i);
+    td((st.ok ? '○ ' : '× ') + st.text, st.ok ? 'info-sync ok' : 'info-sync');
+    return tr_;
+  }
+
+  function render() {
+    renderQueued = false;
+    if (!dialog.open) return;
+    const list = visibleIndexes()
+      .map((i, k) => [i, k + 1])
+      .filter(([i]) => state.tiles[i].videoId);
+    document.getElementById('infoRows').replaceChildren(...list.map(([i, n]) => row(i, n)));
+    document.getElementById('infoEmpty').hidden = list.length > 0;
+    dialog.querySelector('.info-scroll').hidden = !list.length;
+  }
+  /** 知らせが続けて届いても、書き直すのは 1 回にまとめる */
+  function update() {
+    if (!dialog.open || renderQueued) return;
+    renderQueued = true;
+    requestAnimationFrame(render);
+  }
+  function request() {
+    for (const i of visibleIndexes()) if (views[i].player) postToFrame(views[i].player, { hakomado: 'infoReq' });
+    update();
+  }
+
+  function open() {
+    if (dialog.open) return;
+    dialog.showModal();
+    render();
+    request();
+    clearInterval(timer);
+    timer = setInterval(request, REQ_MS);
+  }
+
+  function setup() {
+    document.getElementById('openInfo').addEventListener('click', open);
+    document.getElementById('infoClose').addEventListener('click', () => dialog.close());
+    dialog.addEventListener('close', () => {
+      clearInterval(timer);
+      timer = 0;
+    });
+    closeOnBackdrop(dialog);
+  }
+
+  return { setup, open, update };
 })();
 
 // ---------------------------------------------------------------- 自己診断 (YouTube 側の変更に気づく)
@@ -2111,6 +2291,8 @@ window.addEventListener('message', (e) => {
     if (data.ok === false) showToast(i, tr('mixBlocked'));
   } else if (data.hakomado === 'live') {
     views[i].el.classList.toggle('is-live', !!data.on);
+    Sync.refresh();
+    TileInfo.update();
   } else if (data.hakomado === 'replay') {
     // アーカイブだと分かった → チャットをリプレイに切り替える (弾幕・チャット欄のどちらかが ON のとき)
     const c = String(data.continuation || '');
@@ -2134,12 +2316,31 @@ window.addEventListener('message', (e) => {
     };
     updateTileName(i);
     updateFavButton(i);
+    TileInfo.update();
     WatchHistory.update(state.tiles[i].videoId, { ...views[i].meta, label: state.tiles[i].label });
     if (savedIds.has(state.tiles[i].videoId)) SavedVideos.update(state.tiles[i].videoId, views[i].meta);
     if (playlistIds.has(state.tiles[i].videoId)) Playlists.update(state.tiles[i].videoId, views[i].meta);
     updateNowPlaying();
   } else if (data.hakomado === 'playability') {
+    views[i].playStatus = String(data.status || '');
     onPlayability(i, String(data.status || ''), String(data.text || ''));
+    Sync.refresh();
+    TileInfo.update();
+  } else if (data.hakomado === 'info') {
+    const num = (v) => (v != null && Number.isFinite(Number(v)) ? Number(v) : null);
+    views[i].info = {
+      kind: ['live', 'upcoming', 'archive', 'video'].includes(data.kind) ? data.kind : '',
+      viewers: num(data.viewers),
+      views: num(data.views),
+      start: num(data.start),
+      end: num(data.end),
+      publish: num(data.publish),
+      dur: num(data.dur),
+      t: num(data.t),
+      at: Date.now(),
+    };
+    Sync.refresh();
+    TileInfo.update();
   } else if (data.hakomado === 'ended') {
     onEnded(i, data.reason === 'played' ? 'played' : 'already');
   } else if (data.hakomado === 'social') {
@@ -4018,6 +4219,8 @@ function setupToolbar() {
       setAutoMode(!state.autoMode);
     } else if (e.key === 'c' || e.key === 'C') {
       setCruise(!state.cruise);
+    } else if (e.key === 'i' || e.key === 'I') {
+      TileInfo.open();
     } else if (/^[1-9]$/.test(e.key)) {
       const i = visibleIndexes()[parseInt(e.key, 10) - 1];
       if (i != null) setAudio(i, { solo: true });
@@ -4031,6 +4234,7 @@ function setupToolbar() {
   new ResizeObserver(() => layout()).observe(gridEl);
   setupFavorites();
   setupNotices();
+  TileInfo.setup();
 }
 
 // ---------------------------------------------------------------- favorites
