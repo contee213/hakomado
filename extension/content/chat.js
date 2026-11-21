@@ -1,11 +1,11 @@
-// hukumado: マルチビュー画面に埋め込まれたライブチャットから新着コメントを読み取り、
+// hakomado: マルチビュー画面に埋め込まれたライブチャットから新着コメントを読み取り、
 // 親 (拡張機能のページ) に postMessage で渡す。
 // 普通に YouTube でチャットを開いたときは何もしない。
 (() => {
   'use strict';
 
   const params = new URLSearchParams(location.search);
-  if (window.top === window || params.get('hukumado') !== '1') return;
+  if (window.top === window || params.get('hakomado') !== '1') return;
 
   const PARENT_ORIGIN = 'chrome-extension://' + chrome.runtime.id;
 
@@ -25,11 +25,11 @@
     lookStyle.textContent = css;
   }
 
-  applyLook({ hideAvatars: params.get('hukumado_noav') === '1' });
+  applyLook({ hideAvatars: params.get('hakomado_noav') === '1' });
   window.addEventListener('message', (e) => {
     if (e.origin !== PARENT_ORIGIN || e.source !== window.parent) return;
-    if (e.data?.hukumado === 'chatLook') applyLook(e.data);
-    else if (e.data?.hukumado === 'progress' && Number.isFinite(e.data.t)) {
+    if (e.data?.hakomado === 'chatLook') applyLook(e.data);
+    else if (e.data?.hakomado === 'progress' && Number.isFinite(e.data.t)) {
       // アーカイブのチャットのリプレイ: 枠の再生位置を、YouTube の視聴ページが送るのと同じ形で、このページ自身に送る
       // (リプレイは YouTube 以外のページから来た知らせを受け付けないので、こちらで中継する)
       const id = typeof e.data.id === 'string' && /^[\w-]{11}$/.test(e.data.id) ? e.data.id : '';
@@ -97,7 +97,7 @@
       flushScheduled = false;
       const messages = pending;
       pending = [];
-      if (messages.length) window.parent.postMessage({ hukumado: 'chat', messages }, PARENT_ORIGIN);
+      if (messages.length) window.parent.postMessage({ hakomado: 'chat', messages }, PARENT_ORIGIN);
     }, 50);
   }
 

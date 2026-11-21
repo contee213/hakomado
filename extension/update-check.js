@@ -1,4 +1,4 @@
-// hukumado: 新しいバージョンが出ていないかを確かめる (GitHub のリリースと比べる)
+// hakomado: 新しいバージョンが出ていないかを確かめる (GitHub のリリースと比べる)
 // - 開発者モードで読み込んだ拡張機能は自動では更新されないので、新しい版が出たら画面で知らせる
 // - ストアから入れた版 (manifest に update_url がある) はブラウザが更新するので、確かめない
 // - 確かめるのは 1 日 1 回まで (結果は chrome.storage.local に残し、全タブで共有する)。
@@ -7,7 +7,7 @@
 'use strict';
 
 const UpdateCheck = (() => {
-  const REPO = 'contee213/hukumado';
+  const REPO = 'contee213/hakomado';
   const API = `https://api.github.com/repos/${REPO}/releases/latest`;
   const RELEASES = `https://github.com/${REPO}/releases/latest`;
   const KEY = 'updateCheck'; // {at, latest, url}
@@ -55,7 +55,7 @@ const UpdateCheck = (() => {
       try {
         info = { at: Date.now(), ...(await fetchLatest()) };
       } catch (e) {
-        console.warn('hukumado: 新しいバージョンの確認に失敗', e);
+        console.warn('hakomado: 新しいバージョンの確認に失敗', e);
         info = { at: Date.now(), latest: info?.latest || '', url: info?.url || '' };
       }
       await chrome.storage.local.set({ [KEY]: info });

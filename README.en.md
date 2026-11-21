@@ -1,4 +1,4 @@
-# hukumado
+# Hakomado
 
 English | [日本語](README.md)
 
@@ -27,18 +27,18 @@ This is an unofficial tool made by an individual. Please read the [Disclaimer](#
 
 It is not on the Chrome Web Store, so load it in developer mode.
 
-1. Download `hukumado-x.y.z.zip` from the [releases page](https://github.com/contee213/hukumado/releases/latest) and extract it
+1. Download `hakomado-x.y.z.zip` from the [releases page](https://github.com/contee213/hakomado/releases/latest) and extract it
 2. Open `chrome://extensions` in Chrome (`edge://extensions` in Edge)
 3. Turn on "Developer mode" at the top right
 4. Click "Load unpacked" and choose the extracted folder (the one with `manifest.json` in it)
-5. Click the hukumado icon in the toolbar (pin it from the puzzle-piece menu) to open the multi-view page
+5. Click the Hakomado icon in the toolbar (pin it from the puzzle-piece menu) to open the multi-view page
 
 To update, extract the new zip over the same folder, press "⟳" for the extension on the extensions page, then reload the multi-view page
 (if you move the folder, it is treated as a different extension and your settings and channels are not carried over).
 
 ## Quick start
 
-1. Open the multi-view page with the hukumado icon in the toolbar
+1. Open the multi-view page with the Hakomado icon in the toolbar
 2. Press "Auto play" at the top to lay out the channels that are live
 3. To pick yourself, paste a URL / video ID / `@handle` into an empty tile, or use "📺 Pick from channels" for live streams and "📚 Pick from library" for past ones
 4. Switch which tile plays audio with 🔊 on the tile bar or the number keys (`1`–`9`)
@@ -65,7 +65,7 @@ For more controls and keys, open "?" (help) at the top right. The tour shown the
 - YouTube watch pages and live chat forbid embedding in other pages with the `X-Frame-Options` header, so a rule that removes this header
   (a declarativeNetRequest session rule) is registered **only for the multi-view page's tab**.
   Other headers are left as they are, and the rule is removed when the tab closes or moves to another page
-- Scripts and CSS that run inside the YouTube pages in the tiles only work inside tiles of the multi-view page, whose URLs carry `hukumado=1`.
+- Scripts and CSS that run inside the YouTube pages in the tiles only work inside tiles of the multi-view page, whose URLs carry `hakomado=1`.
   They don't affect normal YouTube browsing
 
 ## Limitations

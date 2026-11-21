@@ -1,4 +1,4 @@
-// hukumado: 視聴履歴。この拡張機能の枠で読み込んだ配信・動画を新しい順に 100 件まで残す。
+// hakomado: 視聴履歴。この拡張機能の枠で読み込んだ配信・動画を新しい順に 100 件まで残す。
 // 保存先は chrome.storage.local なので、どのタブで見たものも同じ履歴に入る (このパソコンの中だけ)。
 // 枠から外れたときは理由 (配信終了 / ✕ で閉じた / メンバー限定 / 入れ替え) も書き足し、
 // 勝手に消えた・間違えて閉じた配信を履歴から戻せるようにする。
@@ -40,8 +40,8 @@ const WatchHistory = (() => {
       if (next) await chrome.storage.local.set({ [KEY]: next.slice(0, MAX) });
     };
     chain = chain
-      .then(() => navigator.locks.request('hukumado-history', run))
-      .catch((e) => console.warn('hukumado: 履歴の保存に失敗', e));
+      .then(() => navigator.locks.request('hakomado-history', run))
+      .catch((e) => console.warn('hakomado: 履歴の保存に失敗', e));
     return chain;
   }
 
@@ -101,7 +101,7 @@ const WatchHistory = (() => {
   return { KEY, list, opened, update, removed, remove, clear };
 })();
 
-// hukumado: あとで見る (ライブラリの「🔖 あとで見る」タブ)。枠のバーの 🔖 や視聴履歴から、自分で選んだものを入れる。
+// hakomado: あとで見る (ライブラリの「🔖 あとで見る」タブ)。枠のバーの 🔖 や視聴履歴から、自分で選んだものを入れる。
 // 最後まで再生するか 🔖 を外すと消える。履歴と違って古いものから勝手には消えず、100 件でいっぱいになったら外すまで増やせない。
 // 保存先は chrome.storage.local (すべてのタブで共通)。
 const SavedVideos = (() => {
@@ -122,8 +122,8 @@ const SavedVideos = (() => {
       if (r.next) await chrome.storage.local.set({ [KEY]: r.next });
     };
     chain = chain
-      .then(() => navigator.locks.request('hukumado-saved', run))
-      .catch((e) => console.warn('hukumado: 保存の書き込みに失敗', e));
+      .then(() => navigator.locks.request('hakomado-saved', run))
+      .catch((e) => console.warn('hakomado: 保存の書き込みに失敗', e));
     return chain.then(() => result);
   }
 

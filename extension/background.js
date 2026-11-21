@@ -1,4 +1,4 @@
-// hukumado service worker
+// hakomado service worker
 // - ツールバーのアイコンでマルチビュー画面を開く
 // - マルチビュー画面のタブだけに、YouTube を iframe 表示するためのヘッダー書き換えルールを適用する
 //   (他のサイトには一切影響させないよう tabIds で限定する)

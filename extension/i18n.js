@@ -6,7 +6,7 @@
 /* exported LANG, LANG_PREF, tr, setLangPref, applyI18n */
 'use strict';
 
-const LANG_KEY = 'hukumado.lang';
+const LANG_KEY = 'hakomado.lang';
 
 const LANG_PREF = (() => {
   try {
@@ -115,15 +115,15 @@ const MESSAGES = {
     'このファイルの内容で置き換えますか？\nチャンネル {0} 件 (ピックアップ {1} 件)・視聴履歴 {2} 件・あとで見る {3} 件\n(今の設定・チャンネル・視聴履歴・あとで見るは消えます)',
     'Replace your data with this file?\n{0} channels ({1} in pickup), {2} in watch history, {3} in Watch later\n(Your current settings, channels, watch history and Watch later will be replaced.)',
   ],
-  backupNotFile: ['hukumado のバックアップファイルではないため、読み込めませんでした', "This isn't a hukumado backup file, so it was not imported"],
+  backupNotFile: ['Hakomado のバックアップファイルではないため、読み込めませんでした', "This isn't a Hakomado backup file, so it was not imported"],
   backupTooNew: [
-    'このファイルは新しい版の hukumado で書き出されたため、読み込めません。拡張機能を更新してから読み込んでください',
-    'This file was exported by a newer version of hukumado. Update the extension, then import it again',
+    'このファイルは新しい版の Hakomado で書き出されたため、読み込めません。拡張機能を更新してから読み込んでください',
+    'This file was exported by a newer version of Hakomado. Update the extension, then import it again',
   ],
   backupFail: ['書き出し / 読み込みに失敗しました: {0}', 'Export / import failed: {0}'],
   backupImported: ['読み込みました。画面を読み込み直します', 'Imported. Reloading the page'],
   updateLink: ['新しいバージョン {0} があります', 'Version {0} is available'],
-  updateNotice: ['hukumado の新しいバージョン {0} が出ています (設定画面の下から開けます)', 'hukumado {0} is available (open it from the bottom of Settings)'],
+  updateNotice: ['Hakomado の新しいバージョン {0} が出ています (設定画面の下から開けます)', 'Hakomado {0} is available (open it from the bottom of Settings)'],
   settingsResetConfirm: ['設定をすべて初期値に戻しますか？ (表示言語とチャンネルはそのまま)', 'Reset all settings to their defaults? (The display language and channels are kept.)'],
   rateLimited: ['YouTube から取得を制限されたため、しばらく取りに行きません', 'YouTube is limiting requests; pausing for a while'],
   progressStatus: ['チャンネルの配信状況を確認しています ({0} / {1})', 'Checking live status of channels ({0} / {1})'],
@@ -154,7 +154,7 @@ const MESSAGES = {
   tourDone: ['はじめる', 'Get started'],
   tourStart: ['自動再生をはじめる', 'Start auto play'],
   tourLater: ['あとで (自分で選ぶ)', 'Later (pick myself)'],
-  tourWelcomeT: ['hukumado へようこそ', 'Welcome to hukumado'],
+  tourWelcomeT: ['Hakomado へようこそ', 'Welcome to Hakomado'],
   tourWelcome: ['YouTube の配信を最大 16 枠、並べて同時に見られます。', 'Watch up to 16 YouTube streams side by side.'],
   tourPickT: ['見たい配信を入れる', 'Add a stream'],
   tourPick: ['URL を貼るか、今の配信は「📺 チャンネル」、終わった配信は「📚 ライブラリ」から選びます。', 'Paste a URL, or pick live streams from "📺 Channels" and past ones from "📚 Library".'],

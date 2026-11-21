@@ -224,7 +224,7 @@ function saveSettings(key) {
 function writeSettings() {
   const keys = [...dirtySettings];
   dirtySettings.clear();
-  return navigator.locks.request('hukumado-settings', async () => {
+  return navigator.locks.request('hakomado-settings', async () => {
     const { settings: stored = {} } = await chrome.storage.local.get('settings');
     const next = { ...stored };
     for (const k of keys) next[k] = state.settings[k];
@@ -510,7 +510,7 @@ function setFit(mode) {
   state.fit = mode;
   // 各枠のプレイヤーに、映像の拡大 (端を切る) の切り替えを伝える
   for (const v of views) {
-    postToFrame(v.player, { hukumado: 'fill', on: mode === 'fill' });
+    postToFrame(v.player, { hakomado: 'fill', on: mode === 'fill' });
   }
   layout();
   save();
@@ -602,9 +602,9 @@ function setTileVideo(i, videoId, input) {
 function playerUrl(t) {
   const p = new URLSearchParams({
     v: t.videoId,
-    hukumado: '1',
-    hukumado_muted: t.muted ? '1' : '0',
-    hukumado_fill: state.fit === 'fill' ? '1' : '0',
+    hakomado: '1',
+    hakomado_muted: t.muted ? '1' : '0',
+    hakomado_fill: state.fit === 'fill' ? '1' : '0',
   });
   return `${YT}/watch?${p}`;
 }
@@ -617,8 +617,8 @@ function chatUrl(t, replay = '') {
       continuation: replay,
       // ライブのチャット欄 (ポップアウト) と同じ暗い見た目にする (リプレイは何も付けないと明るい見た目になる)
       dark_theme: '1',
-      hukumado: '1',
-      hukumado_noav: state.settings.chatHideAvatars ? '1' : '0',
+      hakomado: '1',
+      hakomado_noav: state.settings.chatHideAvatars ? '1' : '0',
     });
     return `${YT}/live_chat_replay?${r}`;
   }
@@ -629,8 +629,8 @@ function chatUrl(t, replay = '') {
     // embed_domain (外部サイトへの埋め込み用) は付けない。付けるとコメントの ⋮ →「報告」「ブロック」の画面が出なくなる
     // (iframe への表示は background.js で X-Frame-Options を外して許可している)
     is_popout: '1',
-    hukumado: '1',
-    hukumado_noav: state.settings.chatHideAvatars ? '1' : '0',
+    hakomado: '1',
+    hakomado_noav: state.settings.chatHideAvatars ? '1' : '0',
   });
   return `${YT}/live_chat?${p}`;
 }
@@ -692,7 +692,7 @@ function applyChatLook() {
   document.documentElement.style.setProperty('--chat-width', `${Math.round(s.chatWidth * 100)}%`);
   document.documentElement.style.setProperty('--chat-zoom', String(Math.min(1, Math.max(0.4, Number(s.chatZoom) || 1))));
   for (const v of views) {
-    postToFrame(v.chatFrame, { hukumado: 'chatLook', hideAvatars: s.chatHideAvatars });
+    postToFrame(v.chatFrame, { hakomado: 'chatLook', hideAvatars: s.chatHideAvatars });
   }
 }
 
@@ -725,9 +725,9 @@ function renderTile(i, { reloadPlayer = false, reloadChat = false } = {}) {
       f.dataset.loaded = '1';
       setTimeout(() => {
         applyAudio(i);
-        postToFrame(f, { hukumado: 'away', on: !el.matches(':hover') });
+        postToFrame(f, { hakomado: 'away', on: !el.matches(':hover') });
         // まとめて一時停止の間に読み込んだ枠も止めておく
-        if (pausedAll) postToFrame(f, { hukumado: 'playback', play: false });
+        if (pausedAll) postToFrame(f, { hakomado: 'playback', play: false });
       }, 800);
     });
     el.querySelector('.player-slot').appendChild(f);
@@ -796,7 +796,7 @@ function socialAction(i, act) {
   if (!s?.loggedIn || v.socialBusy || s[act === 'like' ? 'liked' : 'subscribed'] !== false) return;
   v.socialBusy = true;
   updateSocialButtons(i);
-  postToFrame(v.player, { hukumado: 'social', act });
+  postToFrame(v.player, { hakomado: 'social', act });
   // 返事が来なければ (プレイヤーの読み込み直しなど) 押せる状態に戻す
   setTimeout(() => {
     if (!v.socialBusy) return;
@@ -886,7 +886,7 @@ chrome.storage.onChanged.addListener((changes, area) => {
  */
 function setTileAway(i, away) {
   const v = views[i];
-  postToFrame(v.player, { hukumado: 'away', on: away });
+  postToFrame(v.player, { hakomado: 'away', on: away });
   if (away && v.player && document.activeElement === v.player) v.player.blur();
 }
 
@@ -933,7 +933,7 @@ function setToggle(btn, on) {
 // ---------------------------------------------------------------- audio
 
 function applyAudio(i) {
-  postToFrame(views[i].player, { hukumado: 'audio', muted: state.tiles[i].muted });
+  postToFrame(views[i].player, { hakomado: 'audio', muted: state.tiles[i].muted });
 }
 
 /**
@@ -1037,7 +1037,7 @@ let pausedAll = false;
 /** 全部の枠をまとめて一時停止 / 再開する (再開するとき、ライブ配信は最新の位置に戻す) */
 function togglePauseAll() {
   pausedAll = !pausedAll;
-  for (const i of visibleIndexes()) postToFrame(views[i].player, { hukumado: 'playback', play: !pausedAll });
+  for (const i of visibleIndexes()) postToFrame(views[i].player, { hakomado: 'playback', play: !pausedAll });
   updatePauseButton();
 }
 
@@ -1166,7 +1166,7 @@ async function toggleGridFullscreen() {
   try {
     await document.documentElement.requestFullscreen();
   } catch (e) {
-    console.warn('hukumado: 全画面にできませんでした', e);
+    console.warn('hakomado: 全画面にできませんでした', e);
   }
 }
 
@@ -1195,7 +1195,7 @@ async function toggleFullscreen(i) {
   try {
     await el.requestFullscreen();
   } catch (e) {
-    console.warn('hukumado: 全画面にできませんでした', e);
+    console.warn('hakomado: 全画面にできませんでした', e);
     fullscreenAudioBefore = null;
     return;
   }
@@ -1225,7 +1225,7 @@ document.addEventListener('fullscreenchange', () => {
 window.addEventListener('message', (e) => {
   if (e.origin !== YT) return;
   const data = e.data;
-  if (!data || data.hukumado !== 'chat' || !Array.isArray(data.messages)) return;
+  if (!data || data.hakomado !== 'chat' || !Array.isArray(data.messages)) return;
   const i = views.findIndex((v) => v.chatFrame && v.chatFrame.contentWindow === e.source);
   if (i < 0) return;
   for (const msg of data.messages.slice(0, 50)) views[i].danmaku.add(msg);
@@ -1235,29 +1235,29 @@ window.addEventListener('message', (e) => {
 window.addEventListener('message', (e) => {
   if (e.origin !== YT) return;
   const data = e.data;
-  if (!data || typeof data.hukumado !== 'string') return;
+  if (!data || typeof data.hakomado !== 'string') return;
   const i = views.findIndex((v) => v.player && v.player.contentWindow === e.source);
   if (i < 0) return;
-  if (data.hukumado === 'userAudio') {
+  if (data.hakomado === 'userAudio') {
     // 枠内のプレイヤーのスピーカーで切り替え → この枠だけ切り替える (他の枠はそのまま。複数枠の同時再生用)
     setAudio(i, { on: !data.muted });
-  } else if (data.hukumado === 'live') {
+  } else if (data.hakomado === 'live') {
     views[i].el.classList.toggle('is-live', !!data.on);
-  } else if (data.hukumado === 'replay') {
+  } else if (data.hakomado === 'replay') {
     // アーカイブだと分かった → チャットをリプレイに切り替える (弾幕・チャット欄のどちらかが ON のとき)
     const c = String(data.continuation || '');
     if (/^[\w%=-]{10,2000}$/.test(c) && views[i].replay !== c) {
       views[i].replay = c;
       renderTile(i, { reloadChat: true });
     }
-  } else if (data.hukumado === 'progress') {
+  } else if (data.hakomado === 'progress') {
     const v = views[i];
     const sec = Number(data.t);
     if (v.replay && v.chatFrame?.dataset.loaded === '1' && Number.isFinite(sec)) {
       // リプレイの画面の中のスクリプト (chat.js) に渡し、そこから YouTube のリプレイに中継してもらう
-      v.chatFrame.contentWindow.postMessage({ hukumado: 'progress', t: sec, id: state.tiles[i].videoId }, YT);
+      v.chatFrame.contentWindow.postMessage({ hakomado: 'progress', t: sec, id: state.tiles[i].videoId }, YT);
     }
-  } else if (data.hukumado === 'meta') {
+  } else if (data.hakomado === 'meta') {
     views[i].meta = {
       title: String(data.title || ''),
       channel: String(data.channel || ''),
@@ -1269,11 +1269,11 @@ window.addEventListener('message', (e) => {
     WatchHistory.update(state.tiles[i].videoId, { ...views[i].meta, label: state.tiles[i].label });
     if (savedIds.has(state.tiles[i].videoId)) SavedVideos.update(state.tiles[i].videoId, views[i].meta);
     updateNowPlaying();
-  } else if (data.hukumado === 'playability') {
+  } else if (data.hakomado === 'playability') {
     onPlayability(i, String(data.status || ''), String(data.text || ''));
-  } else if (data.hukumado === 'ended') {
+  } else if (data.hakomado === 'ended') {
     onEnded(i, data.reason === 'played' ? 'played' : 'already');
-  } else if (data.hukumado === 'social') {
+  } else if (data.hakomado === 'social') {
     views[i].social = {
       loggedIn: !!data.loggedIn,
       subscribed: typeof data.subscribed === 'boolean' ? data.subscribed : null,
@@ -1709,7 +1709,7 @@ function flashDanmakuArea() {
  */
 function showAppVersion() {
   const m = chrome.runtime.getManifest();
-  const text = `hukumado ${m.version_name || m.version}`;
+  const text = `Hakomado ${m.version_name || m.version}`;
   for (const el of document.querySelectorAll('.app-version')) el.textContent = text;
   showUpdateLink();
 }
@@ -1720,7 +1720,7 @@ async function showUpdateLink() {
   try {
     info = await UpdateCheck.check();
   } catch (e) {
-    console.warn('hukumado: 新しいバージョンの確認に失敗', e);
+    console.warn('hakomado: 新しいバージョンの確認に失敗', e);
   }
   if (!info) return;
   for (const el of document.querySelectorAll('.app-version')) {
@@ -1815,7 +1815,7 @@ function setupToolbar() {
     }
     for (const p of dialog.querySelectorAll('.settings-panel')) p.hidden = p.dataset.panel !== name;
     try {
-      localStorage.setItem('hukumado.settingsTab', name);
+      localStorage.setItem('hakomado.settingsTab', name);
     } catch {
       /* ignore */
     }
@@ -1832,7 +1832,7 @@ function setupToolbar() {
   });
   let initialTab = 'danmaku';
   try {
-    initialTab = localStorage.getItem('hukumado.settingsTab') || initialTab;
+    initialTab = localStorage.getItem('hakomado.settingsTab') || initialTab;
   } catch {
     /* ignore */
   }
@@ -2000,7 +2000,7 @@ function openFavorites(target, view) {
 /** ライブラリで前回見ていたタブ */
 function savedLibraryTab() {
   try {
-    const t = localStorage.getItem('hukumado.libTab');
+    const t = localStorage.getItem('hakomado.libTab');
     if (['archive', 'history', 'saved'].includes(t)) return t;
   } catch {
     /* ignore */
@@ -2034,7 +2034,7 @@ async function favWorker() {
     try {
       favStatus.set(q.f.channelId, await Favorites.fetchStatus(q.f, { force: q.force }));
     } catch (e) {
-      console.warn('hukumado: 配信状況の取得に失敗', q.f.name, e);
+      console.warn('hakomado: 配信状況の取得に失敗', q.f.name, e);
       favStatus.set(q.f.channelId, 'error');
     }
     if (favDialog.open) scheduleFavRender();
@@ -2235,7 +2235,7 @@ function loadArchives(favs, { force = false } = {}) {
         try {
           archiveData.set(q.f.channelId, await Favorites.fetchArchives(q.f.channelId, { force: q.force }));
         } catch (e) {
-          console.warn('hukumado: アーカイブの取得に失敗', q.f.name, e);
+          console.warn('hakomado: アーカイブの取得に失敗', q.f.name, e);
           archiveData.set(q.f.channelId, 'error');
         }
         scheduleArchiveRender();
@@ -2271,7 +2271,7 @@ function libScopeNow(favs) {
       return null;
     }
   };
-  const saved = get('hukumado.libScope');
+  const saved = get('hakomado.libScope');
   libScope = saved === 'star' || saved === 'all' ? saved : 'star'; // ここに来るのはピックアップがあるときだけ
   return libScope;
 }
@@ -2279,7 +2279,7 @@ function libScopeNow(favs) {
 function setLibScope(scope) {
   libScope = scope;
   try {
-    localStorage.setItem('hukumado.libScope', scope);
+    localStorage.setItem('hakomado.libScope', scope);
   } catch {
     /* ignore */
   }
@@ -2371,7 +2371,7 @@ function setFavMode(mode, { render = true } = {}) {
   // ライブラリのタブは、次に開いたときのために覚えておく
   if (favMode !== 'all') {
     try {
-      localStorage.setItem('hukumado.libTab', favMode);
+      localStorage.setItem('hakomado.libTab', favMode);
     } catch {
       /* ignore */
     }
@@ -2589,7 +2589,7 @@ async function collectLiveFavorites({ force = false, auto = false, onProgress = 
         favStatus.set(f.channelId, st);
         results.push({ f, st });
       } catch (e) {
-        console.warn('hukumado: 配信状況の取得に失敗', f.name, e);
+        console.warn('hakomado: 配信状況の取得に失敗', f.name, e);
         favStatus.set(f.channelId, 'error');
         errors++;
         for (const k of [f.channelId, f.handle]) if (k) failedKeys.add(favKey(k));
@@ -2656,7 +2656,7 @@ async function startAllLive() {
 }
 
 /**
- * 自動再生が枠を足す処理を、タブ間で 1 つずつ順番に行う (hukumado を複数のタブ・ウィンドウで開いて、
+ * 自動再生が枠を足す処理を、タブ間で 1 つずつ順番に行う (hakomado を複数のタブ・ウィンドウで開いて、
  * どれも自動再生 ON のとき)。足し終わったら表示中の配信を他のタブに知らせ、届くのを少し待ってから次のタブに渡す。
  * 次のタブは「別のタブで表示中」の配信を飛ばすので、同じ配信が 2 つのタブに入らない
  */
@@ -2669,7 +2669,7 @@ function withAutoLock(fn) {
       await new Promise((r) => setTimeout(r, 250));
     }
   };
-  return navigator.locks.request('hukumado-auto-add', run);
+  return navigator.locks.request('hakomado-auto-add', run);
 }
 
 async function startAllLiveInner() {
@@ -2687,7 +2687,7 @@ async function startAllLiveInner() {
   const { targets: allTargets, fallback } = auto;
   // すでに表示している配信を先にしてから、見られるものを最大枠数まで選ぶ
   const shownFirst = visibleIndexes().map((i) => state.tiles[i].videoId);
-  // 別のタブ (別のディスプレイの hukumado など) で表示中の配信は飛ばす (このタブで表示中のものは残す)
+  // 別のタブ (別のディスプレイの hakomado など) で表示中の配信は飛ばす (このタブで表示中のものは残す)
   const targets = allTargets.filter((l) => shownFirst.includes(l.st.videoId) || !shownInOtherTab(l.st.videoId));
   if (!targets.length && allTargets.length) {
     notify(tr('allInOtherTabs'));
@@ -2921,7 +2921,7 @@ function queueLoad(i, h) {
  *  ほぼ同時に 2 枠終わっても同じものを入れないよう、1 つずつ順番に処理する */
 let queueChain = Promise.resolve();
 function queueNext(i) {
-  queueChain = queueChain.then(() => queueNextNow(i)).catch((e) => console.warn('hukumado: あとで見るの次の読み込みに失敗', e));
+  queueChain = queueChain.then(() => queueNextNow(i)).catch((e) => console.warn('hakomado: あとで見るの次の読み込みに失敗', e));
   return queueChain;
 }
 async function queueNextNow(i) {
@@ -3149,7 +3149,7 @@ async function autoTickOnceInner() {
     notify(msgs.join(' / '));
     await refillArchives({ lock: false });
   } catch (e) {
-    console.warn('hukumado: 自動再生の確認に失敗', e);
+    console.warn('hakomado: 自動再生の確認に失敗', e);
   }
 }
 
@@ -3388,8 +3388,8 @@ function mutateNotices(fn) {
     if (next) await chrome.storage.local.set({ [NOTICE_KEY]: next.slice(0, NOTICE_MAX) });
   };
   return navigator.locks
-    .request('hukumado-notices', run)
-    .catch((e) => console.warn('hukumado: 通知の保存に失敗', e))
+    .request('hakomado-notices', run)
+    .catch((e) => console.warn('hakomado: 通知の保存に失敗', e))
     .then(updateNoticeBadge);
 }
 
@@ -3441,7 +3441,7 @@ async function noticeTick() {
   try {
     detectStarts(await collectLiveFavorites({ auto: true, target: state.settings.noticeTarget }));
   } catch (e) {
-    console.warn('hukumado: 通知の確認に失敗', e);
+    console.warn('hakomado: 通知の確認に失敗', e);
   } finally {
     noticeBusy = false;
   }
@@ -3646,7 +3646,7 @@ function toggleDanmakuAll() {
 async function registerTab() {
   // このタブだけに iframe 表示用のヘッダー書き換えルールを効かせる
   const res = await chrome.runtime.sendMessage({ type: 'register-grid-tab' });
-  if (!res?.ok) console.warn('hukumado: ルールの登録に失敗しました', res);
+  if (!res?.ok) console.warn('hakomado: ルールの登録に失敗しました', res);
   window.addEventListener('pagehide', () => {
     saveNow(); // 閉じる直前の状態 (音声の切り替えなど、まだ保存していない分) を残す
     chrome.runtime.sendMessage({ type: 'unregister-grid-tab' }).catch(() => {});
@@ -3663,10 +3663,10 @@ async function registerTab() {
 // タブ (ウィンドウ) ごとに別の視聴セッションを持つ。開いたときに、他のタブで使っていない
 // 前回のセッションがあれば「続きから / 新しく / 自動再生で」を選ぶ。同じタブの再読み込みは確認なしで続ける
 
-const sessionChannel = new BroadcastChannel('hukumado-sessions');
-const SESSION_TAB_KEY = 'hukumado.sessionId'; // sessionStorage: このタブで使っていた視聴セッション (再読み込み用)
+const sessionChannel = new BroadcastChannel('hakomado-sessions');
+const SESSION_TAB_KEY = 'hakomado.sessionId'; // sessionStorage: このタブで使っていた視聴セッション (再読み込み用)
 
-const SESSION_LOCK_PREFIX = 'hukumado-session:';
+const SESSION_LOCK_PREFIX = 'hakomado-session:';
 
 /**
  * この視聴セッションを「このタブで使用中」として押さえる (タブを閉じるまで離さない)。
@@ -3710,7 +3710,7 @@ function askSessionsInUse() {
   });
 }
 
-// ---- 別のタブ (hukumado を複数開いて複数のディスプレイで見るときなど) で表示中の配信
+// ---- 別のタブ (hakomado を複数開いて複数のディスプレイで見るときなど) で表示中の配信
 // 各タブは、表示中の配信が変わるたび (保存のたび) と 30 秒ごとに知らせ合う。90 秒知らせが無いタブは閉じたものとみなす
 const OTHER_TAB_TTL_MS = 90 * 1000;
 const otherTabs = new Map(); // sessionId -> {ids: Set<videoId>, at}

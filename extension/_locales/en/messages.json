@@ -1,6 +1,6 @@
 {
   "extName": {
-    "message": "hukumado - YouTube multi-view",
+    "message": "Hakomado – Multiview for YouTube (up to 16 streams)",
     "description": "Extension name"
   },
   "extDescription": {
@@ -8,7 +8,7 @@
     "description": "Extension description"
   },
   "actionTitle": {
-    "message": "Open hukumado",
+    "message": "Open Hakomado",
     "description": "Tooltip of the toolbar icon"
   }
 }

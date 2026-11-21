@@ -1,23 +1,23 @@
-/* hukumado: マルチビュー画面の枠に入れた視聴ページのときだけ (html.hukumado-frame)、プレイヤー以外を隠して枠いっぱいに広げる */
-html.hukumado-frame,
-html.hukumado-frame body {
+/* hakomado: マルチビュー画面の枠に入れた視聴ページのときだけ (html.hakomado-frame)、プレイヤー以外を隠して枠いっぱいに広げる */
+html.hakomado-frame,
+html.hakomado-frame body {
   overflow: hidden !important;
   background: #000 !important;
 }
 
-html.hukumado-frame #masthead-container,
-html.hukumado-frame ytd-masthead,
-html.hukumado-frame #secondary,
-html.hukumado-frame #below,
-html.hukumado-frame #chat-container,
-html.hukumado-frame ytd-live-chat-frame,
-html.hukumado-frame tp-yt-app-drawer,
-html.hukumado-frame ytd-mini-guide-renderer,
-html.hukumado-frame #guide {
+html.hakomado-frame #masthead-container,
+html.hakomado-frame ytd-masthead,
+html.hakomado-frame #secondary,
+html.hakomado-frame #below,
+html.hakomado-frame #chat-container,
+html.hakomado-frame ytd-live-chat-frame,
+html.hakomado-frame tp-yt-app-drawer,
+html.hakomado-frame ytd-mini-guide-renderer,
+html.hakomado-frame #guide {
   display: none !important;
 }
 
-html.hukumado-frame #movie_player {
+html.hakomado-frame #movie_player {
   position: fixed !important;
   inset: 0 !important;
   width: 100vw !important;
@@ -26,8 +26,8 @@ html.hukumado-frame #movie_player {
   background: #000 !important;
 }
 
-html.hukumado-frame #movie_player .html5-video-container,
-html.hukumado-frame #movie_player video {
+html.hakomado-frame #movie_player .html5-video-container,
+html.hakomado-frame #movie_player video {
   width: 100% !important;
   height: 100% !important;
   left: 0 !important;
@@ -35,17 +35,17 @@ html.hukumado-frame #movie_player video {
   object-fit: contain !important;
 }
 
-html.hukumado-frame.hukumado-fill #movie_player video {
+html.hakomado-frame.hakomado-fill #movie_player video {
   object-fit: cover !important;
 }
 
 /* マウスが枠の外にある間は、プレイヤーの操作 UI (上下のバー・影・ツールチップ) を隠す。
    枠の上に重ねた要素を通って離れると、プレイヤーが離れたことに気づかず UI が出たままになるため、親画面から知らせる */
-html.hukumado-frame.hukumado-away #movie_player .ytp-chrome-top,
-html.hukumado-frame.hukumado-away #movie_player .ytp-chrome-bottom,
-html.hukumado-frame.hukumado-away #movie_player .ytp-gradient-top,
-html.hukumado-frame.hukumado-away #movie_player .ytp-gradient-bottom,
-html.hukumado-frame.hukumado-away #movie_player .ytp-tooltip {
+html.hakomado-frame.hakomado-away #movie_player .ytp-chrome-top,
+html.hakomado-frame.hakomado-away #movie_player .ytp-chrome-bottom,
+html.hakomado-frame.hakomado-away #movie_player .ytp-gradient-top,
+html.hakomado-frame.hakomado-away #movie_player .ytp-gradient-bottom,
+html.hakomado-frame.hakomado-away #movie_player .ytp-tooltip {
   opacity: 0 !important;
   pointer-events: none !important;
   transition: opacity .25s !important;

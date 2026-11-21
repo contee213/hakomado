@@ -1,4 +1,4 @@
-// hukumado: 設定・チャンネル・履歴のバックアップ (JSON ファイルへの書き出し / 読み込み)
+// hakomado: 設定・チャンネル・履歴のバックアップ (JSON ファイルへの書き出し / 読み込み)
 // - 拡張機能のフォルダを移したり、ストア版に入れ替えたりすると拡張機能の ID が変わり、保存した内容は引き継がれない。
 //   そのときに、書き出したファイルを読み込んで元に戻せるようにする
 // - 書き出すもの: 共通設定・チャンネル一覧 (ピックアップ 📌 を含む)・初期データの状態・視聴履歴・あとで見る・表示言語
@@ -10,7 +10,7 @@
 'use strict';
 
 const Backup = (() => {
-  const APP = 'hukumado';
+  const APP = 'hakomado';
   const FORMAT = 1; // ファイルの形を変えたら上げる (読み込むときに、知らない新しい形は断る)
   const CHANNEL_RE = /^UC[\w-]{22}$/;
   const MAX_ITEMS = 100; // 履歴・あとで見るの上限 (history.js と同じ)
@@ -53,7 +53,7 @@ const Backup = (() => {
     const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     const a = document.createElement('a');
     a.href = url;
-    a.download = `hukumado-backup-${date}.json`;
+    a.download = `hakomado-backup-${date}.json`;
     document.body.append(a);
     a.click();
     a.remove();
@@ -109,7 +109,7 @@ const Backup = (() => {
    * @param {string} text ファイルの中身
    * @param {object} settingsDefaults 共通設定の初期値 (項目と型の見本)
    * @returns {{data: object, lang: string|null, counts: {channels: number, stars: number, history: number, saved: number}}}
-   * @throws {Error} hukumado のバックアップではない / 新しすぎる形のとき (message は 'notBackup' | 'tooNew')
+   * @throws {Error} hakomado のバックアップではない / 新しすぎる形のとき (message は 'notBackup' | 'tooNew')
    */
   function parse(text, settingsDefaults) {
     let json;
@@ -146,7 +146,7 @@ const Backup = (() => {
 
   /** 確かめた内容で今の内容を置き換える (他のタブには storage.onChanged で伝わる) */
   // 他のタブが同じ項目を読んでから書くまでの途中に割り込まないよう、それぞれの書き込みと同じロックを取ってから置き換える
-  const LOCKS = ['hukumado-favorites', 'hukumado-history', 'hukumado-saved', 'hukumado-settings'];
+  const LOCKS = ['hakomado-favorites', 'hakomado-history', 'hakomado-saved', 'hakomado-settings'];
   async function apply({ data, lang }) {
     const run = (i) => (i < LOCKS.length ? navigator.locks.request(LOCKS[i], () => run(i + 1)) : chrome.storage.local.set(data));
     await run(0);

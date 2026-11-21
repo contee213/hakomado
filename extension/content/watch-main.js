@@ -1,16 +1,16 @@
-// hukumado: 枠に入れた watch ページの「ページ側」(MAIN world) で動くスクリプト。
+// hakomado: 枠に入れた watch ページの「ページ側」(MAIN world) で動くスクリプト。
 // YouTube プレイヤー自身の API (mute / unMute / onVolumeChange) を使ってミュートを操作する。
 // 動画要素を直接ミュートするとプレイヤーのスピーカー表示と食い違うため、必ずプレイヤー経由で切り替える。
 // 拡張機能側 (watch.js) とは document 上の CustomEvent でやりとりする:
-//   watch.js → ここ : 'hukumado:set-muted'  detail '1' | '0'
-//   ここ → watch.js : 'hukumado:user-audio' detail JSON {muted}  (枠内のプレイヤーで直接操作されたとき)
+//   watch.js → ここ : 'hakomado:set-muted'  detail '1' | '0'
+//   ここ → watch.js : 'hakomado:user-audio' detail JSON {muted}  (枠内のプレイヤーで直接操作されたとき)
 (() => {
   'use strict';
 
   const params = new URLSearchParams(location.search);
-  if (window.top === window || params.get('hukumado') !== '1') return;
+  if (window.top === window || params.get('hakomado') !== '1') return;
 
-  let desired = params.get('hukumado_muted') !== '0'; // 親が望むミュート状態
+  let desired = params.get('hakomado_muted') !== '0'; // 親が望むミュート状態
   let selfUntil = 0; // この時刻までの音量変化は自分の操作によるもの
   let lastInput = -Infinity; // 枠内での最後のクリック / キー操作
 
@@ -58,7 +58,7 @@
       // 枠内のプレイヤーで直接ミュートを切り替えた → 親に知らせる
       desired = muted;
       restoreVolumeSetting();
-      document.dispatchEvent(new CustomEvent('hukumado:user-audio', { detail: JSON.stringify({ muted }) }));
+      document.dispatchEvent(new CustomEvent('hakomado:user-audio', { detail: JSON.stringify({ muted }) }));
     });
   }
 
@@ -86,16 +86,16 @@
     restoreVolumeSetting();
   }
 
-  document.addEventListener('hukumado:set-muted', (e) => {
+  document.addEventListener('hakomado:set-muted', (e) => {
     desired = e.detail === '1';
     apply();
   });
 
   // ---- まとめて一時停止 / 再開 (親の上部バーのボタン・Space キー)
-  //   watch.js → ここ : 'hukumado:playback' detail 'pause' | 'play'
+  //   watch.js → ここ : 'hakomado:playback' detail 'pause' | 'play'
   // 再開するとき、ライブ配信は止めていた位置ではなく最新の位置に戻す (遅れたまま見ないように)
   let pausedByParent = false;
-  document.addEventListener('hukumado:playback', (e) => {
+  document.addEventListener('hakomado:playback', (e) => {
     const p = player();
     pausedByParent = e.detail === 'pause';
     if (!p) return;
@@ -140,7 +140,7 @@
   }, 2000);
 
   // ---- この動画を見られるか (メンバー限定でメンバーではない、など) を親に知らせる
-  //   ここ → watch.js : 'hukumado:playability' detail JSON {status, text}
+  //   ここ → watch.js : 'hakomado:playability' detail JSON {status, text}
   //   開始前の待機画面から配信が始まると状態が変わるので、その後も時々確かめて、変わったら知らせ直す
   const playerResponse = () => {
     try {
@@ -161,7 +161,7 @@
       /* ignore */
     }
     document.dispatchEvent(
-      new CustomEvent('hukumado:playability', { detail: JSON.stringify({ status: String(ps.status), text }) }),
+      new CustomEvent('hakomado:playability', { detail: JSON.stringify({ status: String(ps.status), text }) }),
     );
     return true;
   };
@@ -173,7 +173,7 @@
   setInterval(reportPlayability, 20000);
 
   // ---- 配信・動画が終わったことを親に知らせる (自動再生中に枠を片付けるため)
-  //   ここ → watch.js : 'hukumado:ended' detail 'played' | 'already'
+  //   ここ → watch.js : 'hakomado:ended' detail 'played' | 'already'
   //   played  = 再生が最後まで行った (プレイヤーの状態 0 = 終了)。次のときは終わったことにしない:
   //             - 開始前の待機画面の宣伝動画が終わった
   //             - 広告が終わった (広告の再生中・広告の後に本編が始まった)
@@ -185,7 +185,7 @@
   const reportEnded = (reason) => {
     if (endedSent.has(reason)) return;
     endedSent.add(reason);
-    document.dispatchEvent(new CustomEvent('hukumado:ended', { detail: reason }));
+    document.dispatchEvent(new CustomEvent('hakomado:ended', { detail: reason }));
   };
   // 開始前の待機画面: 宣伝動画 (トレーラー) が流れることがあり、それが終わっても状態 0 になる。
   // そのときのプレイヤーの情報は「配信予定」(isUpcoming / LIVE_STREAM_OFFLINE) のままなので、それで見分ける
@@ -210,18 +210,18 @@
   const myVideoId = params.get('v') || '';
 
   // ---- ライブ配信中か (親が枠に「LIVE」の印を付ける)。開始前の待機画面は配信中にしない
-  //   ここ → watch.js : 'hukumado:live' detail '1' | '0' (変わったときだけ)
+  //   ここ → watch.js : 'hakomado:live' detail '1' | '0' (変わったときだけ)
   let liveSent = null;
   setInterval(() => {
     if (!player()) return;
     const live = !!videoData().isLive && !waitingRoom();
     if (live === liveSent) return;
     liveSent = live;
-    document.dispatchEvent(new CustomEvent('hukumado:live', { detail: live ? '1' : '0' }));
+    document.dispatchEvent(new CustomEvent('hakomado:live', { detail: live ? '1' : '0' }));
   }, 1000);
 
   // ---- ライブ配信のアーカイブ: チャットのリプレイを出せるよう、親に知らせ、再生位置を送り続ける
-  //   ここ → watch.js : 'hukumado:replay' detail リプレイを開く鍵 (continuation) / 'hukumado:progress' detail 再生位置 (秒)
+  //   ここ → watch.js : 'hakomado:replay' detail リプレイを開く鍵 (continuation) / 'hakomado:progress' detail 再生位置 (秒)
   // 親は live_chat_replay?continuation=… を枠に読み込み、YouTube の視聴ページと同じ形で再生位置を渡す (チャットがその位置まで進む)。
   // リプレイは動画 ID では開けず、視聴ページのデータに入っている continuation が要る (チャットを切っていた配信には無い)
   const replayContinuation = () => {
@@ -240,10 +240,10 @@
       const c = replayContinuation();
       if (!c) return;
       replaySent = true;
-      document.dispatchEvent(new CustomEvent('hukumado:replay', { detail: c }));
+      document.dispatchEvent(new CustomEvent('hakomado:replay', { detail: c }));
     }
     const t = player()?.getCurrentTime?.();
-    if (typeof t === 'number' && Number.isFinite(t)) document.dispatchEvent(new CustomEvent('hukumado:progress', { detail: String(t) }));
+    if (typeof t === 'number' && Number.isFinite(t)) document.dispatchEvent(new CustomEvent('hakomado:progress', { detail: String(t) }));
   }, 500);
   const adShowing = () => !!document.querySelector('#movie_player.ad-showing, #movie_player.ad-interrupting');
   const videoData = () => {
@@ -281,8 +281,8 @@
   }, 1000);
 
   // ---- チャンネル登録・高評価 (親画面の枠のバーにあるボタンから操作する)
-  //   ここ → watch.js : 'hukumado:social'     detail JSON {loggedIn, subscribed, liked, failed?}
-  //   watch.js → ここ : 'hukumado:social-act' detail 'subscribe' | 'like' (する方だけ。解除・取り消しはしない)
+  //   ここ → watch.js : 'hakomado:social'     detail JSON {loggedIn, subscribed, liked, failed?}
+  //   watch.js → ここ : 'hakomado:social-act' detail 'subscribe' | 'like' (する方だけ。解除・取り消しはしない)
   //   ボタンは枠内では隠している (watch.css の #below) が、YouTube 自身のボタンを押して操作する
   //   (登録状態の保存などは YouTube 側の処理に任せる)
   const textOf = (r) => r?.simpleText || (r?.runs || []).map((x) => x.text).join('') || '';
@@ -315,7 +315,7 @@
     const key = JSON.stringify(st);
     if (key === lastSocial && !extra) return;
     lastSocial = key;
-    document.dispatchEvent(new CustomEvent('hukumado:social', { detail: key }));
+    document.dispatchEvent(new CustomEvent('hakomado:social', { detail: key }));
   };
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const waitFor = async (find, ms = 3000) => {
@@ -327,7 +327,7 @@
     return null;
   };
   // 登録・高評価をする (済んでいるときは何もしない。解除・取り消しはしない)
-  document.addEventListener('hukumado:social-act', async (e) => {
+  document.addEventListener('hakomado:social-act', async (e) => {
     const act = e.detail;
     const before = socialState();
     const key = act === 'like' ? 'liked' : 'subscribed';

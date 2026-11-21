@@ -28,14 +28,14 @@ jobs:
       - name: Make the zip
         run: |
           cd extension
-          zip -r -X "../hukumado-$VER.zip" . -x '.*'
+          zip -r -X "../hakomado-$VER.zip" . -x '.*'
           cd ..
-          unzip -l "hukumado-$VER.zip"
+          unzip -l "hakomado-$VER.zip"
 
       - name: Create the release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" "hukumado-$VER.zip" \
-            --title "hukumado $VER" \
+          gh release create "$GITHUB_REF_NAME" "hakomado-$VER.zip" \
+            --title "Hakomado $VER" \
             --generate-notes

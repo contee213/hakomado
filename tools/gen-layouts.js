@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// hukumado: 「メイン + サブ」レイアウト (左上セット) を計算して extension/layouts-generated.js に書き出す。
+// hakomado: 「メイン + サブ」レイアウト (左上セット) を計算して extension/layouts-generated.js に書き出す。
 // ルールを変えたら `node tools/gen-layouts.js` で作り直す。左下・右上・右下セットは layouts.js で反転して作る。
 //
 // ルール (2026-11 に利用者と決めたもの):

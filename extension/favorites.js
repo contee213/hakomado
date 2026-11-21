@@ -41,7 +41,7 @@ const Favorites = (() => {
     return v && typeof v === 'object' ? v : {};
   }
   function updateShared(fn) {
-    return withLock('hukumado-status-store', async () => {
+    return withLock('hakomado-status-store', async () => {
       const v = await readShared();
       fn(v);
       await shared.set({ [SHARED_KEY]: v });
@@ -55,7 +55,7 @@ const Favorites = (() => {
    * 制限中は取りに行かずに RateLimitedError を投げる (呼び出し側では「取得失敗」扱い)
    */
   function ytTurn(fn) {
-    return withLock('hukumado-yt-fetch', async () => {
+    return withLock('hakomado-yt-fetch', async () => {
       const st = await readShared();
       if ((st.backoff?.until || 0) > Date.now()) throw new RateLimitedError(tr('rateLimited'));
       const fetchText = async (url, opts) => {
@@ -104,7 +104,7 @@ const Favorites = (() => {
     let items = [];
     if (res.ok) items = parseFeed(await res.text());
     else if (res.status !== 404) throw new Error(tr('fetchFail', res.status));
-    await withLock('hukumado-archive-store', async () => {
+    await withLock('hakomado-archive-store', async () => {
       const { [ARCHIVE_KEY]: c = {} } = await shared.get(ARCHIVE_KEY);
       // 古いものは捨てる (セッションの間にたまり続けないように)
       for (const [k, v] of Object.entries(c)) if (Date.now() - (v?.at || 0) > ARCHIVE_TTL_MS * 4) delete c[k];
@@ -156,7 +156,7 @@ const Favorites = (() => {
   }
 
   // チャンネル一覧を読んでから書くまでを、タブ間で 1 つずつにする (2 つのタブでほぼ同時に 📌 を変えたときなど)
-  const withListLock = (fn) => navigator.locks.request('hukumado-favorites', fn);
+  const withListLock = (fn) => navigator.locks.request('hakomado-favorites', fn);
 
   /** 既定のチャンネル (ホロライブ) を、まだ入れていなければ追加する。外したものは戻さない */
   function seedPresets() {
@@ -474,7 +474,7 @@ const Favorites = (() => {
     const age = scheduleCache ? Date.now() - scheduleCache.at : Infinity;
     if (age < maxAge) return scheduleCache.promise;
     // 他のタブが少し前に取った結果があれば、それを使う (取りに行くのはタブ間で 1 つずつ)
-    const promise = withLock('hukumado-schedule', async () => {
+    const promise = withLock('hakomado-schedule', async () => {
       const sh = (await readShared()).sched;
       if (sh && Date.now() - sh.at < maxAge && sh.byHandle) return new Map(Object.entries(sh.byHandle));
       const byHandle = await buildSchedule();
@@ -585,7 +585,7 @@ const Favorites = (() => {
         result = 'members';
       }
     } catch (e) {
-      console.warn('hukumado: 視聴できるかの確認に失敗', videoId, e);
+      console.warn('hakomado: 視聴できるかの確認に失敗', videoId, e);
     }
     // 判定できなかったときも 10 分は同じ結果を使う (1 分ごとの確認で毎回ページを取りに行かない)
     accessCache.set(videoId, { at: Date.now(), result });

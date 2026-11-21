@@ -1,6 +1,6 @@
 {
   "extName": {
-    "message": "hukumado - YouTube マルチビュー",
+    "message": "Hakomado – YouTube配信の複窓・マルチビュー(最大16枠)",
     "description": "拡張機能の名前"
   },
   "extDescription": {
@@ -8,7 +8,7 @@
     "description": "拡張機能の説明"
   },
   "actionTitle": {
-    "message": "hukumado を開く",
+    "message": "Hakomado を開く",
     "description": "ツールバーのアイコンに乗せたときの説明"
   }
 }
