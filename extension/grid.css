@@ -50,7 +50,8 @@ button:hover, select:hover { border-color: #444450; }
   overflow: hidden;
 }
 .toolbar > * { flex: none; }
-.brand { font-weight: 700; letter-spacing: .02em; margin-right: 6px; }
+.brand { display: inline-flex; align-items: center; gap: 6px; font-weight: 700; letter-spacing: .02em; margin-right: 6px; }
+.brand-logo { width: 22px; height: 22px; flex: none; }
 .spacer { flex: 1 1 0; min-width: 8px; }
 .toolbar button { display: inline-flex; align-items: center; gap: 5px; height: 26px; }
 .toolbar .tb-icon { width: 1em; text-align: center; }
@@ -1146,8 +1147,17 @@ dialog.settings-dialog { width: min(780px, calc(100% - 32px)); overflow: hidden;
 .settings-form label.check > span { font-weight: 600; }
 /* 使い方 */
 dialog.help-dialog { width: min(520px, calc(100% - 32px)); }
-/* 視聴セットの共有 */
+/* 🔗 共有 / 📥 読み込む */
 dialog.share-dialog { width: min(600px, calc(100% - 32px)); }
+.share-name select { flex: 1 1 auto; min-width: 0; }
+/* 形式のタブ: 中身は同じ場所に重ね、見せていないものは見えなくするだけにする (高さがいちばん高いタブに合い、切り替えても画面が動かない) */
+.share-panels { display: grid; grid-template-columns: minmax(0, 1fr); }
+.share-panel { grid-area: 1 / 1; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.share-panel[hidden] { display: flex; visibility: hidden; }
+.share-panel .settings-note { margin: 0; }
+.share-textarea { flex: 1 1 auto; min-height: 8em; }
+.read-summary { margin: 0; min-height: 3em; white-space: pre-line; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.read-summary.share-error { color: #ff8a80; }
 .share-preview { width: 100%; aspect-ratio: 16 / 9; background: #000; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
 .share-preview img { display: block; width: 100%; height: 100%; object-fit: contain; }
 .share-preview img:not([src]) { visibility: hidden; }

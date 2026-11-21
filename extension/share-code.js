@@ -2,7 +2,7 @@
 // 画面 (DOM) に触らない関数だけをここに置く (grid.js から切り出し。tests/ から読み込んで試せるように)。
 // 読み込む順: grid.html で grid.js より前。background.js も importScripts で読む (右クリックのメニューで videoIdFromUrl を使う)。
 // parseVideoLines は呼ばれたときに grid.js の resolveVideoId と favorites.js の Favorites を使う
-/* exported SHARE_TAG, SHARE_CODE_RE, videoIdFromUrl, formatShareCode, parseShareCode, parseWatchVideosLink, youtubePlaylistId, parseVideoLines, metaOn */
+/* exported SHARE_TAG, SHARE_CODE_RE, shareName, videoIdFromUrl, formatShareCode, parseShareCode, parseWatchVideosLink, youtubePlaylistId, parseVideoLines, metaOn */
 /* global resolveVideoId, Favorites */
 'use strict';
 
@@ -35,27 +35,33 @@ function videoIdFromUrl(raw) {
 }
 
 const SHARE_TAG = 'Hakomado';
-// 末尾の「~…」はアーカイブの同期のずれ (動画の並び順に「,」区切りの秒。「*」の付いた動画が同期の基準)。
-// 以前の版はこの部分を読み飛ばすので、動画とレイアウトだけが再現される
-const SHARE_CODE_RE = /#?Hakomado\s+([a-z0-9-]{1,24})\.((?:[A-Za-z0-9_-]{11}){1,16})(?:~([-+*\d.,]{1,240}))?(?![A-Za-z0-9_-])/i;
+const SHARE_NAME_MAX = 40; // 再生リストの名前と同じ
+// 「~…」はアーカイブの同期のずれ (動画の並び順に「,」区切りの秒。「*」の付いた動画が同期の基準)、
+// 続く「 "…"」は名前。以前の版はコードの直後で読むのをやめるので、ずれや名前が無視されるだけで読める
+const SHARE_CODE_RE =
+  /#?Hakomado\s+([a-z0-9-]{1,24})\.((?:[A-Za-z0-9_-]{11}){1,16})(?:~([-+*\d.,]{1,240}))?(?![A-Za-z0-9_-])(?: "([^"\r\n]{1,40})")?/i;
+
+/** コードや画像に入れる名前 (「"」と改行は入れない) */
+const shareName = (s) => String(s || '').replace(/["\r\n]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, SHARE_NAME_MAX);
 
 /**
- * 視聴セットのコードを作る。ids = 動画 (並び順)、offs = 動画ごとのずれ (秒)、refK = 同期の基準の番号。
+ * 視聴セットのコードを作る。ids = 動画 (並び順)、offs = 動画ごとのずれ (秒)、refK = 同期の基準の番号、name = 名前。
  * ずれのある動画があるか、同期の基準が先頭以外のときだけ「~…」を付ける (先頭が基準なら印は省く)
  */
-function formatShareCode(layoutId, ids, offs = [], refK = 0) {
+function formatShareCode(layoutId, ids, offs = [], refK = 0, name = '') {
   const o = ids.map((_, k) => offs[k] || 0);
   const tail = o.some(Boolean) || refK > 0 ? '~' + o.map((v, k) => (k === refK && k > 0 ? '*' : '') + String(v)).join(',') : '';
-  return `#${SHARE_TAG} ${layoutId}.${ids.join('')}${tail}`;
+  const n = shareName(name);
+  return `#${SHARE_TAG} ${layoutId}.${ids.join('')}${tail}${n ? ` "${n}"` : ''}`;
 }
 
-// ---- 貼られたテキストの読み取り (視聴セットの共有と、再生リストで共通)
+// ---- 貼られたテキストの読み取り
 
 /**
  * テキストの中の視聴セットのコード (#Hakomado …) を読む。無ければ null。
  * 同じ動画が 2 回あれば 1 回目だけ使う。offsets = 動画ごとの同期のずれ (コードに入っていなければ null)、
- * ref = 同期の基準にする動画の番号
- * @returns {{ids: string[], layoutId: string, offsets: number[]|null, ref: number}|null}
+ * ref = 同期の基準にする動画の番号、name = 名前 (入っていなければ '')
+ * @returns {{ids: string[], layoutId: string, offsets: number[]|null, ref: number, name: string}|null}
  */
 function parseShareCode(text) {
   const code = text.match(SHARE_CODE_RE);
@@ -71,7 +77,7 @@ function parseShareCode(text) {
     ids.push(id);
     offsets.push(Number(t.replace('*', '')) || 0);
   });
-  return { ids, layoutId: code[1], offsets: tail ? offsets : null, ref };
+  return { ids, layoutId: code[1], offsets: tail ? offsets : null, ref, name: (code[4] || '').trim() };
 }
 
 /**

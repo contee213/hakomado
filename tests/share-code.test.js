@@ -57,7 +57,31 @@ test('作ったコードを読み戻せる', () => {
 test('投稿の本文の中からコードだけを拾う', () => {
   const parse = setup()('parseShareCode');
   const r = plain(parse(`今日のコラボ!\nhakomado u2x2.${A}${B} ← これを貼ってね #Vtuber`));
-  assert.deepEqual(r, { ids: [A, B], layoutId: 'u2x2', offsets: null, ref: 0 });
+  assert.deepEqual(r, { ids: [A, B], layoutId: 'u2x2', offsets: null, ref: 0, name: '' });
+});
+
+test('コードに名前を入れて読み戻せる (「"」と改行は除き、40 文字まで)', () => {
+  const get = setup();
+  const fmt = get('formatShareCode');
+  const parse = get('parseShareCode');
+  assert.equal(fmt('u2x2', [A, B], [0, 1.5], 0, '夜の 歌枠'), `#Hakomado u2x2.${A}${B}~0,1.5 "夜の 歌枠"`);
+  assert.equal(fmt('u2x2', [A], [], 0, '  '), `#Hakomado u2x2.${A}`);
+  const odd = fmt('u2x2', [A], [], 0, 'a"b\nc');
+  assert.equal(odd, `#Hakomado u2x2.${A} "a b c"`);
+  const long = 'あ'.repeat(50);
+  const r = plain(parse(`見てね ${fmt('u2x2', [A, B], [0, 2], 1, long)} #tag`));
+  assert.equal(r.name, 'あ'.repeat(40));
+  assert.deepEqual(r.ids, [A, B]);
+  assert.equal(r.ref, 1);
+});
+
+test('名前入りのコードも、以前の版の読み方 (名前の前で止まる) で動画とずれが読める', () => {
+  const fmt = setup()('formatShareCode');
+  const OLD = /#?Hakomado\s+([a-z0-9-]{1,24})\.((?:[A-Za-z0-9_-]{11}){1,16})(?:~([-+*\d.,]{1,240}))?(?![A-Za-z0-9_-])/i;
+  const m = fmt('u2x2', [A, B], [0, 1.5], 1, 'コラボ').match(OLD);
+  assert.equal(m[1], 'u2x2');
+  assert.equal(m[2], A + B);
+  assert.equal(m[3], '0,*1.5');
 });
 
 test('同じ動画が 2 回あれば 1 回目だけ (ずれも 1 回目のもの)', () => {

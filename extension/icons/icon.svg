@@ -1,11 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
-  <!-- hakomado のアイコン: 大きいメイン窓 (再生マーク) と小さいサブ窓 = 配信を大小並べて見る -->
+  <!-- hakomado のロゴ: 斜めから見た箱 (箱) の側面に 2×2 の窓 (窓)。左上の窓だけ明るく、再生マーク = 配信を並べて見る -->
   <rect width="128" height="128" rx="28" fill="#16161b"/>
-  <rect x="16" y="16" width="66" height="66" rx="9" fill="#29a9ff"/>
-  <path d="M41 34 L64 49 L41 64 Z" fill="#ffffff"/>
-  <rect x="88" y="16" width="24" height="31" rx="6" fill="#3a3f4b"/>
-  <rect x="88" y="51" width="24" height="31" rx="6" fill="#3a3f4b"/>
-  <rect x="16" y="88" width="31" height="24" rx="6" fill="#3a3f4b"/>
-  <rect x="51" y="88" width="31" height="24" rx="6" fill="#3a3f4b"/>
-  <rect x="88" y="88" width="24" height="24" rx="6" fill="#3a3f4b"/>
+  <path d="M64 14 L112 38 L64 62 L16 38 Z" fill="#6fcbff"/>
+  <path d="M16 38 L64 62 L64 114 L16 90 Z" fill="#1b5f91"/>
+  <path d="M112 38 L64 62 L64 114 L112 90 Z" fill="#29a9ff"/>
+  <path d="M69.76 65.36 L87.04 56.72 L87.04 75.44 L69.76 84.08 Z" fill="#ffffff"/>
+  <path d="M74.56 67.12 L83.2 68 L74.56 77.52 Z" fill="#29a9ff"/>
+  <path d="M90.88 54.8 L107.2 46.64 L107.2 65.36 L90.88 73.52 Z" fill="#0f3a5a"/>
+  <path d="M69.76 88.24 L87.04 79.6 L87.04 97.28 L69.76 105.92 Z" fill="#0f3a5a"/>
+  <path d="M90.88 77.68 L107.2 69.52 L107.2 87.2 L90.88 95.36 Z" fill="#0f3a5a"/>
 </svg>

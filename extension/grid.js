@@ -2487,84 +2487,68 @@ function openHelp() {
   if (!d.open) d.showModal();
 }
 
-// ---------------------------------------------------------------- 🔗 視聴セットの共有
-// 表示中の枠の配信とレイアウトを、短いコード (と、それを QR にした画像) にする / コードや画像から同じ並びを作る。
-// - コードは「#Hakomado <レイアウト>.<動画 ID をつなげたもの>」の 1 行。動画 ID は必ず 11 文字なので区切らない。
-//   X に貼っても 16 本で約 200 文字に収まる (拡張機能の画面の URL は入れた環境ごとに ID が違うので、共有には使えない)
-// - 画像は、今のレイアウトの形にサムネイルとチャンネル名を並べ、コードを入れた QR を添えたもの。X は画像を文字数に
-//   数えず、見ただけで何を並べているか分かる。読み込むときは、画像を貼り付ける (Ctrl+V) かドロップすると QR を読む
-// - 読み込むときは、投稿の本文をまるごと貼ってもコードの部分だけを拾う。YouTube の URL を 1 行に 1 つ並べたものも読める
+// ---------------------------------------------------------------- 🔗 共有 / 📥 読み込み
+// 共有するもの (今の枠 = 視聴セット、または再生リスト) を「共有セット」という 1 つの形にそろえ、そこから 4 つの形式を作る:
+// - 画像: レイアウトの形にサムネイルとチャンネル名を並べ、コードを入れた QR を添えたもの (X は画像を文字数に数えない)
+// - コード: 「#Hakomado <レイアウト>.<動画 ID をつなげたもの>~<ずれ> "名前"」の 1 行。動画 ID は必ず 11 文字なので区切らない。
+//   16 本でも X に貼れる長さ (拡張機能の画面の URL は入れた環境ごとに ID が違うので、共有には使えない)
+// - テキスト: 1 行に 1 本 (playlistText)。名前・同期再生・レイアウト・ずれ・枠の名前まで全部入る
+// - リンク: YouTube の watch_videos の URL (playlistImportLink)。Hakomado が無い人も YouTube で開ける
+// 読み込むときは、どの形式も (投稿の本文をまるごと貼っても) parseIncoming で同じ形に読み、枠に並べるか再生リストとして保存する
 const SHARE_MAX = MAX_TILES;
+
+/**
+ * 共有セット: 共有するもの (今の枠 / 再生リスト) と、読み込んだものの共通の形
+ * @typedef {{name: string, items: {videoId: string, label?: string, channel?: string, offset?: number}[],
+ *   sync: boolean, layoutId: string|null, ref: string|null}} ShareSet
+ */
+// コードの読み書き (formatShareCode / parseShareCode / shareName)・取り込み用リンク・1 行 1 本のテキストの読み取りは share-code.js
 
 /** 表示中の枠のうち、配信の入っている枠 (並び順。空き枠は詰める) */
 const shareTiles = () => visibleIndexes().filter((i) => state.tiles[i].videoId);
 
-// コードの読み書き (formatShareCode / parseShareCode)・取り込み用リンク・1 行 1 本のテキストの読み取りは share-code.js
-
-/** 今の視聴セットのコード (配信が無ければ '') */
-function viewingSetCode() {
-  const filled = shareTiles();
-  if (!filled.length) return '';
-  const ids = filled.map((i) => state.tiles[i].videoId);
-  return formatShareCode(state.layoutId, ids, ids.map((id) => SyncOffsets.get(id)), filled.indexOf(Sync.refIfOn()));
+/** 今の枠を共有セットにする (同期中か、ずれを決めた動画があれば同期再生として、基準とずれも入れる) */
+function tilesShareSet(name = '') {
+  const items = tileEntries();
+  const refTile = Sync.refIfOn();
+  const sync = Sync.isOn() || items.some((x) => x.offset);
+  return { name, items, sync, layoutId: state.layoutId, ref: sync && refTile != null ? state.tiles[refTile].videoId : null };
 }
 
 /** 取り込み用リンクに入れる動画の数 (YouTube の一時的な再生リストが開ける数) */
 const IMPORT_LINK_MAX = 50;
 
 /**
- * テキストから視聴セットを読み取る。コード (#Hakomado …) があればそれを、無ければ 1 行に 1 本として読む
- * (「# layout=…」があればレイアウト。「~秒」があれば同期のずれ。行の後ろの「# …」は枠の名前にする)
- * @returns {Promise<{ids: string[], labels: string[], layoutId: string|null, bad: number, tooMany: boolean, offsets: number[]|null, ref: number}>}
+ * 貼られたテキストを共有セットとして読む (どの形式でも。投稿の本文をまるごと貼ってもよい)。
+ * - 視聴セットのコード (#Hakomado …) があれば、それを並び順のまま (ずれが入っていれば同期再生にする)
+ * - それ以外は 1 行に 1 本として読む (parseVideoLines。「# playlist=…」か取り込み用リンクの名前が名前、
+ *   「# layout=…」がレイアウト、「~秒」が同期のずれ、行の後ろの「# …」が枠の名前)
+ * 最大は再生リストに入る数 (200 本)。枠に並べるときは先頭から 16 本
+ * @returns {Promise<ShareSet & {bad: number, tooMany: boolean}>}
  */
-async function parseViewingSet(text, onProgress) {
-  const code = parseShareCode(text);
-  if (code) return { ...code, labels: [], bad: 0, tooMany: false };
-  const { items, ref, hasOffsets, meta, bad, tooMany } = await parseVideoLines(text, SHARE_MAX, onProgress);
-  const ids = items.map((h) => h.videoId);
-  const synced = hasOffsets || !!ref || metaOn(meta.sync);
-  return {
-    ids,
-    labels: items.map((h) => h.label || ''),
-    layoutId: meta.layout || null,
-    bad,
-    tooMany,
-    offsets: synced ? items.map((h) => h.offset || 0) : null,
-    ref: Math.max(0, ids.indexOf(ref)),
-  };
-}
-
-/**
- * 貼られたテキストから再生リストを読む。
- * - 視聴セットのコード (#Hakomado …) があれば、その配信を並び順のまま (ずれが入っていれば同期再生にする)
- * - それ以外は 1 行に 1 本として読む (parseVideoLines。「# playlist=…」か取り込み用リンクの名前が再生リストの名前)
- * @returns {Promise<{items: {videoId: string, label?: string, offset?: number}[], name: string,
- *   opts: {sync: boolean, layoutId: string|null, ref: string|null}, bad: number, tooMany: boolean}>}
- */
-async function parsePlaylistText(text, onProgress) {
+async function parseIncoming(text, onProgress) {
   const code = parseShareCode(text);
   if (code) {
-    const items = code.ids.map((videoId, k) => (code.offsets ? { videoId, offset: code.offsets[k] } : { videoId }));
-    const opts = { sync: !!code.offsets, layoutId: code.layoutId, ref: code.offsets ? code.ids[code.ref] : null };
-    return { items, name: '', opts, bad: 0, tooMany: false };
+    const sync = !!code.offsets;
+    const items = code.ids.map((videoId, k) => (sync ? { videoId, offset: code.offsets[k] } : { videoId }));
+    return { name: code.name, items, sync, layoutId: code.layoutId, ref: sync ? code.ids[code.ref] : null, bad: 0, tooMany: false };
   }
   const { items, ref, hasOffsets, meta, bad, tooMany } = await parseVideoLines(text, Playlists.MAX_ITEMS, onProgress);
   const sync = hasOffsets || !!ref || metaOn(meta.sync);
-  return { items, name: meta.playlist || '', opts: { sync, layoutId: meta.layout || null, ref }, bad, tooMany };
+  return { name: meta.playlist || '', items, sync, layoutId: meta.layout || null, ref, bad, tooMany };
 }
 
-// ---- 再生リストの書き出し (共有用)
+// ---- 共有セットの書き出し (各形式)
 
 /** 行の後ろに付ける名前 (# や改行は入れない) */
 const lineLabel = (h) => String(h.label || h.channel || '').replace(/[\r\n#]/g, ' ').replace(/\s+/g, ' ').trim();
 
-/** 再生リストのテキスト形式 (parseVideoLines で読める。名前・同期再生の設定・ずれ・各行の名前もそのまま戻る) */
+/** テキスト形式 (parseVideoLines で読める。名前・同期再生の設定・レイアウト・ずれ・各行の名前もそのまま戻る) */
 function playlistText(pl) {
-  const lines = [`# playlist=${pl.name}`];
-  if (pl.sync) {
-    lines.push('# sync=on');
-    if (pl.layoutId) lines.push(`# layout=${pl.layoutId}`);
-  }
+  const lines = [];
+  if (pl.name) lines.push(`# playlist=${pl.name}`);
+  if (pl.sync) lines.push('# sync=on');
+  if (pl.layoutId) lines.push(`# layout=${pl.layoutId}`);
   const first = pl.items[0]?.videoId;
   for (const h of pl.items) {
     const parts = [`${YT}/watch?v=${h.videoId}`];
@@ -2579,7 +2563,7 @@ function playlistText(pl) {
   return lines.join('\n');
 }
 
-/** 再生リストの取り込み用リンク (先頭から 50 本。ずれは入らない) */
+/** 取り込み用リンク (先頭から 50 本。ずれは入らない) */
 function playlistImportLink(pl) {
   const ids = pl.items.slice(0, IMPORT_LINK_MAX).map((h) => h.videoId);
   return `${YT}/watch_videos?video_ids=${ids.join(',')}&hakomado=${encodeURIComponent(pl.name)}`;
@@ -2594,8 +2578,8 @@ function playlistLayoutId(pl) {
   return LAYOUTS.find((l) => l.id === pl.layoutId && l.slots.length >= n)?.id || chooseLayoutFor(n).id;
 }
 
-/** 再生リストを視聴セットのコードにする (先頭から 16 本。同期再生ならずれと基準も入れる) */
-function playlistShareCode(pl) {
+/** 共有セットをコードにする (先頭から 16 本。同期再生ならずれと基準も入れる。名前も入れる) */
+function shareSetCode(pl) {
   const items = syncItems(pl);
   if (!items.length) return '';
   const ids = items.map((h) => h.videoId);
@@ -2604,7 +2588,53 @@ function playlistShareCode(pl) {
     ids,
     pl.sync ? items.map((h) => h.offset ?? SyncOffsets.get(h.videoId)) : [],
     pl.sync ? Math.max(0, ids.indexOf(pl.ref)) : 0,
+    pl.name,
   );
+}
+
+/** X の投稿の文字数の上限 (無料のアカウント) */
+const X_TEXT_MAX = 280;
+
+/**
+ * X での文字数 (twitter-text の数え方: ラテン文字・一部の記号は 1、日本語・絵文字などは 2。URL は含まない前提)
+ */
+function xLength(text) {
+  let n = 0;
+  for (const ch of text) {
+    const c = ch.codePointAt(0);
+    const light = c <= 4351 || (c >= 8192 && c <= 8205) || (c >= 8208 && c <= 8223) || (c >= 8242 && c <= 8247);
+    n += light ? 1 : 2;
+  }
+  return n;
+}
+
+/** X の代替テキスト (ALT) の上限 */
+const X_ALT_MAX = 1000;
+
+/**
+ * 共有画像に付ける ALT の文: 名前・本数・レイアウト・並べている配信 (チャンネル名) と、読み込み用のコード。
+ * 長すぎるときは配信の並びを途中で切る (コードは必ず全部入れる)
+ */
+function shareAltText(set) {
+  const items = syncItems(set);
+  const layout = LAYOUTS.find((x) => x.id === playlistLayoutId(set));
+  const head = tr('shareAltHead', shareName(set.name) || `${SHARE_TAG} ${tr('shareImageTitle')}`, items.length, layout?.name || '');
+  const code = tr('shareAltCode', shareSetCode(set));
+  const room = X_ALT_MAX - head.length - code.length - 2;
+  let list = items.map((h, k) => `${k + 1}. ${lineLabel(h) || h.videoId}`).join(tr('shareAltSep'));
+  if (list.length > room) list = room > 1 ? list.slice(0, room - 1) + '…' : '';
+  return [head, list, code].filter(Boolean).join('\n');
+}
+
+/** 読み込んだ共有セットを今の枠に並べる (先頭から 16 本) */
+async function applyShareSet(set) {
+  const items = syncItems(set);
+  const ids = items.map((h) => h.videoId);
+  await applyViewingSet(ids, set.layoutId, {
+    offsets: set.sync ? items.map((h) => h.offset || 0) : null,
+    ref: Math.max(0, ids.indexOf(set.ref)),
+    labels: items.map((h) => h.label || ''),
+  });
 }
 
 /**
@@ -2704,85 +2734,206 @@ function fillTextFit(ctx, text, x, y, maxW) {
   ctx.fillText(s, x, y);
 }
 
-/** QR を描く (白い四角の中に、周りの余白 4 マスを取って) */
-function drawQr(ctx, text, x, y, size) {
-  const qr = qrcode(0, 'M');
+// QR の周りの余白 (マス)。1 マスは整数の画素にする (端数があると、X で縮められたときに読めなくなりやすい)。
+// 誤り訂正は L (データが少ないほど QR が小さくなる)。1 マスは 4〜8 画素で、QR が maxSize 前後になるまで大きくする。
+// 最大のコード (16 本 + ずれ + 名前) でも 4 画素で 300px 角で、X のタイムラインの大きさ (幅 680px) に縮めて JPEG にしても読める
+const SHARE_QR_QUIET = 3;
+const SHARE_ACCENT = '#29a9ff'; // ロゴと同じ青 (差し色)
+
+/** QR を作る。cell = 1 マスの画素数、size = 余白を含めた 1 辺の画素数 */
+function makeShareQr(text, maxSize = 220) {
+  // 名前に日本語などが入るので UTF-8 で入れる (jsQR は UTF-8 として読む。ASCII だけなら以前と同じ中身)
+  qrcode.stringToBytes = qrcode.stringToBytesFuncs['UTF-8'];
+  const qr = qrcode(0, 'L');
   qr.addData(text);
   qr.make();
   const n = qr.getModuleCount();
-  const cell = Math.floor(size / (n + 8));
-  const off = Math.floor((size - cell * n) / 2);
+  const cell = Math.max(4, Math.min(8, Math.floor(maxSize / (n + SHARE_QR_QUIET * 2))));
+  return { qr, n, cell, size: (n + SHARE_QR_QUIET * 2) * cell };
+}
+
+/** QR を (x, y) に描く: 青い縁の付いた、角の丸い白いカード (影で背景から浮かせる) の中に */
+function drawQr(ctx, { qr, n, cell, size }, x, y) {
+  const r = Math.min(14, SHARE_QR_QUIET * cell - 2); // 角の丸みは余白の中に収める (マスを欠かない)
+  const B = 5; // 青い縁の太さ
+  ctx.save();
+  ctx.shadowColor = 'rgba(0,0,0,.6)';
+  ctx.shadowBlur = 18;
+  ctx.fillStyle = SHARE_ACCENT;
+  ctx.beginPath();
+  ctx.roundRect(x - B, y - B, size + B * 2, size + B * 2, r + B);
+  ctx.fill();
+  ctx.restore();
   ctx.fillStyle = '#fff';
-  ctx.fillRect(x, y, size, size);
+  ctx.beginPath();
+  ctx.roundRect(x, y, size, size, r);
+  ctx.fill();
   ctx.fillStyle = '#000';
-  for (let r = 0; r < n; r++) {
-    for (let c = 0; c < n; c++) if (qr.isDark(r, c)) ctx.fillRect(x + off + c * cell, y + off + r * cell, cell, cell);
+  const off = SHARE_QR_QUIET * cell;
+  for (let row = 0; row < n; row++) {
+    for (let c = 0; c < n; c++) if (qr.isDark(row, c)) ctx.fillRect(x + off + c * cell, y + off + row * cell, cell, cell);
   }
 }
 
-/** 共有画像 (PNG の Blob) を作る。title = 左下に大きく出す名前 (空なら「Hakomado 視聴セット」) */
-async function renderShareImage(title = '') {
-  const filled = shareTiles();
-  const code = viewingSetCode();
+/** 共有画像に描くロゴ (拡張機能の中の icons/icon.svg。読めなければ null で、文字だけにする) */
+let shareLogo = null;
+function loadShareLogo() {
+  shareLogo ||= new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => resolve(null);
+    img.src = 'icons/icon.svg';
+  });
+  return shareLogo;
+}
+
+/**
+ * 共有セットの画像 (PNG の Blob) を作る (先頭から 16 本)。サムネイルの並びを画像いっぱいに敷いて背景にし、
+ * その上に、左下に名前 (大きく。左に青い線) と本数・レイアウト (小さく)、QR と、その下にロゴと「Hakomado」を重ねる。
+ * QR は、配信の入っていない枠があればその中に (サムネイルを隠さない)、無ければ右下の角に重ねる:
+ *   ┌──────────────────────────┐
+ *   │ サムネイルの並び (画像いっぱい。チャンネル名は各枠の左上)  │
+ *   │                                                   QR  │
+ *   │ ░░░░░░░░ 左下だけ暗くぼかす ░░░░░                QR  │
+ *   │ ▌名前 (大きく) / 本数 · レイアウト (小さく)  [ロゴ] Hakomado │
+ *   └──────────────────────────┘
+ */
+async function renderShareImage(set) {
+  const filled = syncItems(set);
+  const title = shareName(set.name) || `${SHARE_TAG} ${tr('shareImageTitle')}`;
+  const code = shareSetCode(set);
   const canvas = document.createElement('canvas');
   canvas.width = SHARE_W;
   canvas.height = SHARE_H;
   const ctx = canvas.getContext('2d');
   ctx.fillStyle = '#0d0d10';
   ctx.fillRect(0, 0, SHARE_W, SHARE_H);
+  ctx.textBaseline = 'alphabetic';
+  const M = 28; // 重ねる文字・QR の、画像の端からの余白
+  const SP = 24;
+  const LOGO = 40; // QR の下のロゴの大きさ
+  const LOGO_GAP = 12; // QR とロゴの間
+  const BAND = 120; // 左下の名前と説明の高さ
 
-  // 左上: 今のレイアウトの形に、サムネイルとチャンネル名を並べる (枠の形は画面と同じ計算で 16:9 にそろえる)
-  const area = { x: 48, y: 48, w: 1040, h: 585 };
-  const l = state.layout;
+  // サムネイルの並び: レイアウトの形 (枠は 16:9) で画像いっぱいに (16:9 のレイアウトならちょうど全体。違う形なら真ん中に)
+  const l = LAYOUTS.find((x) => x.id === playlistLayoutId(set));
   const { colW, rowH } = solveTracks(l);
   const sum = (a) => a.reduce((s, v) => s + v, 0);
-  const scale = Math.min(area.w / sum(colW), area.h / sum(rowH));
-  const ox = area.x + (area.w - sum(colW) * scale) / 2;
-  const oy = area.y + (area.h - sum(rowH) * scale) / 2;
-  const thumbs = await Promise.all(filled.map((i) => loadThumb(state.tiles[i].videoId)));
-  const GAP = 6;
-  l.slots.forEach(([cx, cy, cw, chh], k) => {
-    const x = ox + sum(colW.slice(0, cx)) * scale + GAP / 2;
-    const y = oy + sum(rowH.slice(0, cy)) * scale + GAP / 2;
-    const w = sum(colW.slice(cx, cx + cw)) * scale - GAP;
-    const h = sum(rowH.slice(cy, cy + chh)) * scale - GAP;
+  const scale = Math.min(SHARE_W / sum(colW), SHARE_H / sum(rowH));
+  const ox = (SHARE_W - sum(colW) * scale) / 2;
+  const oy = (SHARE_H - sum(rowH) * scale) / 2;
+  const GAP = 4;
+  const rects = l.slots.map(([cx, cy, cw, chh]) => ({
+    x: ox + sum(colW.slice(0, cx)) * scale + GAP / 2,
+    y: oy + sum(rowH.slice(0, cy)) * scale + GAP / 2,
+    w: sum(colW.slice(cx, cx + cw)) * scale - GAP,
+    h: sum(rowH.slice(cy, cy + chh)) * scale - GAP,
+  }));
+  const thumbs = await Promise.all(filled.map((h) => loadThumb(h.videoId)));
+  rects.forEach(({ x, y, w, h }, k) => {
     ctx.fillStyle = '#1c1c22';
     ctx.fillRect(x, y, w, h);
     if (k >= filled.length) return;
-    const i = filled[k];
+    const item = filled[k];
     if (thumbs[k]) drawCover(ctx, thumbs[k], x, y, w, h);
-    // チャンネル名 (下に暗いぼかしを敷いて読めるように)
-    const fs = Math.max(14, Math.min(30, Math.round(h / 9)));
-    const grad = ctx.createLinearGradient(0, y + h - fs * 2.4, 0, y + h);
-    grad.addColorStop(0, 'rgba(0,0,0,0)');
-    grad.addColorStop(1, 'rgba(0,0,0,.85)');
+    // チャンネル名は枠の左上 (下は名前と QR を重ねるので)。上に暗いぼかしを敷いて読めるように
+    const fs = Math.max(14, Math.min(26, Math.round(h / 10)));
+    const grad = ctx.createLinearGradient(0, y, 0, y + fs * 2.4);
+    grad.addColorStop(0, 'rgba(0,0,0,.75)');
+    grad.addColorStop(1, 'rgba(0,0,0,0)');
     ctx.fillStyle = grad;
-    ctx.fillRect(x, y + h - fs * 2.4, w, fs * 2.4);
+    ctx.fillRect(x, y, w, fs * 2.4);
     ctx.fillStyle = '#fff';
     ctx.font = `700 ${fs}px ${SHARE_FONT}`;
-    ctx.textBaseline = 'alphabetic';
-    fillTextFit(ctx, tileName(i) || state.tiles[i].videoId, x + fs * 0.5, y + h - fs * 0.55, w - fs);
+    fillTextFit(ctx, item.label || item.channel || item.videoId, x + fs * 0.5, y + fs * 1.3, w - fs);
   });
-  // 左下: 説明
-  ctx.fillStyle = '#fff';
-  ctx.font = `700 44px ${SHARE_FONT}`;
-  fillTextFit(ctx, title.trim() || `${SHARE_TAG} ${tr('shareImageTitle')}`, 48, 706, 1040);
-  ctx.fillStyle = '#a0a0ad';
-  ctx.font = `400 28px ${SHARE_FONT}`;
-  ctx.fillText(tr('shareImageCount', filled.length, l.name), 48, 760);
-  ctx.font = `400 24px ${SHARE_FONT}`;
-  fillTextFit(ctx, tr('shareImageHow'), 48, 830, 1040);
 
-  // 右: QR (コード入り) とハッシュタグ
-  drawQr(ctx, code, 1124, 48, 428);
-  ctx.fillStyle = '#fff';
-  ctx.font = `700 34px ${SHARE_FONT}`;
-  ctx.textAlign = 'center';
-  ctx.fillText(`#${SHARE_TAG}`, 1124 + 214, 532);
-  ctx.fillStyle = '#a0a0ad';
+  // QR の置き場所: 空き枠のうち、いちばん下・右のものに収まればその真ん中 (枠に合わせて少し大きくしてよい)。
+  // 収まらなければ右下の角に重ねる
+  ctx.font = `700 26px ${SHARE_FONT}`;
+  const labelW = LOGO + 8 + ctx.measureText(SHARE_TAG).width;
+  const PAD = 20;
+  let qr = makeShareQr(code);
+  let qx;
+  let qy;
+  let lx;
+  const empty = rects.slice(filled.length).sort((a, b) => b.y + b.h - (a.y + a.h) || b.x + b.w - (a.x + a.w))[0];
+  const fits = (s) => empty && Math.max(s, labelW) <= empty.w - PAD * 2 && s + LOGO_GAP + LOGO <= empty.h - PAD * 2;
+  // (空き枠に収めるために QR を小さくはしない。縮めると、X で縮められたときに読めなくなりやすい)
+  if (fits(qr.size)) {
+    const big = makeShareQr(code, Math.min(empty.w - PAD * 2, empty.h - PAD * 2 - LOGO_GAP - LOGO) * 0.8);
+    if (big.size > qr.size && fits(big.size)) qr = big;
+    qx = Math.round(empty.x + (empty.w - qr.size) / 2);
+    qy = Math.round(empty.y + (empty.h - qr.size - LOGO_GAP - LOGO) / 2);
+    lx = qx + (qr.size - labelW) / 2;
+  } else {
+    qx = SHARE_W - M - qr.size;
+    qy = SHARE_H - M - LOGO - LOGO_GAP - qr.size;
+    lx = SHARE_W - M - labelW;
+  }
+  const ly = qy + qr.size + LOGO_GAP;
+  // 名前と説明は、QR (とロゴ) が左下の帯にかかるならその左まで、かからなければ横いっぱいまで
+  const qrLeft = Math.min(qx, lx) - 5;
+  const textW = ly + LOGO > SHARE_H - M - BAND ? qrLeft - SP - M : SHARE_W - M * 2;
+
+  // 左下の名前 (大きく。長ければ 40px まで縮め、それでも入らなければ切る) と、本数・レイアウト (小さく)。左に青い線
+  const BAR = 6;
+  const tx = M + BAR + 16;
+  const tw = textW - BAR - 16;
+  let fs = 64;
+  for (; fs > 40; fs -= 4) {
+    ctx.font = `700 ${fs}px ${SHARE_FONT}`;
+    if (ctx.measureText(title).width <= tw) break;
+  }
+  ctx.font = `700 ${fs}px ${SHARE_FONT}`;
+  const titleW = Math.min(tw, ctx.measureText(title).width);
+  const info = tr('shareImageCount', filled.length, l.name);
   ctx.font = `400 22px ${SHARE_FONT}`;
-  ctx.fillText(tr('shareImageQr'), 1124 + 214, 572);
-  ctx.textAlign = 'start';
+  const infoW = Math.min(tw, ctx.measureText(info).width);
+  // 文字の下だけ暗くぼかす (下へ濃く、文字の右から先は薄くして、下の段のサムネイルをくすませない)
+  const SCRIM_H = 300;
+  const fadeEnd = Math.min(SHARE_W, tx + Math.max(titleW, infoW) + 380);
+  const shade = document.createElement('canvas');
+  shade.width = SHARE_W;
+  shade.height = SCRIM_H;
+  const sctx = shade.getContext('2d');
+  const vg = sctx.createLinearGradient(0, 0, 0, SCRIM_H);
+  vg.addColorStop(0, 'rgba(0,0,0,0)');
+  vg.addColorStop(0.55, 'rgba(0,0,0,.7)');
+  vg.addColorStop(1, 'rgba(0,0,0,.9)');
+  sctx.fillStyle = vg;
+  sctx.fillRect(0, 0, SHARE_W, SCRIM_H);
+  const hg = sctx.createLinearGradient(0, 0, fadeEnd, 0);
+  hg.addColorStop(0, 'rgba(0,0,0,1)');
+  hg.addColorStop(Math.max(0, (fadeEnd - 380) / fadeEnd), 'rgba(0,0,0,1)');
+  hg.addColorStop(1, 'rgba(0,0,0,0)');
+  sctx.globalCompositeOperation = 'destination-in';
+  sctx.fillStyle = hg;
+  sctx.fillRect(0, 0, SHARE_W, SCRIM_H);
+  ctx.drawImage(shade, 0, SHARE_H - SCRIM_H);
+
+  const titleY = SHARE_H - M - 40;
+  ctx.fillStyle = SHARE_ACCENT;
+  ctx.fillRect(M, titleY - fs * 0.78, BAR, SHARE_H - M + 4 - (titleY - fs * 0.78));
+  ctx.shadowColor = 'rgba(0,0,0,.8)';
+  ctx.shadowBlur = 10;
+  ctx.font = `700 ${fs}px ${SHARE_FONT}`;
+  ctx.fillStyle = '#fff';
+  fillTextFit(ctx, title, tx, titleY, tw);
+  ctx.font = `400 22px ${SHARE_FONT}`;
+  ctx.fillStyle = '#d0d0da';
+  fillTextFit(ctx, info, tx, SHARE_H - M, tw);
+  ctx.shadowBlur = 0;
+
+  // QR (コード入り) と、その下にロゴと「Hakomado」
+  drawQr(ctx, qr, qx, qy);
+  const logo = await loadShareLogo();
+  ctx.shadowBlur = 8;
+  if (logo) ctx.drawImage(logo, lx, ly, LOGO, LOGO);
+  ctx.font = `700 26px ${SHARE_FONT}`;
+  ctx.fillStyle = '#fff';
+  ctx.fillText(SHARE_TAG, lx + LOGO + 8, ly + LOGO / 2 + 9);
+  ctx.shadowBlur = 0;
 
   return new Promise((resolve, reject) => canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('toBlob'))), 'image/png'));
 }
@@ -2791,19 +2942,36 @@ async function renderShareImage(title = '') {
 async function readQrFromImage(blob) {
   const bmp = await createImageBitmap(blob);
   try {
-    // 大きすぎる画像は縮めて読む (読み取りが遅くなるため)。読めなければ元の大きさでも試す
-    for (const max of [1600, Infinity]) {
-      const k = Math.min(1, max / Math.max(bmp.width, bmp.height));
-      const w = Math.round(bmp.width * k);
-      const h = Math.round(bmp.height * k);
+    const W = bmp.width;
+    const H = bmp.height;
+    const fit = Math.min(1, 1600 / Math.max(W, H)); // 大きすぎる画像は縮めて読む (読み取りが遅くなるため)
+    // 順に試す: 全体 (縮めたもの・元の大きさ)、右半分を拡大したもの (QR は右側にある。X で縮められた画像は、
+    // 拡大し直すと読めることがある)、全体を拡大したもの、全体を少し縮めたもの。[左, 上, 幅, 高さ] (割合) と倍率
+    const tries = [
+      [[0, 0, 1, 1], fit],
+      [[0, 0, 1, 1], 1],
+      [[0.5, 0, 0.5, 1], Math.min(2, 1600 / Math.max(W / 2, H))],
+      [[0, 0, 1, 1], Math.min(2, 2400 / Math.max(W, H))], // 小さい画像は全体を拡大して (QR が空き枠にあって真ん中寄りのとき)
+      [[0, 0, 1, 1], fit * 0.75],
+    ];
+    const seen = new Set();
+    for (const [[rx, ry, rw, rh], k] of tries) {
+      const sx = Math.round(W * rx);
+      const sy = Math.round(H * ry);
+      const sw = Math.round(W * rw);
+      const sh = Math.round(H * rh);
+      const w = Math.round(sw * k);
+      const h = Math.round(sh * k);
+      const key = `${sx},${sy},${w},${h}`;
+      if (seen.has(key) || w < 50 || h < 50) continue;
+      seen.add(key);
       const canvas = document.createElement('canvas');
       canvas.width = w;
       canvas.height = h;
       const ctx = canvas.getContext('2d', { willReadFrequently: true });
-      ctx.drawImage(bmp, 0, 0, w, h);
+      ctx.drawImage(bmp, sx, sy, sw, sh, 0, 0, w, h);
       const hit = jsQR(ctx.getImageData(0, 0, w, h).data, w, h, { inversionAttempts: 'attemptBoth' });
       if (hit?.data) return hit.data;
-      if (k === 1) break;
     }
     return null;
   } finally {
@@ -2821,86 +2989,197 @@ async function copyField(el) {
   }
 }
 
+/** 共有画面で今の枠に付ける名前 (このタブで最後に付けたもの。読み込んで枠に並べたときはその名前) */
+let shareTilesName = '';
+
+/** 共有画面を開く。source = 'tiles' (今の枠) か、再生リストの ID */
+let openShareDialog = () => {};
+
 function setupShare() {
   const dialog = document.getElementById('shareDialog');
-  const out = document.getElementById('shareOut');
-  const input = document.getElementById('shareIn');
-  const copied = document.getElementById('shareCopied');
-  const error = document.getElementById('shareError');
-  const loadBtn = document.getElementById('shareLoad');
-  const imgEl = document.getElementById('shareImg');
+  const sourceEl = document.getElementById('shareSource');
   const nameEl = document.getElementById('shareName');
-  const imgBtns = ['shareImgCopy', 'shareImgSave', 'shareCopy', 'shareToPlaylist'].map((id) => document.getElementById(id));
+  const status = document.getElementById('shareStatus');
+  const imgEl = document.getElementById('shareImg');
+  const codeEl = document.getElementById('shareCode');
+  const textEl = document.getElementById('shareText');
+  const linkEl = document.getElementById('shareLink');
+  const xCountEl = document.getElementById('shareXCount');
+  const tabs = dialog.querySelectorAll('[data-stab]');
+  const imgBtns = ['shareImgCopy', 'shareImgSave'].map((id) => document.getElementById(id));
+  const outBtns = [...imgBtns, ...['shareAltCopy', 'shareCopyCode', 'shareCopyText', 'shareCopyLink'].map((id) => document.getElementById(id))];
+  const TAB_KEY = 'hakomado.shareTab';
+  let source = 'tiles';
+  let set = null; // 今の共有セット (共有するものが無ければ null)
+  let tab = 'image';
   let imageBlob = null;
   let imageUrl = '';
+  let imageStale = true;
   let renderSeq = 0;
+  let refreshSeq = 0;
   let nameTimer = 0;
   closeOnBackdrop(dialog);
 
-  const setStatus = (el, text, isError = false) => {
-    el.textContent = text;
-    el.classList.toggle('share-error', isError);
+  const setStatus = (text, isError = false) => {
+    status.textContent = text;
+    status.classList.toggle('share-error', isError);
   };
 
-  /** 共有画像を作り直す (名前を打っている途中に作り直したときは、最後のものだけ使う) */
+  const clearImage = () => {
+    renderSeq++;
+    imageBlob = null;
+    if (imageUrl) URL.revokeObjectURL(imageUrl);
+    imageUrl = '';
+    imgEl.removeAttribute('src');
+    imageStale = true;
+  };
+
+  /** 共有するものの選択肢 (今の枠と、再生リスト) を作り直す。今選んでいる再生リストが消えていたら今の枠に戻す */
+  const fillSources = async () => {
+    const lists = await Playlists.list();
+    const n = shareTiles().length;
+    const tiles = new Option(n ? tr('shareSourceTiles', n) : tr('shareSourceTilesEmpty'), 'tiles');
+    const group = document.createElement('optgroup');
+    group.label = tr('shareSourcePlaylists');
+    group.append(...lists.map((p) => new Option(tr('shareSourcePl', p.name, p.items.length), p.id)));
+    sourceEl.replaceChildren(tiles, ...(lists.length ? [group] : []));
+    const gone = source !== 'tiles' && !lists.some((p) => p.id === source);
+    if (gone) source = 'tiles';
+    sourceEl.value = source;
+    return gone;
+  };
+
+  /** 選んだものの名前を名前欄に入れる (今の枠はこのタブで最後に付けた名前、再生リストはその名前) */
+  const fillName = async () => {
+    nameEl.value = source === 'tiles' ? shareTilesName : (await Playlists.get(source))?.name || '';
+  };
+
+  /** 共有するものを読み直して、各形式を作り直す */
+  const refresh = async () => {
+    const seq = ++refreshSeq;
+    const name = nameEl.value.trim();
+    let next = null;
+    if (source === 'tiles') next = tilesShareSet(name);
+    else {
+      const pl = await Playlists.get(source);
+      if (pl) next = { ...pl, name };
+    }
+    if (seq !== refreshSeq) return;
+    set = next?.items.length ? next : null;
+    const n = set?.items.length || 0;
+    const count = (max) => (n > max ? tr('shareFirstN', max, n) : tr('shareAllN', n));
+    codeEl.value = set ? shareSetCode(set) : '';
+    // X の本文に入るか (入らなければ画像で共有してもらう)
+    const xLen = set ? xLength(codeEl.value) : 0;
+    xCountEl.textContent = set ? tr(xLen > X_TEXT_MAX ? 'shareXOver' : 'shareXCount', xLen, X_TEXT_MAX) : '';
+    xCountEl.classList.toggle('share-error', xLen > X_TEXT_MAX);
+    textEl.value = set ? playlistText(set) : '';
+    linkEl.value = set ? playlistImportLink(set) : '';
+    document.getElementById('shareNoteImage').textContent = tr('shareNoteImage', count(SHARE_MAX));
+    document.getElementById('shareNoteCode').textContent = tr('shareNoteCode', count(SHARE_MAX));
+    document.getElementById('shareNoteText').textContent = tr('shareNoteText', count(Infinity));
+    document.getElementById('shareNoteLink').textContent = tr('shareNoteLink', count(IMPORT_LINK_MAX));
+    for (const b of outBtns) b.disabled = !set;
+    setStatus(set ? '' : tr(source === 'tiles' ? 'shareEmpty' : 'shareEmptyPl'));
+    imageStale = true;
+    if (!set) clearImage();
+    else if (tab === 'image') makeImage();
+  };
+
+  /** 共有画像を作り直す (作っている途中で作り直したときは、最後のものだけ使う) */
   const makeImage = async () => {
+    if (!set) return;
+    imageStale = false;
     const seq = ++renderSeq;
-    setStatus(copied, tr('shareImageMaking'));
-    for (const id of ['shareImgCopy', 'shareImgSave']) document.getElementById(id).disabled = true;
+    setStatus(tr('shareImageMaking'));
+    for (const b of imgBtns) b.disabled = true;
     try {
-      const blob = await renderShareImage(nameEl.value);
+      const blob = await renderShareImage(set);
       if (seq !== renderSeq) return;
       imageBlob = blob;
       if (imageUrl) URL.revokeObjectURL(imageUrl);
       imageUrl = URL.createObjectURL(blob);
       imgEl.src = imageUrl;
-      setStatus(copied, '');
-      for (const id of ['shareImgCopy', 'shareImgSave']) document.getElementById(id).disabled = false;
+      setStatus('');
+      for (const b of imgBtns) b.disabled = false;
     } catch (e) {
-      if (seq === renderSeq) setStatus(copied, tr('shareImageFail', e.message || e), true);
+      if (seq === renderSeq) setStatus(tr('shareImageFail', e.message || e), true);
     }
   };
-  // 名前は、このタブで最後に付けたものを次に開いたときも出しておく (同じ並びを何度か共有するとき用)
-  // Enter で共有画面 (form method="dialog") が閉じないように
+
+  // タブ (最後に開いていた形式を次も開く)。中身は同じ場所に重ねてあるので、切り替えても画面の大きさは変わらない
+  const showTab = (name) => {
+    tab = [...tabs].some((t) => t.dataset.stab === name) ? name : 'image';
+    for (const t of tabs) {
+      t.classList.toggle('selected', t.dataset.stab === tab);
+      t.setAttribute('aria-selected', String(t.dataset.stab === tab));
+    }
+    for (const p of dialog.querySelectorAll('.share-panel')) p.hidden = p.dataset.spanel !== tab;
+    try {
+      localStorage.setItem(TAB_KEY, tab);
+    } catch {
+      /* ignore */
+    }
+    if (tab === 'image' && imageStale) makeImage();
+  };
+  for (const t of tabs) t.addEventListener('click', () => showTab(t.dataset.stab));
+  try {
+    tab = localStorage.getItem(TAB_KEY) || tab;
+  } catch {
+    /* ignore */
+  }
+  showTab(tab);
+
+  openShareDialog = async ({ source: src = 'tiles' } = {}) => {
+    source = src;
+    await fillSources();
+    await fillName();
+    clearImage();
+    setStatus('');
+    if (!dialog.open) dialog.showModal();
+    await refresh();
+  };
+  document.getElementById('openShare').addEventListener('click', () => openShareDialog());
+
+  sourceEl.addEventListener('change', async () => {
+    source = sourceEl.value;
+    await fillName();
+    clearImage();
+    await refresh();
+  });
+  // Enter で画面 (form method="dialog") が閉じないように
   nameEl.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') e.preventDefault();
   });
   nameEl.addEventListener('input', () => {
+    if (source === 'tiles') shareTilesName = nameEl.value.trim();
     clearTimeout(nameTimer);
-    nameTimer = setTimeout(() => viewingSetCode() && makeImage(), 300);
+    nameTimer = setTimeout(refresh, 300);
   });
 
-  document.getElementById('openShare').addEventListener('click', async () => {
-    const code = viewingSetCode();
-    out.value = code;
-    out.placeholder = code ? '' : tr('shareEmpty');
-    for (const b of imgBtns) b.disabled = !code;
-    setStatus(copied, '');
-    setStatus(error, '');
-    imageBlob = null;
-    if (imageUrl) URL.revokeObjectURL(imageUrl);
-    imageUrl = '';
-    imgEl.removeAttribute('src');
-    imgEl.classList.toggle('empty', !code);
-    nameEl.disabled = !code;
-    dialog.showModal();
-    if (code) await makeImage();
-  });
-
-  document.getElementById('shareCopy').addEventListener('click', async () => {
-    await copyField(out);
-    setStatus(copied, tr('shareCopied'));
-  });
-  document.getElementById('shareToPlaylist').addEventListener('click', async () => {
-    if (await playlistFromTiles({ notifyOnly: true })) dialog.close();
-  });
+  const copy = async (el, msg) => {
+    await copyField(el);
+    setStatus(tr(msg));
+  };
+  document.getElementById('shareCopyCode').addEventListener('click', () => copy(codeEl, 'shareCopied'));
+  document.getElementById('shareCopyText').addEventListener('click', () => copy(textEl, 'plShareCopiedText'));
+  document.getElementById('shareCopyLink').addEventListener('click', () => copy(linkEl, 'plShareCopiedLink'));
   document.getElementById('shareImgCopy').addEventListener('click', async () => {
     if (!imageBlob) return;
     try {
       await navigator.clipboard.write([new ClipboardItem({ 'image/png': imageBlob })]);
-      setStatus(copied, tr('shareImageCopied'));
+      setStatus(tr('shareImageCopied'));
     } catch (e) {
-      setStatus(copied, tr('shareImageFail', e.message || e), true);
+      setStatus(tr('shareImageFail', e.message || e), true);
+    }
+  });
+  document.getElementById('shareAltCopy').addEventListener('click', async () => {
+    if (!set) return;
+    try {
+      await navigator.clipboard.writeText(shareAltText(set));
+      setStatus(tr('shareAltCopied'));
+    } catch {
+      setStatus(tr('shareAiFailed'), true);
     }
   });
   document.getElementById('shareImgSave').addEventListener('click', () => {
@@ -2913,51 +3192,164 @@ function setupShare() {
     a.click();
   });
 
-  /** テキストを読み込んで、今の枠を置き換える */
-  const loadText = async (text) => {
-    loadBtn.disabled = true;
+  // 開いている間に再生リストが編集・削除されたら作り直す (名前欄は書きかけを残す)
+  chrome.storage.onChanged.addListener(async (changes, area) => {
+    if (area !== 'local' || !Playlists.isChange(changes) || !dialog.open) return;
+    if (await fillSources()) await fillName();
+    if (source !== 'tiles') {
+      clearImage();
+      await refresh();
+    }
+  });
+}
+
+// ---------------------------------------------------------------- 📥 読み込む
+// 画像・コード・テキスト・取り込み用リンク・URL のどれを貼っても (画像はドロップでも) parseIncoming で読み取り、
+// 内容を確かめてから「枠に並べる」か「再生リストとして保存」を選ぶ。Enter で押すほう (主ボタン) は開いた入口で変える
+// (ツールバー = 枠に並べる、ライブラリ・取り込み用リンク = 保存)。画面のどこかで Ctrl+V しても、ここに入れて開く。
+// AI チャットへの頼み文のコピーもここ (折りたたみの中)
+
+/**
+ * 読み込み画面を開く。primary = Enter で押すボタン ('apply' 枠に並べる / 'save' 保存)。
+ * text を渡すと貼り付け欄に入れて読み取り、image (Blob) を渡すと QR を読む。lead は読み取った内容の上に出す一言
+ */
+let openReadDialog = () => {};
+
+function setupRead() {
+  const dialog = document.getElementById('readDialog');
+  const input = document.getElementById('readIn');
+  const summary = document.getElementById('readSummary');
+  const nameEl = document.getElementById('readName');
+  const applyBtn = document.getElementById('readApply');
+  const saveBtn = document.getElementById('readSave');
+  const aiCopied = document.getElementById('readAiCopied');
+  let primary = 'apply';
+  let parsed = null; // 読み取った共有セット (読み取り中・読めなかったときは null)
+  let parseSeq = 0;
+  let parseTimer = 0;
+  let nameTimer = 0;
+  let nameTouched = false; // 名前を自分で書いたら、読み取った名前で上書きしない
+  let busy = false;
+  let lead = '';
+  closeOnBackdrop(dialog);
+
+  const setSummary = (text, isError = false) => {
+    summary.textContent = [lead, text].filter(Boolean).join('\n');
+    summary.classList.toggle('share-error', isError);
+  };
+  const updateButtons = () => {
+    applyBtn.disabled = saveBtn.disabled = busy || !parsed;
+  };
+  const setPrimary = (p) => {
+    primary = p === 'save' ? 'save' : 'apply';
+    applyBtn.classList.toggle('primary-action', primary === 'apply');
+    saveBtn.classList.toggle('primary-action', primary === 'save');
+  };
+  const primaryBtn = () => (primary === 'save' ? saveBtn : applyBtn);
+
+  /** 読み取った内容 (1 行目に名前・本数・レイアウト・同期、続けて注意) */
+  const describe = async (set) => {
+    const parts = [];
+    if (set.name) parts.push(tr('readName', set.name));
+    parts.push(tr('readCount', set.items.length));
+    const layout = set.layoutId && LAYOUTS.find((l) => l.id === set.layoutId);
+    if (layout) parts.push(tr('readLayout', layout.name));
+    if (set.sync) parts.push(tr(set.items.some((h) => h.offset) ? 'readSyncOffsets' : 'readSync'));
+    const notes = [];
+    if (set.bad) notes.push(tr('shareBadLines', set.bad));
+    if (set.tooMany) notes.push(tr('plTooMany', Playlists.MAX_ITEMS));
+    if (set.items.length > SHARE_MAX) notes.push(tr(set.sync ? 'readOverSync' : 'readOverTiles', SHARE_MAX));
+    const name = nameEl.value.trim() || set.name;
+    if (name && (await Playlists.list()).some((p) => p.name === name)) notes.push(tr('readReplace', name));
+    return [parts.join(' / '), ...notes].join('\n');
+  };
+
+  /** 貼り付け欄を読み取る (読み取っている途中で書き換えたときは、最後のものだけ使う) */
+  const parse = async () => {
+    clearTimeout(parseTimer);
+    const seq = ++parseSeq;
+    parsed = null;
+    updateButtons();
+    const text = input.value;
+    if (!text.trim()) {
+      setSummary('');
+      return;
+    }
     try {
-      const { ids, labels, layoutId, bad, tooMany, offsets, ref } = await parseViewingSet(text, (done, total) => {
-        setStatus(error, tr('shareLoading', done, total));
+      const set = await parseIncoming(text, (done, total) => {
+        if (seq === parseSeq) setSummary(tr('shareLoading', done, total));
       });
-      if (!ids.length) {
-        setStatus(error, tr('shareNothing'), true);
+      if (seq !== parseSeq) return;
+      if (!set.items.length) {
+        setSummary(tr('shareNothing'), true);
         return;
       }
-      await applyViewingSet(ids, layoutId, { offsets, ref, labels });
-      setStatus(error, '');
-      input.value = '';
-      dialog.close();
-      const notes = [bad ? tr('shareBadLines', bad) : '', tooMany ? tr('shareTooMany') : ''].filter(Boolean);
-      notify([tr(offsets ? 'shareLoadedSync' : 'shareLoaded', ids.length), ...notes].join(' / '));
-    } finally {
-      loadBtn.disabled = false;
+      if (!nameTouched) nameEl.value = set.name.slice(0, Playlists.NAME_MAX);
+      const text2 = await describe(set);
+      if (seq !== parseSeq) return;
+      parsed = set;
+      setSummary(text2);
+      updateButtons();
+    } catch (e) {
+      if (seq === parseSeq) setSummary(String(e?.message || e), true);
     }
   };
-  /** 画像の QR を読んで、読めたら読み込む */
-  const loadImage = async (blob) => {
-    setStatus(error, tr('shareImageReading'));
+  const parseSoon = () => {
+    clearTimeout(parseTimer);
+    parseSeq++; // 読み取り中のものは捨てる
+    parsed = null;
+    updateButtons();
+    parseTimer = setTimeout(parse, 600);
+  };
+
+  /** 画像の QR を読んで、読めたら貼り付け欄に入れて読み取る */
+  const readImage = async (blob) => {
+    clearTimeout(parseTimer);
+    const seq = ++parseSeq;
+    parsed = null;
+    updateButtons();
+    setSummary(tr('shareImageReading'));
     let text = null;
     try {
       text = await readQrFromImage(blob);
     } catch {
       /* 画像として読めない */
     }
+    if (seq !== parseSeq) return;
     if (!text || !SHARE_CODE_RE.test(text)) {
-      setStatus(error, tr('shareImageNoQr'), true);
+      setSummary(tr('shareImageNoQr'), true);
       return;
     }
     input.value = text;
-    await loadText(text);
+    await parse();
   };
-  loadBtn.addEventListener('click', () => loadText(input.value));
 
+  openReadDialog = async ({ primary: p = 'apply', text, image, lead: l = '' } = {}) => {
+    setPrimary(p);
+    lead = l;
+    aiCopied.textContent = '';
+    if (text != null || image) {
+      input.value = text ?? '';
+      nameEl.value = '';
+      nameTouched = false;
+    }
+    if (!dialog.open) dialog.showModal();
+    if (image) await readImage(image);
+    else await parse(); // 前に貼ったものが残っていれば読み直す (名前の重なりなどが変わっているかもしれないので)
+    (parsed ? primaryBtn() : input).focus();
+  };
+
+  input.addEventListener('input', () => {
+    lead = '';
+    parseSoon();
+  });
   // 画像の貼り付け (X の画像を「画像をコピー」したものなど)
   input.addEventListener('paste', (e) => {
     const file = [...(e.clipboardData?.files || [])].find((f) => f.type.startsWith('image/'));
     if (!file) return;
     e.preventDefault();
-    loadImage(file);
+    lead = '';
+    readImage(file);
   });
   // 画像ファイル・ほかのタブの画像のドロップ
   dialog.addEventListener('dragover', (e) => {
@@ -2968,57 +3360,112 @@ function setupShare() {
     const url = e.dataTransfer.getData('text/uri-list').split(/\r?\n/).find((u) => /^https:\/\//.test(u));
     if (!file && !url) return;
     e.preventDefault();
+    lead = '';
     if (file) {
-      loadImage(file);
+      readImage(file);
       return;
     }
-    // ほかのタブからドラッグした画像は URL で届くので、取りに行く (X の画像は CORS で読める)
+    // ほかのタブからドラッグした画像は URL で届くので、取りに行く (X の画像は CORS で読める)。画像でなければ URL として読む
     try {
       const res = await fetch(url, { credentials: 'omit', signal: AbortSignal.timeout(20000) });
       const blob = await res.blob();
-      if (blob.type.startsWith('image/')) loadImage(blob);
-      else setStatus(error, tr('shareImageNoQr'), true);
+      if (blob.type.startsWith('image/')) {
+        readImage(blob);
+        return;
+      }
     } catch {
-      setStatus(error, tr('shareImageNoQr'), true);
+      /* 取れなければ URL として読む */
+    }
+    input.value = url;
+    parse();
+  });
+
+  // 名前: 書いたら読み取った名前で上書きしない。Enter で主ボタン
+  nameEl.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' || e.isComposing) return;
+    e.preventDefault();
+    if (!primaryBtn().disabled) primaryBtn().click();
+  });
+  nameEl.addEventListener('input', () => {
+    nameTouched = true;
+    clearTimeout(nameTimer);
+    nameTimer = setTimeout(async () => {
+      const set = parsed;
+      if (!set) return;
+      const text = await describe(set);
+      if (parsed === set) setSummary(text);
+    }, 300);
+  });
+  // 貼り付け欄は Ctrl+Enter で主ボタン
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && !primaryBtn().disabled) {
+      e.preventDefault();
+      primaryBtn().click();
     }
   });
-}
 
-// ---------------------------------------------------------------- 📥 再生リストを貼り付けて作る
-// URL のリスト・共有された再生リストのテキスト・取り込み用リンク・視聴セットのコードを貼って保存する
-// (再生リストは主にライブラリの画面で作る。こちらは人からもらったものや、AI チャットに作ってもらったものを入れる補助)。
-// AI チャットへの頼み文のコピーもここ (折りたたみの中)。取り込み用リンクを開いたときもこの画面に入れて開く
-
-/** 再生リストを作る画面を開く。text / name を渡すと貼り付け欄と名前を埋めておき、message を知らせ欄に出す (setupPlaylistDialog で中身が入る) */
-let openPlaylistDialog = () => {};
-
-function setupPlaylistDialog() {
-  const dialog = document.getElementById('plDialog');
-  const input = document.getElementById('plIn');
-  const nameEl = document.getElementById('plName');
-  const saveBtn = document.getElementById('plSave');
-  const status = document.getElementById('plStatus');
-  const aiCopied = document.getElementById('plAiCopied');
-  closeOnBackdrop(dialog);
-  const setStatus = (text, isError = false) => {
-    status.textContent = text;
-    status.classList.toggle('share-error', isError);
+  const reset = () => {
+    input.value = '';
+    nameEl.value = '';
+    nameTouched = false;
+    parsed = null;
+    lead = '';
+    setSummary('');
   };
-  // Enter で画面 (form method="dialog") が閉じないように
-  nameEl.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') e.preventDefault();
+
+  applyBtn.addEventListener('click', async () => {
+    const set = parsed && { ...parsed, name: nameEl.value.trim() || parsed.name };
+    if (!set) return;
+    busy = true;
+    updateButtons();
+    try {
+      await applyShareSet(set);
+      shareTilesName = set.name; // 共有画面にも同じ名前を出す
+      const n = Math.min(set.items.length, SHARE_MAX);
+      const notes = [set.bad ? tr('shareBadLines', set.bad) : '', set.items.length > SHARE_MAX ? tr('shareTooMany') : ''].filter(Boolean);
+      notify([tr(set.sync ? 'shareLoadedSync' : 'shareLoaded', n), ...notes].join(' / '));
+      reset();
+      dialog.close();
+      if (favDialog.open) favDialog.close(); // ライブラリから開いたときは、並べた枠が見えるように
+    } finally {
+      busy = false;
+      updateButtons();
+    }
   });
 
-  openPlaylistDialog = ({ text, name, message } = {}) => {
-    aiCopied.textContent = '';
-    setStatus(message || '');
-    if (text != null) input.value = text;
-    if (name != null) nameEl.value = name;
-    if (!dialog.open) dialog.showModal();
-    (text != null ? saveBtn : input).focus();
-  };
+  saveBtn.addEventListener('click', async () => {
+    const set = parsed;
+    if (!set) return;
+    busy = true;
+    updateButtons();
+    try {
+      const r = await Playlists.save(nameEl.value.trim() || set.name || defaultPlaylistName(), set.items, {
+        sync: set.sync,
+        layoutId: set.layoutId,
+        ref: set.ref,
+      });
+      if (!r?.playlist) {
+        setSummary(r?.full ? tr('plFull', Playlists.MAX_LISTS) : tr('plSaveFailed'), true);
+        return;
+      }
+      const saved = r.playlist.items.length;
+      const cut = set.tooMany || saved < set.items.length;
+      const tooManyNote = r.playlist.sync ? tr('plTooManySync', Playlists.SYNC_MAX) : tr('plTooMany', Playlists.MAX_ITEMS);
+      const notes = [set.bad ? tr('shareBadLines', set.bad) : '', cut ? tooManyNote : ''].filter(Boolean);
+      notify([tr(r.replaced ? 'plReplaced' : 'plSaved', r.playlist.name, saved), ...notes].join(' / '));
+      reset();
+      dialog.close();
+      // 保存した再生リストをライブラリで開く (そのまま再生できるように)
+      selectPlaylist(r.playlist.id);
+      rememberLibraryTab('playlists');
+      openFavorites(null, 'library');
+    } finally {
+      busy = false;
+      updateButtons();
+    }
+  });
 
-  document.getElementById('plAi').addEventListener('click', async () => {
+  document.getElementById('readAi').addEventListener('click', async () => {
     try {
       await navigator.clipboard.writeText(await aiPromptText());
       aiCopied.textContent = tr('shareAiCopied');
@@ -3027,37 +3474,20 @@ function setupPlaylistDialog() {
     }
   });
 
-  saveBtn.addEventListener('click', async () => {
-    saveBtn.disabled = true;
-    try {
-      const { items, name, opts, bad, tooMany } = await parsePlaylistText(input.value, (done, total) => {
-        setStatus(tr('shareLoading', done, total));
-      });
-      if (!items.length) {
-        setStatus(tr('shareNothing'), true);
-        return;
-      }
-      const r = await Playlists.save(nameEl.value.trim() || name || defaultPlaylistName(), items, opts);
-      if (!r?.playlist) {
-        setStatus(r?.full ? tr('plFull', Playlists.MAX_LISTS) : tr('plSaveFailed'), true);
-        return;
-      }
-      setStatus('');
-      input.value = '';
-      nameEl.value = '';
-      dialog.close();
-      const saved = r.playlist.items.length;
-      const cut = tooMany || saved < items.length;
-      const tooManyNote = r.playlist.sync ? tr('plTooManySync', Playlists.SYNC_MAX) : tr('plTooMany', Playlists.MAX_ITEMS);
-      const notes = [bad ? tr('shareBadLines', bad) : '', cut ? tooManyNote : ''].filter(Boolean);
-      notify([tr(r.replaced ? 'plReplaced' : 'plSaved', r.playlist.name, saved), ...notes].join(' / '));
-      // 保存した再生リストをライブラリで開く (そのまま「▶ 今の枠で順に再生」を押せるように)
-      selectPlaylist(r.playlist.id);
-      rememberLibraryTab('playlists');
-      openFavorites(null, 'library');
-    } finally {
-      saveBtn.disabled = false;
-    }
+  document.getElementById('openRead').addEventListener('click', () => openReadDialog({ primary: 'apply' }));
+
+  // 画面のどこかで貼り付けた (入力欄の外で Ctrl+V) ときも、共有されたものならここで読む。
+  // ほかの画面 (設定など) を開いているときは何もしない。共有画面からは、こちらに切り替える
+  document.addEventListener('paste', (e) => {
+    if (e.target instanceof Element && e.target.closest('input, textarea, select, [contenteditable]')) return;
+    const open = [...document.querySelectorAll('dialog[open]')];
+    if (open.some((d) => d !== dialog && d.id !== 'shareDialog')) return;
+    const image = [...(e.clipboardData?.files || [])].find((f) => f.type.startsWith('image/'));
+    const text = e.clipboardData?.getData('text/plain') || '';
+    if (!image && !text.trim()) return;
+    e.preventDefault();
+    document.getElementById('shareDialog').close();
+    openReadDialog({ primary: 'apply', text: image ? null : text, image });
   });
 }
 
@@ -3134,7 +3564,8 @@ async function aiPromptText() {
 }
 
 /**
- * 取り込み用リンクから開いたとき (#import=…)。リンクの中身を「再生リストを作る」画面の貼り付け欄に入れて開き、名前を確かめて保存してもらう。
+ * 取り込み用リンクから開いたとき (#import=…)。リンクの中身を読み込み画面の貼り付け欄に入れて開き、名前を確かめて保存してもらう
+ * (枠に並べることもできる)。
  * (YouTube の watch_videos の URL を、background.js がこの画面に付け替えて開く)
  */
 function handleImportLink() {
@@ -3153,10 +3584,12 @@ function handleImportLink() {
     notify(tr('importNothing'));
     return;
   }
-  openPlaylistDialog({
-    text: link.ids.map((id) => `${YT}/watch?v=${id}`).join('\n'),
-    name: link.name.slice(0, Playlists.NAME_MAX),
-    message: tr('importReceived', link.ids.length),
+  // 名前は「# playlist=」の行にして入れる (読み取った内容と名前欄にそのまま出る)
+  const name = link.name.replace(/[\r\n]/g, ' ').trim();
+  openReadDialog({
+    primary: 'save',
+    text: [...(name ? [`# playlist=${name}`] : []), ...link.ids.map((id) => `${YT}/watch?v=${id}`)].join('\n'),
+    lead: tr('importReceived', link.ids.length),
   });
 }
 
@@ -3388,9 +3821,8 @@ function setupToolbar() {
   document.getElementById('settingsReset').addEventListener('click', resetSettings);
   setupBackup();
   setupShare();
-  setupPlaylistDialog();
+  setupRead();
   setupPlaylistPicker();
-  setupPlaylistShare();
   setupPacks();
   Sync.setup();
   showAppVersion();
@@ -4291,7 +4723,7 @@ function playlistEditor(pl) {
     nameInput,
     mk('span', { class: 'fav-count', textContent: tr('savedCount', pl.items.length, Playlists.limitOf(pl)) }),
     mk('span', { class: 'spacer' }),
-    mk('button', { type: 'button', textContent: tr('plShareBtn'), title: tr('plShareBtnTitle'), disabled: !pl.items.length, onclick: () => openPlaylistShare(pl.id) }),
+    mk('button', { type: 'button', textContent: tr('plShareBtn'), title: tr('plShareBtnTitle'), disabled: !pl.items.length, onclick: () => openShareDialog({ source: pl.id }) }),
     mk('button', { type: 'button', textContent: tr('plDuplicate'), title: tr('plDuplicateTitle'), onclick: () => duplicatePlaylist(pl.id) }),
     mk('button', { type: 'button', class: 'pl-delete', textContent: '🗑', title: tr('plDeleteTitle'), onclick: deleteSelectedPlaylist }),
   );
@@ -4803,24 +5235,19 @@ async function newPlaylist() {
  * ▦ 今の枠から作る: 表示中の枠の配信を、並び順・枠の名前・レイアウト・同期のずれごと新しい再生リストにする。
  * 同期再生中か、ずれを合わせた動画があれば「同期再生」にして、今の基準の枠を基準にする
  */
-async function playlistFromTiles({ notifyOnly = false } = {}) {
-  const say = (text) => (notifyOnly ? notify(text) : (favErrorEl.textContent = text));
-  const items = tileEntries();
+async function playlistFromTiles() {
+  const { items, sync, layoutId, ref } = tilesShareSet();
   if (!items.length) {
-    say(tr('shareEmpty'));
-    return null;
+    favErrorEl.textContent = tr('shareEmpty');
+    return;
   }
-  const refTile = Sync.refIfOn();
-  const sync = Sync.isOn() || items.some((x) => x.offset);
-  const opts = { sync, layoutId: sync ? state.layoutId : null, ref: sync && refTile != null ? state.tiles[refTile].videoId : null };
-  const r = await Playlists.create(defaultPlaylistName(), items, opts, { unique: true });
+  const r = await Playlists.create(defaultPlaylistName(), items, { sync, layoutId: sync ? layoutId : null, ref }, { unique: true });
   if (!r.playlist) {
-    say(tr(r.full ? 'plFull' : 'plSaveFailed', Playlists.MAX_LISTS));
-    return null;
+    favErrorEl.textContent = tr(r.full ? 'plFull' : 'plSaveFailed', Playlists.MAX_LISTS);
+    return;
   }
   notify(tr('plSaved', r.playlist.name, items.length));
   showNewPlaylist(r.playlist);
-  return r.playlist;
 }
 
 async function deleteSelectedPlaylist() {
@@ -4890,41 +5317,6 @@ function playlistOffsetChanged(videoId, v) {
 /** 同期の基準を選び直した (同期再生中の再生リストの動画なら、再生リストの基準にもする) */
 function playlistRefChanged(videoId) {
   if (inPlaylistSync(videoId)) Playlists.setOptions(playlistSyncSession.id, { ref: videoId });
-}
-
-// ---- 🔗 再生リストの共有
-let plShareId = null;
-
-async function openPlaylistShare(id) {
-  const pl = await Playlists.get(id);
-  if (!pl) return;
-  plShareId = id;
-  document.getElementById('plShareTitle').textContent = tr('plShareH', pl.name);
-  document.getElementById('plShareText').value = playlistText(pl);
-  document.getElementById('plShareLink').value = playlistImportLink(pl);
-  document.getElementById('plShareCode').value = playlistShareCode(pl);
-  document.getElementById('plShareLinkNote').textContent =
-    pl.items.length > IMPORT_LINK_MAX ? tr('plShareLinkOver', IMPORT_LINK_MAX) : tr('plShareLinkNote', IMPORT_LINK_MAX);
-  document.getElementById('plShareStatus').textContent = '';
-  const d = document.getElementById('plShareDialog');
-  if (!d.open) d.showModal();
-}
-
-function setupPlaylistShare() {
-  const dialog = document.getElementById('plShareDialog');
-  const status = document.getElementById('plShareStatus');
-  closeOnBackdrop(dialog);
-  const copy = async (el, msg) => {
-    await copyField(el);
-    status.textContent = tr(msg);
-  };
-  document.getElementById('plShareCopyText').addEventListener('click', (e) => copy(document.getElementById('plShareText'), 'plShareCopiedText'));
-  document.getElementById('plShareCopyLink').addEventListener('click', () => copy(document.getElementById('plShareLink'), 'plShareCopiedLink'));
-  document.getElementById('plShareCopyCode').addEventListener('click', () => copy(document.getElementById('plShareCode'), 'shareCopied'));
-  // 開いている間に編集されたら作り直す
-  chrome.storage.onChanged.addListener((changes, area) => {
-    if (area === 'local' && Playlists.isChange(changes) && dialog.open && plShareId) openPlaylistShare(plShareId);
-  });
 }
 
 // ---- 📃 再生リストに入れる (枠のバーや一覧の 📃 で開く小さな画面)
@@ -6394,7 +6786,7 @@ function setupFavorites() {
   });
   document.getElementById('plNew').addEventListener('click', newPlaylist);
   document.getElementById('plFromTiles').addEventListener('click', () => playlistFromTiles());
-  document.getElementById('plImport').addEventListener('click', () => openPlaylistDialog());
+  document.getElementById('plImport').addEventListener('click', () => openReadDialog({ primary: 'save' }));
   document.getElementById('openFavorites').addEventListener('click', () => openFavorites(null, 'library'));
   document.getElementById('favClose').addEventListener('click', () => favDialog.close());
   document.getElementById('favRefresh').addEventListener('click', () => {
