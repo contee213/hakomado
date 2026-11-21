@@ -62,9 +62,50 @@ async function applyRules(tabIds) {
 // 初めてインストールしたときだけ、マルチビュー画面でツアーを出す印を付ける (バージョンアップや再読み込みでは出さない)
 chrome.runtime.onInstalled.addListener(({ reason }) => {
   if (reason === 'install') chrome.storage.local.set({ tourPending: true });
+  installImportRule().catch((e) => console.warn('hakomado: 取り込み用リンクのルールを設定できませんでした', e));
 });
 
+// ---- 取り込み用リンク (AI チャットなどが作る再生リストのリンク)
+// https://www.youtube.com/watch_videos?video_ids=ID,ID,…&hakomado=名前 は、YouTube では一時的な再生リストとして開く
+// (hakomado= は YouTube には無視される)。Hakomado が入っていれば、hakomado= の付いたものだけを
+// YouTube の存在しないページ /hakomado_import?… (クエリはそのまま) に付け替え、そこで動く content/import.js の知らせで
+// タブをマルチビュー画面 (grid.html#import=…) に切り替える。hakomado= の無い watch_videos には何もしない
+const IMPORT_RULE_ID = 10;
+const IMPORT_PAGE = 'https://www.youtube.com/hakomado_import';
+
+async function installImportRule() {
+  await chrome.declarativeNetRequest.updateDynamicRules({
+    removeRuleIds: [IMPORT_RULE_ID],
+    addRules: [
+      {
+        id: IMPORT_RULE_ID,
+        priority: 1,
+        action: { type: 'redirect', redirect: { transform: { path: '/hakomado_import' } } },
+        condition: { urlFilter: '|https://www.youtube.com/watch_videos?*hakomado=', resourceTypes: ['main_frame'] },
+      },
+    ],
+  });
+}
+
+function openImport(sender) {
+  if (sender.id !== chrome.runtime.id || sender.tab?.id == null || sender.frameId !== 0) return;
+  let url;
+  try {
+    url = new URL(sender.url);
+  } catch {
+    return;
+  }
+  if (url.origin + url.pathname !== IMPORT_PAGE) return;
+  // 中身はページから受け取らず、タブの URL から読む
+  const target = `${chrome.runtime.getURL('grid.html')}#import=${encodeURIComponent(url.search.slice(1))}`;
+  chrome.tabs.update(sender.tab.id, { url: target }).catch(() => {});
+}
+
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  if (msg?.type === 'import-link') {
+    openImport(sender);
+    return false;
+  }
   const tabId = sender.tab?.id;
   if (tabId == null || sender.id !== chrome.runtime.id) return false;
   if (sender.url && !sender.url.startsWith(chrome.runtime.getURL('grid.html'))) return false;

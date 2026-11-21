@@ -17,6 +17,7 @@ This is an unofficial tool made by an individual. Please read the [Disclaimer](#
 - **🎲 Surprise me**: a button on empty tiles adds one stream not shown yet (pickup live → other live → recent streams). Auto play can also play recent streams when nothing is live
 - **Pickup**: limit auto play and notifications to the channels you are following right now (e.g. the members of a group event)
 - **Notifications / watch history / watch later**: notifications when streams start, a history of what you watched, and streams to watch later (🔖; play them in order in the current tiles, removed once watched to the end)
+- **📃 Playlists / AI chat**: save named lists of streams and play them in order in the current tiles (nothing is removed when played). Add streams with 📃 on a tile bar or in the library lists, make one from the current tiles, and drag to reorder. “📋 Copy request” in “📃 Playlists” → “+ New” in the library gives an AI chat such as Claude the list format and your channels, so it can build lists like “this week’s group collab from every participant’s view”. Paste the text it returns, or open the import link (`https://www.youtube.com/watch_videos?video_ids=ID,ID,…&hakomado=name`) to save it. Without Hakomado, the link opens as a temporary YouTube playlist
 - **Japanese / English**: follows the browser language (can be fixed in settings)
 
 ## Requirements

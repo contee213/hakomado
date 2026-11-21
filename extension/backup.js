@@ -26,6 +26,7 @@ const Backup = (() => {
       'presetsDeclined',
       'history',
       'saved',
+      'playlists',
     ]);
     return {
       app: APP,
@@ -41,6 +42,7 @@ const Backup = (() => {
         presetsDeclined: d.presetsDeclined === true,
         history: d.history || [],
         saved: d.saved || [],
+        playlists: d.playlists || [],
       },
     };
   }
@@ -126,6 +128,7 @@ const Backup = (() => {
     const favorites = uniqueBy((Array.isArray(d.favorites) ? d.favorites : []).map(cleanChannel), 'channelId').slice(0, MAX_CHANNELS);
     const history = uniqueBy((Array.isArray(d.history) ? d.history : []).map(cleanVideo), 'videoId').slice(0, MAX_ITEMS);
     const saved = uniqueBy((Array.isArray(d.saved) ? d.saved : []).map(cleanVideo), 'videoId').slice(0, MAX_ITEMS);
+    const playlists = uniqueBy((Array.isArray(d.playlists) ? d.playlists : []).map(Playlists.clean), 'id').slice(0, Playlists.MAX_LISTS);
     const removedPresets = (Array.isArray(d.removedPresets) ? d.removedPresets : []).filter((id) => CHANNEL_RE.test(id));
     const data = {
       settings: cleanSettings(d.settings, settingsDefaults),
@@ -135,18 +138,19 @@ const Backup = (() => {
       presetsDeclined: d.presetsDeclined === true,
       history,
       saved,
+      playlists,
     };
     const lang = ['auto', 'ja', 'en'].includes(json.lang) ? json.lang : null;
     return {
       data,
       lang,
-      counts: { channels: favorites.length, stars: favorites.filter((f) => f.star).length, history: history.length, saved: saved.length },
+      counts: { channels: favorites.length, stars: favorites.filter((f) => f.star).length, history: history.length, saved: saved.length, playlists: playlists.length },
     };
   }
 
   /** 確かめた内容で今の内容を置き換える (他のタブには storage.onChanged で伝わる) */
   // 他のタブが同じ項目を読んでから書くまでの途中に割り込まないよう、それぞれの書き込みと同じロックを取ってから置き換える
-  const LOCKS = ['hakomado-favorites', 'hakomado-history', 'hakomado-saved', 'hakomado-settings'];
+  const LOCKS = ['hakomado-favorites', 'hakomado-history', 'hakomado-saved', 'hakomado-playlists', 'hakomado-settings'];
   async function apply({ data, lang }) {
     const run = (i) => (i < LOCKS.length ? navigator.locks.request(LOCKS[i], () => run(i + 1)) : chrome.storage.local.set(data));
     await run(0);
