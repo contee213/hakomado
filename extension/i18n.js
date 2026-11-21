@@ -222,6 +222,40 @@ const MESSAGES = {
   syncEnded: ['この配信は、この時刻にはもう終わっています', 'This stream has already ended at this time'],
   syncNoOverlap: ['時間帯が重ならないため、同期していません', 'Not synced: the time ranges do not overlap'],
   syncRefOpt: ['基準: {0}', 'Ref: {0}'],
+  syncTitle: [
+    'アーカイブ同期: 配信のアーカイブを、配信していた実際の時刻でそろえて再生する',
+    'Archive sync: play stream archives aligned to when they were actually streamed',
+  ],
+  syncWhyNeed: [
+    '配信の時間帯が重なるアーカイブを 2 本以上並べると使えます',
+    'Available when 2 or more stream archives with overlapping times are shown',
+  ],
+  syncWhyEmpty: ['今は枠に何も読み込んでいません', 'Nothing is loaded in the tiles yet'],
+  syncWhyNoOverlap: ['今のアーカイブは、配信の時間帯が重なっていません', 'The archives shown were not streamed at overlapping times'],
+  syncWhyArchives: ['今の枠のアーカイブ: {0} 本', 'Archives in the tiles: {0}'],
+  syncWhyLive: ['ライブ配信中: {0} 本 (配信が終わってアーカイブになると使えます)', 'Live now: {0} (usable once the stream ends and becomes an archive)'],
+  syncWhyUpcoming: ['配信前: {0} 本', 'Not started yet: {0}'],
+  syncWhyVideo: ['ふつうの動画: {0} 本 (配信の時刻が無いので同期できません)', 'Regular videos: {0} (they have no stream times, so they cannot be synced)'],
+  syncWhyBlocked: ['見られない動画: {0} 本', 'Not viewable: {0}'],
+  syncWhyLoading: ['確認中: {0} 本 (アーカイブだと分かりしだい使えます)', 'Checking: {0} (usable once recognized as archives)'],
+  infoKind_live: ['ライブ', 'Live'],
+  infoKind_upcoming: ['配信前', 'Upcoming'],
+  infoKind_archive: ['アーカイブ', 'Archive'],
+  infoKind_video: ['動画', 'Video'],
+  infoKind_blocked: ['見られない', 'Unavailable'],
+  infoKind_loading: ['確認中', 'Checking'],
+  infoSync_live: ['ライブ中 (終わると使えます)', 'Live (usable after it ends)'],
+  infoSync_upcoming: ['配信前', 'Not started yet'],
+  infoSync_video: ['動画は同期できません', 'Videos cannot be synced'],
+  infoSync_blocked: ['見られない', 'Unavailable'],
+  infoSync_loading: ['確認中', 'Checking'],
+  infoSyncRef: ['同期中 (基準)', 'Syncing (reference)'],
+  infoSyncOn: ['同期中', 'Syncing'],
+  infoSyncCan: ['同期できます', 'Can sync'],
+  infoSyncNoOverlap: ['時間帯が重なるアーカイブがありません', 'No archive overlaps in time'],
+  infoSyncAlone: ['ほかにアーカイブがありません', 'No other archive'],
+  infoLiveNow: ['配信中', 'Live now'],
+  infoPlanned: ['{0} (予定)', '{0} (planned)'],
   syncRefMoved: ['基準の枠が無くなったので、{0} を基準にしました', 'The reference tile is gone, so {0} is now the reference'],
   syncOffset: ['ずれ {0}秒', 'Offset {0}s'],
   syncDriftAhead: ['追いつき中: 設定の位置より {0} 秒進んでいます', 'Catching up: {0}s ahead of the set position'],
@@ -707,8 +741,22 @@ const HTML_EN = {
 
   // 使い方
   'help.h': '? Help',
-  'sync.title': 'Archive sync: play archives aligned to when they were actually streamed',
-  'sync.label': 'Sync',
+  'sync.title': 'Archive sync: play stream archives aligned to when they were actually streamed',
+  'sync.label': 'Archive sync',
+  'info.title': 'Tile info (I): the type (live, archive, video), stream times, viewers, views and more for each tile',
+  'info.h': 'ℹ️ Tile info',
+  'info.colTile': 'Tile',
+  'info.colKind': 'Type',
+  'info.colVideo': 'Channel / title',
+  'info.colStart': 'Start / published',
+  'info.colEnd': 'End',
+  'info.colLen': 'Length',
+  'info.colViewers': 'Watching',
+  'info.colViews': 'Views',
+  'info.colPos': 'Position',
+  'info.colSync': 'Archive sync',
+  'info.empty': 'No streams are loaded in the tiles yet.',
+  'info.note': 'Refreshes every few seconds while open. Watching counts are shown only for live streams; view counts are as of when the tile was opened.',
   'sync.seekTitle': 'Move all synced archives to this time',
   'sync.reset': 'Reset to 0',
   'sync.refTitle': 'The reference tile for sync (other tiles follow it). It does not change when you switch the sound',
@@ -774,6 +822,7 @@ const HTML_EN = {
 <li>Tile bar: audio button (play audio from this tile) / 🎚 left/right and volume / 💬 chat / ≋ danmaku / 📌 pickup / 🔖 watch later / 📃 add to a playlist / ⏱ sync offset (for archives) / ⟳ reload / ⛶ fullscreen this tile / ✕ close</li>
 <li>🎚 makes that tile heard from the left, center or right and changes its volume (0–200%). “⇆ Split 2 tiles left/right” sends the 2 tiles playing audio left and right by their position on screen</li>
 <li>“⛶” (<kbd>Shift</kbd> + <kbd>F</kbd>) goes fullscreen with all tiles. Move the mouse to the top edge to show the bar</li>
+<li>“ℹ️” (<kbd>I</kbd>) lists each tile’s type (live, archive, video), stream times, current viewers, views and whether it can be archive-synced</li>
 </ul>`,
   'helpPage.auto': `<p>Turn on “Auto play” (<kbd>L</kbd>) to lay out every live channel. After that, every minute, tiles are added for streams that start and removed for streams that end.</p>
 <ul>
@@ -816,7 +865,7 @@ const HTML_EN = {
 <li>“▶ In order” fills the current tiles from the top and puts the next one in each tile that finishes (items watched to the end get ✓ and it continues from there next time). “⏱ All at once, in sync” lays out all of them and plays the archives in step (up to 16)</li>
 </ul>`,
   'helpPage.sync': `<ul>
-<li>With 2 or more archives open, “⏱ Sync” appears on the top bar. Press it to play them aligned to when they were actually streamed (ones that do not overlap in time are not synced)</li>
+<li>Press “⏱ Archive sync” on the top bar to play stream archives that overlap in time, aligned to when they were actually streamed. Until 2 such archives are shown it is dimmed, and pressing it tells you why (live now, a regular video, and so on)</li>
 <li>Other tiles follow the “reference” tile (the one playing audio when you started). Choose another on the top bar or with ⏱ on a tile</li>
 <li>If voices or on-screen events do not line up, adjust the offset with ⏱ on the tile. Offsets are remembered per video and go into playlists and share codes</li>
 <li>The slider on the top bar moves all synced archives to the same time</li>
@@ -851,6 +900,7 @@ const HTML_EN = {
   'key.cruise': 'Cruise ON / OFF',
   'key.fav': 'Open channels',
   'key.lib': 'Open the library',
+  'key.info': 'Open the tile info',
   'key.danmaku': 'Hide / show danmaku on all tiles for now (unless set with ≋ on a tile, danmaku shows only on main tiles)',
   'tour.replay': '▶ Replay the tour',
   'helpNav.report': 'Report a problem',

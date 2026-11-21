@@ -121,7 +121,7 @@ body.grid-fs .grid { height: 100%; }
 /* 狭いウィンドウでは文字を減らす (アイコンとツールチップで分かる) */
 @media (max-width: 900px) {
   .brand { display: none; }
-  #openChannels .tb-label, #openFavorites .tb-label { display: none; }
+  #openChannels .tb-label, #openFavorites .tb-label, #syncToggle .tb-label { display: none; }
 }
 @media (max-width: 640px) {
   #autoMode .tb-label, #cruise .tb-label, #openLayout .tb-label { display: none; }
@@ -306,6 +306,9 @@ body.hl-animate .tile.audible::before { animation: hl-flow 6s ease-in-out infini
   z-index: 100;
   font-size: 13px;
   padding: 8px 16px;
+  /* 長いお知らせ (アーカイブ同期が使えない理由など) は切らずに折り返す。改行もそのまま出す */
+  max-width: min(640px, calc(100% - 24px));
+  white-space: pre-line;
 }
 
 /* ---------- empty / input ---------- */
@@ -1418,7 +1421,8 @@ code { font-size: 12px; background: #222228; padding: 0 4px; border-radius: 3px;
 .sync-trim-text { color: #f0c36d; font-size: 12px; }
 .sync-adj.has-trim { color: #f0c36d; border-color: #f0c36d; }
 .sync-adj.is-waiting, .sync-wait.is-waiting { color: #8fd3ff; border-color: #8fd3ff; }
-#syncToggle[hidden] { display: none; }
+/* 使えないとき (同期できるアーカイブが 2 本ない) も出しておき、薄くする。押すと理由が出る */
+#syncToggle.unavailable { opacity: .5; }
 
 /* 📃 再生リストに入れる (枠のバーや一覧の 📃 で開く) */
 dialog.pl-pick-dialog { width: min(420px, calc(100% - 32px)); }
@@ -1522,3 +1526,26 @@ button.pl-badge { cursor: pointer; }
 .pl-ai > summary { cursor: pointer; font-weight: 600; font-size: 13px; }
 .pl-ai[open] > summary { margin-bottom: 6px; }
 .pl-ai > * + * { margin-top: 6px; }
+
+/* ℹ 枠の情報 (各枠の種類・配信の時間・視聴者数など) */
+/* 枠の情報は列が多いので、画面の幅いっぱいに近く使う */
+dialog.info-dialog { width: calc(100% - 32px); }
+dialog.info-dialog::backdrop { background: rgba(0, 0, 0, .15); }
+.info-wrap { display: flex; flex-direction: column; max-height: calc(100vh - 66px); }
+.info-scroll { overflow: auto; padding: 0 10px; }
+.info-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.info-table th { position: sticky; top: 0; background: var(--panel); color: var(--muted); font-weight: 400; text-align: left; white-space: nowrap; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+.info-table td { padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.info-num { color: var(--muted); text-align: right; }
+.info-kind { white-space: nowrap; font-weight: 700; }
+.info-kind.kind-live { color: #ff6b6b; }
+.info-kind.kind-archive { color: #8fd3ff; }
+.info-kind.kind-loading, .info-kind.kind-blocked { color: var(--muted); font-weight: 400; }
+.info-video { width: 100%; max-width: 0; } /* 残りの幅を全部使い、長いタイトルは「…」で切る */
+.info-channel { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.info-title { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.info-time, .info-n { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.info-n { text-align: right; }
+.info-sync { color: var(--muted); white-space: nowrap; }
+.info-sync.ok { color: var(--text); }
+.info-note { margin: 0; padding: 8px 14px 12px; color: var(--muted); font-size: 11px; }

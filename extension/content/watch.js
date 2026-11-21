@@ -77,6 +77,32 @@
     window.parent.postMessage({ hakomado: 'syncState', t, ps: Number(d.ps), ad: !!d.ad, r: Number(d.r) || 1, up: !!d.up, sk: Number(d.sk) || 0, ts: Number(d.ts) || 0 }, PARENT_ORIGIN);
   });
 
+  // 枠の情報 (種類・視聴者数・再生数・配信の時刻・公開日。watch-main.js から) → 親の「ℹ 枠の情報」・同期ボタン用
+  const KINDS = ['live', 'upcoming', 'archive', 'video'];
+  document.addEventListener('hakomado:info', (e) => {
+    let d;
+    try {
+      d = JSON.parse(e.detail);
+    } catch {
+      return;
+    }
+    const num = (v) => (v != null && Number.isFinite(Number(v)) ? Number(v) : null);
+    window.parent.postMessage(
+      {
+        hakomado: 'info',
+        kind: KINDS.includes(d.kind) ? d.kind : '',
+        viewers: num(d.viewers),
+        views: num(d.views),
+        start: num(d.start),
+        end: num(d.end),
+        publish: num(d.publish),
+        dur: num(d.dur),
+        t: num(d.t),
+      },
+      PARENT_ORIGIN,
+    );
+  });
+
   // 配信・動画が終わった → 親に知らせる (自動再生中に枠を片付けるため)
   document.addEventListener('hakomado:ended', (e) => {
     const reason = e.detail === 'played' ? 'played' : 'already';
@@ -106,7 +132,8 @@
   // ---- 配信のタイトルとチャンネル名を親に知らせる (上部バーの「今の音声」表示用)
   let sentMeta = '';
   const sendMeta = () => {
-    const title = document.title.replace(/ - YouTube$/, '').trim();
+    // 先頭の「(448) 」は YouTube の通知の数なので除く
+    const title = document.title.replace(/ - YouTube$/, '').replace(/^\(\d+\+?\)\s*/, '').trim();
     // ページに埋め込まれた構造化データ (itemprop) を優先。無ければ画面上のチャンネル名
     const channel =
       document.querySelector('span[itemprop="author"] link[itemprop="name"]')?.getAttribute('content')?.trim() ||
@@ -215,6 +242,8 @@
     } else if (e.data?.hakomado === 'sync' && ['seek', 'play', 'pause', 'rate'].includes(e.data.op)) {
       const detail = JSON.stringify({ op: e.data.op, t: Number(e.data.t), r: Number(e.data.r) });
       document.dispatchEvent(new CustomEvent('hakomado:sync', { detail }));
+    } else if (e.data?.hakomado === 'infoReq') {
+      document.dispatchEvent(new CustomEvent('hakomado:info-req'));
     } else if (e.data?.hakomado === 'away') {
       // マウスが枠の外に出ている間は、プレイヤーの操作 UI を隠す (watch.css)
       document.documentElement.classList.toggle('hakomado-away', !!e.data.on);

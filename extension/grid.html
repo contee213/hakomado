@@ -22,7 +22,7 @@
     <button id="autoMode" class="toggle" type="button" aria-pressed="false" data-i18n-title="auto.title" title="自動再生 (L): 配信中のチャンネルを並べ、始まった・終わった配信に合わせて枠を増減する"><span class="tb-icon"><svg class="helm" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="4.3" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="8" cy="8" r="1.4"/><path d="M7.25 0.6h1.5v14.8h-1.5z M0.6 7.25h14.8v1.5H0.6z"/><path transform="rotate(45 8 8)" d="M7.25 0.6h1.5v14.8h-1.5z M0.6 7.25h14.8v1.5H0.6z"/></svg></span><span class="tb-label" data-i18n="auto.label">自動再生</span></button>
     <button id="cruise" class="toggle" type="button" aria-pressed="false" data-i18n-title="cruise.title" title="クルーズ (C): 一定時間ごとに、メイン枠と音声を次の配信へ回す"><span class="tb-icon"><svg class="ship" viewBox="0 0 16 16" aria-hidden="true"><path d="M9 2.5h2v2.5H9z"/><path d="M4.5 5h8v2h-8z"/><path d="M3.5 7.5h10v2h-10z"/><path d="M1 10h14l-2.4 3.5H3.4z"/></svg></span><span class="tb-label" data-i18n="cruise.label">クルーズ</span><i class="cruise-progress" aria-hidden="true"></i></button>
     <button id="pauseAll" class="toggle" type="button" aria-pressed="false" data-i18n-title="pauseAll.title" title="全部の枠をまとめて一時停止 / 再開 (Space)。再開するとき、ライブ配信は最新の位置に戻ります"><span class="tb-icon">⏸</span><span class="tb-label" data-i18n="pauseAll.label">一時停止</span></button>
-    <button id="syncToggle" class="toggle" type="button" aria-pressed="false" hidden data-i18n-title="sync.title" title="アーカイブの同期再生: 配信していた実際の時刻でそろえて再生する"><span class="tb-icon">⏱</span><span class="tb-label" data-i18n="sync.label">同期</span></button>
+    <button id="syncToggle" class="toggle unavailable" type="button" aria-pressed="false" aria-disabled="true" data-i18n-title="sync.title" title="アーカイブ同期: 配信のアーカイブを、配信していた実際の時刻でそろえて再生する"><span class="tb-icon">⏱</span><span class="tb-label" data-i18n="sync.label">アーカイブ同期</span></button>
     <div id="syncBar" class="sync-bar" hidden>
       <select id="syncRef" class="sync-ref" data-i18n-title="sync.refTitle" title="同期の基準の枠 (ほかの枠がこの枠に合わせる)。音を切り替えても変わりません"></select>
       <span id="syncNow" class="sync-time"></span>
@@ -36,6 +36,7 @@
     <button id="openNotices" type="button" data-i18n-title="notice.title" title="通知 (チャンネルの配信開始)"><span class="tb-icon">🔔</span><span class="tb-label" data-i18n="notice.label">通知</span><span id="noticeBadge" class="notice-badge" hidden></span></button>
     <button id="openChannels" type="button" data-i18n-title="ch.title" title="チャンネル (F): 配信中・配信予定と、チャンネルの追加・ピックアップ"><span class="tb-icon">📺</span><span class="tb-label" data-i18n="ch.label">チャンネル</span></button>
     <button id="openFavorites" type="button" data-i18n-title="fav.title" title="ライブラリ (B): 最近の配信・視聴履歴・あとで見る"><span class="tb-icon">📚</span><span class="tb-label" data-i18n="fav.label">ライブラリ</span></button>
+    <button id="openInfo" class="icon-only" type="button" data-i18n-title="info.title" title="枠の情報 (I): 各枠の種類 (ライブ・アーカイブ・動画)・配信の時間・視聴者数・再生数などを一覧で見る">ℹ️</button>
     <button id="openShare" class="icon-only" type="button" data-i18n-title="share.title" title="共有: 今の枠や再生リストを、画像・コード・テキスト・リンクにして人に渡す">🔗</button>
     <button id="openRead" class="icon-only" type="button" data-i18n-title="read.title" title="読み込む: 共有された画像・コード・テキスト・リンクや URL を、枠に並べるか再生リストとして保存する">📥</button>
     <button id="gridFullscreen" class="icon-only" type="button" data-i18n-title="gridFs.title" title="分割したまま全画面 (Shift+F)。上端にマウスを寄せると、このバーが出ます">⛶</button>
@@ -285,6 +286,7 @@
               <li>枠のバー: 音のボタン (この枠の音を出す) / 🎚 音の左右と音量 / 💬 チャット欄 / ≋ 弾幕 / 📌 ピックアップ / 🔖 あとで見る / 📃 再生リストに入れる / ⏱ 同期のずれ (アーカイブのとき) / ⟳ 読み込み直し / ⛶ その枠だけ全画面 / ✕ 閉じる</li>
               <li>🎚 では、その枠の音を左・真ん中・右から聞こえるようにしたり、音量 (0〜200%) を変えたりできます。「⇆ 2 枠を左右に分ける」で、音の出ている 2 枠を画面の位置どおり左右に分けます</li>
               <li>「⛶」(<kbd>Shift</kbd> + <kbd>F</kbd>) で、分割したまま全画面にします。上端にマウスを寄せるとバーが出ます</li>
+              <li>「ℹ️」(<kbd>I</kbd>) で、各枠の種類 (ライブ・アーカイブ・動画)・配信の時間・今の視聴者数・再生数・アーカイブ同期できるかを一覧で見られます</li>
             </ul>
           </section>
           <section class="help-page" data-help-page="auto" role="tabpanel" data-i18n-html="helpPage.auto" hidden>
@@ -337,7 +339,7 @@
           </section>
           <section class="help-page" data-help-page="sync" role="tabpanel" data-i18n-html="helpPage.sync" hidden>
             <ul>
-              <li>アーカイブを 2 本以上開くと、上のバーに「⏱ 同期」が出ます。押すと、配信していた実際の時刻でそろえて再生します (時間帯が重ならないものは同期しません)</li>
+              <li>上のバーの「⏱ アーカイブ同期」を押すと、配信の時間帯が重なるアーカイブを、配信していた実際の時刻でそろえて再生します。アーカイブが 2 本そろっていないときは薄く出ていて、押すと使えない理由 (ライブ配信中・ふつうの動画など) が出ます</li>
               <li>ほかの枠は「基準」の枠 (始めたときに音を出している枠) に合わせます。上のバーや枠の ⏱ で選び直せます</li>
               <li>声や画面の出来事で合わない分は、枠の ⏱ でずれを足し引きします。ずれは動画ごとに覚え、再生リストや共有するコードにも入ります</li>
               <li>上のバーのつまみで、同期している全部のアーカイブを同じ時刻に動かせます</li>
@@ -379,6 +381,7 @@
               <tr><th><kbd>C</kbd></th><td data-i18n="key.cruise">クルーズの ON / OFF</td></tr>
               <tr><th><kbd>F</kbd></th><td data-i18n="key.fav">チャンネルを開く</td></tr>
               <tr><th><kbd>B</kbd></th><td data-i18n="key.lib">ライブラリを開く</td></tr>
+              <tr><th><kbd>I</kbd></th><td data-i18n="key.info">枠の情報を開く</td></tr>
               <tr><th><kbd>D</kbd></th><td data-i18n="key.danmaku">全部の枠の弾幕を一時的に消す ⇄ 戻す (弾幕は、枠の ≋ で決めていなければメイン枠だけに出ます)</td></tr>
               <tr><th><kbd>?</kbd></th><td data-i18n="key.help">この画面を開く</td></tr>
             </table>
@@ -590,6 +593,37 @@
       </header>
       <ul id="noticeList" class="notice-list"></ul>
       <p id="noticeEmpty" class="fav-empty" data-i18n="notice.empty">まだ通知はありません。チャンネルが配信を始めると、ここに出ます (この画面を開いている間に確認します)。</p>
+    </div>
+  </dialog>
+
+  <dialog id="infoDialog" class="info-dialog">
+    <div class="info-wrap">
+      <header class="fav-head">
+        <h2 data-i18n="info.h">ℹ️ 枠の情報</h2>
+        <span class="spacer"></span>
+        <button type="button" id="infoClose" class="dialog-close" data-i18n-title="close" title="閉じる (Esc)">✕</button>
+      </header>
+      <div class="info-scroll">
+        <table class="info-table">
+          <thead>
+            <tr>
+              <th data-i18n="info.colTile">枠</th>
+              <th data-i18n="info.colKind">種類</th>
+              <th data-i18n="info.colVideo">チャンネル / タイトル</th>
+              <th data-i18n="info.colStart">開始 / 公開</th>
+              <th data-i18n="info.colEnd">終了</th>
+              <th data-i18n="info.colLen">長さ</th>
+              <th data-i18n="info.colViewers">視聴者数</th>
+              <th data-i18n="info.colViews">再生数</th>
+              <th data-i18n="info.colPos">再生位置</th>
+              <th data-i18n="info.colSync">アーカイブ同期</th>
+            </tr>
+          </thead>
+          <tbody id="infoRows"></tbody>
+        </table>
+      </div>
+      <p id="infoEmpty" class="fav-empty" data-i18n="info.empty">まだ枠に配信を読み込んでいません。</p>
+      <p class="info-note" data-i18n="info.note">開いている間、数秒ごとに新しくします。視聴者数はライブ配信中だけ、再生数は枠を開いたときの数です。</p>
     </div>
   </dialog>
 
