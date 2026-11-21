@@ -118,14 +118,21 @@ body.grid-fs .toolbar:has(button:hover, select:hover),
 body.grid-fs .toolbar:has(:focus-visible) { transform: none; transition-delay: 0s; }
 body.grid-fs .grid { height: 100%; }
 
-/* 狭いウィンドウでは文字を減らす (アイコンとツールチップで分かる) */
-@media (max-width: 900px) {
-  .brand { display: none; }
-  #openChannels .tb-label, #openFavorites .tb-label, #syncToggle .tb-label { display: none; }
-}
-@media (max-width: 640px) {
-  #autoMode .tb-label, #cruise .tb-label, #openLayout .tb-label { display: none; }
-}
+/* 入りきらないときは文字を消してアイコンだけにする (アイコンとツールチップで分かる)。
+   入りきるかは grid.js (fitToolbar) が測って決める (アーカイブ同期中はつまみの分だけ広く要る)
+   1 段目 (compact): ボタンの文字とロゴの文字を消す / 2 段目 (tiny): 今の音声のチャンネル名と、同期のつまみの両端の時刻も消し、ボタンの間を詰める */
+.toolbar.compact .tb-label, .toolbar.compact .brand-name { display: none; }
+.toolbar.compact > .now-playing { flex-basis: 140px; width: 140px; }
+.toolbar.tiny > .now-playing { flex-basis: auto; width: auto; min-width: 0; }
+.toolbar.tiny .now-playing .np-name { display: none; }
+.toolbar.tiny .sync-time { display: none; }
+.toolbar.tiny { gap: 3px; padding: 0 6px; }
+/* 同期の「基準: …」も縮めて、つまみの場所を残す (選ぶときは全部の名前が出る) */
+.toolbar.compact .sync-ref { max-width: 120px; }
+.toolbar.tiny .sync-ref { max-width: 72px; }
+.toolbar.tiny > .sync-bar { min-width: 140px; }
+/* 測るときは、縮むもの (今の音声・同期のつまみ) を縮めずに置いて、はみ出すかを見る */
+.toolbar.measuring > .now-playing, .toolbar.measuring > .sync-bar { flex-shrink: 0; }
 
 /* ---------- grid ---------- */
 .grid {
@@ -197,7 +204,8 @@ body.hl-animate .tile.audible::before { animation: hl-flow 6s ease-in-out infini
 }
 /* 上部バーの「今の音声」 */
 /* 長いチャンネル名は省略し、狭いウィンドウでは縮む (他のボタンを押し出さない) */
-.toolbar > .now-playing { flex: 0 1 auto; min-width: 70px; max-width: 300px; overflow: hidden; gap: 2px; }
+/* 幅を決めておく (チャンネル名が変わっても、後ろのアーカイブ同期のボタンが動かないように)。狭いときだけ縮む */
+.toolbar > .now-playing { flex: 0 1 220px; width: 220px; min-width: 70px; overflow: hidden; gap: 2px; justify-content: flex-start; }
 .now-playing .np-name { min-width: 0; white-space: nowrap; }
 /* 音が出ているときは、他の ON のボタンと同じ見た目 (枠の線の色とは連動させない) */
 .now-playing.on { color: #fff; border-color: var(--on); background: var(--on-bg); }
@@ -1329,7 +1337,8 @@ code { font-size: 12px; background: #222228; padding: 0 4px; border-radius: 3px;
 .diag-badge[hidden] { display: none; }
 
 /* ---------- アーカイブの同期再生 ---------- */
-.sync-bar { flex: 1 1 160px; min-width: 140px; max-width: 520px; display: flex; align-items: center; gap: 6px; }
+/* 空いた幅は、右寄せの余白 (.spacer) よりつまみに多く回す (max-width まで) */
+.sync-bar { flex: 6 1 160px; min-width: 140px; max-width: 520px; display: flex; align-items: center; gap: 6px; }
 .sync-bar[hidden] { display: none; }
 .sync-bar input[type="range"] { flex: 1 1 auto; min-width: 60px; margin: 0; }
 .sync-time { color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; white-space: nowrap; }
