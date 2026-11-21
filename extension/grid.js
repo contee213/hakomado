@@ -3716,6 +3716,7 @@ function favSection(title, items, { cls = '', action = null } = {}) {
 function renderFavorites(favs) {
   if (isVideoMode()) return; // 保存・履歴を表示中 (配信状況の取得が終わって描き直すときなど)
   const scope = libScopeNow(favs);
+  updateLibScopeButtons(); // 最初に開いたときは、ここで決まった値 (ピックアップが無ければ「すべて」) をボタンにも出す
   if (scope === 'star') favs = favs.filter((f) => f.star); // 📌 ピックアップだけ
   const q = favFilter.trim().toLowerCase();
   const shown = q
