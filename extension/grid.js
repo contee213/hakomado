@@ -747,6 +747,7 @@ function renderTile(i, { reloadPlayer = false, reloadChat = false } = {}) {
   if (!visible || !t.videoId) {
     v.player?.remove();
     v.player = null;
+    Diagnose.clear(i);
     v.meta = null;
     v.social = null;
   } else if (!v.player || reloadPlayer) {
@@ -756,6 +757,7 @@ function renderTile(i, { reloadPlayer = false, reloadChat = false } = {}) {
     f.src = playerUrl(t);
     f.addEventListener('load', () => {
       f.dataset.loaded = '1';
+      Diagnose.playerLoaded(i, f);
       setTimeout(() => {
         applyAudio(i);
         postToFrame(f, { hakomado: 'away', on: !el.matches(':hover') });
@@ -780,7 +782,10 @@ function renderTile(i, { reloadPlayer = false, reloadChat = false } = {}) {
     v.chatFrame?.remove();
     const f = document.createElement('iframe');
     f.src = chatUrl(t, v.replay || '');
-    f.addEventListener('load', () => (f.dataset.loaded = '1'));
+    f.addEventListener('load', () => {
+      f.dataset.loaded = '1';
+      Diagnose.chatLoaded(i, f);
+    });
     el.querySelector('.chat-slot').appendChild(f);
     v.chatFrame = f;
   }
@@ -1258,11 +1263,105 @@ document.addEventListener('fullscreenchange', () => {
 window.addEventListener('message', (e) => {
   if (e.origin !== YT) return;
   const data = e.data;
-  if (!data || data.hakomado !== 'chat' || !Array.isArray(data.messages)) return;
+  if (!data || (data.hakomado !== 'chat' && data.hakomado !== 'chatReady')) return;
   const i = views.findIndex((v) => v.chatFrame && v.chatFrame.contentWindow === e.source);
   if (i < 0) return;
+  Diagnose.chatSeen(i);
+  if (data.hakomado !== 'chat' || !Array.isArray(data.messages)) return;
   for (const msg of data.messages.slice(0, 50)) views[i].danmaku.add(msg);
 });
+
+// ---------------------------------------------------------------- 自己診断 (YouTube 側の変更に気づく)
+// 枠の中のスクリプト (content/*.js) は YouTube のページの作りに頼っているので、YouTube が作りを変えると
+// 黙って動かなくなる。枠を読み込んでからしばらく待っても、届くはずの知らせが来なければ、止まった機能を枠のバーの ⚠ と
+// お知らせで出す (同じ機能のお知らせは、この画面を開いている間 1 度だけ)。
+//   frame  … 枠の中のスクリプトから何も届かない (watch.js が動いていない)
+//   player … プレイヤーの状態が届かない (watch-main.js: ミュート・まとめて一時停止・終了の検知・見られるかの確認)
+//   meta   … チャンネル名が届かない (枠の名前・📌 の判定)
+//   chat   … チャット欄が見つからない (chat.js: 弾幕・チャット欄。ライブ配信かアーカイブのときだけ確かめる)
+const Diagnose = (() => {
+  const WAIT_MS = 30 * 1000;
+  const state_ = new Map(); // i -> {frame, seen: Set, chatFrame, chatOk, problems: Set}
+  const announced = new Set();
+  const get = (i) => {
+    if (!state_.has(i)) state_.set(i, { seen: new Set(), problems: new Set() });
+    return state_.get(i);
+  };
+
+  /** ページが裏に回っている間はタイマーが間引かれるので、表に出てから確かめる */
+  function later(fn) {
+    setTimeout(function run() {
+      if (document.hidden) document.addEventListener('visibilitychange', run, { once: true });
+      else fn();
+    }, WAIT_MS);
+  }
+
+  function playerLoaded(i, f) {
+    const d = get(i);
+    Object.assign(d, { frame: f, seen: new Set() });
+    d.problems.clear();
+    show(i);
+    later(() => {
+      if (views[i].player !== f) return; // 読み込み直した / 片付けた
+      if (!d.seen.size) d.problems.add('frame');
+      else {
+        if (!d.seen.has('playability') && !d.seen.has('social')) d.problems.add('player');
+        if (!d.seen.has('meta')) d.problems.add('meta');
+      }
+      report(i);
+    });
+  }
+
+  function chatLoaded(i, f) {
+    const d = get(i);
+    Object.assign(d, { chatFrame: f, chatOk: false });
+    d.problems.delete('chat');
+    show(i);
+    later(() => {
+      if (views[i].chatFrame !== f || d.chatOk) return;
+      // 開始前・終わった動画などでチャット欄が無いのは正常なので、ライブ配信中かアーカイブ (リプレイ) のときだけ
+      if (!views[i].el.classList.contains('is-live') && !views[i].replay) return;
+      d.problems.add('chat');
+      report(i);
+    });
+  }
+
+  function seen(i, type) {
+    get(i).seen.add(type);
+  }
+
+  function chatSeen(i) {
+    const d = get(i);
+    d.chatOk = true;
+    if (d.problems.delete('chat')) show(i);
+  }
+
+  function clear(i) {
+    state_.delete(i);
+    show(i);
+  }
+
+  function report(i) {
+    const d = get(i);
+    show(i);
+    const fresh = [...d.problems].filter((p) => !announced.has(p));
+    if (!fresh.length) return;
+    for (const p of fresh) announced.add(p);
+    console.warn('hakomado: 動いていない機能があります', tileName(i), [...d.problems]);
+    notify(tr('diagNotice', fresh.map((p) => tr('diag_' + p)).join(tr('sep'))));
+  }
+
+  /** 枠のバーの ⚠ (マウスを乗せると止まった機能が出る) */
+  function show(i) {
+    const badge = views[i]?.el.querySelector('.diag-badge');
+    if (!badge) return;
+    const problems = [...(state_.get(i)?.problems || [])];
+    badge.hidden = !problems.length;
+    badge.title = problems.length ? tr('diagTitle', problems.map((p) => tr('diag_' + p)).join('\n・')) : '';
+  }
+
+  return { playerLoaded, chatLoaded, seen, chatSeen, clear };
+})();
 
 // プレイヤー (watch ページ) からの連絡
 window.addEventListener('message', (e) => {
@@ -1271,6 +1370,7 @@ window.addEventListener('message', (e) => {
   if (!data || typeof data.hakomado !== 'string') return;
   const i = views.findIndex((v) => v.player && v.player.contentWindow === e.source);
   if (i < 0) return;
+  Diagnose.seen(i, data.hakomado);
   if (data.hakomado === 'userAudio') {
     // 枠内のプレイヤーのスピーカーで切り替え → この枠だけ切り替える (他の枠はそのまま。複数枠の同時再生用)
     setAudio(i, { on: !data.muted });
@@ -1639,6 +1739,150 @@ function openHelp() {
   if (!d.open) d.showModal();
 }
 
+// ---------------------------------------------------------------- 🔗 視聴セットの共有
+// 表示中の枠の配信とレイアウトを、テキスト (1 行に YouTube の URL 1 つ) にする / テキストから同じ並びを作る。
+// 拡張機能の画面の URL は入れた環境ごとに ID が違うので、共有には使えない。YouTube の URL なら、
+// Hakomado を入れていない人にもそのまま開ける。先頭の「# layout=…」の行でレイアウトも伝える
+const SHARE_MAX = MAX_TILES;
+
+/** 今の視聴セットのテキスト (表示中の枠の並び順。空き枠は詰める) */
+function viewingSetText() {
+  const filled = visibleIndexes().filter((i) => state.tiles[i].videoId);
+  if (!filled.length) return '';
+  const name = (i) => state.tiles[i].label || views[i].meta?.channel || '';
+  return [
+    `# ${tr('shareHeader', filled.length, state.layout.name)}`,
+    `# layout=${state.layoutId}`,
+    ...filled.map((i) => {
+      const n = name(i).replace(/[\r\n#]/g, ' ').trim();
+      return `${YT}/watch?v=${state.tiles[i].videoId}${n ? `  # ${n}` : ''}`;
+    }),
+  ].join('\n');
+}
+
+/**
+ * テキストから視聴セットを読み取る。各行の最初の語を URL / 動画 ID / @チャンネル名 として読む
+ * (# で始まる行は説明。「# layout=…」があればレイアウト)
+ * @returns {Promise<{ids: string[], layoutId: string|null, bad: number, tooMany: boolean}>}
+ */
+async function parseViewingSet(text, onProgress) {
+  let layoutId = null;
+  const tokens = [];
+  for (const line of text.split(/\r?\n/)) {
+    const s = line.trim();
+    if (!s) continue;
+    if (s.startsWith('#')) {
+      const m = s.match(/layout=([\w-]+)/);
+      if (m) layoutId = m[1];
+      continue;
+    }
+    tokens.push(s.split(/\s+/)[0]);
+  }
+  const ids = [];
+  let bad = 0;
+  for (const [k, t] of tokens.entries()) {
+    if (ids.length >= SHARE_MAX) break;
+    onProgress?.(k + 1, tokens.length);
+    try {
+      const id = await resolveVideoId(t);
+      if (!ids.includes(id)) ids.push(id);
+    } catch {
+      bad++;
+    }
+  }
+  return { ids, layoutId, bad, tooMany: tokens.length - bad > SHARE_MAX };
+}
+
+/** 視聴セットで今の枠を置き換える (同じ配信を表示中の枠はそのまま使い、読み込み直さない) */
+async function applyViewingSet(ids, layoutId) {
+  if (state.autoMode) await setAutoMode(false); // 自動再生が枠を入れ替えないように
+  stopQueue();
+  const used = new Set();
+  const assigned = ids.map((id) => {
+    const i = state.tiles.findIndex((t, j) => !used.has(j) && t.videoId === id);
+    if (i >= 0) used.add(i);
+    return i;
+  });
+  for (const [k, id] of ids.entries()) {
+    if (assigned[k] >= 0) continue;
+    const i = state.tiles.findIndex((_, j) => !used.has(j) && !assigned.includes(j));
+    used.add(i);
+    assigned[k] = i;
+    setTileVideo(i, id, `${YT}/watch?v=${id}`);
+  }
+  // 使わない枠は空にする (隠れても再生し続けないように)
+  state.tiles.forEach((t, j) => {
+    if (!used.has(j) && t.videoId) {
+      WatchHistory.removed(t.videoId, 'replaced');
+      state.tiles[j] = newTileState();
+      views[j].danmaku.clear();
+      renderTile(j, { reloadPlayer: true, reloadChat: true });
+    }
+  });
+  const fixed = LAYOUTS.find((l) => l.id === layoutId && l.slots.length >= ids.length);
+  state.layoutId = (fixed || chooseLayoutFor(ids.length)).id;
+  if (state.layout.anchor) state.anchor = state.layout.anchor;
+  state.order = [...assigned, ...state.order.filter((j) => !assigned.includes(j))];
+  if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+  setAudioSet([assigned[0]]); // 音は先頭 (メイン) の枠
+  renderAll();
+  save();
+}
+
+function setupShare() {
+  const dialog = document.getElementById('shareDialog');
+  const out = document.getElementById('shareOut');
+  const input = document.getElementById('shareIn');
+  const copied = document.getElementById('shareCopied');
+  const error = document.getElementById('shareError');
+  const loadBtn = document.getElementById('shareLoad');
+  closeOnBackdrop(dialog);
+
+  document.getElementById('openShare').addEventListener('click', () => {
+    const text = viewingSetText();
+    out.value = text;
+    out.placeholder = text ? '' : tr('shareEmpty');
+    document.getElementById('shareCopy').disabled = !text;
+    copied.textContent = '';
+    error.textContent = '';
+    dialog.showModal();
+  });
+
+  document.getElementById('shareCopy').addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(out.value);
+    } catch {
+      out.select();
+      document.execCommand('copy');
+    }
+    copied.textContent = tr('shareCopied');
+  });
+
+  loadBtn.addEventListener('click', async () => {
+    error.classList.remove('share-error');
+    loadBtn.disabled = true;
+    try {
+      const { ids, layoutId, bad, tooMany } = await parseViewingSet(input.value, (done, total) => {
+        error.textContent = tr('shareLoading', done, total);
+      });
+      error.classList.add('share-error');
+      if (!ids.length) {
+        error.textContent = tr('shareNothing');
+        return;
+      }
+      await applyViewingSet(ids, layoutId);
+      error.textContent = '';
+      input.value = '';
+      dialog.close();
+      const notes = [bad ? tr('shareBadLines', bad) : '', tooMany ? tr('shareTooMany') : ''].filter(Boolean);
+      notify([tr('shareLoaded', ids.length), ...notes].join(' / '));
+    } finally {
+      error.classList.add('share-error');
+      loadBtn.disabled = false;
+    }
+  });
+}
+
 // 設定画面のスライダーの表示形式
 const SETTING_FORMATS = {
   duration: (v) => tr('sec', v),
@@ -1824,6 +2068,7 @@ function setupToolbar() {
   });
   document.getElementById('settingsReset').addEventListener('click', resetSettings);
   setupBackup();
+  setupShare();
   showAppVersion();
   document.getElementById('openHelp').addEventListener('click', openHelp);
   document.getElementById('tourReplay').addEventListener('click', () => {
@@ -2992,19 +3237,23 @@ async function pickAnything(i) {
   pickBusy = true;
   const btn = views[i].el.querySelector('.pick-any');
   btn.disabled = true;
-  showToast(i, tr('pickSearching'));
+  // 進み具合: ① 配信状況の確認 0〜55% → ② 見られる配信かの確認 55〜70% → ③ 最近の配信を探す 70〜100%
+  // (見つかった段で終わるので、途中から 100% に飛ぶことがある)
+  const progress = pickProgress(i);
+  progress.show(tr('pickSearching'), 0);
+  const step = (key, from, to) => (done, total) => progress.show(tr(key, done, total), from + (total ? (done / total) * (to - from) : to - from));
   try {
     const favs = await Favorites.list();
     const shown = new Set(state.tiles.map((t) => t.videoId).filter(Boolean));
     const shownNames = new Set(visibleIndexes().map((j) => state.tiles[j].label).filter(Boolean));
     const random = (list) => list[Math.floor(Math.random() * list.length)];
     // ①② ライブ配信中 (配信予定は除く)
-    const { lives } = await collectLiveFavorites({ target: 'all' });
+    const { lives } = await collectLiveFavorites({ target: 'all', onProgress: step('progressStatus', 0, 0.55) });
     const liveOk = lives.filter((l) => l.st.state === 'live' && !shown.has(l.st.videoId) && !shownInOtherTab(l.st.videoId));
     for (const group of [liveOk.filter((l) => l.f.star), liveOk.filter((l) => !l.f.star)]) {
       // メンバー限定で見られないものは飛ばす (ランダムな順で 1 本見つかるまで確かめる)
       const shuffled = [...group].sort(() => Math.random() - 0.5);
-      const { ok } = await filterAccessible(shuffled, { limit: 1 });
+      const { ok } = await filterAccessible(shuffled, { limit: 1, onProgress: step('progressAccess', 0.55, 0.7) });
       if (ok.length) {
         const { f, st } = ok[0];
         loadPicked(i, st.videoId, f.handle || f.channelId, f.name, true);
@@ -3014,8 +3263,12 @@ async function pickAnything(i) {
     // ③④ 最近の配信 (同じチャンネルが表示中なら除く)
     const watched = await watchedIds();
     const usable = ({ v, f }) => !shown.has(v.videoId) && !watched.has(v.videoId) && !shownNames.has(f.name) && !shownInOtherTab(v.videoId);
-    for (const chs of [favs.filter((f) => f.star), favs.filter((f) => !f.star)]) {
-      const picks = (await archiveCandidates(chs)).filter(usable);
+    const [starChs, otherChs] = [favs.filter((f) => f.star), favs.filter((f) => !f.star)];
+    const archFrom = (chs) => (chs === starChs ? 0.7 : 0.7 + 0.3 * (starChs.length / Math.max(1, favs.length)));
+    for (const chs of [starChs, otherChs]) {
+      const from = archFrom(chs);
+      const to = from + 0.3 * (chs.length / Math.max(1, favs.length));
+      const picks = (await archiveCandidates(chs, { onProgress: step('progressArchive', from, to) })).filter(usable);
       if (picks.length) {
         const { v, f } = random(picks);
         loadPicked(i, v.videoId, `${YT}/watch?v=${v.videoId}`, f.name, false);
@@ -3026,9 +3279,25 @@ async function pickAnything(i) {
   } catch (e) {
     showToast(i, tr('statusFailed', e.message || e));
   } finally {
+    progress.hide();
     pickBusy = false;
     btn.disabled = false;
   }
+}
+
+/** 空き枠の中に出す、🎲 おまかせの進み具合 (frac = 0〜1) */
+function pickProgress(i) {
+  const box = views[i].el.querySelector('.pick-progress');
+  return {
+    show(text, frac) {
+      box.hidden = false;
+      box.querySelector('.pick-progress-text').textContent = text;
+      box.querySelector('.pick-progress-bar').style.width = `${Math.round(Math.max(0, Math.min(1, frac)) * 100)}%`;
+    },
+    hide() {
+      box.hidden = true;
+    },
+  };
 }
 
 function loadPicked(i, videoId, input, label, live) {
@@ -3212,9 +3481,12 @@ const ARCHIVE_RETRY_MS = 5 * 60 * 1000;
  * 最近の配信の候補 (新しい順)。毎回 Favorites.fetchArchives に聞く (30 分は覚えた結果を返すので、取りに行くのは古くなったときだけ)。
  * 自動再生を一晩つけっぱなしにしても、新しく終わった配信が候補に入る
  */
-async function archiveCandidates(channels) {
+async function archiveCandidates(channels, { onProgress = null } = {}) {
   const since = Date.now() - ARCHIVE_DAYS * 24 * 60 * 60 * 1000;
   const queue = channels.filter((f) => Date.now() - (archiveFailedAt.get(f.channelId) || 0) > ARCHIVE_RETRY_MS);
+  const total = queue.length;
+  let done = 0;
+  if (total) onProgress?.(0, total); // 全部取得に失敗したばかりで取りに行くものが無いときは出さない
   const out = [];
   const worker = async () => {
     for (let f = queue.shift(); f; f = queue.shift()) {
@@ -3226,6 +3498,8 @@ async function archiveCandidates(channels) {
       } catch {
         archiveFailedAt.set(f.channelId, Date.now());
         continue;
+      } finally {
+        onProgress?.(++done, total);
       }
       for (const v of d) if (v.at >= since && isFinishedArchive(v, f)) out.push({ v, f });
     }

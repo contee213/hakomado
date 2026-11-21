@@ -119,6 +119,8 @@
     const el = document.querySelector('yt-live-chat-item-list-renderer #items');
     if (!el || el === itemsEl) return;
     observer?.disconnect();
+    // 初めてチャット欄を見つけたら親に知らせる (YouTube の作りが変わって見つからなくなったことに気づけるように)
+    if (!itemsEl) window.parent.postMessage({ hakomado: 'chatReady' }, PARENT_ORIGIN);
     itemsEl = el;
     attachedAt = performance.now();
     observer = new MutationObserver(onMutations);

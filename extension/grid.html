@@ -29,6 +29,7 @@
     <button id="openNotices" type="button" data-i18n-title="notice.title" title="通知 (チャンネルの配信開始)"><span class="tb-icon">🔔</span><span class="tb-label" data-i18n="notice.label">通知</span><span id="noticeBadge" class="notice-badge" hidden></span></button>
     <button id="openChannels" type="button" data-i18n-title="ch.title" title="チャンネル (F): 配信中・配信予定と、チャンネルの追加・ピックアップ"><span class="tb-icon">📺</span><span class="tb-label" data-i18n="ch.label">チャンネル</span></button>
     <button id="openFavorites" type="button" data-i18n-title="fav.title" title="ライブラリ (B): 最近の配信・視聴履歴・あとで見る"><span class="tb-icon">📚</span><span class="tb-label" data-i18n="fav.label">ライブラリ</span></button>
+    <button id="openShare" class="icon-only" type="button" data-i18n-title="share.title" title="視聴セットの共有: 今の枠の配信とレイアウトをテキストでコピーしたり、貼り付けて同じ並びを作ったりする">🔗</button>
     <button id="gridFullscreen" class="icon-only" type="button" data-i18n-title="gridFs.title" title="分割したまま全画面 (Shift+F)。上端にマウスを寄せると、このバーが出ます">⛶</button>
     <button id="openSettings" class="icon-only" type="button" data-i18n-title="settings.title" title="設定">⚙</button>
     <button id="openHelp" class="icon-only" type="button" data-i18n-title="help.title" title="使い方とキー操作 (?)">?</button>
@@ -250,6 +251,29 @@
     </form>
   </dialog>
 
+  <dialog id="shareDialog" class="share-dialog">
+    <form method="dialog" class="help-form share-form">
+      <div class="settings-title">
+        <h2 data-i18n="share.h">🔗 視聴セットの共有</h2>
+        <button value="close" class="dialog-close" data-i18n-title="close" title="閉じる (Esc)">✕</button>
+      </div>
+      <span class="field-label" data-i18n="share.copyH">今の視聴セット</span>
+      <p class="settings-note" data-i18n="share.copyNote">表示中の枠の配信 (YouTube の URL) とレイアウトです。コピーして、SNS やチャットに貼ったり、別のパソコンの Hakomado に貼り付けたりできます</p>
+      <textarea id="shareOut" class="share-text" rows="7" readonly spellcheck="false"></textarea>
+      <div class="share-buttons">
+        <button type="button" id="shareCopy" data-i18n="share.copy">📋 コピー</button>
+        <span id="shareCopied" class="share-status" role="status"></span>
+      </div>
+      <span class="field-label" data-i18n="share.pasteH">貼り付けて再現</span>
+      <p class="settings-note" data-i18n="share.pasteNote">ここにコピーした視聴セットや、YouTube の URL を 1 行に 1 つずつ貼り付けて「読み込む」を押すと、今の枠を置き換えてその順に並べます (最大 16 本。自動再生は OFF になります)</p>
+      <textarea id="shareIn" class="share-text" rows="7" spellcheck="false" data-i18n-placeholder="share.placeholder" placeholder="https://www.youtube.com/watch?v=..."></textarea>
+      <div class="share-buttons">
+        <button type="button" id="shareLoad" data-i18n="share.load">読み込む</button>
+        <span id="shareError" class="share-status share-error" role="status"></span>
+      </div>
+    </form>
+  </dialog>
+
   <dialog id="layoutPicker" class="layout-dialog">
     <div class="layout-wrap">
       <header class="fav-head">
@@ -360,6 +384,11 @@
             <button type="button" class="pick-fav" data-i18n="tile.pickFav">📚 ライブラリから選ぶ</button>
             <button type="button" class="pick-any" data-i18n="tile.pickAny" data-i18n-title="tile.pickAnyTitle" title="まだ出ていない配信を 1 本入れる: ピックアップ (📌) のライブ → ほかのライブ → ピックアップの最近の配信 → ほかの最近の配信 の順で探し、その中からランダムに選ぶ">🎲 おまかせ</button>
           </div>
+          <!-- 🎲 おまかせで探している間の進み具合 (大きさを固定して、文字が変わっても周りが動かない) -->
+          <div class="pick-progress" role="status" aria-live="polite" hidden>
+            <div class="pick-progress-text"></div>
+            <div class="pick-progress-track"><div class="pick-progress-bar"></div></div>
+          </div>
           <div class="error"></div>
         </form>
         <!-- 枠の上 2 割はつかんでドラッグできる (枠の入れ替え)。その範囲のクリックはプレイヤーに届かない -->
@@ -371,6 +400,8 @@
           <span class="index"></span>
           <!-- ライブ配信中の枠の印 (アーカイブ・動画には出さない) -->
           <span class="live-badge" aria-hidden="true">LIVE</span>
+          <!-- 自己診断: 枠の中で動いていない機能がある (YouTube 側の変更など) -->
+          <span class="diag-badge" hidden>⚠</span>
           <span class="tile-name"></span>
           <span class="bar-buttons">
             <button type="button" data-act="audio" data-i18n-title="tile.audio" title="この枠だけ音を出す (他の枠はミュート)。複数枠で同時に聞くときは枠内のプレイヤーのスピーカーで"></button>

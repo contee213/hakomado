@@ -482,6 +482,12 @@ body.hl-animate .tile.audible::before { animation: hl-flow 6s ease-in-out infini
 }
 
 .empty-actions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; }
+/* 🎲 おまかせの進み具合 (枠の中。押したボタンの下) */
+.pick-progress { width: min(320px, 100%); display: flex; flex-direction: column; gap: 4px; }
+.pick-progress[hidden] { display: none; }
+.pick-progress-text { color: var(--muted); font-size: 11px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pick-progress-track { height: 4px; border-radius: 2px; background: #2a2a31; overflow: hidden; }
+.pick-progress-bar { height: 100%; width: 0; background: var(--accent); transition: width .25s; }
 
 /* ---------- favorites ---------- */
 /* 高さは枠 (dialog) だけで決め、スクロールするのは一覧だけにする (枠と中身の両方に上限があると、枠線の分だけはみ出して二重スクロールになる) */
@@ -1125,6 +1131,23 @@ dialog.settings-dialog { width: min(780px, calc(100% - 32px)); overflow: hidden;
 .settings-form label.check > span { font-weight: 600; }
 /* 使い方 */
 dialog.help-dialog { width: min(520px, calc(100% - 32px)); }
+/* 視聴セットの共有 */
+dialog.share-dialog { width: min(560px, calc(100% - 32px)); }
+.share-form .field-label { font-weight: 600; font-size: 13px; }
+.share-text {
+  width: 100%;
+  box-sizing: border-box;
+  resize: none;
+  background: #000;
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 6px 8px;
+  font: 12px/1.5 ui-monospace, Consolas, monospace;
+}
+.share-buttons { display: flex; align-items: center; gap: 10px; }
+.share-status { color: var(--muted); font-size: 12px; }
+.share-error { color: #ff8a80; }
 .help-form { display: flex; flex-direction: column; gap: 10px; padding: 16px; }
 .help-form h3 { margin: 4px 0 0; font-size: 13px; color: var(--muted); }
 .help-tips { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; line-height: 1.5; }
@@ -1144,3 +1167,7 @@ kbd {
   background: #222228;
 }
 code { font-size: 12px; background: #222228; padding: 0 4px; border-radius: 3px; }
+
+/* 自己診断の ⚠ (枠のバー) */
+.diag-badge { color: #ffcc66; font-size: 12px; cursor: help; }
+.diag-badge[hidden] { display: none; }
