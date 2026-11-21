@@ -500,6 +500,17 @@ dialog.fav-dialog {
   overflow: hidden;
 }
 dialog.fav-dialog[open] { display: flex; flex-direction: column; }
+/* 使い方ツアーで見せるとき: ツアーの暗い幕 (z-index 1000) のすぐ下に、左に寄せて出す (右に吹き出し、下に操作バーが入るように) */
+dialog.fav-dialog.tour-preview {
+  position: fixed;
+  z-index: 999;
+  inset: 48px auto auto 24px;
+  margin: 0;
+  width: max(min(560px, calc(100vw - 48px)), calc(100vw - 520px));
+  max-width: 1000px;
+  height: var(--tour-screen-h, 60vh);
+  max-height: none;
+}
 .fav { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
 .fav-head {
   display: flex;
@@ -1028,7 +1039,7 @@ dialog.settings-dialog { width: min(780px, calc(100% - 32px)); overflow: hidden;
 .tour-spot {
   position: fixed;
   border-radius: 10px;
-  box-shadow: 0 0 0 9999px rgba(8, 12, 20, .5), 0 0 0 4px rgba(77, 179, 255, .35), 0 0 24px 6px rgba(77, 179, 255, .45);
+  box-shadow: 0 0 0 9999px rgba(8, 12, 20, .7), 0 0 0 4px rgba(77, 179, 255, .35), 0 0 24px 6px rgba(77, 179, 255, .45);
   outline: 2px solid #4db3ff;
   outline-offset: 0;
   transition: left .35s ease, top .35s ease, width .35s ease, height .35s ease, outline-color .2s;
@@ -1045,19 +1056,19 @@ dialog.settings-dialog { width: min(780px, calc(100% - 32px)); overflow: hidden;
   0%, 100% { box-shadow: 0 0 0 0 rgba(77, 179, 255, .7); }
   50% { box-shadow: 0 0 0 5px rgba(77, 179, 255, 0); }
 }
-.tour-spot.none { outline-color: transparent; animation: none; box-shadow: 0 0 0 9999px rgba(8, 12, 20, .5); }
+.tour-spot.none { outline-color: transparent; animation: none; box-shadow: 0 0 0 9999px rgba(8, 12, 20, .7); }
 /* 押してもらうステップ: 明るくしたボタンだけ押せる */
 .tour-spot.action { pointer-events: auto; cursor: pointer; outline-width: 3px; }
 @keyframes tour-pulse {
   0%, 100% { outline-offset: 0; }
   50% { outline-offset: 5px; }
 }
-/* 吹き出し: 暗い画面の中で目立つよう、明るめのグレーに白い文字で大きめに */
+/* 吹き出し: 暗い画面の中で目立つよう、明るめのグレーに白い文字で大きめに。説明だけを入れ、対象を矢印で指す */
 .tour-tip {
   position: fixed;
   width: min(420px, calc(100vw - 24px));
   box-sizing: border-box;
-  padding: 20px 22px 16px;
+  padding: 18px 22px;
   border: 1px solid #5a606c;
   border-radius: 14px;
   background: #3b404b;
@@ -1065,33 +1076,119 @@ dialog.settings-dialog { width: min(780px, calc(100% - 32px)); overflow: hidden;
   box-shadow: 0 18px 48px rgba(0, 0, 0, .5), 0 2px 6px rgba(0, 0, 0, .25);
   font-size: 14px;
   transition: left .35s ease, top .35s ease;
-  animation: tour-in .25s ease;
 }
+.tour-tip.enter { animation: tour-in .25s ease; }
 /* 最初のようこそは、さらに大きく */
-.tour-tip.hero { width: min(500px, calc(100vw - 24px)); padding: 28px 30px 20px; text-align: center; }
-.tour-tip.hero .tour-logo { display: block; width: 64px; height: 64px; margin: 0 auto 12px; }
-.tour-tip.hero h3 { font-size: 24px; }
-.tour-tip.hero .tour-count { display: none; }
+.tour-tip.hero { width: min(700px, calc(100vw - 24px)); padding: 30px 30px 26px; text-align: center; }
+.tour-tip.hero .tour-logo { display: block; width: 112px; height: 112px; margin: 0 auto 14px; filter: drop-shadow(0 6px 18px rgba(77, 179, 255, .35)); }
+.tour-tip.hero h3 { font-size: 26px; }
+/* ようこそ: 代表的な使い方を 3 つ並べる (狭い画面では縦に) */
+.tour-uses { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; margin: 18px 0 0; padding: 0; list-style: none; text-align: left; }
+.tour-uses li { display: flex; flex-direction: column; gap: 6px; padding: 12px 14px; border: 1px solid #535a66; border-radius: 10px; background: #434955; }
+.tour-uses b { color: #fff; font-size: 14px; }
+.tour-uses span { color: #cfd5de; font-size: 13px; line-height: 1.65; }
 @keyframes tour-in {
   from { opacity: 0; transform: translateY(8px) scale(.98); }
   to { opacity: 1; transform: none; }
 }
 .tour-tip h3 { margin: 0 0 8px; font-size: 19px; font-weight: 700; color: #fff; }
-.tour-tip p { margin: 0 0 14px; color: #dfe3ea; font-size: 14.5px; line-height: 1.75; }
-.tour-count { float: right; margin-top: 3px; color: #aab1bd; font-size: 12px; font-weight: 600; }
-/* 進み具合の点は 1 行使い、ボタンの行は「スキップ … 戻る・次へ」 */
-.tour-dots { display: flex; justify-content: center; gap: 5px; margin-bottom: 14px; }
-.tour-dots i { width: 7px; height: 7px; border-radius: 50%; background: #646b78; transition: background .2s, width .2s; }
-.tour-dots i.on { width: 18px; border-radius: 4px; background: #4db3ff; }
+.tour-tip p { margin: 0; color: #dfe3ea; font-size: 14.5px; line-height: 1.75; }
+/* 吹き出しの矢印: 対象のある辺から突き出し、対象に向かって小さく動いて「ここ」と指す */
+.tour-tail {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  background: inherit;
+  border: 1px solid transparent;
+  transform: translate(-50%, -50%) rotate(45deg);
+  animation: tour-tail 1.2s ease-in-out infinite;
+  display: none;
+}
+.tour-tip[data-side="up"] .tour-tail { display: block; left: var(--tail); top: 0; border-top-color: #5a606c; border-left-color: #5a606c; --bob: 0 -3px; }
+.tour-tip[data-side="down"] .tour-tail { display: block; left: var(--tail); top: 100%; border-bottom-color: #5a606c; border-right-color: #5a606c; --bob: 0 3px; }
+.tour-tip[data-side="left"] .tour-tail { display: block; left: 0; top: var(--tail); border-bottom-color: #5a606c; border-left-color: #5a606c; --bob: -3px 0; }
+.tour-tip[data-side="right"] .tour-tail { display: block; left: 100%; top: var(--tail); border-top-color: #5a606c; border-right-color: #5a606c; --bob: 3px 0; }
+@keyframes tour-tail {
+  0%, 100% { translate: 0 0; }
+  50% { translate: var(--bob); }
+}
+/* 操作のバー: 画面の下寄りの真ん中に固定 (下端に貼り付けると目線から遠いので少し上げる)。
+   上から「使い方ツアー ・ 何番目か」「ステップの一覧」「スキップ … 戻る・次へ」 */
+.tour-dock {
+  position: fixed;
+  left: 50%;
+  bottom: max(20px, 18vh);
+  transform: translateX(-50%);
+  width: min(760px, calc(100vw - 24px));
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px 12px 18px;
+  border: 1px solid #5a606c;
+  border-top: 3px solid #1a8cff;
+  border-radius: 14px;
+  background: #3b404b;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, .5);
+}
+.tour-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.tour-name { display: inline-flex; align-items: center; gap: 7px; color: #fff; font-size: 13px; font-weight: 700; letter-spacing: .04em; }
+.tour-name img { width: 18px; height: 18px; }
+.tour-count { color: #aab1bd; font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
+/* ステップの一覧: 番号の丸と短い名前を線でつなぐ。済んだところは ✓、今のところは青く強調 */
+.tour-steps { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; row-gap: 4px; margin: 0; padding: 0; list-style: none; }
+.tour-steps li { display: flex; align-items: center; }
+.tour-steps li + li::before { content: ''; width: 14px; height: 1px; margin: 0 2px; background: #5f6672; }
+.tour-steps li.done + li::before, .tour-steps li.on::before { background: #4db3ff; }
+.tour-dock .tour-steps button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 9px 4px 5px;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: #9aa2af;
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+.tour-dock .tour-steps button:hover { background: rgba(255, 255, 255, .08); color: #fff; }
+.tour-step-num {
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  box-sizing: border-box;
+  border: 1.5px solid #646b78;
+  border-radius: 50%;
+  font-size: 10.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.tour-steps li.done button { color: #c9d4e2; }
+.tour-steps li.done .tour-step-num { border-color: #4db3ff; color: #4db3ff; }
+.tour-dock .tour-steps li.on button { background: rgba(26, 140, 255, .22); color: #fff; font-weight: 700; }
+.tour-steps li.on .tour-step-num { border-color: #1a8cff; background: #1a8cff; color: #fff; }
+.tour-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 10px; border-top: 1px solid #4c525e; }
 .tour-nav { display: flex; align-items: center; gap: 8px; }
-.tour-nav button { font-size: 14px; padding: 7px 14px; border-radius: 8px; border: 1px solid #5f6672; background: #4a505c; color: #fff; }
-.tour-nav button:hover { background: #555c69; }
-.tour-nav .tour-skip { margin-right: auto; border: 0; background: none; color: #b7bdc8; padding-left: 0; }
-.tour-nav .tour-skip:hover { background: none; color: #fff; }
-.tour-nav .primary { border-color: #1a8cff; background: #1a8cff; color: #fff; font-weight: 700; }
-.tour-nav .primary:hover { background: #0b78e6; }
+.tour-dock button { font-size: 14px; padding: 7px 14px; border-radius: 8px; border: 1px solid #5f6672; background: #4a505c; color: #fff; }
+.tour-dock button:hover { background: #555c69; }
+.tour-dock .tour-skip { border: 0; background: none; color: #b7bdc8; padding-left: 0; }
+.tour-dock .tour-skip:hover { background: none; color: #fff; }
+.tour-dock .primary { border-color: #1a8cff; background: #1a8cff; color: #fff; font-weight: 700; }
+.tour-dock .primary:hover { background: #0b78e6; }
+/* 最後の「自動再生をはじめる」: 明るくしたボタンと同じように光らせて誘う */
+.tour-dock .primary.action { animation: tour-btn 1.2s ease-in-out infinite; }
+/* 最初の「戻る」: 押せないが場所は残す */
+.tour-dock .placeholder { visibility: hidden; }
+/* ボタンの文字: 使う文字を全部重ね、今の 1 つだけ見せる (幅をいちばん長い文字に合わせる) */
+.tour-label-stack { display: inline-grid; justify-items: center; }
+.tour-skip .tour-label-stack { justify-items: start; }
+.tour-label-stack > span { grid-area: 1 / 1; visibility: hidden; }
+.tour-label-stack > span.on { visibility: visible; }
+.tour-dock .placeholder .tour-label-stack > span.on { visibility: hidden; }
 @media (prefers-reduced-motion: reduce) {
-  .tour-spot, .tour-tip { transition: none; animation: none; }
+  .tour-spot, .tour-tip, .tour-tail, .tour-dock .primary.action { transition: none; animation: none; }
 }
 .settings-foot button { font-size: 12px; }
 .settings-panel {
