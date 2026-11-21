@@ -29,7 +29,7 @@
     <button id="openNotices" type="button" data-i18n-title="notice.title" title="通知 (チャンネルの配信開始)"><span class="tb-icon">🔔</span><span class="tb-label" data-i18n="notice.label">通知</span><span id="noticeBadge" class="notice-badge" hidden></span></button>
     <button id="openChannels" type="button" data-i18n-title="ch.title" title="チャンネル (F): 配信中・配信予定と、チャンネルの追加・ピックアップ"><span class="tb-icon">📺</span><span class="tb-label" data-i18n="ch.label">チャンネル</span></button>
     <button id="openFavorites" type="button" data-i18n-title="fav.title" title="ライブラリ (B): 最近の配信・視聴履歴・あとで見る"><span class="tb-icon">📚</span><span class="tb-label" data-i18n="fav.label">ライブラリ</span></button>
-    <button id="openShare" class="icon-only" type="button" data-i18n-title="share.title" title="視聴セットの共有: 今の枠の配信とレイアウトをテキストでコピーしたり、貼り付けて同じ並びを作ったりする">🔗</button>
+    <button id="openShare" class="icon-only" type="button" data-i18n-title="share.title" title="視聴セットの共有: 今の枠の配信とレイアウトをテキストでコピーしたり、貼り付けて同じ並びを作ったりする。再生リストとしての保存や、AI チャットへの頼み文もここから">🔗</button>
     <button id="gridFullscreen" class="icon-only" type="button" data-i18n-title="gridFs.title" title="分割したまま全画面 (Shift+F)。上端にマウスを寄せると、このバーが出ます">⛶</button>
     <button id="openSettings" class="icon-only" type="button" data-i18n-title="settings.title" title="設定">⚙</button>
     <button id="openHelp" class="icon-only" type="button" data-i18n-title="help.title" title="使い方とキー操作 (?)">?</button>
@@ -199,7 +199,7 @@
       <section class="settings-panel" data-panel="backup" role="tabpanel" hidden>
         <div class="settings-col">
           <span class="field-label" data-i18n="backup.h">設定のバックアップ</span>
-          <p class="settings-note" data-i18n="backup.note">設定・チャンネル (ピックアップ 📌 を含む)・視聴履歴・あとで見る・表示言語を 1 つのファイルに書き出します。拡張機能のフォルダを移したり入れ直したりすると保存した内容は消えるので、その前に書き出しておき、あとで読み込んで戻してください</p>
+          <p class="settings-note" data-i18n="backup.note">設定・チャンネル (ピックアップ 📌 を含む)・視聴履歴・あとで見る・再生リスト・表示言語を 1 つのファイルに書き出します。拡張機能のフォルダを移したり入れ直したりすると保存した内容は消えるので、その前に書き出しておき、あとで読み込んで戻してください</p>
           <div class="preset-buttons">
             <button type="button" id="backupExport" data-i18n="backup.export">⬇ ファイルに書き出す</button>
             <button type="button" id="backupImport" data-i18n="backup.import">⬆ ファイルから読み込む</button>
@@ -269,7 +269,16 @@
       <textarea id="shareIn" class="share-text" rows="7" spellcheck="false" data-i18n-placeholder="share.placeholder" placeholder="https://www.youtube.com/watch?v=..."></textarea>
       <div class="share-buttons">
         <button type="button" id="shareLoad" data-i18n="share.load">読み込む</button>
-        <span id="shareError" class="share-status share-error" role="status"></span>
+        <span class="share-or" data-i18n="share.or">または</span>
+        <input type="text" id="shareName" class="share-name" maxlength="80" spellcheck="false" data-i18n-placeholder="share.namePlaceholder" placeholder="再生リストの名前">
+        <button type="button" id="shareSave" data-i18n="share.save" data-i18n-title="share.saveTitle" title="枠には入れずに、ライブラリの「📃 再生リスト」に保存する (最大 200 本。同じ名前があれば置き換え)">📃 再生リストに保存</button>
+      </div>
+      <span id="shareError" class="share-status share-error" role="status"></span>
+      <span class="field-label" data-i18n="share.aiH">🤖 AI チャットに作ってもらう</span>
+      <p class="settings-note" data-i18n="share.aiNote">頼み文 (書き方の説明と、登録しているチャンネルの一覧) をコピーして Claude などの AI チャットに貼り、見たいものを書き足して送ります。返ってきたリストをここに貼るか、取り込み用リンクを開くと再生リストに保存できます</p>
+      <div class="share-buttons">
+        <button type="button" id="shareAi" data-i18n="share.ai">📋 頼み文をコピー</button>
+        <span id="shareAiCopied" class="share-status" role="status"></span>
       </div>
     </form>
   </dialog>
@@ -304,6 +313,7 @@
           <button type="button" role="tab" data-favtab="archive" data-i18n="fav.archive" data-i18n-title="fav.archiveTitle" title="チャンネルの、最近 7 日に終わった配信 (新しい順)">🎞 最近の配信</button>
           <button type="button" role="tab" data-favtab="history" data-i18n="fav.history" data-i18n-title="fav.historyTitle" title="この拡張機能で見た配信・動画 (新しい順に 100 件。すべてのタブで共通)">🕘 視聴履歴</button>
           <button type="button" role="tab" data-favtab="saved" data-i18n="fav.saved" data-i18n-title="fav.savedTitle" title="あとで見たい配信・動画 (🔖)。100 件まで。最後まで再生するか、🔖 を外すと消える (すべてのタブで共通)">🔖 あとで見る</button>
+          <button type="button" role="tab" data-favtab="playlists" data-i18n="fav.playlists" data-i18n-title="fav.playlistsTitle" title="名前を付けた配信・動画の並び。AI チャットなどで作ったリストを 🔗 (共有) から保存できる。再生しても減らない (すべてのタブで共通)">📃 再生リスト</button>
         </div>
         <span class="spacer"></span>
         <button type="button" id="queuePlay" class="primary-action" data-i18n="queue.play" data-i18n-title="queue.playTitle" title="あとで見るを、今ある枠で入れた順に再生する。最後まで見た枠には次が入る (枠は増やさない。自動再生は止める)" hidden>▶ 今の枠で順に再生</button>
@@ -314,6 +324,8 @@
         <span id="libScope" class="seg lib-scope" role="radiogroup" data-i18n-title="scope.title" title="対象のチャンネル: すべて / ピックアップ (📌) に入れたものだけ (どのタブでも共通)">
           <button type="button" data-scope="all" data-i18n="scope.all">📺 すべて</button><button type="button" data-scope="star" data-i18n="scope.star">📌 ピックアップ</button>
         </span>
+        <select id="plSelect" class="pl-select" data-i18n-title="pl.selectTitle" title="表示する再生リスト" hidden></select>
+        <button type="button" id="plDelete" class="pl-delete" data-i18n-title="pl.deleteTitle" title="この再生リストを削除する" hidden>🗑</button>
         <input type="search" id="favFilter" data-i18n-placeholder="fav.filter" placeholder="名前・@チャンネル名で絞り込み" spellcheck="false">
         <!-- 件数は一覧のすぐ上 (絞り込み欄の右) に。タブの横に出すとタブの位置と紛らわしいので -->
         <span id="favLiveCount" class="fav-count live"></span>
@@ -428,6 +440,7 @@
   <script src="presets.js"></script>
   <script src="favorites.js"></script>
   <script src="history.js"></script>
+  <script src="playlists.js"></script>
   <script src="tour.js"></script>
   <script src="backup.js"></script>
   <script src="update-check.js"></script>

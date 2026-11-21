@@ -1401,6 +1401,7 @@ window.addEventListener('message', (e) => {
     updateFavButton(i);
     WatchHistory.update(state.tiles[i].videoId, { ...views[i].meta, label: state.tiles[i].label });
     if (savedIds.has(state.tiles[i].videoId)) SavedVideos.update(state.tiles[i].videoId, views[i].meta);
+    if (playlistIds.has(state.tiles[i].videoId)) Playlists.update(state.tiles[i].videoId, views[i].meta);
     updateNowPlaying();
   } else if (data.hakomado === 'playability') {
     onPlayability(i, String(data.status || ''), String(data.text || ''));
@@ -1432,6 +1433,7 @@ function onEnded(i, reason) {
   // 最後まで再生した → あとで見るから消す
   const done = reason === 'played' && savedIds.has(t.videoId) ? SavedVideos.remove(t.videoId).then(refreshSavedIds) : Promise.resolve();
   if (queueMode && t.queue && reason === 'played') {
+    queueDoneIds.add(t.videoId);
     WatchHistory.removed(t.videoId, 'ended');
     done.then(() => queueNext(i));
     return;
@@ -1761,12 +1763,33 @@ function viewingSetText() {
 }
 
 /**
- * テキストから視聴セットを読み取る。各行の最初の語を URL / 動画 ID / @チャンネル名 として読む
- * (# で始まる行は説明。「# layout=…」があればレイアウト)
- * @returns {Promise<{ids: string[], layoutId: string|null, bad: number, tooMany: boolean}>}
+ * 取り込み用リンク (YouTube の https://www.youtube.com/watch_videos?video_ids=ID,ID,…&hakomado=名前) を読む。
+ * YouTube はこの URL を名前の無い一時的な再生リストとして開くので、Hakomado を入れていない人にもそのまま見られる
+ * (hakomado= は YouTube には無視される)。違う URL なら null
+ * @returns {{ids: string[], name: string}|null}
  */
-async function parseViewingSet(text, onProgress) {
+function parseWatchVideosLink(raw) {
+  let url;
+  try {
+    url = new URL(raw);
+  } catch {
+    return null;
+  }
+  if (!/^((www|m)\.)?youtube\.com$/.test(url.hostname) || url.pathname !== '/watch_videos') return null;
+  const ids = (url.searchParams.get('video_ids') || '').split(',').map((s) => s.trim()).filter((id) => ID_RE.test(id));
+  return { ids: [...new Set(ids)], name: (url.searchParams.get('hakomado') || '').trim() };
+}
+
+/**
+ * テキストから視聴セット・再生リストを読み取る。各行の最初の語を URL / 動画 ID / @チャンネル名 として読み、
+ * 行の後ろの「# …」はその配信の名前 (チャンネル名など) にする。取り込み用リンクの行は、中の動画をすべて読む。
+ * # で始まる行は説明。「# layout=…」があればレイアウト、「# playlist=…」があれば再生リストの名前
+ * @param {number} [max] 読む本数の上限 (視聴セットは枠の数、再生リストは再生リストの上限)
+ * @returns {Promise<{ids: string[], items: {videoId: string, label?: string}[], layoutId: string|null, name: string, bad: number, tooMany: boolean}>}
+ */
+async function parseViewingSet(text, onProgress, max = SHARE_MAX) {
   let layoutId = null;
+  let name = '';
   const tokens = [];
   for (const line of text.split(/\r?\n/)) {
     const s = line.trim();
@@ -1774,23 +1797,33 @@ async function parseViewingSet(text, onProgress) {
     if (s.startsWith('#')) {
       const m = s.match(/layout=([\w-]+)/);
       if (m) layoutId = m[1];
+      const p = s.match(/^#\s*playlist\s*=\s*(.+)$/i);
+      if (p && !name) name = p[1].trim();
       continue;
     }
-    tokens.push(s.split(/\s+/)[0]);
+    const t = s.split(/\s+/)[0];
+    const link = parseWatchVideosLink(t);
+    if (link) {
+      tokens.push(...link.ids.map((id) => ({ t: id, label: '' })));
+      if (!name) name = link.name;
+      continue;
+    }
+    const label = (s.slice(t.length).match(/^\s+#\s*(.*)$/)?.[1] || '').trim();
+    tokens.push({ t, label });
   }
-  const ids = [];
+  const items = [];
   let bad = 0;
-  for (const [k, t] of tokens.entries()) {
-    if (ids.length >= SHARE_MAX) break;
+  for (const [k, { t, label }] of tokens.entries()) {
+    if (items.length >= max) break;
     onProgress?.(k + 1, tokens.length);
     try {
       const id = await resolveVideoId(t);
-      if (!ids.includes(id)) ids.push(id);
+      if (!items.some((h) => h.videoId === id)) items.push(label ? { videoId: id, label } : { videoId: id });
     } catch {
       bad++;
     }
   }
-  return { ids, layoutId, bad, tooMany: tokens.length - bad > SHARE_MAX };
+  return { ids: items.map((h) => h.videoId), items, layoutId, name, bad, tooMany: tokens.length - bad > max };
 }
 
 /** 視聴セットで今の枠を置き換える (同じ配信を表示中の枠はそのまま使い、読み込み直さない) */
@@ -1836,16 +1869,74 @@ function setupShare() {
   const copied = document.getElementById('shareCopied');
   const error = document.getElementById('shareError');
   const loadBtn = document.getElementById('shareLoad');
+  const saveBtn = document.getElementById('shareSave');
+  const nameInput = document.getElementById('shareName');
+  const aiCopied = document.getElementById('shareAiCopied');
   closeOnBackdrop(dialog);
 
-  document.getElementById('openShare').addEventListener('click', () => {
-    const text = viewingSetText();
-    out.value = text;
-    out.placeholder = text ? '' : tr('shareEmpty');
-    document.getElementById('shareCopy').disabled = !text;
+  /** 開く。text / name を渡すと貼り付け欄と名前を埋めておき、message を知らせ欄に出す (取り込み用リンクから開いたとき) */
+  openShareDialog = ({ text, name, message } = {}) => {
+    const set = viewingSetText();
+    out.value = set;
+    out.placeholder = set ? '' : tr('shareEmpty');
+    document.getElementById('shareCopy').disabled = !set;
     copied.textContent = '';
-    error.textContent = '';
-    dialog.showModal();
+    aiCopied.textContent = '';
+    error.classList.remove('share-error');
+    error.textContent = message || '';
+    if (text != null) input.value = text;
+    if (name != null) nameInput.value = name;
+    if (!dialog.open) dialog.showModal();
+    if (text != null) saveBtn.focus();
+  };
+  document.getElementById('openShare').addEventListener('click', () => openShareDialog());
+
+  saveBtn.addEventListener('click', async () => {
+    error.classList.remove('share-error');
+    saveBtn.disabled = loadBtn.disabled = true;
+    try {
+      const { items, name, bad, tooMany } = await parseViewingSet(
+        input.value,
+        (done, total) => {
+          error.textContent = tr('shareLoading', done, total);
+        },
+        Playlists.MAX_ITEMS,
+      );
+      error.classList.add('share-error');
+      if (!items.length) {
+        error.textContent = tr('shareNothing');
+        return;
+      }
+      const plName = nameInput.value.trim() || name || defaultPlaylistName();
+      const r = await Playlists.save(plName, items);
+      if (!r?.playlist) {
+        error.textContent = r?.full ? tr('plFull', Playlists.MAX_LISTS) : tr('plSaveFailed');
+        return;
+      }
+      error.textContent = '';
+      input.value = '';
+      nameInput.value = '';
+      dialog.close();
+      const notes = [bad ? tr('shareBadLines', bad) : '', tooMany ? tr('plTooMany', Playlists.MAX_ITEMS) : ''].filter(Boolean);
+      notify([tr(r.replaced ? 'plReplaced' : 'plSaved', r.playlist.name, items.length), ...notes].join(' / '));
+      // 保存した再生リストをライブラリで開く (そのまま「▶ 今の枠で順に再生」を押せるように)
+      plSelected = r.playlist.id;
+      rememberLibraryTab('playlists');
+      openFavorites(null, 'library');
+    } finally {
+      error.classList.add('share-error');
+      saveBtn.disabled = loadBtn.disabled = false;
+    }
+  });
+
+  document.getElementById('shareAi').addEventListener('click', async () => {
+    const text = await aiPromptText();
+    try {
+      await navigator.clipboard.writeText(text);
+      aiCopied.textContent = tr('shareAiCopied');
+    } catch {
+      aiCopied.textContent = tr('shareAiFailed');
+    }
   });
 
   document.getElementById('shareCopy').addEventListener('click', async () => {
@@ -1880,6 +1971,108 @@ function setupShare() {
       error.classList.add('share-error');
       loadBtn.disabled = false;
     }
+  });
+}
+
+/** 共有の画面を開く (setupShare で中身が入る) */
+let openShareDialog = () => {};
+
+/** 名前を付けずに保存したときの再生リストの名前 (例: 再生リスト 11/21 20:05) */
+function defaultPlaylistName() {
+  const d = new Date();
+  const p = (n) => String(n).padStart(2, '0');
+  return tr('plDefaultName', `${d.getMonth() + 1}/${d.getDate()} ${p(d.getHours())}:${p(d.getMinutes())}`);
+}
+
+/**
+ * AI チャットに貼る頼み文。書き方 (Hakomado が読める形式) と、登録しているチャンネルの一覧を入れる。
+ * 「見たいもの」は利用者が書き足す
+ */
+async function aiPromptText() {
+  const favs = await Favorites.list();
+  const ja = LANG === 'ja';
+  const channels = favs.map((f) => `- ${f.star ? '📌 ' : ''}${f.name}${f.handle ? ` (${f.handle})` : ''} channel_id=${f.channelId}`);
+  const today = new Date().toLocaleString(ja ? 'ja-JP' : 'en-US', { dateStyle: 'full', timeStyle: 'short' });
+  if (ja) {
+    return [
+      'Hakomado (YouTube の配信を並べて見る Chrome 拡張機能) に登録する再生リストを作ってください。',
+      `今は ${today} です。`,
+      '',
+      '## 見たいもの',
+      '(ここに書いてください。例: 今週の箱企画のコラボ配信を、参加した全員の視点で / 明日の夜に見られる歌枠)',
+      '',
+      '## 出力してほしいもの',
+      '1. 再生リストのテキスト (コードブロックで。1 行に 1 本、見る順に。最大 200 本):',
+      '```',
+      '# playlist=再生リストの名前',
+      'https://www.youtube.com/watch?v=動画ID  # チャンネル名 / 配信タイトル',
+      '```',
+      '2. 取り込み用リンク (50 本まで。名前は URL エンコード):',
+      'https://www.youtube.com/watch_videos?video_ids=動画ID,動画ID,...&hakomado=再生リストの名前',
+      '',
+      '## 調べ方のヒント',
+      '- チャンネルのライブ配信 (予定を含む) の RSS: https://www.youtube.com/feeds/videos.xml?playlist_id=UULV + channel_id の 3 文字目以降',
+      '- チャンネルの動画の RSS: https://www.youtube.com/feeds/videos.xml?channel_id=チャンネルID',
+      '- ホロライブの配信予定 (ホロジュール): https://schedule.hololive.tv/',
+      '- 動画 ID は実際に確認できたものだけを使い、推測で作らないでください。見つからなかったものは、リストの外に書いてください',
+      '- 同じ企画を複数の視点で配信している場合は、まとめて並べてください',
+      '',
+      '## 私が登録しているチャンネル (📌 = 特によく見る)',
+      ...channels,
+    ].join('\n');
+  }
+  return [
+    'Please make a playlist for Hakomado (a Chrome extension for watching several YouTube streams side by side).',
+    `It is now ${today}.`,
+    '',
+    '## What I want to watch',
+    '(Write here. e.g. this week’s group collab streams from every participant’s view / karaoke streams I can watch tomorrow night)',
+    '',
+    '## Output',
+    '1. Playlist text (in a code block, one per line in watching order, up to 200):',
+    '```',
+    '# playlist=Playlist name',
+    'https://www.youtube.com/watch?v=VIDEO_ID  # Channel name / stream title',
+    '```',
+    '2. Import link (up to 50 videos; URL-encode the name):',
+    'https://www.youtube.com/watch_videos?video_ids=VIDEO_ID,VIDEO_ID,...&hakomado=Playlist%20name',
+    '',
+    '## Hints',
+    '- RSS of a channel’s live streams (including upcoming): https://www.youtube.com/feeds/videos.xml?playlist_id=UULV + channel_id without its first 2 characters',
+    '- RSS of a channel’s videos: https://www.youtube.com/feeds/videos.xml?channel_id=CHANNEL_ID',
+    '- hololive schedule: https://schedule.hololive.tv/',
+    '- Only use video IDs you actually confirmed; never guess them. List anything you could not find outside the playlist',
+    '- When several people stream the same event from their own view, put them together',
+    '',
+    '## Channels I follow (📌 = watch most)',
+    ...channels,
+  ].join('\n');
+}
+
+/**
+ * 取り込み用リンクから開いたとき (#import=…)。リンクの中身を共有の画面の貼り付け欄に入れて開き、保存か読み込みを選んでもらう。
+ * (YouTube の watch_videos の URL を、background.js がこの画面に付け替えて開く)
+ */
+function handleImportLink() {
+  const PREFIX = '#import=';
+  if (!location.hash.startsWith(PREFIX)) return;
+  const raw = location.hash.slice(PREFIX.length);
+  // 再読み込みでもう一度出さないよう、先に URL から外す
+  history.replaceState(null, '', location.pathname + location.search);
+  let link = null;
+  try {
+    link = parseWatchVideosLink(`${YT}/watch_videos?${decodeURIComponent(raw)}`);
+  } catch {
+    /* 壊れたリンク */
+  }
+  if (!link?.ids.length) {
+    notify(tr('importNothing'));
+    return;
+  }
+  openShareDialog({
+    text: link.ids.map((id) => `${YT}/watch?v=${id}`).join('\n'),
+    name: link.name.slice(0, Playlists.NAME_MAX),
+    message: tr('importReceived', link.ids.length),
   });
 }
 
@@ -2035,7 +2228,7 @@ function setupBackup() {
       return;
     }
     const c = parsed.counts;
-    if (!confirm(tr('backupConfirm', c.channels, c.stars, c.history, c.saved))) return;
+    if (!confirm(tr('backupConfirm', c.channels, c.stars, c.history, c.saved, c.playlists))) return;
     try {
       // まだ書き込んでいない設定の変更は捨てる (読み込んだ設定を上書きしないように)
       clearTimeout(settingsTimer);
@@ -2279,7 +2472,7 @@ function openFavorites(target, view) {
 function savedLibraryTab() {
   try {
     const t = localStorage.getItem('hakomado.libTab');
-    if (['archive', 'history', 'saved'].includes(t)) return t;
+    if (['archive', 'history', 'saved', 'playlists'].includes(t)) return t;
   } catch {
     /* ignore */
   }
@@ -2641,19 +2834,21 @@ function archiveItem(v, f) {
 // ピックアップ (📌) で絞るのはタブではなく、共通の絞り込み (libScope)
 let favMode = 'all';
 /** 配信・動画の一覧 (最近の配信 / 視聴履歴 / あとで見る) を表示中か */
-const isVideoMode = () => favMode === 'archive' || favMode === 'saved' || favMode === 'history';
+const isVideoMode = () => favMode === 'archive' || favMode === 'saved' || favMode === 'history' || favMode === 'playlists';
+
+/** ライブラリのタブを、次に開いたときのために覚えておく */
+function rememberLibraryTab(tab) {
+  try {
+    localStorage.setItem('hakomado.libTab', tab);
+  } catch {
+    /* ignore */
+  }
+}
 
 /** チャンネル / 最近の配信 / 視聴履歴 / あとで見る を切り替える。配信・動画の一覧ではチャンネルの追加欄を隠す */
 function setFavMode(mode, { render = true } = {}) {
-  favMode = ['all', 'archive', 'saved', 'history'].includes(mode) ? mode : 'all';
-  // ライブラリのタブは、次に開いたときのために覚えておく
-  if (favMode !== 'all') {
-    try {
-      localStorage.setItem('hakomado.libTab', favMode);
-    } catch {
-      /* ignore */
-    }
-  }
+  favMode = ['all', 'archive', 'saved', 'history', 'playlists'].includes(mode) ? mode : 'all';
+  if (favMode !== 'all') rememberLibraryTab(favMode);
   const isHistory = isVideoMode();
   for (const b of document.querySelectorAll('[data-favtab]')) {
     const on = b.dataset.favtab === favMode;
@@ -2661,12 +2856,20 @@ function setFavMode(mode, { render = true } = {}) {
     b.setAttribute('aria-selected', String(on));
   }
   // 「⟳ 更新」はチャンネルとアーカイブで使う (アーカイブでは取り直し)
-  document.getElementById('favRefresh').hidden = favMode === 'saved' || favMode === 'history';
+  document.getElementById('favRefresh').hidden = favMode === 'saved' || favMode === 'history' || favMode === 'playlists';
   document.getElementById('favLiveCount').hidden = isHistory;
   document.getElementById('favAdd').hidden = isHistory;
   document.getElementById('historyClear').hidden = favMode !== 'history';
-  document.getElementById('queuePlay').hidden = favMode !== 'saved';
-  document.getElementById('savedCount').hidden = favMode !== 'saved' && favMode !== 'archive';
+  const queueBtn = document.getElementById('queuePlay');
+  queueBtn.hidden = favMode !== 'saved' && favMode !== 'playlists';
+  queueBtn.disabled = false; // 再生リストのタブでは、中身が無ければ描くときに押せなくする
+  queueBtn.title = tr(favMode === 'playlists' ? 'plPlayTitle' : 'savedPlayTitle');
+  document.getElementById('savedCount').hidden = favMode !== 'saved' && favMode !== 'archive' && favMode !== 'playlists';
+  // 再生リストは自分で選んで並べたものなので、ピックアップ (📌) では絞らない
+  const isPl = favMode === 'playlists';
+  document.getElementById('libScope').hidden = isPl;
+  document.getElementById('plSelect').hidden = !isPl;
+  document.getElementById('plDelete').hidden = !isPl;
   favErrorEl.textContent = '';
   if (render) renderFavPane();
 }
@@ -2683,6 +2886,7 @@ async function renderVideoList() {
   const mode = favMode;
   if (!isVideoMode()) return;
   if (mode === 'archive') return renderArchiveTab();
+  if (mode === 'playlists') return renderPlaylistTab();
   const saved = mode === 'saved';
   const all = await (saved ? SavedVideos : WatchHistory).list();
   const picked = await pickedOnly();
@@ -2707,8 +2911,11 @@ async function renderVideoList() {
   else document.getElementById('historyClear').hidden = all.length === 0;
 }
 
-/** 視聴履歴 / あとで見る の 1 行。saved = あとで見るの一覧 (✕ で外す)。視聴履歴の行には 🔖 を付けて、あとで見るに入れられるようにする */
-function videoItem(h, saved) {
+/**
+ * 視聴履歴 / あとで見る / 再生リスト の 1 行。saved = あとで見るの一覧 (✕ で外す)。それ以外の行には 🔖 を付けて、あとで見るに入れられるようにする。
+ * onRemove を渡すと、✕ はそれを呼ぶ (再生リストから外す)
+ */
+function videoItem(h, saved, { onRemove, removeTitle } = {}) {
   const li = document.getElementById('favItemTemplate').content.firstElementChild.cloneNode(true);
   li.classList.add('history');
   li.title = tr('historyPick');
@@ -2741,9 +2948,14 @@ function videoItem(h, saved) {
   thumb.src = `https://i.ytimg.com/vi/${h.videoId}/mqdefault.jpg`;
   li.addEventListener('click', () => loadFromHistory(h));
   const del = li.querySelector('.fav-del');
-  del.title = tr(saved ? 'savedOff' : 'historyDel');
+  del.title = removeTitle || tr(saved ? 'savedOff' : 'historyDel');
   del.addEventListener('click', async (e) => {
     e.stopPropagation();
+    if (onRemove) {
+      await onRemove();
+      renderVideoList();
+      return;
+    }
     await (saved ? SavedVideos : WatchHistory).remove(h.videoId);
     if (saved) await refreshSavedIds();
     renderVideoList();
@@ -2785,6 +2997,83 @@ function loadFromHistory(h) {
 // 他のタブで見たものも含め、履歴が変わったら表示中の一覧を描き直す
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area === 'local' && changes[WatchHistory.KEY] && favDialog.open && favMode === 'history') renderVideoList();
+});
+
+// ---------------------------------------------------------------- 📃 再生リスト (ライブラリの「📃 再生リスト」タブ)
+
+/** 表示中の再生リストの id (次に開いたときのために覚えておく) */
+let plSelected = (() => {
+  try {
+    return localStorage.getItem('hakomado.libPlaylist');
+  } catch {
+    return null;
+  }
+})();
+function selectPlaylist(id) {
+  plSelected = id;
+  try {
+    if (id) localStorage.setItem('hakomado.libPlaylist', id);
+  } catch {
+    /* ignore */
+  }
+}
+
+/** 再生リストのタブを描く: 上の選択欄で再生リストを選び、その中身を一覧にする */
+async function renderPlaylistTab() {
+  const lists = await Playlists.list();
+  if (favMode !== 'playlists') return; // 読み込んでいる間に切り替えられた
+  if (!lists.some((p) => p.id === plSelected)) selectPlaylist(lists[0]?.id ?? null);
+  const pl = lists.find((p) => p.id === plSelected);
+  const sel = document.getElementById('plSelect');
+  sel.replaceChildren(...lists.map((p) => new Option(`${p.name} (${p.items.length})`, p.id, false, p.id === plSelected)));
+  sel.disabled = !lists.length;
+  document.getElementById('plDelete').disabled = !pl;
+  document.getElementById('queuePlay').disabled = !pl?.items.length;
+  const count = document.getElementById('savedCount');
+  count.textContent = pl ? tr('savedCount', pl.items.length, Playlists.MAX_ITEMS) : '';
+  const q = favFilter.trim().toLowerCase();
+  const items = pl?.items || [];
+  const shown = items.filter(
+    (h) => !q || [h.title, h.channel, h.handle, h.label].some((s) => String(s ?? '').toLowerCase().includes(q)),
+  );
+  const ul = document.createElement('ul');
+  ul.className = 'fav-sub video-grid';
+  ul.append(
+    ...shown.map((h) =>
+      videoItem({ ...h, input: `${YT}/watch?v=${h.videoId}` }, false, {
+        onRemove: () => Playlists.removeItem(pl.id, h.videoId),
+        removeTitle: tr('plItemRemove'),
+      }),
+    ),
+  );
+  favListEl.replaceChildren(...(shown.length ? [ul] : []));
+  document.getElementById('favEmpty').textContent = !lists.length
+    ? tr('plEmpty')
+    : q && items.length
+      ? tr('savedNoMatch', favFilter)
+      : tr('plNoItems');
+}
+
+async function deleteSelectedPlaylist() {
+  const pl = plSelected && (await Playlists.get(plSelected));
+  if (!pl || !confirm(tr('plDeleteConfirm', pl.name, pl.items.length))) return;
+  if (queueMode && queueSource === pl.id) stopQueue();
+  await Playlists.remove(pl.id);
+  selectPlaylist(null);
+  renderVideoList();
+}
+
+/** どれかの再生リストに入っている動画 (タイトルなどが分かったときに、再生リストにも書き足すため) */
+let playlistIds = new Set();
+async function refreshPlaylistIds() {
+  playlistIds = new Set((await Playlists.list()).flatMap((p) => p.items.map((h) => h.videoId)));
+}
+
+// 他のタブで保存・削除したときも、表示中の一覧を描き直す
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area !== 'local' || !changes[Playlists.KEY]) return;
+  refreshPlaylistIds().catch(() => {});
+  if (favDialog.open && favMode === 'playlists') renderVideoList();
 });
 
 /** 設定画面の「チャンネル」タブ: 初期データを全部外す / 外したものを戻す (件数を出し、0 件なら押せない) */
@@ -3158,37 +3447,52 @@ async function setAutoMode(on, { resume = false } = {}) {
   if (state.autoMode) autoTimer = setInterval(autoTick, AUTO_INTERVAL_MS);
 }
 
-// ---------------------------------------------------------------- あとで見るを、今の枠で順に再生
+// ---------------------------------------------------------------- あとで見る・再生リストを、今の枠で順に再生
 // 今ある枠に、あとで見るを入れた順 (古いもの) から入れる。最後まで再生した枠は一覧から消え、次が入る。
+// 再生リストは並んでいる順に入れる (再生しても再生リストからは消えない)。
 // 枠は増やさない。自動再生とは同時に動かさない (どちらかを始めると、もう一方は止まる)
 let queueMode = false;
+/** 何を再生しているか: null = あとで見る / 文字 = 再生リストの id */
+let queueSource = null;
+/** この再生の間に最後まで見たもの (再生リストは見ても消えないので、次を選ぶときに飛ばす) */
+const queueDoneIds = new Set();
 
-/** 再生する順 (入れた順)。📌 ピックアップで絞っているときは、ピックアップのチャンネルのものだけ */
+/** 再生する順。あとで見るは入れた順で、📌 ピックアップで絞っているときはピックアップのチャンネルのものだけ */
 async function queueList() {
+  if (queueSource) return (await Playlists.get(queueSource))?.items || [];
   const list = [...(await SavedVideos.list())].reverse();
   return (await pickedOnly()) ? list.filter(isPickedEntry) : list;
 }
 
 async function startQueue() {
+  stopQueue();
+  queueSource = favMode === 'playlists' ? plSelected : null;
   const list = await queueList();
   if (!list.length) {
-    favErrorEl.textContent = tr('queueEmpty');
+    favErrorEl.textContent = tr(queueSource ? 'plQueueEmpty' : 'queueEmpty');
     return;
   }
   if (state.autoMode) await setAutoMode(false);
   queueMode = true;
+  queueDoneIds.clear();
   const tiles = visibleIndexes();
   tiles.forEach((i, k) => {
     if (list[k]) queueLoad(i, list[k]);
   });
   setAudioSet([tiles[0]]); // 1 本目の音を出す
   favDialog.close();
-  notify(tr('queueStarted', list.length));
+  if (queueSource) {
+    const pl = await Playlists.get(queueSource);
+    notify(tr('plStarted', pl?.name || '', list.length));
+  } else {
+    notify(tr('queueStarted', list.length));
+  }
 }
 
 function stopQueue() {
   if (!queueMode) return;
   queueMode = false;
+  queueDoneIds.clear();
   for (const t of state.tiles) t.queue = false;
 }
 
@@ -3209,12 +3513,12 @@ function queueNext(i) {
 async function queueNextNow(i) {
   if (!queueMode) return;
   const shown = new Set(visibleIndexes().map((j) => state.tiles[j].videoId));
-  const next = (await queueList()).find((h) => !shown.has(h.videoId));
+  const next = (await queueList()).find((h) => !shown.has(h.videoId) && !queueDoneIds.has(h.videoId));
   const wasAudible = !state.tiles[i].muted;
   if (next) {
     queueLoad(i, next);
     if (wasAudible) setAudioSet([i]);
-    notify(tr('queueNext', next.label || next.title || next.videoId));
+    notify(tr(queueSource ? 'plNext' : 'queueNext', next.label || next.title || next.videoId));
     return;
   }
   state.tiles[i] = newTileState();
@@ -3223,7 +3527,7 @@ async function queueNextNow(i) {
   save();
   if (!visibleIndexes().some((j) => state.tiles[j].queue)) {
     queueMode = false;
-    notify(tr('queueDone'));
+    notify(tr(queueSource ? 'plDone' : 'queueDone'));
   }
 }
 
@@ -3851,6 +4155,11 @@ function notify(text) {
 function setupFavorites() {
   document.getElementById('openChannels').addEventListener('click', () => openFavorites(null, 'channels'));
   document.getElementById('queuePlay').addEventListener('click', startQueue);
+  document.getElementById('plSelect').addEventListener('change', (e) => {
+    selectPlaylist(e.target.value);
+    renderVideoList();
+  });
+  document.getElementById('plDelete').addEventListener('click', deleteSelectedPlaylist);
   document.getElementById('openFavorites').addEventListener('click', () => openFavorites(null, 'library'));
   document.getElementById('favClose').addEventListener('click', () => favDialog.close());
   document.getElementById('favRefresh').addEventListener('click', () => {
@@ -4233,6 +4542,7 @@ async function chooseSession() {
   buildTiles();
   refreshFavKeys().catch(() => {});
   refreshSavedIds().catch(() => {});
+  refreshPlaylistIds().catch(() => {});
   setupDragSwap();
   setupToolbar();
   layout();
@@ -4263,6 +4573,7 @@ async function chooseSession() {
   // 自動再生 ON のまま閉じたセッションを続けるときは、今の枠のまま確認を再開
   else if (state.autoMode) setAutoMode(true, { resume: true });
   startNoticeWatch();
+  handleImportLink();
 
   // インストール直後の 1 回だけ、使い方ツアーを出す (先に印を消して、他のタブでは出さない)
   const { tourPending } = await chrome.storage.local.get('tourPending');
