@@ -34,8 +34,13 @@ It is not on the Chrome Web Store, so load it in developer mode.
 4. Click "Load unpacked" and choose the extracted folder (the one with `manifest.json` in it)
 5. Click the Hakomado icon in the toolbar (pin it from the puzzle-piece menu) to open the multi-view page
 
-To update, extract the new zip over the same folder, press "⟳" for the extension on the extensions page, then reload the multi-view page
-(if you move the folder, it is treated as a different extension and your settings and channels are not carried over).
+To update, extract the new zip over the same folder, press "⟳" for the extension on the extensions page, then reload the multi-view page.
+The release zip fixes the extension ID to `lhafnnpnfpgogdbapeepkgohemnnifpp`, so even if you extract it to another folder it stays the same extension
+and your settings and channels are carried over.
+
+> **Upgrading from v0.2.0 or earlier**: zips up to v0.2.0 did not fix the ID, so switching to a version with the fixed ID treats it as a different
+> extension once. Before switching, export your data with ⚙ Settings → "Backup" → "⬇ Export to a file", then import it in the new version with
+> "⬆ Import from a file". Once it is restored, you can remove the old version from the extensions page
 
 ## Quick start
 
@@ -119,6 +124,10 @@ A pack is a JSON file like the one below. Put it on GitHub (raw), Gist or elsewh
 - Releases: bump `version` in `manifest.json`, commit, and push a tag with the same number (e.g. `v0.2.0`).
   GitHub Actions (`.github/workflows/release.yml`) zips the contents of `extension` and creates the release. It stops if the tag and `version` differ
 - For development, `git clone` the repository and load the `extension` folder to try changes right away
+- Extension ID: `release.yml` adds `"key"` (the public key in `tools/release-key.pub`) to `manifest.json` in the release zip only, which fixes the ID
+  (`node tools/release-key.js id` prints it). It is not in the repository's `extension/`, so a development folder gets its own path-based ID and
+  you can load the development and release versions side by side in one Chrome profile (with separate saved data). The matching private key is not
+  in the repository (it is only needed to build a CRX). When publishing to the store, swap in the store's public key to share the store version's ID
 - Tests: `npm test` (Node.js 22 or later; there are no dependencies, so no `npm install`). They live in `tests/` and also run on every push and PR
   in GitHub Actions (`.github/workflows/test.yml`). The release zip is only built after the tests pass.
   Checks that need the real YouTube are done by hand with `tests/MANUAL.md` (in Japanese)
