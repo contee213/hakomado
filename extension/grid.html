@@ -469,7 +469,9 @@
       </div>
       <details class="pl-ai">
         <summary data-i18n="read.aiH">🤖 AI チャットに作ってもらう</summary>
-        <p class="settings-note" data-i18n="read.aiNote">頼み文 (書き方の説明と、登録しているチャンネルの一覧) をコピーして Claude などの AI チャットに貼り、見たいものを書き足して送ります。返ってきたリストを上に貼るか、取り込み用リンクを開くと読み込めます</p>
+        <p class="settings-note" data-i18n="read.aiNote">見たいものを書いて頼み文 (見たいもの・書き方の説明・登録しているチャンネルの一覧) をコピーし、Claude などの AI チャット (Web 検索が使えるもの) に貼って送ります。返ってきたリストを上に貼るか、取り込み用リンクを開くと読み込めます</p>
+        <label class="field-label" for="readAiWant" data-i18n="read.aiWantLabel">見たいもの</label>
+        <textarea id="readAiWant" class="share-text" rows="3" maxlength="1000" data-i18n-placeholder="read.aiWantPlaceholder" placeholder="例: 昨日の配信で話題になっていたものを 10 本 / 今週のコラボ企画を参加者全員の視点で / 明日の夜に見られる歌枠"></textarea>
         <div class="share-buttons">
           <button type="button" id="readAi" data-i18n="read.ai">📋 頼み文をコピー</button>
           <span id="readAiCopied" class="share-status" role="status"></span>

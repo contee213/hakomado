@@ -488,7 +488,11 @@ const MESSAGES = {
   plSyncStarted: ['⏱ 再生リスト「{0}」を同期再生します ({1} 本)。アーカイブだと分かりしだい同期を始めます', '⏱ Playing playlist "{0}" in sync ({1}). Sync starts once the archives are recognized'],
   plShareCopiedText: ['テキストをコピーしました', 'Copied the text'],
   plShareCopiedLink: ['リンクをコピーしました', 'Copied the link'],
-  shareAiCopied: ['コピーしました。AI チャットに貼って、「見たいもの」を書き足してください', 'Copied. Paste it into an AI chat and fill in what you want to watch'],
+  shareAiCopied: ['コピーしました。AI チャットに貼って送ってください', 'Copied. Paste it into an AI chat and send it'],
+  shareAiCopiedEmpty: [
+    'コピーしました。AI チャットに貼り、「見たいもの」を書き足して送ってください',
+    'Copied. Paste it into an AI chat, fill in what you want to watch and send it',
+  ],
   shareAiFailed: ['コピーできませんでした', 'Could not copy'],
   importReceived: [
     'リンクから {0} 本を受け取りました。名前を確かめて「📃 再生リストとして保存」を押してください (枠に並べることもできます)',
@@ -727,7 +731,9 @@ const HTML_EN = {
   'read.save': '📃 Save as playlist',
   'read.saveTitle': 'Save as a playlist with this name and open it in the library (up to 200; a playlist with the same name is replaced)',
   'read.aiH': '🤖 Ask an AI chat to make one',
-  'read.aiNote': 'Copy a request (how to write the list, plus the channels you follow), paste it into an AI chat such as Claude, add what you want to watch and send it. Paste the list you get back above, or open the import link',
+  'read.aiNote': 'Write what you want to watch, copy the request (what you want, how to write the list, and the channels you follow), then paste it into an AI chat that can search the web, such as Claude, and send it. Paste the list you get back above, or open the import link',
+  'read.aiWantLabel': 'What you want to watch',
+  'read.aiWantPlaceholder': 'e.g. 10 of yesterday’s streams people were talking about / this week’s collab from every participant’s view / karaoke streams I can watch tomorrow night',
   'read.ai': '📋 Copy request',
   'helpNav.start': 'Getting started',
   'helpNav.tiles': '▦ Tiles and layouts',
