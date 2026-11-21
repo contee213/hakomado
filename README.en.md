@@ -62,7 +62,9 @@ For more controls and keys, open "?" (help) at the top right. The tour shown the
 
 Hakomado's default data covers Hololive channels only. Channels of other groups can be added by importing a "channel pack" made by someone else (⚙ Settings → Channels tab). A pack can be imported from a URL, pasted contents or a file. It is added to your channel list (channels you already have stay as they are), and each pack can be removed at once. You can also export the bundled Hololive pack, an imported pack or the channels you added as a pack.
 
-A pack is a JSON file like the one below. Put it on GitHub (raw), Gist or elsewhere and share the URL.
+"Find packs" lists the packs collected in this repository's [`packs/`](packs/) folder so you can import one with a click (packs in the list are unofficial and submitted by users). New packs and updates are welcome as PRs; see [`packs/README.md`](packs/README.md) (in Japanese).
+
+A pack is a JSON file like the one below. Besides submitting it to `packs/`, you can put it on GitHub (raw), Gist or elsewhere and share the URL.
 
 ```json
 {
@@ -98,7 +100,7 @@ A pack is a JSON file like the one below. Put it on GitHub (raw), Gist or elsewh
 | `https://schedule.hololive.tv/*` | Getting the stream schedule of the initial data channels |
 | `contextMenus` | The right-click menu "Add to an empty Hakomado tile" |
 
-- It only talks to YouTube and the schedule site. No data is sent to any other server
+- Besides YouTube and the schedule site, it only connects to GitHub to check for new versions (`api.github.com`), to the pack list when you press "Get the list" in Find packs (`raw.githubusercontent.com`), and to pack URLs you enter. No data is sent to any other server
 - Requests to YouTube use the browser's cookies (your sign-in). This is needed to show members-only streams and, in auto play, to check whether you can watch them
 - YouTube watch pages and live chat forbid embedding in other pages with the `X-Frame-Options` header, so a rule that removes this header
   (a declarativeNetRequest session rule) is registered **only for the multi-view page's tab**.

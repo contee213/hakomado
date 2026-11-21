@@ -55,6 +55,7 @@ YouTube の複数の配信・動画を 1 つの画面に並べて同時に視聴
 | `www.youtube.com` / `i.ytimg.com` | 配信・動画の情報とサムネイル (上記) |
 | `schedule.hololive.tv` | ホロライブの配信予定 |
 | `api.github.com` | 新しい版が出ていないかの確認 (1 日 1 回まで。ストア版 = `update_url` がある場合は行わない)。Cookie は送らない |
+| `raw.githubusercontent.com` | 「パックを探す」を押したときだけ、リポジトリの `packs/index.json` (パックの一覧) と、選んだパックを取得する。CORS で読めるので host 権限は使わない。Cookie は送らない |
 | 利用者が指定した https の URL | チャンネルパックの読み込み、ドラッグした画像 (QR コード読み取り) の取得。Cookie は送らない |
 
 ## データの取り扱い (プライバシー)

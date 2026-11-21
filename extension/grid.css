@@ -1117,6 +1117,10 @@ dialog.settings-dialog { width: min(780px, calc(100% - 32px)); overflow: hidden;
 .pack-list li { display: flex; align-items: center; gap: 8px; }
 .pack-list .pack-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pack-list button { flex: none; padding: 1px 8px; font-size: 12px; }
+.catalog-list li { align-items: flex-start; }
+.catalog-body { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.catalog-meta, .catalog-desc { color: var(--muted); font-size: 11px; }
+.catalog-new { color: #ffd54f; font-size: 11px; }
 @media (max-width: 720px) {
   .settings-panel { grid-template-columns: minmax(0, 1fr); gap: 12px; }
 }
