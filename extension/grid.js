@@ -2482,9 +2482,38 @@ function setupDragSwap() {
 
 // ---------------------------------------------------------------- toolbar & settings
 
-function openHelp() {
-  const d = document.getElementById('help');
-  if (!d.open) d.showModal();
+/** 使い方を開く。page = 開く項目 (省くと、このタブで最後に見ていたもの) */
+let openHelp = () => {};
+
+function setupHelp() {
+  const dialog = document.getElementById('help');
+  const tabs = dialog.querySelectorAll('[data-help]');
+  const KEY = 'hakomado.helpPage';
+  const show = (name) => {
+    const page = [...tabs].some((t) => t.dataset.help === name) ? name : 'start';
+    for (const t of tabs) {
+      t.classList.toggle('selected', t.dataset.help === page);
+      t.setAttribute('aria-selected', String(t.dataset.help === page));
+    }
+    for (const p of dialog.querySelectorAll('.help-page')) p.hidden = p.dataset.helpPage !== page;
+    dialog.querySelector('.help-content').scrollTop = 0;
+    try {
+      sessionStorage.setItem(KEY, page);
+    } catch {
+      /* ignore */
+    }
+  };
+  for (const t of tabs) t.addEventListener('click', () => show(t.dataset.help));
+  openHelp = (page) => {
+    let last = null;
+    try {
+      last = sessionStorage.getItem(KEY);
+    } catch {
+      /* ignore */
+    }
+    show(typeof page === 'string' ? page : last);
+    if (!dialog.open) dialog.showModal();
+  };
 }
 
 // ---------------------------------------------------------------- 🔗 共有 / 📥 読み込み
@@ -3822,13 +3851,14 @@ function setupToolbar() {
   });
   document.getElementById('settingsReset').addEventListener('click', resetSettings);
   setupBackup();
+  setupHelp();
   setupShare();
   setupRead();
   setupPlaylistPicker();
   setupPacks();
   Sync.setup();
   showAppVersion();
-  document.getElementById('openHelp').addEventListener('click', openHelp);
+  document.getElementById('openHelp').addEventListener('click', () => openHelp());
   document.getElementById('tourReplay').addEventListener('click', () => {
     document.getElementById('help').close();
     Tour.start();
@@ -3857,6 +3887,12 @@ function setupToolbar() {
     }
   };
   for (const t of tabs) t.addEventListener('click', () => showTab(t.dataset.tab));
+  // 「? 詳しい説明」: 今のタブの設定の説明を、使い方の画面で開く
+  const HELP_OF_TAB = { danmaku: 'look', audio: 'look', chat: 'look', auto: 'auto', channels: 'channels', backup: 'backup' };
+  document.getElementById('settingsHelp').addEventListener('click', () => {
+    const tab = [...tabs].find((t) => t.classList.contains('selected'))?.dataset.tab;
+    openHelp(HELP_OF_TAB[tab] || 'start');
+  });
 
   // 表示言語 (変えたらページを読み込み直す。視聴中の枠はこのタブのセッションとしてそのまま戻る)
   const langSelect = document.getElementById('langSelect');

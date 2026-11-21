@@ -19,10 +19,10 @@
     <button id="openLayout" type="button" data-i18n-title="layout.title" title="レイアウトを選ぶ"><span class="tb-icon">▦</span><span id="layoutName" class="tb-label"></span></button>
     <button id="addTile" type="button" data-i18n-title="addTile.title" title="枠を 1 つ増やす (枠の数に合ったレイアウトに変わります)"><span class="tb-icon">＋</span></button>
     <button id="removeTile" type="button" data-i18n-title="removeTile.title" title="空き枠を 1 つ減らす (枠の数に合ったレイアウトに変わります)。配信を読み込んだ枠は消しません"><span class="tb-icon">−</span></button>
-    <button id="autoMode" class="toggle" type="button" aria-pressed="false" data-i18n-title="auto.title" title="自動再生 (L): ON にすると配信中のチャンネルを全部 (設定の最大枠数まで) 再生し、その後も 1 分ごとに、配信が始まったら枠を足し、終わったら枠を消す。もうすぐ始まる配信も開始前から枠を用意する (⚙ 設定 →「自動再生」)。配信中のものが無いときは配信予定を表示する。ON の間に ✕ で閉じた配信は入れ直さない (OFF → ON で戻る)"><span class="tb-icon"><svg class="helm" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="4.3" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="8" cy="8" r="1.4"/><path d="M7.25 0.6h1.5v14.8h-1.5z M0.6 7.25h14.8v1.5H0.6z"/><path transform="rotate(45 8 8)" d="M7.25 0.6h1.5v14.8h-1.5z M0.6 7.25h14.8v1.5H0.6z"/></svg></span><span class="tb-label" data-i18n="auto.label">自動再生</span></button>
-    <button id="cruise" class="toggle" type="button" aria-pressed="false" data-i18n-title="cruise.title" title="クルーズ (C): 一定時間ごとにメイン枠と音声を次の配信へ回して、いろいろな配信を少しずつ見る。自動再生と関係なく、複数の枠を並べていれば使える。間隔は ⚙ 設定 →「自動再生」で変えられる"><span class="tb-icon"><svg class="ship" viewBox="0 0 16 16" aria-hidden="true"><path d="M9 2.5h2v2.5H9z"/><path d="M4.5 5h8v2h-8z"/><path d="M3.5 7.5h10v2h-10z"/><path d="M1 10h14l-2.4 3.5H3.4z"/></svg></span><span class="tb-label" data-i18n="cruise.label">クルーズ</span><i class="cruise-progress" aria-hidden="true"></i></button>
+    <button id="autoMode" class="toggle" type="button" aria-pressed="false" data-i18n-title="auto.title" title="自動再生 (L): 配信中のチャンネルを並べ、始まった・終わった配信に合わせて枠を増減する"><span class="tb-icon"><svg class="helm" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="4.3" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="8" cy="8" r="1.4"/><path d="M7.25 0.6h1.5v14.8h-1.5z M0.6 7.25h14.8v1.5H0.6z"/><path transform="rotate(45 8 8)" d="M7.25 0.6h1.5v14.8h-1.5z M0.6 7.25h14.8v1.5H0.6z"/></svg></span><span class="tb-label" data-i18n="auto.label">自動再生</span></button>
+    <button id="cruise" class="toggle" type="button" aria-pressed="false" data-i18n-title="cruise.title" title="クルーズ (C): 一定時間ごとに、メイン枠と音声を次の配信へ回す"><span class="tb-icon"><svg class="ship" viewBox="0 0 16 16" aria-hidden="true"><path d="M9 2.5h2v2.5H9z"/><path d="M4.5 5h8v2h-8z"/><path d="M3.5 7.5h10v2h-10z"/><path d="M1 10h14l-2.4 3.5H3.4z"/></svg></span><span class="tb-label" data-i18n="cruise.label">クルーズ</span><i class="cruise-progress" aria-hidden="true"></i></button>
     <button id="pauseAll" class="toggle" type="button" aria-pressed="false" data-i18n-title="pauseAll.title" title="全部の枠をまとめて一時停止 / 再開 (Space)。再開するとき、ライブ配信は最新の位置に戻ります"><span class="tb-icon">⏸</span><span class="tb-label" data-i18n="pauseAll.label">一時停止</span></button>
-    <button id="syncToggle" class="toggle" type="button" aria-pressed="false" hidden data-i18n-title="sync.title" title="アーカイブの同期再生: 開いているアーカイブを、配信していた実際の時刻でそろえて再生する。ほかの枠は「基準」の枠に合わせる (始めたときに音を出している枠。上部バーや枠の ⏱ で選び直せる)。時間帯が重ならないアーカイブは同期しない"><span class="tb-icon">⏱</span><span class="tb-label" data-i18n="sync.label">同期</span></button>
+    <button id="syncToggle" class="toggle" type="button" aria-pressed="false" hidden data-i18n-title="sync.title" title="アーカイブの同期再生: 配信していた実際の時刻でそろえて再生する"><span class="tb-icon">⏱</span><span class="tb-label" data-i18n="sync.label">同期</span></button>
     <div id="syncBar" class="sync-bar" hidden>
       <select id="syncRef" class="sync-ref" data-i18n-title="sync.refTitle" title="同期の基準の枠 (ほかの枠がこの枠に合わせる)。音を切り替えても変わりません"></select>
       <span id="syncNow" class="sync-time"></span>
@@ -37,7 +37,7 @@
     <button id="openChannels" type="button" data-i18n-title="ch.title" title="チャンネル (F): 配信中・配信予定と、チャンネルの追加・ピックアップ"><span class="tb-icon">📺</span><span class="tb-label" data-i18n="ch.label">チャンネル</span></button>
     <button id="openFavorites" type="button" data-i18n-title="fav.title" title="ライブラリ (B): 最近の配信・視聴履歴・あとで見る"><span class="tb-icon">📚</span><span class="tb-label" data-i18n="fav.label">ライブラリ</span></button>
     <button id="openShare" class="icon-only" type="button" data-i18n-title="share.title" title="共有: 今の枠や再生リストを、画像・コード・テキスト・リンクにして人に渡す">🔗</button>
-    <button id="openRead" class="icon-only" type="button" data-i18n-title="read.title" title="読み込む: 共有された画像・コード・テキスト・リンクや YouTube の URL を貼って、枠に並べるか再生リストとして保存する (どこでも Ctrl+V で貼っても開きます)">📥</button>
+    <button id="openRead" class="icon-only" type="button" data-i18n-title="read.title" title="読み込む: 共有された画像・コード・テキスト・リンクや URL を、枠に並べるか再生リストとして保存する">📥</button>
     <button id="gridFullscreen" class="icon-only" type="button" data-i18n-title="gridFs.title" title="分割したまま全画面 (Shift+F)。上端にマウスを寄せると、このバーが出ます">⛶</button>
     <button id="openSettings" class="icon-only" type="button" data-i18n-title="settings.title" title="設定">⚙</button>
     <button id="openHelp" class="icon-only" type="button" data-i18n-title="help.title" title="使い方とキー操作 (?)">?</button>
@@ -172,34 +172,34 @@
           <select id="noticeTarget"><option value="all" data-i18n="target.all">チャンネル全部</option><option value="fav" data-i18n="target.fav">ピックアップ (📌) だけ</option><option value="off" data-i18n="target.off">知らせない</option></select>
         </label>
         <label class="check"><input type="checkbox" id="skipMembersOnly"> <span data-i18n="auto.skip">メンバーになっていないメンバー限定配信は再生しない</span></label>
-        <p class="settings-note" data-i18n="auto.skipNote">「自動再生」で枠に入れる前に、ログイン中のアカウントで見られるかを確認します。自分で読み込んだ枠はそのまま表示します</p>
+        <p class="settings-note" data-i18n="auto.skipNote">ログイン中のアカウントで見られない配信は入れません</p>
         <label><span data-i18n="auto.maxTiles">自動再生の最大枠数</span> <output id="autoMaxTilesOut"></output>
           <input type="range" id="autoMaxTiles" min="1" max="16" step="1">
         </label>
-        <p class="settings-note" data-i18n="auto.maxTilesNote">配信中のものが多くても、この数までしか再生しません。回線が細いときや、パソコンが重いときは少なくしてください</p>
+        <p class="settings-note" data-i18n="auto.maxTilesNote">重いときは減らしてください</p>
         <label class="check"><input type="checkbox" id="autoPickupMain"> <span data-i18n="auto.pickupMain">ピックアップ (📌) の配信をメイン枠に優先して置く</span></label>
-        <p class="settings-note" data-i18n="auto.pickupMainNote">自動再生で、ピックアップのチャンネルのライブ配信を大きいメイン枠に入れ、ほかの配信はサブ枠に回します。枠数の上限に届いたときも、ピックアップを先に入れます。メイン枠の無い均等レイアウトのときと、クルーズ中は並べ替えません</p>
+        <p class="settings-note" data-i18n="auto.pickupMainNote">ピックアップのライブ配信を大きいメイン枠に入れます</p>
         </div>
         <div class="settings-col">
         <label><span data-i18n="auto.prestart">配信予定の枠を用意する</span> <output id="prestartMinOut"></output>
           <input type="range" id="prestartMin" min="0" max="5" step="1">
         </label>
-        <p class="settings-note" data-i18n="auto.prestartNote">配信予定の枠を開始前に作っておき、最初から見られるようにします。配信中のものが 1 つも無いときは、次に始まる配信予定と、その開始から 1 時間以内に始まる配信予定を表示します</p>
+        <p class="settings-note" data-i18n="auto.prestartNote">配信予定の枠を開始前に作っておきます</p>
         <label class="check"><input type="checkbox" id="autoArchive"> <span data-i18n="auto.archive">配信中が無いときは、最近の配信を流す</span></label>
-        <p class="settings-note" data-i18n="auto.archiveNote">深夜などライブが 1 本も無いときに、チャンネルの最近終わった配信を 4 枠流します (ピックアップ (📌) のチャンネルが先、一度見たものは除く)。ライブが始まったら片付けます</p>
+        <p class="settings-note" data-i18n="auto.archiveNote">ライブが無いときに、最近の配信を 4 枠流します</p>
         <label><span data-i18n="auto.cruise">クルーズの間隔</span> <output id="cruiseSecOut"></output>
           <input type="range" id="cruiseSec" min="0" max="13" step="1">
         </label>
-        <p class="settings-note" data-i18n="auto.cruiseNote">「クルーズ」が ON の間、この間隔でメイン枠と音声を次の配信へ回します。自動再生を使わず、自分で並べた枠でも使えます。均等レイアウトでは並びはそのままで、音声だけ次の枠へ移ります。空き枠は回さず、レイアウトも変えません。自動再生で枠を組み替えるときは「メイン + サブ」のレイアウトを優先します</p>
+        <p class="settings-note" data-i18n="auto.cruiseNote">クルーズで次の配信へ回す間隔</p>
         </div>
       </section>
       <section class="settings-panel" data-panel="channels" role="tabpanel" hidden>
         <div class="settings-col">
           <span class="field-label" data-i18n="pack.listH">チャンネルパック</span>
-          <p class="settings-note" data-i18n="pack.listNote">チャンネル一覧に入っているパックです。ホロライブ (同梱版) は最初から入っています。パックごとに、まとめて外したり、外したものを戻したりできます。自分で追加したチャンネルと、ピックアップ (📌) に入れたチャンネルは外しません</p>
+          <p class="settings-note" data-i18n="pack.listNote">チャンネル一覧に入っているパック。まとめて外したり戻したりできます</p>
           <ul id="packList" class="pack-list"></ul>
           <span class="field-label" data-i18n="pack.exportH">チャンネルパックを書き出す</span>
-          <p class="settings-note" data-i18n="pack.exportNote">チャンネル一覧から、パック (同梱のホロライブ・読み込んだパック・自分で追加したチャンネル・すべて) を選んでチャンネルパック (JSON) にします。ほかの人に配ったり、GitHub などで公開したりできます</p>
+          <p class="settings-note" data-i18n="pack.exportNote">チャンネル一覧をパック (JSON) にして、ほかの人に配れます</p>
           <div class="pack-row">
             <select id="packGroup"></select>
             <button type="button" id="packExport" data-i18n="pack.export">⬇ 書き出す</button>
@@ -207,14 +207,14 @@
         </div>
         <div class="settings-col">
           <span class="field-label" data-i18n="catalog.h">パックを探す</span>
-          <p class="settings-note" data-i18n="catalog.note">Hakomado のリポジトリ (GitHub) に集めたチャンネルパックの一覧です。パックは利用者が作って投稿した非公式のもので、各事務所・配信者とは関係ありません。内容の誤りや追加の希望は GitHub で知らせてください</p>
+          <p class="settings-note" data-i18n="catalog.note">利用者が投稿した非公式のパックです (各事務所・配信者とは関係ありません)</p>
           <div class="pack-row">
             <button type="button" id="catalogLoad" data-i18n="catalog.load">一覧を取得</button>
             <span id="catalogStatus" class="share-status" role="status"></span>
           </div>
           <ul id="catalogList" class="pack-list catalog-list"></ul>
           <span class="field-label" data-i18n="pack.h">チャンネルパックを読み込む</span>
-          <p class="settings-note" data-i18n="pack.note">ほかの人が作ったチャンネルの一覧 (チャンネルパック) を、今のチャンネル一覧に足します。URL か中身を貼り付けて「読み込む」を押すか、ファイルを選んでください。登録済みのチャンネルはそのままです</p>
+          <p class="settings-note" data-i18n="pack.note">ほかの人のパックを URL・中身・ファイルから足します (登録済みはそのまま)</p>
           <textarea id="packIn" class="share-text pack-in" rows="2" spellcheck="false" data-i18n-placeholder="pack.placeholder" placeholder="https://… (パックの URL) / { &quot;app&quot;: &quot;hakomado&quot;, … }"></textarea>
           <div class="pack-row">
             <button type="button" id="packLoad" data-i18n="pack.load">読み込む</button>
@@ -227,51 +227,163 @@
       <section class="settings-panel" data-panel="backup" role="tabpanel" hidden>
         <div class="settings-col">
           <span class="field-label" data-i18n="backup.h">設定のバックアップ</span>
-          <p class="settings-note" data-i18n="backup.note">設定・チャンネル (ピックアップ 📌 を含む)・視聴履歴・あとで見る・再生リスト・表示言語を 1 つのファイルに書き出します。拡張機能を削除して入れ直したり、別の版 (開発用のフォルダ・ID を固定する前の版) に切り替えたりすると保存した内容は引き継がれないので、その前に書き出しておき、あとで読み込んで戻してください</p>
+          <p class="settings-note" data-i18n="backup.note">設定・チャンネル・視聴履歴・あとで見る・再生リストを 1 つのファイルに書き出します。入れ直す前に書き出してください</p>
           <div class="preset-buttons">
             <button type="button" id="backupExport" data-i18n="backup.export">⬇ ファイルに書き出す</button>
             <button type="button" id="backupImport" data-i18n="backup.import">⬆ ファイルから読み込む</button>
             <input type="file" id="backupFile" accept=".json,application/json" hidden>
           </div>
-          <p class="settings-note" data-i18n="backup.importNote">読み込むと、今の設定・チャンネル・視聴履歴・あとで見るは、ファイルの内容に置き換わります。いま枠に入っている配信はそのままです</p>
+          <p class="settings-note" data-i18n="backup.importNote">読み込むと、設定・チャンネル・視聴履歴・あとで見るはファイルの内容に置き換わります</p>
         </div>
         <div class="settings-col"></div>
       </section>
       <footer class="settings-foot">
         <span class="app-version"></span>
+        <button type="button" id="settingsHelp" class="settings-help" data-i18n="settings.help" data-i18n-title="settings.helpTitle" title="このタブの設定の詳しい説明を「? 使い方」で開く">? 詳しい説明</button>
         <button type="button" id="settingsReset" data-i18n="settings.reset" data-i18n-title="settings.resetTitle" title="弾幕・枠の線・チャット欄・自動再生の設定を、すべて最初の状態に戻す (表示言語とチャンネルはそのまま)">すべて初期値に戻す</button>
       </footer>
     </form>
   </dialog>
 
+  <!-- ? 使い方: 左の列がメニュー、右の列がその説明。設定などの詳しい説明はここに集める (設定画面の説明は 1 行に)。
+       右の列は高さを決めてスクロールさせ、メニューを切り替えても画面の大きさと位置が変わらないようにする -->
   <dialog id="help" class="help-dialog">
     <form method="dialog" class="help-form">
       <div class="settings-title">
         <h2 data-i18n="help.h">? 使い方</h2>
         <button value="close" class="dialog-close" data-i18n-title="close" title="閉じる (Esc)">✕</button>
       </div>
-      <ul class="help-tips">
-        <li data-i18n-html="help.tip1">空き枠に URL / 動画 ID / <code>@チャンネル名</code> を貼るか、今の配信は「📺 チャンネルから選ぶ」、終わった配信は「📚 ライブラリから選ぶ」で読み込みます</li>
-        <li data-i18n="help.tip2">配信の入った枠にマウスを乗せると、操作バーが出ます。左端の ⠿ をドラッグすると枠を入れ替えます</li>
-        <li data-i18n="help.tip3">「自動再生」を ON にすると、配信中のチャンネルを全部並べ、始まった / 終わった配信に合わせて枠を増減します。もうすぐ始まる配信は開始前から枠を用意し、配信中のものが無いときは配信予定を表示します</li>
-        <li data-i18n="help.tip4">「クルーズ」を ON にすると、一定時間ごとにメイン枠と音声が次の配信へ移り、いろいろな配信を少しずつ見られます (自動再生を使わず、自分で並べた枠でも使えます)</li>
-        <li data-i18n="help.tip5">枠内のプレイヤーのスピーカーで音を出すと、他の枠を止めずに複数の枠を同時に聞けます</li>
-      </ul>
-      <h3 data-i18n="help.keys">キー操作</h3>
-      <table class="help-keys">
-        <tr><th><kbd>1</kbd>〜<kbd>9</kbd></th><td data-i18n="key.audio">その枠だけ音を出す</td></tr>
-        <tr><th><kbd>←</kbd><kbd>→</kbd><kbd>↑</kbd><kbd>↓</kbd></th><td data-i18n="key.arrows">今音が出ている枠の、その方向にある枠だけ音を出す</td></tr>
-        <tr><th><kbd>Shift</kbd> + <kbd>1</kbd>〜<kbd>9</kbd></th><td data-i18n-html="key.tileFs">その枠を全画面 (<kbd>Esc</kbd> で戻る)</td></tr>
-        <tr><th><kbd>Shift</kbd> + <kbd>F</kbd></th><td data-i18n="key.gridFs">分割したまま全画面 (上端にマウスを寄せるとバーが出る)</td></tr>
-        <tr><th><kbd>M</kbd></th><td data-i18n="key.mute">ミュート ⇄ 直前の状態に戻す</td></tr>
-        <tr><th><kbd>Space</kbd></th><td data-i18n="key.pause">全部の枠をまとめて一時停止 ⇄ 再開 (ライブ配信は最新の位置から再開)</td></tr>
-        <tr><th><kbd>L</kbd></th><td data-i18n="key.auto">自動再生の ON / OFF</td></tr>
-        <tr><th><kbd>C</kbd></th><td data-i18n="key.cruise">クルーズの ON / OFF</td></tr>
-        <tr><th><kbd>F</kbd></th><td data-i18n="key.fav">チャンネルを開く</td></tr>
-        <tr><th><kbd>B</kbd></th><td data-i18n="key.lib">ライブラリを開く</td></tr>
-        <tr><th><kbd>D</kbd></th><td data-i18n="key.danmaku">全部の枠の弾幕を一時的に消す ⇄ 戻す (弾幕は、枠の ≋ で決めていなければメイン枠だけに出ます)</td></tr>
-        <tr><th><kbd>?</kbd></th><td data-i18n="key.help">この画面を開く</td></tr>
-      </table>
+      <div class="help-body">
+        <nav class="help-nav" role="tablist" aria-orientation="vertical">
+          <button type="button" role="tab" data-help="start" data-i18n="helpNav.start">はじめに</button>
+          <button type="button" role="tab" data-help="tiles" data-i18n="helpNav.tiles">▦ 枠とレイアウト</button>
+          <button type="button" role="tab" data-help="auto" data-i18n="helpNav.auto">自動再生</button>
+          <button type="button" role="tab" data-help="cruise" data-i18n="helpNav.cruise">クルーズ</button>
+          <button type="button" role="tab" data-help="channels" data-i18n="helpNav.channels">📺 チャンネル・通知</button>
+          <button type="button" role="tab" data-help="library" data-i18n="helpNav.library">📚 ライブラリ・再生リスト</button>
+          <button type="button" role="tab" data-help="sync" data-i18n="helpNav.sync">⏱ アーカイブの同期再生</button>
+          <button type="button" role="tab" data-help="share" data-i18n="helpNav.share">🔗 共有 · 📥 読み込み</button>
+          <button type="button" role="tab" data-help="look" data-i18n="helpNav.look">弾幕・チャット・枠の線</button>
+          <button type="button" role="tab" data-help="backup" data-i18n="helpNav.backup">バックアップ</button>
+          <button type="button" role="tab" data-help="keys" data-i18n="helpNav.keys">キー操作</button>
+        </nav>
+        <div class="help-content">
+          <section class="help-page" data-help-page="start" role="tabpanel" data-i18n-html="helpPage.start">
+            <p>YouTube の配信を最大 16 枠に並べて、同時に見られます。</p>
+            <ul>
+              <li>空き枠に URL / 動画 ID / <code>@チャンネル名</code> を貼って「読み込む」。今の配信は「📺 チャンネルから選ぶ」、終わった配信は「📚 ライブラリから選ぶ」、「🎲 おまかせ」はまだ出ていない配信を 1 本入れます</li>
+              <li>YouTube の動画・配信へのリンクを右クリック →「Hakomado の空き枠に追加」でも入れられます</li>
+              <li>音は、ふつうは 1 つの枠からだけ出ます。枠のバーの音のボタンか <kbd>1</kbd>〜<kbd>9</kbd> で切り替えます。枠の中のプレイヤーのスピーカーで音を出すと、複数の枠を同時に聞けます</li>
+              <li>画面を一通り見るには、下の「▶ 使い方ツアーをもう一度見る」をどうぞ</li>
+            </ul>
+          </section>
+          <section class="help-page" data-help-page="tiles" role="tabpanel" data-i18n-html="helpPage.tiles" hidden>
+            <ul>
+              <li>上のバーの「▦」でレイアウトを選びます。濃い枠がメインで、読み込んだ配信は 1 番 (メイン) から順に入ります。「＋」「−」で枠を増やす・減らす</li>
+              <li>配信の入った枠にマウスを乗せると、操作バーが出ます。左端の ⠿ をドラッグすると、枠を入れ替えます</li>
+              <li>枠のバー: 音のボタン (この枠の音を出す) / 🎚 音の左右と音量 / 💬 チャット欄 / ≋ 弾幕 / 📌 ピックアップ / 🔖 あとで見る / 📃 再生リストに入れる / ⏱ 同期のずれ (アーカイブのとき) / ⟳ 読み込み直し / ⛶ その枠だけ全画面 / ✕ 閉じる</li>
+              <li>🎚 では、その枠の音を左・真ん中・右から聞こえるようにしたり、音量 (0〜200%) を変えたりできます。「⇆ 2 枠を左右に分ける」で、音の出ている 2 枠を画面の位置どおり左右に分けます</li>
+              <li>「⛶」(<kbd>Shift</kbd> + <kbd>F</kbd>) で、分割したまま全画面にします。上端にマウスを寄せるとバーが出ます</li>
+            </ul>
+          </section>
+          <section class="help-page" data-help-page="auto" role="tabpanel" data-i18n-html="helpPage.auto" hidden>
+            <p>「自動再生」(<kbd>L</kbd>) を ON にすると、配信中のチャンネルを全部並べます。その後も 1 分ごとに、始まった配信の枠を足し、終わった配信の枠を消します。</p>
+            <ul>
+              <li>ON にするとき、自分で入れた枠が置き換わるなら、先に確かめます</li>
+              <li>ON の間に ✕ で閉じた配信は、入れ直しません (OFF → ON で戻ります)。自分で入れた枠は消しません</li>
+            </ul>
+            <h3>設定 → 自動再生</h3>
+            <ul>
+              <li><b>自動再生の対象</b>: すべてのチャンネルか、ピックアップ (📌) だけか</li>
+              <li><b>メンバー限定配信</b>: ログイン中のアカウントで見られるかを、枠に入れる前に確かめます</li>
+              <li><b>最大枠数</b>: 配信中のものが多くても、この数までしか再生しません。回線が細いときや、パソコンが重いときは減らしてください</li>
+              <li><b>ピックアップをメイン枠に</b>: ピックアップのライブ配信を大きいメイン枠に入れ、ほかはサブ枠に回します。最大枠数に届いたときも、ピックアップを先に入れます。メイン枠の無い均等レイアウトと、クルーズ中は並べ替えません</li>
+              <li><b>配信予定の枠</b>: 開始前から枠を作り、最初から見られるようにします。配信中のものが 1 つも無いときは、次に始まる配信予定と、その開始から 1 時間以内に始まる予定を出します</li>
+              <li><b>最近の配信を流す</b>: 深夜などライブが 1 本も無いときに、チャンネルの最近終わった配信を 4 枠流します (ピックアップが先、一度見たものは除く)。ライブが始まったら片付けます</li>
+            </ul>
+          </section>
+          <section class="help-page" data-help-page="cruise" role="tabpanel" data-i18n-html="helpPage.cruise" hidden>
+            <p>「クルーズ」(<kbd>C</kbd>) を ON にすると、一定の間隔でメイン枠と音声を次の配信へ回し、いろいろな配信を少しずつ見られます。自動再生を使わず、自分で並べた枠でも使えます。</p>
+            <ul>
+              <li>間隔は 設定 → 自動再生 →「クルーズの間隔」で変えます</li>
+              <li>均等レイアウトでは並びはそのままで、音声だけ次の枠へ移ります。空き枠は回さず、レイアウトも変えません</li>
+              <li>自動再生で枠を組み替えるときは、「メイン + サブ」のレイアウトを優先します</li>
+            </ul>
+          </section>
+          <section class="help-page" data-help-page="channels" role="tabpanel" data-i18n-html="helpPage.channels" hidden>
+            <ul>
+              <li>「📺 チャンネル」(<kbd>F</kbd>) で、追加したチャンネルの配信中・配信予定と、それ以外を一覧します。配信中・予定の行を押すと、空いている枠に入ります</li>
+              <li>行の 🎞 でそのチャンネルの最近の配信を開き、📌 でピックアップに入れます</li>
+              <li><b>ピックアップ</b>: 今注目しているチャンネル (箱企画の参加者など)。上の「📺 すべて / 📌 ピックアップ」で一覧を絞れて、自動再生や通知の対象にもできます</li>
+              <li>下の欄に <code>@チャンネル名</code>・チャンネルの URL・動画の URL を入れると追加できます</li>
+              <li><b>🔔 通知</b>: チャンネルの配信が始まると知らせます。対象は 設定 → 自動再生 →「通知の対象」で選びます</li>
+            </ul>
+            <h3>設定 → チャンネル (チャンネルパック)</h3>
+            <ul>
+              <li>チャンネルパックは、チャンネルの一覧をまとめたものです。ホロライブ (同梱版) は最初から入っています。パックごとに、まとめて外したり戻したりできます。自分で追加したチャンネルと、ピックアップに入れたチャンネルは外しません</li>
+              <li><b>パックを探す</b>: Hakomado のリポジトリ (GitHub) に集めたパックの一覧から選べます。利用者が作って投稿した非公式のもので、各事務所・配信者とは関係ありません。誤りや追加の希望は GitHub で知らせてください</li>
+              <li><b>読み込む</b>: ほかの人が作ったパックの URL か中身を貼るか、ファイルを選んで足します。登録済みのチャンネルはそのままです</li>
+              <li><b>書き出す</b>: 同梱のホロライブ・読み込んだパック・自分で追加したチャンネル・すべてから選んでパック (JSON) にし、ほかの人に配ったり公開したりできます</li>
+            </ul>
+          </section>
+          <section class="help-page" data-help-page="library" role="tabpanel" data-i18n-html="helpPage.library" hidden>
+            <ul>
+              <li>「📚 ライブラリ」(<kbd>B</kbd>): 🎞 最近の配信 (最近 7 日に終わった配信) / 🕘 視聴履歴 (100 件) / 🔖 あとで見る (100 件) / 📃 再生リスト</li>
+              <li><b>あとで見る</b>: 枠のバーや一覧の 🔖 で入れます。「▶ 今の枠で順に再生」で今ある枠に順に入れ、最後まで見た枠には次が入ります。最後まで見たものは消えます</li>
+              <li><b>再生リスト</b>: 名前を付けた並び (30 個・1 つに 200 本まで)。「＋ 新規」「▦ 今の枠から作る」「📥 読み込む」で作り、URL の欄や、枠のバー・一覧の 📃 で足します。⠿ で並べ替え、行の名前は枠に出す名前になります</li>
+              <li>「▶ 順に再生」は今の枠に上から入れて、見終わった枠に次を入れます (最後まで見たものに ✓ を付け、次は続きから)。「⏱ まとめて同期再生」は全部を一度に並べて、アーカイブを同じ瞬間にそろえます (16 本まで)</li>
+            </ul>
+          </section>
+          <section class="help-page" data-help-page="sync" role="tabpanel" data-i18n-html="helpPage.sync" hidden>
+            <ul>
+              <li>アーカイブを 2 本以上開くと、上のバーに「⏱ 同期」が出ます。押すと、配信していた実際の時刻でそろえて再生します (時間帯が重ならないものは同期しません)</li>
+              <li>ほかの枠は「基準」の枠 (始めたときに音を出している枠) に合わせます。上のバーや枠の ⏱ で選び直せます</li>
+              <li>声や画面の出来事で合わない分は、枠の ⏱ でずれを足し引きします。ずれは動画ごとに覚え、再生リストや共有するコードにも入ります</li>
+              <li>上のバーのつまみで、同期している全部のアーカイブを同じ時刻に動かせます</li>
+            </ul>
+          </section>
+          <section class="help-page" data-help-page="share" role="tabpanel" data-i18n-html="helpPage.share" hidden>
+            <p>「🔗 共有」で、今の枠か再生リストを選んで、4 つの形式にできます。</p>
+            <ul>
+              <li><b>画像</b>: X などに添えて投稿します。QR にコードが入っています。画像に付ける説明 (ALT) の文もコピーできます</li>
+              <li><b>コード</b>: <code>#Hakomado …</code> の 1 行 (16 本まで)。X での文字数も出します</li>
+              <li><b>テキスト</b>: 1 行に 1 本。名前・同期・レイアウト・ずれ・枠の名前まで全部入ります。AI チャットに渡して直してもらうこともできます</li>
+              <li><b>取り込み用リンク</b>: Hakomado が無い人も YouTube の再生リストとして見られます (50 本まで)</li>
+            </ul>
+            <p>受け取ったものは「📥 読み込む」に貼ります (画像はドロップでも。入力欄の外で <kbd>Ctrl</kbd> + <kbd>V</kbd> しても開きます)。読み取った内容を確かめて、「▦ 枠に並べる」か「📃 再生リストとして保存」を選びます。取り込み用リンクを開いたときもここに来ます。</p>
+          </section>
+          <section class="help-page" data-help-page="look" role="tabpanel" data-i18n-html="helpPage.look" hidden>
+            <ul>
+              <li><b>弾幕</b>: 各枠のライブチャットを画面に流します。枠の ≋ で枠ごとに ON / OFF (決めていなければメイン枠だけ)。<kbd>D</kbd> で全部を一時的に消せます。文字の大きさ・速さ・行数などは 設定 → 弾幕</li>
+              <li><b>チャット欄</b>: 枠の 💬 で開きます。幅・文字の大きさ・アイコンを隠すかは 設定 → チャット欄 (開いているチャット欄にすぐ反映)</li>
+              <li><b>枠の線</b>: 音が出ている枠と、ライブ配信中の枠に付ける線の見た目 (両方のときは音の線が優先)。設定 → 枠の線</li>
+            </ul>
+          </section>
+          <section class="help-page" data-help-page="backup" role="tabpanel" data-i18n-html="helpPage.backup" hidden>
+            <ul>
+              <li>設定・チャンネル (ピックアップを含む)・視聴履歴・あとで見る・再生リスト・表示言語を、1 つのファイルに書き出します</li>
+              <li>拡張機能を削除して入れ直したり、別の版 (開発用のフォルダ・ID を固定する前の版) に切り替えたりすると、保存した内容は引き継がれません。その前に書き出しておき、あとで読み込んで戻してください</li>
+              <li>読み込むと、今の設定・チャンネル・視聴履歴・あとで見るは、ファイルの内容に置き換わります。いま枠に入っている配信はそのままです</li>
+            </ul>
+          </section>
+          <section class="help-page" data-help-page="keys" role="tabpanel" hidden>
+            <table class="help-keys">
+              <tr><th><kbd>1</kbd>〜<kbd>9</kbd></th><td data-i18n="key.audio">その枠だけ音を出す</td></tr>
+              <tr><th><kbd>←</kbd><kbd>→</kbd><kbd>↑</kbd><kbd>↓</kbd></th><td data-i18n="key.arrows">今音が出ている枠の、その方向にある枠だけ音を出す</td></tr>
+              <tr><th><kbd>Shift</kbd> + <kbd>1</kbd>〜<kbd>9</kbd></th><td data-i18n-html="key.tileFs">その枠を全画面 (<kbd>Esc</kbd> で戻る)</td></tr>
+              <tr><th><kbd>Shift</kbd> + <kbd>F</kbd></th><td data-i18n="key.gridFs">分割したまま全画面 (上端にマウスを寄せるとバーが出る)</td></tr>
+              <tr><th><kbd>M</kbd></th><td data-i18n="key.mute">ミュート ⇄ 直前の状態に戻す</td></tr>
+              <tr><th><kbd>Space</kbd></th><td data-i18n="key.pause">全部の枠をまとめて一時停止 ⇄ 再開 (ライブ配信は最新の位置から再開)</td></tr>
+              <tr><th><kbd>L</kbd></th><td data-i18n="key.auto">自動再生の ON / OFF</td></tr>
+              <tr><th><kbd>C</kbd></th><td data-i18n="key.cruise">クルーズの ON / OFF</td></tr>
+              <tr><th><kbd>F</kbd></th><td data-i18n="key.fav">チャンネルを開く</td></tr>
+              <tr><th><kbd>B</kbd></th><td data-i18n="key.lib">ライブラリを開く</td></tr>
+              <tr><th><kbd>D</kbd></th><td data-i18n="key.danmaku">全部の枠の弾幕を一時的に消す ⇄ 戻す (弾幕は、枠の ≋ で決めていなければメイン枠だけに出ます)</td></tr>
+              <tr><th><kbd>?</kbd></th><td data-i18n="key.help">この画面を開く</td></tr>
+            </table>
+          </section>
+        </div>
+      </div>
       <div class="help-foot">
         <button type="button" id="tourReplay" data-i18n="tour.replay">▶ 使い方ツアーをもう一度見る</button>
         <span class="app-version"></span>
@@ -306,7 +418,7 @@
           <div class="share-buttons">
             <button type="button" id="shareImgCopy" data-i18n="share.imgCopy">🖼 画像をコピー</button>
             <button type="button" id="shareImgSave" data-i18n="share.imgSave">⬇ 画像を保存</button>
-            <button type="button" id="shareAltCopy" data-i18n="share.altCopy" data-i18n-title="share.altCopyTitle" title="X などで画像に付ける説明 (ALT) の文をコピーする。何を並べているかと、読み込み用のコードが入る (投稿の本文にコードが入りきらないときの控えにもなる)">📋 ALT 用の文をコピー</button>
+            <button type="button" id="shareAltCopy" data-i18n="share.altCopy" data-i18n-title="share.altCopyTitle" title="X などで画像に付ける説明 (ALT) の文をコピーする (読み込み用のコード入り)">📋 ALT 用の文をコピー</button>
           </div>
         </section>
         <section class="share-panel" data-spanel="code" role="tabpanel" hidden>
@@ -508,7 +620,7 @@
             <button type="button" data-sync="1">+1s</button>
           </div>
           <!-- 追いつき具合: 設定したずれどおりの位置と、実際の再生位置の差 (同期が追いついたかの目安。ずれの設定値ではない) -->
-          <div class="sync-row sync-drift" data-i18n-title="sync.driftTitle" title="設定したずれのとおりなら今いるはずの位置と、実際の再生位置との差です (+ = 進んでいる)。同期が追いついたかを見るためのもので、ずれの設定値ではありません。追いついてから、音を聞いて設定を動かしてください"></div>
+          <div class="sync-row sync-drift" data-i18n-title="sync.driftTitle" title="設定したずれのとおりの位置と、実際の再生位置との差 (+ = 進んでいる)。追いついたかの目安で、ずれの設定値ではありません"></div>
           <!-- アーカイブが配信より短い (冒頭か末尾が切られている) ときの知らせ -->
           <div class="sync-row sync-trim" hidden>
             <span class="sync-trim-text"></span>
@@ -540,7 +652,7 @@
             <button type="submit" data-i18n="tile.load">読み込む</button>
             <button type="button" class="pick-ch" data-i18n="tile.pickCh">📺 チャンネルから選ぶ</button>
             <button type="button" class="pick-fav" data-i18n="tile.pickFav">📚 ライブラリから選ぶ</button>
-            <button type="button" class="pick-any" data-i18n="tile.pickAny" data-i18n-title="tile.pickAnyTitle" title="まだ出ていない配信を 1 本入れる: ピックアップ (📌) のライブ → ほかのライブ → ピックアップの最近の配信 → ほかの最近の配信 の順で探し、その中からランダムに選ぶ">🎲 おまかせ</button>
+            <button type="button" class="pick-any" data-i18n="tile.pickAny" data-i18n-title="tile.pickAnyTitle" title="まだ出ていない配信を 1 本入れる (ピックアップのライブを優先)">🎲 おまかせ</button>
           </div>
           <!-- 🎲 おまかせで探している間の進み具合 (大きさを固定して、文字が変わっても周りが動かない) -->
           <div class="pick-progress" role="status" aria-live="polite" hidden>

@@ -1144,7 +1144,24 @@ dialog.settings-dialog { width: min(780px, calc(100% - 32px)); overflow: hidden;
 .settings-form label.check { flex-direction: row; align-items: center; gap: 6px; color: var(--text); }
 .settings-form label.check > span { font-weight: 600; }
 /* 使い方 */
-dialog.help-dialog { width: min(520px, calc(100% - 32px)); }
+/* 使い方: 左にメニュー、右に説明。右は高さを決めてスクロールさせる (メニューを切り替えても画面が動かない) */
+dialog.help-dialog { width: min(880px, calc(100% - 32px)); }
+.help-body { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 18px; height: min(540px, calc(100vh - 190px)); }
+.help-nav { display: flex; flex-direction: column; gap: 2px; overflow: auto; padding-right: 10px; border-right: 1px solid var(--line); }
+.help-nav button { border: 0; background: transparent; color: var(--muted); text-align: left; padding: 7px 10px; border-radius: 6px; }
+.help-nav button:hover { color: var(--text); }
+/* 選んだものは太字にしない (幅が変わるので)。影で少し太く見せる */
+.help-nav button.selected { background: #2a2a31; color: var(--text); text-shadow: 0 0 .6px currentColor, 0 0 .6px currentColor; }
+.help-content { min-height: 0; overflow: auto; padding-right: 6px; font-size: 13px; line-height: 1.65; }
+.help-page > :first-child { margin-top: 0; }
+.help-page p { margin: 0 0 10px; }
+.help-page ul { margin: 0 0 12px; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; }
+.help-page h3 { margin: 14px 0 6px; }
+.help-page code { font-size: 12px; }
+@media (max-width: 640px) {
+  .help-body { grid-template-columns: minmax(0, 1fr); height: auto; }
+  .help-nav { flex-direction: row; flex-wrap: wrap; border-right: 0; padding: 0 0 8px; border-bottom: 1px solid var(--line); }
+}
 /* 🔗 共有 / 📥 読み込む */
 dialog.share-dialog { width: min(600px, calc(100% - 32px)); }
 .share-name select { flex: 1 1 auto; min-width: 0; }
@@ -1180,7 +1197,6 @@ dialog.share-dialog { width: min(600px, calc(100% - 32px)); }
 .share-error { color: #ff8a80; }
 .help-form { display: flex; flex-direction: column; gap: 10px; padding: 16px; }
 .help-form h3 { margin: 4px 0 0; font-size: 13px; color: var(--muted); }
-.help-tips { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; line-height: 1.5; }
 .help-keys { border-collapse: collapse; }
 .help-keys th { text-align: left; font-weight: 400; padding: 3px 14px 3px 0; white-space: nowrap; }
 .help-keys td { padding: 3px 0; color: var(--muted); }

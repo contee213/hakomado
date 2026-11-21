@@ -558,11 +558,9 @@ function tr(key, ...args) {
 // 画面 (grid.html) の英語。キーは data-i18n* 属性の値。日本語は grid.html に書いてあるものを使う
 const HTML_EN = {
   // 上部バー
-  'auto.title':
-    'Auto play (L): when ON, plays all your live channels (up to the max tiles in settings), then checks every minute, adding a tile when a stream starts and removing it when the stream ends. Streams starting soon get a tile before they start (⚙ Settings → Auto play), and when nothing is live, upcoming streams are shown. Streams you close with ✕ while ON are not added back (turn it OFF → ON to bring them back)',
+  'auto.title': 'Auto play (L): lay out live channels and add or remove tiles as streams start and end',
   'auto.label': 'Auto play',
-  'cruise.title':
-    'Cruise (C): at a set interval, moves the main tile and audio to the next stream so you can watch many streams a little at a time. Works with any tiles, with or without auto play. Change the interval in ⚙ Settings → Auto play',
+  'cruise.title': 'Cruise (C): move the main tile and audio to the next stream at a set interval',
   'cruise.label': 'Cruise',
   'fav.title': 'Library (B): recent streams, watch history and watch later',
   'ch.title': 'Channels (F): live and upcoming streams, and adding or picking up channels',
@@ -587,24 +585,24 @@ const HTML_EN = {
   'tab.auto': 'Auto play',
   'tab.channels': 'Channels',
   'pack.exportH': 'Export a channel pack',
-  'pack.exportNote': 'Saves a pack from your channel list (the bundled Hololive pack, an imported pack, the channels you added, or all) as a channel pack (JSON) that you can give to others or publish on GitHub and elsewhere',
+  'pack.exportNote': 'Save your channel list as a pack (JSON) to give to others',
   'pack.export': '⬇ Export',
   'pack.h': 'Import a channel pack',
-  'pack.note': 'Adds a channel list made by someone else (a channel pack) to your channel list. Paste its URL or contents and press Import, or choose a file. Channels you already have stay as they are',
+  'pack.note': 'Add someone else’s pack from a URL, its contents or a file (channels you have stay as they are)',
   'pack.placeholder': 'https://… (pack URL) / { "app": "hakomado", … }',
   'pack.load': 'Import',
   'pack.file': 'Choose a file',
   'catalog.h': 'Find packs',
-  'catalog.note': 'Channel packs collected in the Hakomado repository (GitHub). Packs are unofficial: users made and submitted them, and they have nothing to do with the agencies or streamers. Report mistakes or ask for a pack on GitHub',
+  'catalog.note': 'Unofficial packs posted by users (not affiliated with any agency or streamer)',
   'catalog.load': 'Get the list',
   'pack.listH': 'Channel packs',
-  'pack.listNote': 'Packs in your channel list. Hololive (bundled) is included from the start. You can remove a pack at once or bring back what you removed. Channels you added and channels in pickup (📌) are never removed',
+  'pack.listNote': 'Packs in your channel list. Remove or bring back a whole pack',
   'tab.backup': 'Backup',
   'backup.h': 'Back up your settings',
-  'backup.note': 'Saves your settings, channels (including pickup 📌), watch history, Watch later, playlists and display language to one file. Removing and reinstalling the extension, or switching to another copy (a development folder or a version from before the ID was fixed), does not carry over what is saved, so export first and import the file afterwards',
+  'backup.note': 'Saves settings, channels, history, Watch later and playlists to one file. Export before reinstalling',
   'backup.export': '⬇ Export to a file',
   'backup.import': '⬆ Import from a file',
-  'backup.importNote': 'Importing replaces your current settings, channels, watch history and Watch later with the contents of the file. Streams in the tiles now stay as they are',
+  'backup.importNote': 'Importing replaces your settings, channels, history and Watch later with the file',
   'dm.duration': 'Scroll time',
   'dm.fontScale': 'Text size',
   'dm.opacity': 'Opacity',
@@ -646,29 +644,26 @@ const HTML_EN = {
   'chat.width': 'Width (relative to the tile)',
   'chat.noav': 'Hide author icons',
   'auto.skip': "Skip members-only streams you're not a member of",
-  'auto.skipNote':
-    'Before Auto play adds a stream, it checks whether the signed-in account can watch it. Tiles you load yourself are always shown',
+  'auto.skipNote': 'Streams your signed-in account cannot watch are not added',
   'auto.archive': 'Play recent streams when nothing is live',
-  'auto.archiveNote': 'When no stream is live (late at night, for example), 4 recently ended streams from your channels play (pickup (📌) channels first, already watched ones skipped). They are cleared when a live stream starts',
+  'auto.archiveNote': 'Plays 4 recent streams when nothing is live',
   'auto.maxTiles': 'Max tiles in auto play',
-  'auto.maxTilesNote': 'Auto play never plays more streams than this, even if more are live. Lower it on a slow connection or a slow computer',
+  'auto.maxTilesNote': 'Lower it if things get slow',
   'auto.prestart': 'Prepare tiles for upcoming streams',
-  'auto.prestartNote':
-    'Adds a tile this long before an upcoming stream starts, so you can watch from the very beginning. When nothing is live, the next upcoming stream and those starting within an hour after it are shown instead',
+  'auto.prestartNote': 'Makes tiles for upcoming streams before they start',
   'auto.cruise': 'Cruise interval',
-  'auto.cruiseNote':
-    'While Cruise is ON, the main tile and audio move to the next stream at this interval. It also works with tiles you arranged yourself, without auto play. In uniform layouts the order stays and only the audio moves. Empty tiles are skipped and the layout is not changed. When auto play rearranges tiles, main + sub layouts are preferred',
+  'auto.cruiseNote': 'How often cruise moves on to the next stream',
 
   // 使い方
   'help.h': '? Help',
-  'sync.title': 'Synced archive playback: plays the open archives aligned to the actual time they were streamed. Other tiles follow the reference tile (the tile with sound when you start; change it in the top bar or with ⏱ on a tile). Archives whose time ranges do not overlap are not synced',
+  'sync.title': 'Archive sync: play archives aligned to when they were actually streamed',
   'sync.label': 'Sync',
   'sync.seekTitle': 'Move all synced archives to this time',
   'sync.reset': 'Reset to 0',
   'sync.refTitle': 'The reference tile for sync (other tiles follow it). It does not change when you switch the sound',
   'sync.setRef': 'Use as reference',
   'sync.waitTitle': 'Pause only this tile and wait for the others to catch up. Play it when they match, and the offset is set there (for a tile that is not the reference, you can also just pause it in its player)',
-  'sync.driftTitle': 'How far the actual playback position is from where it should be with the offset you set (+ = ahead). It shows whether syncing has caught up; it is not the offset setting. Adjust the offset by ear after it catches up',
+  'sync.driftTitle': 'How far playback is from where the set offset says it should be (+ = ahead). A guide to whether sync has caught up, not the offset itself',
   'sync.inputTitle': 'Type the offset in seconds (+ = move ahead, − = move back). Press Enter to apply',
   'sync.refBadge': 'Ref',
   'sync.refBadgeTitle': 'The reference tile for sync (other tiles follow it)',
@@ -685,11 +680,11 @@ const HTML_EN = {
   'share.imgCopy': '🖼 Copy image',
   'share.imgSave': '⬇ Save image',
   'share.altCopy': '📋 Copy ALT text',
-  'share.altCopyTitle': 'Copy a description (ALT text) to attach to the image on X and elsewhere: what is laid out, plus the code to import it (a backup when the code does not fit in the post)',
+  'share.altCopyTitle': 'Copy ALT text for the image on X and elsewhere (includes the code to import it)',
   'share.copyCode': '📋 Copy code',
   'share.copyText': '📋 Copy text',
   'share.copyLink': '📋 Copy link',
-  'read.title': 'Import: paste a shared image, code, text or link, or YouTube URLs, then lay them out in tiles or save them as a playlist (pressing Ctrl+V anywhere also opens this)',
+  'read.title': 'Import: lay out a shared image, code, text, link or URLs in tiles, or save them as a playlist',
   'read.h': '📥 Import',
   'read.note': 'Paste a shared image (Ctrl+V, or drop it), a code (#Hakomado …), text or an import link, or YouTube URLs (one per line) or a playlist URL. Pasting a whole post works too',
   'read.placeholder': 'Image / #Hakomado … / https://www.youtube.com/watch?v=...',
@@ -702,12 +697,95 @@ const HTML_EN = {
   'read.aiH': '🤖 Ask an AI chat to make one',
   'read.aiNote': 'Copy a request (how to write the list, plus the channels you follow), paste it into an AI chat such as Claude, add what you want to watch and send it. Paste the list you get back above, or open the import link',
   'read.ai': '📋 Copy request',
-  'help.tip1': 'Paste a URL / video ID / <code>@handle</code> into an empty tile, or pick a live stream with “📺 Pick from channels” or a past one with “📚 Pick from library”',
-  'help.tip2': 'Hover over a tile with a stream to show its control bar. Drag ⠿ at the left to swap tiles',
-  'help.tip3': 'Turn on “Auto play” to show all your live channels; tiles are added and removed as streams start and end. Streams starting soon get a tile before they start, and when nothing is live, upcoming streams are shown',
-  'help.tip4': 'Turn on “Cruise” to move the main tile and audio to the next stream at a set interval, so you can watch many streams a little at a time (also with tiles you arranged yourself, without auto play)',
-  'help.tip5': 'Use the speaker in a tile’s player to listen to several tiles at once without muting the others',
-  'help.keys': 'Keyboard',
+  'helpNav.start': 'Getting started',
+  'helpNav.tiles': '▦ Tiles and layouts',
+  'helpNav.auto': 'Auto play',
+  'helpNav.cruise': 'Cruise',
+  'helpNav.channels': '📺 Channels and notifications',
+  'helpNav.library': '📚 Library and playlists',
+  'helpNav.sync': '⏱ Archive sync',
+  'helpNav.share': '🔗 Share · 📥 Import',
+  'helpNav.look': 'Danmaku, chat and outlines',
+  'helpNav.backup': 'Backup',
+  'helpNav.keys': 'Keyboard',
+  'helpPage.start': `<p>Watch up to 16 YouTube streams side by side.</p>
+<ul>
+<li>Paste a URL / video ID / <code>@handle</code> into an empty tile and press Load. Pick a live stream with “📺 Pick from channels”, a past one with “📚 Pick from library”, or let “🎲 Surprise me” add one not shown yet</li>
+<li>You can also right-click a link to a YouTube video or stream and choose “Add to an empty Hakomado tile”</li>
+<li>Audio normally plays from one tile. Switch it with the audio button on a tile bar or <kbd>1</kbd>–<kbd>9</kbd>. Use the speaker in a tile’s player to hear several tiles at once</li>
+<li>For a quick look around the screen, try “▶ Replay the tour” below</li>
+</ul>`,
+  'helpPage.tiles': `<ul>
+<li>Choose a layout with “▦” on the top bar. The darker tile is the main one, and loaded streams fill tiles from 1 (main) on. “+” / “−” add or remove a tile</li>
+<li>Hover over a tile with a stream to show its control bar. Drag ⠿ at the left to swap tiles</li>
+<li>Tile bar: audio button (play audio from this tile) / 🎚 left/right and volume / 💬 chat / ≋ danmaku / 📌 pickup / 🔖 watch later / 📃 add to a playlist / ⏱ sync offset (for archives) / ⟳ reload / ⛶ fullscreen this tile / ✕ close</li>
+<li>🎚 makes that tile heard from the left, center or right and changes its volume (0–200%). “⇆ Split 2 tiles left/right” sends the 2 tiles playing audio left and right by their position on screen</li>
+<li>“⛶” (<kbd>Shift</kbd> + <kbd>F</kbd>) goes fullscreen with all tiles. Move the mouse to the top edge to show the bar</li>
+</ul>`,
+  'helpPage.auto': `<p>Turn on “Auto play” (<kbd>L</kbd>) to lay out every live channel. After that, every minute, tiles are added for streams that start and removed for streams that end.</p>
+<ul>
+<li>When turning it on would replace tiles you set yourself, it asks first</li>
+<li>Streams you close with ✕ while it is on are not put back (turn it off and on to reset). Tiles you loaded yourself are never removed</li>
+</ul>
+<h3>Settings → Auto play</h3>
+<ul>
+<li><b>Auto play targets</b>: all channels, or pickup (📌) only</li>
+<li><b>Members-only streams</b>: checks whether your signed-in account can watch a stream before adding it</li>
+<li><b>Max tiles</b>: never plays more than this many, however many are live. Lower it on a slow connection or a busy computer</li>
+<li><b>Pickup in the main tile</b>: puts pickup live streams in the big main tile and others in sub tiles. Pickup also goes first when the limit is reached. Not rearranged in uniform layouts (no main tile) or while cruising</li>
+<li><b>Upcoming tiles</b>: makes tiles before streams start, so you see them from the beginning. When nothing is live, shows the next upcoming stream and any starting within an hour after it</li>
+<li><b>Recent streams</b>: when nothing is live (late at night, for example), plays 4 recently ended streams from your channels (pickup first, already watched ones skipped). They are cleared when a live stream starts</li>
+</ul>`,
+  'helpPage.cruise': `<p>Turn on “Cruise” (<kbd>C</kbd>) to move the main tile and audio to the next stream at a set interval, so you can sample many streams. It works without auto play, with tiles you arranged yourself.</p>
+<ul>
+<li>Change the interval in Settings → Auto play → “Cruise interval”</li>
+<li>In uniform layouts the order stays and only the audio moves on. Empty tiles are skipped and the layout is not changed</li>
+<li>When auto play rearranges tiles, it prefers a “main + sub” layout</li>
+</ul>`,
+  'helpPage.channels': `<ul>
+<li>“📺 Channels” (<kbd>F</kbd>) lists your channels: live, upcoming and the rest. Press a live or upcoming row to put it in an empty tile</li>
+<li>🎞 on a row opens that channel’s recent streams, and 📌 adds it to pickup</li>
+<li><b>Pickup</b>: the channels you are following right now (e.g. the members of a group event). Filter the list with “📺 All / 📌 Pickup” at the top, and use it as the target of auto play and notifications</li>
+<li>Add a channel by entering an <code>@handle</code>, a channel URL or a video URL in the box at the bottom</li>
+<li><b>🔔 Notifications</b>: tell you when a channel goes live. Choose the target in Settings → Auto play → “Notifications for”</li>
+</ul>
+<h3>Settings → Channels (channel packs)</h3>
+<ul>
+<li>A channel pack is a ready-made list of channels. Hololive (bundled) is there from the start. You can remove or bring back a whole pack. Channels you added yourself and pickup channels are never removed</li>
+<li><b>Find packs</b>: choose from the packs collected in the Hakomado repository (GitHub). They are unofficial, made by users, and not affiliated with any agency or streamer. Report mistakes or requests on GitHub</li>
+<li><b>Import</b>: paste the URL or contents of a pack made by someone else, or choose a file. Channels you already have stay as they are</li>
+<li><b>Export</b>: save the bundled Hololive pack, an imported pack, the channels you added, or all of them as a pack (JSON) to give to others or publish</li>
+</ul>`,
+  'helpPage.library': `<ul>
+<li>“📚 Library” (<kbd>B</kbd>): 🎞 Recent streams (ended in the last 7 days) / 🕘 Watch history (100) / 🔖 Watch later (100) / 📃 Playlists</li>
+<li><b>Watch later</b>: add with 🔖 on tile bars and lists. “▶ Play in current tiles” fills the tiles you have in order and puts the next one in each tile that finishes. Items watched to the end are removed</li>
+<li><b>Playlists</b>: named lists (up to 30, 200 items each). Make one with “+ New”, “▦ From current tiles” or “📥 Import”, and add with the URL box or 📃 on tile bars and lists. Drag ⠿ to reorder; a row’s name is what its tile shows</li>
+<li>“▶ In order” fills the current tiles from the top and puts the next one in each tile that finishes (items watched to the end get ✓ and it continues from there next time). “⏱ All at once, in sync” lays out all of them and plays the archives in step (up to 16)</li>
+</ul>`,
+  'helpPage.sync': `<ul>
+<li>With 2 or more archives open, “⏱ Sync” appears on the top bar. Press it to play them aligned to when they were actually streamed (ones that do not overlap in time are not synced)</li>
+<li>Other tiles follow the “reference” tile (the one playing audio when you started). Choose another on the top bar or with ⏱ on a tile</li>
+<li>If voices or on-screen events do not line up, adjust the offset with ⏱ on the tile. Offsets are remembered per video and go into playlists and share codes</li>
+<li>The slider on the top bar moves all synced archives to the same time</li>
+</ul>`,
+  'helpPage.share': `<p>“🔗 Share” turns the current tiles or a playlist into one of four forms.</p>
+<ul>
+<li><b>Image</b>: attach it to a post on X or elsewhere. The QR holds the code. You can also copy ALT text for the image</li>
+<li><b>Code</b>: one line, <code>#Hakomado …</code> (up to 16). Shows its length on X</li>
+<li><b>Text</b>: one per line, with the name, sync, layout, offsets and tile names. You can hand it to an AI chat to edit</li>
+<li><b>Import link</b>: people without Hakomado can watch it as a YouTube playlist (up to 50)</li>
+</ul>
+<p>Paste what you receive into “📥 Import” (drop images too, or press <kbd>Ctrl</kbd> + <kbd>V</kbd> outside any input box). Check what was read, then “▦ Lay out in tiles” or “📃 Save as playlist”. Opening an import link lands here too.</p>`,
+  'helpPage.look': `<ul>
+<li><b>Danmaku</b>: scrolls each tile’s live chat across it. Turn it on/off per tile with ≋ (by default only on the main tile). <kbd>D</kbd> hides it on all tiles for now. Size, speed, rows and more are in Settings → Danmaku</li>
+<li><b>Chat panel</b>: open it with 💬 on a tile. Width, text size and hiding icons are in Settings → Chat (applied to open panels right away)</li>
+<li><b>Outlines</b>: how the tile playing audio and live tiles are outlined (the audio outline wins when both apply). Settings → Outlines</li>
+</ul>`,
+  'helpPage.backup': `<ul>
+<li>Saves your settings, channels (including pickup), watch history, Watch later, playlists and display language to one file</li>
+<li>Removing and reinstalling the extension, or switching to another copy (a development folder or a version from before the ID was fixed), does not carry over what is saved. Export before that, and import it afterwards</li>
+<li>Importing replaces your current settings, channels, watch history and Watch later with the file. Streams in the tiles now stay as they are</li>
+</ul>`,
   'key.audio': 'Play audio only from that tile',
   'key.arrows': 'Play audio only from the next tile in that direction',
   'key.tileFs': 'Fullscreen that tile (<kbd>Esc</kbd> to return)',
@@ -743,11 +821,13 @@ const HTML_EN = {
   'scope.title': 'Which channels to show: only pickup (📌) / all (shared by every tab)',
   'auto.target': 'Auto play plays',
   'auto.pickupMain': 'Put pickup (📌) streams in the main tiles first',
-  'auto.pickupMainNote': 'In auto play, live streams from pickup channels go into the large main tiles and other streams move to the sub tiles. When the tile limit is reached, pickup streams are added first. Nothing is rearranged with even layouts (no main tile) or while Cruise is on',
+  'auto.pickupMainNote': 'Puts pickup live streams in the big main tile',
   'notice.target': 'Notifications for',
   'target.all': 'All channels',
   'target.fav': 'Pickup (📌) only',
   'target.off': 'Off',
+  'settings.help': '? More help',
+  'settings.helpTitle': 'Open the detailed help for this tab in “? Help”',
   'settings.reset': 'Reset all to defaults',
   'settings.resetTitle': 'Reset all danmaku, outline, chat and auto play settings (the display language and channels are kept)',
   'fav.history': '🕘 Watch history',
@@ -787,7 +867,7 @@ const HTML_EN = {
   'tile.pickCh': '📺 Pick from channels',
   'tile.pickFav': '📚 Pick from library',
   'tile.pickAny': '🎲 Surprise me',
-  'tile.pickAnyTitle': 'Add one stream not shown yet: live streams from pickup (📌) → other live streams → recent streams from pickup → other recent streams, picked at random within each',
+  'tile.pickAnyTitle': 'Add one stream not shown yet (pickup live streams first)',
   'tile.grip': 'Drag to swap with another tile',
   'tile.mix': 'Left/right (L / C / R) and volume of this tile',
   'mix.pan': 'L/R',
