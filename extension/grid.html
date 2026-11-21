@@ -317,7 +317,7 @@
       <p class="settings-note" data-i18n="plDlg.pasteNote">YouTube の URL (1 行に 1 つ)、YouTube の再生リストの URL、共有された再生リストのテキスト、取り込み用リンク、視聴セットのコード (#Hakomado …) を貼れます。名前・同期再生・ずれが入っていれば、そのまま戻ります。最大 200 本。同じ名前の再生リストがあれば置き換えます</p>
       <textarea id="plIn" class="share-text" rows="8" spellcheck="false" data-i18n-placeholder="plDlg.placeholder" placeholder="https://www.youtube.com/watch?v=...  # 名前&#10;https://www.youtube.com/watch?v=..."></textarea>
       <label class="share-name"><span data-i18n="plDlg.nameLabel">名前</span>
-        <input type="text" id="plName" maxlength="80" spellcheck="false" data-i18n-placeholder="plDlg.namePlaceholder" placeholder="空のときは「# playlist=」の名前か、今の日時">
+        <input type="text" id="plName" maxlength="40" spellcheck="false" data-i18n-placeholder="plDlg.namePlaceholder" placeholder="空のときは「# playlist=」の名前か、今の日時">
       </label>
       <div class="share-buttons">
         <button type="button" id="plSave" class="primary-action" data-i18n="plDlg.save">📃 保存</button>
@@ -373,7 +373,7 @@
       <p id="plPickTarget" class="pl-pick-target"></p>
       <ul id="plPickList" class="pl-pick-list"></ul>
       <div class="share-buttons">
-        <input type="text" id="plPickName" class="pl-pick-name" maxlength="80" spellcheck="false" data-i18n-placeholder="plPick.namePlaceholder" placeholder="新しい再生リストの名前">
+        <input type="text" id="plPickName" class="pl-pick-name" maxlength="40" spellcheck="false" data-i18n-placeholder="plPick.namePlaceholder" placeholder="新しい再生リストの名前">
         <button type="button" id="plPickNew" data-i18n="plPick.new">＋ 作って入れる</button>
       </div>
       <span id="plPickStatus" class="share-status share-error" role="status"></span>

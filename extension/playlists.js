@@ -3,6 +3,12 @@
 // AI チャットなどで作ったテキストや、取り込み用リンク (watch_videos?video_ids=…&hakomado=名前) からも作れる。
 // あとで見ると違って、再生しても中身は減らない。保存先は chrome.storage.local (すべてのタブで共通)。
 //
+// 保存の形: 再生リストごとに別の項目 'playlist:<id>' に入れ、並び順は 'playlistIndex' (id の配列) に入れる。
+// 1 か所変えたときに書くのはその再生リストだけ (全部を 1 つの項目にすると、名前を 1 つ直すだけで全部を書き直すため)。
+// 以前の版の 'playlists' (全部を入れた配列) は、最初に書き込むときに分けて移す。
+// 拡張機能ごとの保存の上限 (chrome.storage.local は 10MB) に届かないよう、再生リストは 30 個・名前は 40 文字まで。
+// 書き込みに失敗したら (上限に届いたなど) onError で知らせる
+//
 // 1 件の形:
 //   { id, name, items: [{videoId, label?, title?, channel?, handle?, channelId?, input?, offset?}],
 //     sync, layoutId, ref, createdAt, updatedAt }
@@ -19,29 +25,73 @@ const Playlists = (() => {
   'use strict';
   const { valid, pick } = VideoEntry;
 
-  const KEY = 'playlists';
-  const MAX_LISTS = 50;
+  const LEGACY_KEY = 'playlists'; // 以前の版: 全部を 1 つの配列で
+  const INDEX_KEY = 'playlistIndex'; // 並び順 (id の配列)
+  const ITEM_PREFIX = 'playlist:'; // 'playlist:<id>' → 再生リスト 1 件
+  const MAX_LISTS = 30; // 作れる数 (以前の版で 30 を超えて作ったものは消さずに残す)
   const MAX_ITEMS = 200;
   const SYNC_MAX = 16; // 同期再生の再生リストは、一度に並べられる枠の数まで
-  const NAME_MAX = 80;
+  const NAME_MAX = 40; // 新しく付ける名前の長さ
+  const LEGACY_NAME_MAX = 80; // 以前の版で付けた長い名前は、読むときには切らない
   const LABEL_MAX = 80;
   const VIDEO_ID_RE = /^[A-Za-z0-9_-]{11}$/;
+  const keyOf = (id) => ITEM_PREFIX + id;
+
+  /** storage.onChanged の changes に再生リストの変更が入っているか */
+  const isChange = (changes) => Object.keys(changes).some((k) => k === INDEX_KEY || k === LEGACY_KEY || k.startsWith(ITEM_PREFIX));
+
+  const errorListeners = new Set();
+  /** 書き込みに失敗したとき (容量の上限に届いたなど) に fn(error, isQuota) を呼ぶ */
+  const onError = (fn) => errorListeners.add(fn);
+
+  /** 保存されている全部 (並び順)。以前の版の形なら、それを読む */
+  async function readAll() {
+    const { [INDEX_KEY]: index, [LEGACY_KEY]: legacy } = await chrome.storage.local.get([INDEX_KEY, LEGACY_KEY]);
+    if (!Array.isArray(index)) return { all: Array.isArray(legacy) ? legacy.map(clean).filter(Boolean) : [], legacy: Array.isArray(legacy) };
+    const ids = index.filter((id) => typeof id === 'string' && id);
+    const got = ids.length ? await chrome.storage.local.get(ids.map(keyOf)) : {};
+    return { all: ids.map((id) => clean(got[keyOf(id)])).filter(Boolean), legacy: Array.isArray(legacy) };
+  }
+
+  /** 変わったものだけ書く (変わった再生リスト・並び順を 1 回の set で。消えたものはそのあと消す) */
+  async function writeDiff(before, next, { legacy = false } = {}) {
+    const old = new Map(before.map((p) => [p.id, JSON.stringify(p)]));
+    const items = next.map(clean).filter(Boolean);
+    const set = {};
+    for (const p of items) if (legacy || old.get(p.id) !== JSON.stringify(p)) set[keyOf(p.id)] = p;
+    const ids = items.map((p) => p.id);
+    if (legacy || ids.join('\n') !== before.map((p) => p.id).join('\n')) set[INDEX_KEY] = ids;
+    if (Object.keys(set).length) await chrome.storage.local.set(set);
+    const gone = before.filter((p) => !ids.includes(p.id)).map((p) => keyOf(p.id));
+    if (legacy) gone.push(LEGACY_KEY);
+    if (gone.length) await chrome.storage.local.remove(gone);
+  }
 
   // 読み書きの順番待ち (あとで見ると同じく、このタブの中は promise の列、タブ間はロック)
   let chain = Promise.resolve();
   function mutate(fn) {
     let result;
     const run = async () => {
-      const r = fn(await list());
-      if (!r) return;
-      result = r.result;
-      if (r.next) await chrome.storage.local.set({ [KEY]: r.next });
+      const { all, legacy } = await readAll();
+      const before = all.map((p) => structuredClone(p));
+      const r = fn(all);
+      // 以前の版の形なら、何も変えなくても分けて移す
+      if (r?.next || legacy) await writeDiff(before, r?.next || all, { legacy });
+      // 結果は書けてから返す (書けなかったときは undefined。呼び出し元は「できなかった」として扱う)
+      if (r) result = r.result;
     };
     chain = chain
       .then(() => navigator.locks.request('hakomado-playlists', run))
-      .catch((e) => console.warn('hakomado: 再生リストの書き込みに失敗', e));
+      .catch((e) => {
+        console.warn('hakomado: 再生リストの書き込みに失敗', e);
+        const isQuota = /quota/i.test(String(e?.message || e));
+        for (const fn of errorListeners) fn(e, isQuota);
+      });
     return chain.then(() => result);
   }
+
+  /** 以前の版の形で保存されていれば、今の形に移す (画面を開いたときに呼ぶ) */
+  const migrate = () => mutate(() => null);
 
   /**
    * 1 件の再生リストを書き換える (無ければ何もせず undefined)。
@@ -62,6 +112,7 @@ const Playlists = (() => {
   /** その再生リストに入れられる本数 (同期再生なら 16、順に再生なら 200) */
   const limitOf = (p) => (p?.sync ? SYNC_MAX : MAX_ITEMS);
 
+  /** 新しく付ける名前 (40 文字まで) */
   const cleanName = (s) => String(s ?? '').replace(/[\r\n\t]/g, ' ').trim().slice(0, NAME_MAX);
   const cleanLabel = (s) => String(s ?? '').replace(/[\r\n\t]/g, ' ').trim().slice(0, LABEL_MAX);
   /** ずれの秒 (0.01 秒単位。SyncOffsets と同じ範囲) */
@@ -96,7 +147,8 @@ const Playlists = (() => {
     const ref = typeof p.ref === 'string' && VIDEO_ID_RE.test(p.ref) && items.some((h) => h.videoId === p.ref) ? p.ref : null;
     return {
       id: p.id.slice(0, 64),
-      name: cleanName(p.name) || '?',
+      // 以前の版で付けた長い名前はそのまま (切ると、同じ名前のものができることがある)
+      name: String(p.name ?? '').replace(/[\r\n\t]/g, ' ').trim().slice(0, LEGACY_NAME_MAX) || '?',
       items,
       sync: p.sync === true,
       layoutId,
@@ -109,8 +161,13 @@ const Playlists = (() => {
 
   /** 一覧 (新しく作った・同じ名前で保存し直したものが先頭。中身の編集では並びを変えない) */
   async function list() {
-    const { [KEY]: raw } = await chrome.storage.local.get(KEY);
-    return Array.isArray(raw) ? raw.map(clean).filter(Boolean).slice(0, MAX_LISTS) : [];
+    return (await readAll()).all;
+  }
+
+  /** バックアップから戻すとき: 全部を置き換える (30 個まで) */
+  function replaceAll(lists) {
+    const next = (Array.isArray(lists) ? lists : []).map(clean).filter(Boolean).slice(0, MAX_LISTS);
+    return mutate(() => ({ next }));
   }
 
   async function get(id) {
@@ -409,7 +466,10 @@ const Playlists = (() => {
   }
 
   return {
-    KEY,
+    isChange,
+    onError,
+    migrate,
+    replaceAll,
     MAX_LISTS,
     MAX_ITEMS,
     SYNC_MAX,

@@ -4934,7 +4934,7 @@ function setupPlaylistShare() {
   document.getElementById('plShareCopyCode').addEventListener('click', () => copy(document.getElementById('plShareCode'), 'shareCopied'));
   // 開いている間に編集されたら作り直す
   chrome.storage.onChanged.addListener((changes, area) => {
-    if (area === 'local' && changes[Playlists.KEY] && dialog.open && plShareId) openPlaylistShare(plShareId);
+    if (area === 'local' && Playlists.isChange(changes) && dialog.open && plShareId) openPlaylistShare(plShareId);
   });
 }
 
@@ -5037,9 +5037,12 @@ async function refreshPlaylistIds() {
   for (let i = 0; i < MAX_TILES; i++) if (views[i]) updateFavButton(i);
 }
 
+// 再生リストを保存できなかったとき (拡張機能の保存の上限に届いたなど) は知らせる (知らせないと、黙って消えたように見える)
+Playlists.onError((e, isQuota) => notify(tr(isQuota ? 'plStorageFull' : 'plWriteFailed', String(e?.message || e))));
+
 // 他のタブで保存・削除したときも、表示中の一覧と 📃 の表示を直す
 chrome.storage.onChanged.addListener(async (changes, area) => {
-  if (area !== 'local' || !changes[Playlists.KEY]) return;
+  if (area !== 'local' || !Playlists.isChange(changes)) return;
   await refreshPlaylistIds().catch(() => {});
   // 再生リストのタブは、続けて書き込まれても描き直しは少しまとめる
   if (favDialog.open && favMode === 'playlists') schedulePlaylistRender();
@@ -6704,7 +6707,8 @@ async function chooseSession() {
 }
 
 (async function main() {
-  await Promise.all([loadSettings(), Favorites.seedPresets(), SyncOffsets.load()]);
+  // 再生リストが以前の版の形 (全部で 1 つの項目) で保存されていれば、1 つずつに分けて移す
+  await Promise.all([loadSettings(), Favorites.seedPresets(), SyncOffsets.load(), Playlists.migrate()]);
   buildTiles();
   refreshFavKeys().catch(() => {});
   refreshSavedIds().catch(() => {});
