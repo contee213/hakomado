@@ -1425,11 +1425,7 @@ const Sync = (() => {
     const d = new Date(ms);
     return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
   };
-  const spanText = (sec) => {
-    const s = Math.max(0, Math.ceil(sec));
-    const h = Math.floor(s / 3600);
-    return h ? `${h}:${pad(Math.floor((s % 3600) / 60))}:${pad(s % 60)}` : `${Math.floor(s / 60)}:${pad(s % 60)}`;
-  };
+  const spanText = (sec) => hms(Math.ceil(sec));
 
   function overlay(i, text) {
     const el = views[i].el.querySelector('.sync-overlay');
@@ -2493,35 +2489,6 @@ function youtubePlaylistId(raw) {
   return /^[\w-]{10,64}$/.test(id) ? id : null;
 }
 
-/**
- * YouTube の再生リストのページから、動画の並びと名前を読む (最初に表示される分だけ。ふつう 100 本まで)
- * @returns {Promise<{ids: string[], name: string}>}
- */
-async function fetchYouTubePlaylist(listId) {
-  const res = await fetch(`${YT}/playlist?list=${encodeURIComponent(listId)}`, {
-    credentials: 'include',
-    signal: AbortSignal.timeout(20000),
-  });
-  if (!res.ok) throw new Error(tr('fetchFail', res.status));
-  const html = await res.text();
-  const ids = [];
-  const add = (id) => ID_RE.test(id) && !ids.includes(id) && ids.push(id);
-  // 今の作り: 1 本ずつ lockupViewModel (contentId が動画 ID)。以前の作り: playlistVideoRenderer
-  for (const m of html.matchAll(/"contentId":"([\w-]{11})","contentType":"LOCKUP_CONTENT_TYPE_VIDEO"/g)) add(m[1]);
-  if (!ids.length) for (const m of html.matchAll(/"playlistVideoRenderer":\{"videoId":"([\w-]{11})"/g)) add(m[1]);
-  // さらに作りが変わったとき用: この再生リストの中での順番が付いた再生のリンク
-  if (!ids.length) {
-    const re = new RegExp(`"watchEndpoint":\\{"videoId":"([\\w-]{11})","playlistId":"${listId}","index":\\d+`, 'g');
-    for (const m of html.matchAll(re)) add(m[1]);
-  }
-  const name = (html.match(/<meta property="og:title" content="([^"]*)"/)?.[1] || '')
-    .replace(/&amp;/g, '&')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>');
-  return { ids, name };
-}
 
 /**
  * 1 行に 1 本のテキストを読む (再生リストのテキスト形式。playlistText で書き出したものもそのまま読める)。
@@ -2562,7 +2529,7 @@ async function parseVideoLines(text, max, onProgress) {
     const listId = youtubePlaylistId(t);
     if (listId) {
       try {
-        const yl = await fetchYouTubePlaylist(listId);
+        const yl = await Favorites.fetchYouTubePlaylist(listId);
         if (!yl.ids.length) throw new Error('empty');
         tokens.push(...yl.ids.map((id) => ({ t: id, label: '', offset: null, ref: false })));
         setMeta('playlist', yl.name);
@@ -2592,7 +2559,7 @@ async function parseVideoLines(text, max, onProgress) {
       if (label) h.label = label;
       if (offset != null) {
         hasOffsets = true;
-        if (offset) h.offset = offset;
+        h.offset = offset;
       }
       if (tokens[k].ref && !ref) ref = id;
       items.push(h);
@@ -2638,7 +2605,7 @@ async function parseViewingSet(text, onProgress) {
 async function parsePlaylistText(text, onProgress) {
   const code = parseShareCode(text);
   if (code) {
-    const items = code.ids.map((videoId, k) => (code.offsets?.[k] ? { videoId, offset: code.offsets[k] } : { videoId }));
+    const items = code.ids.map((videoId, k) => (code.offsets ? { videoId, offset: code.offsets[k] } : { videoId }));
     const opts = { sync: !!code.offsets, layoutId: code.layoutId, ref: code.offsets ? code.ids[code.ref] : null };
     return { items, name: '', opts, bad: 0, tooMany: false };
   }
@@ -2663,7 +2630,9 @@ function playlistText(pl) {
   for (const h of pl.items) {
     const parts = [`${YT}/watch?v=${h.videoId}`];
     const isRef = pl.sync && pl.ref && h.videoId === pl.ref && h.videoId !== first;
-    if (pl.sync && (h.offset || isRef)) parts.push(`~${isRef ? '*' : ''}${h.offset || 0}`);
+    // ずれは決めてあれば 0 でも書く (受け取った側で「決めていない」にならないように)
+    const o = h.offset ?? SyncOffsets.get(h.videoId);
+    if (pl.sync && (h.offset != null || o || isRef)) parts.push(`~${isRef ? '*' : ''}${o}`);
     const l = lineLabel(h);
     if (l) parts.push(`# ${l}`);
     lines.push(parts.join('  '));
@@ -2694,7 +2663,7 @@ function playlistShareCode(pl) {
   return formatShareCode(
     playlistLayoutId(pl),
     ids,
-    pl.sync ? items.map((h) => h.offset || 0) : [],
+    pl.sync ? items.map((h) => h.offset ?? SyncOffsets.get(h.videoId)) : [],
     pl.sync ? Math.max(0, ids.indexOf(pl.ref)) : 0,
   );
 }
@@ -2903,6 +2872,16 @@ async function readQrFromImage(blob) {
   }
 }
 
+/** 入力欄の文字をクリップボードへ (使えないときは選んでコピー) */
+async function copyField(el) {
+  try {
+    await navigator.clipboard.writeText(el.value);
+  } catch {
+    el.select();
+    document.execCommand('copy');
+  }
+}
+
 function setupShare() {
   const dialog = document.getElementById('shareDialog');
   const out = document.getElementById('shareOut');
@@ -2970,12 +2949,7 @@ function setupShare() {
   });
 
   document.getElementById('shareCopy').addEventListener('click', async () => {
-    try {
-      await navigator.clipboard.writeText(out.value);
-    } catch {
-      out.select();
-      document.execCommand('copy');
-    }
+    await copyField(out);
     setStatus(copied, tr('shareCopied'));
   });
   document.getElementById('shareToPlaylist').addEventListener('click', async () => {
@@ -4522,7 +4496,7 @@ function fetchPlaylistMeta(items) {
 }
 
 async function runOembed() {
-  if (oembedBusy) return;
+  if (oembedBusy || !oembedQueue.length) return;
   oembedBusy = true;
   try {
     while (oembedQueue.length) {
@@ -4537,7 +4511,7 @@ async function runOembed() {
           if (j.title) info.title = String(j.title);
           if (j.author_name) info.channel = String(j.author_name);
           if (handle) info.handle = handle;
-          await Playlists.update(id, info);
+          queueMetaWrite(id, info);
         } else if (res.status === 404 || res.status === 400) {
           // 存在しない (削除・非公開など)。動画のページを調べるまでもないので、ここで印を付ける
           plVideoStates.set(id, { ...plVideoStates.get(id), avail: 'gone' });
@@ -4550,8 +4524,26 @@ async function runOembed() {
       await new Promise((r) => setTimeout(r, 150));
     }
   } finally {
-    oembedBusy = false;
+    oembedBusy = false; // 分かった分は queueMetaWrite が少しためてから書く
   }
+}
+
+// 分かったタイトル・チャンネル名は、少しためてからまとめて書く
+// (1 本ごとに全部の再生リストを書き直して、開いている全タブで描き直しが続かないように)
+let metaPending = {};
+let metaTimer = 0;
+function queueMetaWrite(videoId, info) {
+  metaPending[videoId] = { ...metaPending[videoId], ...info };
+  // 最初の 1 件から 3 秒後 (か 20 件たまったら) に書く。届くたびに待ち直すと、少しずつ届くときに結局 1 件ずつになる
+  if (Object.keys(metaPending).length >= 20) flushMetaWrites();
+  else if (!metaTimer) metaTimer = setTimeout(flushMetaWrites, 3000);
+}
+function flushMetaWrites() {
+  clearTimeout(metaTimer);
+  metaTimer = 0;
+  const batch = metaPending;
+  metaPending = {};
+  if (Object.keys(batch).length) Playlists.updateMany(batch).catch(() => {});
 }
 
 /** 覚えている状態を読み、必要なら調べ直す (分かりしだい描き直す) */
@@ -4576,8 +4568,8 @@ async function refreshPlaylistStates(pl) {
     shouldStop: () => token !== plInspectToken || !favDialog.open || favMode !== 'playlists',
     onEach: (vid, st) => {
       plVideoStates.set(vid, st);
-      // 分かったタイトル・チャンネル名は再生リストにも書く (まだ無いものだけ)
-      Playlists.update(vid, { title: st.title, channel: st.channel, channelId: st.channelId });
+      // 分かったタイトル・チャンネル名は再生リストにも書く (まだ無いものだけ。まとめて)
+      queueMetaWrite(vid, { title: st.title, channel: st.channel, channelId: st.channelId });
       schedulePlaylistRender();
     },
   }).catch((e) => console.warn('hakomado: 再生リストの動画の確認に失敗', e));
@@ -4650,7 +4642,7 @@ function playlistRow(pl, x, { refId, draggable }) {
         mk('input', {
           type: 'number',
           step: '0.01',
-          value: String(x.offset || 0),
+          value: String(x.offset ?? SyncOffsets.get(x.videoId)),
           dataset: { fk: `off:${x.videoId}` },
           onkeydown: (e) => {
             if (e.key === 'Enter') e.target.blur();
@@ -4813,12 +4805,9 @@ function showNewPlaylist(pl) {
 
 /** ＋ 新規: 空の再生リストを作る (名前は今の日時。作ったらすぐ名前を書き換えられる) */
 async function newPlaylist() {
-  const r = await Playlists.create(await Playlists.freeName(defaultPlaylistName()));
-  if (r.full) {
-    favErrorEl.textContent = tr('plFull', Playlists.MAX_LISTS);
-    return;
-  }
-  if (r.playlist) showNewPlaylist(r.playlist);
+  const r = await Playlists.create(defaultPlaylistName(), [], {}, { unique: true });
+  if (r.full) favErrorEl.textContent = tr('plFull', Playlists.MAX_LISTS);
+  else if (r.playlist) showNewPlaylist(r.playlist);
 }
 
 /**
@@ -4826,17 +4815,18 @@ async function newPlaylist() {
  * 同期再生中か、ずれを合わせた動画があれば「同期再生」にして、今の基準の枠を基準にする
  */
 async function playlistFromTiles({ notifyOnly = false } = {}) {
+  const say = (text) => (notifyOnly ? notify(text) : (favErrorEl.textContent = text));
   const items = tileEntries();
   if (!items.length) {
-    (notifyOnly ? notify : (s) => (favErrorEl.textContent = s))(tr('shareEmpty'));
+    say(tr('shareEmpty'));
     return null;
   }
   const refTile = Sync.refIfOn();
   const sync = Sync.isOn() || items.some((x) => x.offset);
   const opts = { sync, layoutId: sync ? state.layoutId : null, ref: sync && refTile != null ? state.tiles[refTile].videoId : null };
-  const r = await Playlists.create(await Playlists.freeName(defaultPlaylistName()), items, opts);
-  if (r.full) {
-    (notifyOnly ? notify : (s) => (favErrorEl.textContent = s))(tr('plFull', Playlists.MAX_LISTS));
+  const r = await Playlists.create(defaultPlaylistName(), items, opts, { unique: true });
+  if (!r.playlist) {
+    say(tr(r.full ? 'plFull' : 'plSaveFailed', Playlists.MAX_LISTS));
     return null;
   }
   notify(tr('plSaved', r.playlist.name, items.length));
@@ -4868,7 +4858,7 @@ async function playPlaylistSynced(pl, { resume = true } = {}) {
   const from = resume ? pl.resume : null;
   if (!resume && pl.resume) await Playlists.setResume(pl.id, null);
   await applyViewingSet(ids, playlistLayoutId(pl), {
-    offsets: items.map((x) => x.offset || 0),
+    offsets: items.map((x) => x.offset ?? SyncOffsets.get(x.videoId)),
     ref: Math.max(0, ids.indexOf(pl.ref)),
     labels: items.map((x) => x.label || ''),
     resumeAt: from?.at || null,
@@ -4936,12 +4926,7 @@ function setupPlaylistShare() {
   const status = document.getElementById('plShareStatus');
   closeOnBackdrop(dialog);
   const copy = async (el, msg) => {
-    try {
-      await navigator.clipboard.writeText(el.value);
-    } catch {
-      el.select();
-      document.execCommand('copy');
-    }
+    await copyField(el);
     status.textContent = tr(msg);
   };
   document.getElementById('plShareCopyText').addEventListener('click', (e) => copy(document.getElementById('plShareText'), 'plShareCopiedText'));
@@ -5056,7 +5041,9 @@ async function refreshPlaylistIds() {
 chrome.storage.onChanged.addListener(async (changes, area) => {
   if (area !== 'local' || !changes[Playlists.KEY]) return;
   await refreshPlaylistIds().catch(() => {});
-  if (favDialog.open && isVideoMode()) renderVideoList();
+  // 再生リストのタブは、続けて書き込まれても描き直しは少しまとめる
+  if (favDialog.open && favMode === 'playlists') schedulePlaylistRender();
+  else if (favDialog.open && isVideoMode()) renderVideoList();
   else if (favDialog.open) scheduleFavRender(); // チャンネルの行で開いたアーカイブの 📃
   if (document.getElementById('plPickDialog').open && pickTarget) renderPlaylistPicker();
 });

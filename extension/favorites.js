@@ -533,6 +533,27 @@ const Favorites = (() => {
   // 再生リストの編集画面で、配信中・配信予定・見られない動画に印を付けるために使う。
   // 調べた結果は配信状況と同じところ (videoStates) に入れて、タブ間・配信状況の確認と共有する
 
+  /**
+   * YouTube の再生リストのページから、動画の並びと名前を読む (最初に表示される分だけ。ふつう 100 本まで)。
+   * ほかの YouTube のページ取得と同じ順番待ち・制限中の判定を通す
+   * @returns {Promise<{ids: string[], name: string}>}
+   */
+  async function fetchYouTubePlaylist(listId) {
+    if (!/^[\w-]{10,64}$/.test(listId)) throw new Error('bad list id');
+    const html = await ytTurn((fetchText) => fetchText(`${YT}/playlist?list=${encodeURIComponent(listId)}`, { credentials: 'include' }));
+    const ids = [];
+    const add = (id) => VIDEO_RE.test(id) && !ids.includes(id) && ids.push(id);
+    // 今の作り: 1 本ずつ lockupViewModel (contentId が動画 ID)。以前の作り: playlistVideoRenderer
+    for (const m of html.matchAll(/"contentId":"([\w-]{11})","contentType":"LOCKUP_CONTENT_TYPE_VIDEO"/g)) add(m[1]);
+    if (!ids.length) for (const m of html.matchAll(/"playlistVideoRenderer":\{"videoId":"([\w-]{11})"/g)) add(m[1]);
+    // さらに作りが変わったとき用: この再生リストの中での順番が付いた再生のリンク
+    if (!ids.length) {
+      const re = new RegExp(`"watchEndpoint":\\{"videoId":"([\\w-]{11})","playlistId":"${listId}","index":\\d+`, 'g');
+      for (const m of html.matchAll(re)) add(m[1]);
+    }
+    return { ids, name: meta(html, 'og:title') };
+  }
+
   /** 覚えている動画の状態 ({videoId: {state, startAt, title, channel, avail, at}}) */
   async function videoStates(ids) {
     const all = await readStates();
@@ -544,13 +565,19 @@ const Favorites = (() => {
    * 動画のページは重いので、YouTube への取得の順番待ち (ytTurn) に並ぶ。制限中はやめる
    */
   async function inspectVideos(ids, { max = 20, onEach, shouldStop } = {}) {
-    const now = Date.now();
     const known = await readStates();
     // 見られるかどうか (avail) をまだ調べていないものも調べる (配信状況の確認で入ったものなど)
-    const due = ids.filter((id) => VIDEO_RE.test(id) && (needsCheck(known[id], now) || !known[id].avail)).slice(0, max);
+    const stale = (st) => needsCheck(st, Date.now()) || !st.avail;
+    const due = ids.filter((id) => VIDEO_RE.test(id) && stale(known[id] || null)).slice(0, max);
     for (const vid of due) {
       if (shouldStop?.()) break;
       try {
+        // ほかのタブが同じ再生リストを開いていて、先に調べ終わっていれば取りに行かない
+        const cur = (await readStates())[vid];
+        if (cur && !stale(cur)) {
+          onEach?.(vid, cur);
+          continue;
+        }
         const r = await checkVideo(vid);
         const st = { ...r, title: r.title || known[vid]?.title, at: Date.now() };
         await saveStates({ [vid]: st });
@@ -821,6 +848,6 @@ const Favorites = (() => {
     list, add, remove, setStar, seedPresets, restorePresets, removeAllPresets, presetCount, removedPresetCount, fetchStatus, fetchArchives,
     previewPack, importPack, packs, removePack, fillIcons,
     checkAccess, rememberMembersOnly, isMembersBlock,
-    videoStates, inspectVideos,
+    videoStates, inspectVideos, fetchYouTubePlaylist,
   };
 })();

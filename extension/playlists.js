@@ -9,7 +9,8 @@
 //   sync     = 同期再生する (全部を一度に並べ、アーカイブを同じ瞬間にそろえる。枠の数と同じ 16 本まで)。false なら今の枠で順に再生 (200 本まで)
 //   layoutId = 同期再生のときのレイアウト (null = 本数に合わせて選ぶ)
 //   ref      = 同期の基準にする動画 (null = 先頭)
-//   offset   = その動画の同期のずれ (秒。0 は持たない)。SyncOffsets と同じ意味で、同期再生を始めるときに SyncOffsets へ入れる
+//   offset   = その動画の同期のずれ (秒)。SyncOffsets と同じ意味で、同期再生を始めるときに SyncOffsets へ入れる。
+//              無ければ「決めていない」(SyncOffsets にある値をそのまま使う)。0 は「ずれ無しと決めた」
 //   label    = 枠に出す名前 (チャンネル一覧での名前、または自分で付けた名前)
 //   watched  = 「▶ 順に再生」で最後まで見た (次に再生するときは飛ばす。続きから再生)
 //   resume   = 同期再生をどこまで見たか ({at: 同期の時計 (実際の時刻のミリ秒), pos: 基準の動画の再生位置 (秒), savedAt})
@@ -72,8 +73,7 @@ const Playlists = (() => {
     const out = { videoId: h.videoId, ...pick(h) };
     if (out.label) out.label = cleanLabel(out.label);
     if (!out.label) delete out.label;
-    const o = cleanOffset(h.offset);
-    if (o) out.offset = o;
+    if (typeof h.offset === 'number' && Number.isFinite(h.offset)) out.offset = cleanOffset(h.offset);
     if (h.watched === true) out.watched = true;
     return out;
   }
@@ -153,14 +153,26 @@ const Playlists = (() => {
     });
   }
 
+  /** all の中で使われていない名前 (「名前」「名前 (2)」…) */
+  function freeNameIn(all, name) {
+    const base = cleanName(name);
+    const names = new Set(all.map((p) => p.name));
+    if (!names.has(base)) return base;
+    for (let k = 2; ; k++) {
+      const n = cleanName(`${base.slice(0, NAME_MAX - 6)} (${k})`);
+      if (!names.has(n)) return n;
+    }
+  }
+
   /**
-   * 新しい再生リストを作る (同じ名前があれば作らずにそれを返す)。
+   * 新しい再生リストを作る。同じ名前があれば作らずにそれを返す。
+   * unique なら、同じ名前があるときは「名前 (2)」のように空いている名前で作る
    * @returns {Promise<{playlist?: object, exists?: object, full?: boolean, empty?: boolean}>}
    */
-  function create(name, items = [], opts = {}) {
-    const n = cleanName(name);
-    if (!n) return Promise.resolve({ empty: true });
+  function create(name, items = [], opts = {}, { unique = false } = {}) {
+    if (!cleanName(name)) return Promise.resolve({ empty: true });
     return mutate((all) => {
+      const n = unique ? freeNameIn(all, name) : cleanName(name);
       const old = all.find((p) => p.name === n);
       if (old) return { result: { exists: old } };
       if (all.length >= MAX_LISTS) return { result: { full: true } };
@@ -168,17 +180,6 @@ const Playlists = (() => {
       const playlist = clean({ id: crypto.randomUUID(), name: n, items, sync: false, ...pickOptions(opts), createdAt: now, updatedAt: now });
       return { next: [playlist, ...all], result: { playlist } };
     });
-  }
-
-  /** 使われていない名前 (「名前」「名前 (2)」…) */
-  async function freeName(name) {
-    const base = cleanName(name);
-    const names = new Set((await list()).map((p) => p.name));
-    if (!names.has(base)) return base;
-    for (let k = 2; ; k++) {
-      const n = cleanName(`${base.slice(0, NAME_MAX - 6)} (${k})`);
-      if (!names.has(n)) return n;
-    }
   }
 
   /**
@@ -226,11 +227,7 @@ const Playlists = (() => {
         if (patch.watched) h.watched = true;
         else delete h.watched;
       }
-      if ('offset' in patch) {
-        const o = cleanOffset(patch.offset);
-        if (o) h.offset = o;
-        else delete h.offset;
-      }
+      if ('offset' in patch) h.offset = cleanOffset(patch.offset);
       return true;
     });
   }
@@ -250,12 +247,16 @@ const Playlists = (() => {
     });
   }
 
-  /** 同期再生の続きの位置を書く (null で消す)。中身の並びは変えないので、更新日時も変えない */
+  /**
+   * 同期再生の続きの位置を書く (null で消す)。中身の並びは変えないので、更新日時も変えない。
+   * 位置 (at・pos) が変わっていなければ書かない (止めている間に書き続けないように)
+   */
   function setResume(id, resume) {
     const r = cleanResume(resume);
+    const same = (a, b) => (a && b ? a.at === b.at && a.pos === b.pos : a === b);
     return mutate((all) => {
       const p = all.find((x) => x.id === id);
-      if (!p || JSON.stringify(p.resume) === JSON.stringify(r)) return null;
+      if (!p || same(p.resume, r)) return null;
       p.resume = r;
       return { next: all };
     });
@@ -277,12 +278,12 @@ const Playlists = (() => {
    * 複製する (名前は「名前 のコピー」。中身・同期再生の設定・ずれはそのまま、見た印と続きの位置は持たない)
    * @returns {Promise<{playlist?: object, full?: boolean}>}
    */
-  async function duplicate(id, copyName) {
-    const p = await get(id);
-    if (!p) return {};
-    const name = await freeName(copyName(p.name));
+  function duplicate(id, copyName) {
     return mutate((all) => {
+      const p = all.find((x) => x.id === id);
+      if (!p) return { result: {} };
       if (all.length >= MAX_LISTS) return { result: { full: true } };
+      const name = freeNameIn(all, copyName(p.name));
       const now = Date.now();
       const playlist = clean({
         ...p,
@@ -308,9 +309,8 @@ const Playlists = (() => {
       for (const h of p.items) {
         if (!(h.videoId in map)) continue;
         const o = cleanOffset(map[h.videoId]);
-        if ((h.offset || 0) === o) continue;
-        if (o) h.offset = o;
-        else delete h.offset;
+        if (h.offset === o) continue;
+        h.offset = o;
         changed = true;
       }
       return changed;
@@ -378,18 +378,29 @@ const Playlists = (() => {
 
   /** タイトルやチャンネル名が分かった (その動画を含む再生リストだけ。まだ無い項目だけ足す。並び順は変えない) */
   function update(videoId, info) {
-    const add = pick(info);
-    delete add.label; // 名前は自分で付けたものを上書きしない
-    if (!videoId || !Object.keys(add).length) return chain;
+    return updateMany({ [videoId]: info });
+  }
+
+  /** update をまとめて 1 回で書く ({videoId: info}) */
+  function updateMany(infos) {
+    const adds = new Map();
+    for (const [videoId, info] of Object.entries(infos || {})) {
+      const add = pick(info);
+      delete add.label; // 名前は自分で付けたものを上書きしない
+      if (VIDEO_ID_RE.test(videoId) && Object.keys(add).length) adds.set(videoId, add);
+    }
+    if (!adds.size) return chain;
     return mutate((all) => {
       let changed = false;
       for (const p of all) {
-        const h = p.items.find((x) => x.videoId === videoId);
-        if (!h) continue;
-        for (const [k, v] of Object.entries(add)) {
-          if (!h[k]) {
-            h[k] = v;
-            changed = true;
+        for (const h of p.items) {
+          const add = adds.get(h.videoId);
+          if (!add) continue;
+          for (const [k, v] of Object.entries(add)) {
+            if (!h[k]) {
+              h[k] = v;
+              changed = true;
+            }
           }
         }
       }
@@ -410,7 +421,6 @@ const Playlists = (() => {
     get,
     save,
     create,
-    freeName,
     addItems,
     addItem,
     updateItem,
@@ -425,5 +435,6 @@ const Playlists = (() => {
     remove,
     removeItem,
     update,
+    updateMany,
   };
 })();
