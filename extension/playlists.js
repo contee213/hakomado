@@ -74,6 +74,70 @@ const Playlists = (() => {
     });
   }
 
+  /**
+   * 新しい再生リストを作る (同じ名前があれば作らずにそれを返す)。
+   * @returns {Promise<{playlist?: object, exists?: object, full?: boolean, empty?: boolean}>}
+   */
+  function create(name, items = []) {
+    const n = cleanName(name);
+    if (!n) return Promise.resolve({ empty: true });
+    return mutate((all) => {
+      const old = all.find((p) => p.name === n);
+      if (old) return { result: { exists: old } };
+      if (all.length >= MAX_LISTS) return { result: { full: true } };
+      const now = Date.now();
+      const playlist = clean({ id: crypto.randomUUID(), name: n, items, createdAt: now, updatedAt: now });
+      return { next: [playlist, ...all], result: { playlist } };
+    });
+  }
+
+  /**
+   * 1 件を最後に足す。
+   * @returns {Promise<'added'|'exists'|'full'|undefined>} undefined = 再生リストが無い
+   */
+  function addItem(id, info) {
+    if (!valid(info)) return Promise.resolve();
+    return mutate((all) => {
+      const p = all.find((x) => x.id === id);
+      if (!p) return null;
+      if (p.items.some((h) => h.videoId === info.videoId)) return { result: 'exists' };
+      if (p.items.length >= MAX_ITEMS) return { result: 'full' };
+      p.items.push({ videoId: info.videoId, ...pick(info) });
+      p.updatedAt = Date.now();
+      return { next: all, result: 'added' };
+    });
+  }
+
+  /**
+   * 名前を変える。
+   * @returns {Promise<'ok'|'exists'|'empty'|undefined>} exists = 同じ名前の再生リストがほかにある
+   */
+  function rename(id, name) {
+    const n = cleanName(name);
+    if (!n) return Promise.resolve('empty');
+    return mutate((all) => {
+      const p = all.find((x) => x.id === id);
+      if (!p) return null;
+      if (all.some((x) => x !== p && x.name === n)) return { result: 'exists' };
+      p.name = n;
+      return { next: all, result: 'ok' };
+    });
+  }
+
+  /** 1 件を index の位置へ動かす (並べ替え) */
+  function move(id, videoId, index) {
+    return mutate((all) => {
+      const p = all.find((x) => x.id === id);
+      const from = p ? p.items.findIndex((h) => h.videoId === videoId) : -1;
+      if (from < 0) return null;
+      const to = Math.max(0, Math.min(p.items.length - 1, index));
+      if (to === from) return null;
+      const [h] = p.items.splice(from, 1);
+      p.items.splice(to, 0, h);
+      return { next: all };
+    });
+  }
+
   function remove(id) {
     return mutate((all) => ({ next: all.filter((p) => p.id !== id) }));
   }
@@ -108,5 +172,5 @@ const Playlists = (() => {
     });
   }
 
-  return { KEY, MAX_LISTS, MAX_ITEMS, NAME_MAX, clean, list, get, save, remove, removeItem, update };
+  return { KEY, MAX_LISTS, MAX_ITEMS, NAME_MAX, clean, list, get, save, create, addItem, rename, move, remove, removeItem, update };
 })();
