@@ -808,6 +808,7 @@ function renderTile(i, { reloadPlayer = false, reloadChat = false } = {}) {
       f.dataset.loaded = '1';
       Diagnose.chatLoaded(i, f);
     });
+    Diagnose.chatCreated(i, f);
     el.querySelector('.chat-slot').appendChild(f);
     v.chatFrame = f;
   }
@@ -2247,11 +2248,22 @@ const Diagnose = (() => {
     });
   }
 
-  function chatLoaded(i, f) {
+  /**
+   * 枠のチャット欄を作った (読み込み始めた)。届いた知らせの記録はここで消す。
+   * (chat.js は document_idle で動くので、読み込みが終わる (load) より前にチャット欄を見つけて知らせてくることがある。
+   * load で消すとその知らせまで消え、新しいコメントが 30 秒来ない静かなチャットでは「止まった」と判定してしまう)
+   */
+  function chatCreated(i, f) {
     const d = get(i);
     Object.assign(d, { chatFrame: f, chatOk: false });
     d.problems.delete('chat');
     show(i);
+  }
+
+  /** 枠のチャット欄の読み込みが終わった → 30 秒後に、チャット欄が見つかったかを確かめる */
+  function chatLoaded(i, f) {
+    const d = get(i);
+    if (d.chatFrame !== f) chatCreated(i, f); // 念のため (作ったことを知らされていない枠)
     later(() => {
       if (views[i].chatFrame !== f || d.chatOk) return;
       // 開始前・終わった動画などでチャット欄が無いのは正常なので、ライブ配信中かアーカイブ (リプレイ) のときだけ
@@ -2295,7 +2307,7 @@ const Diagnose = (() => {
     badge.title = problems.length ? tr('diagTitle', problems.map((p) => tr('diag_' + p)).join('\n・')) : '';
   }
 
-  return { playerCreated, playerLoaded, chatLoaded, seen, chatSeen, clear };
+  return { playerCreated, playerLoaded, chatCreated, chatLoaded, seen, chatSeen, clear };
 })();
 
 // プレイヤー (watch ページ) からの連絡
