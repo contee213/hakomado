@@ -643,6 +643,7 @@ function tr(key, ...args) {
 // 画面 (grid.html) の英語。キーは data-i18n* 属性の値。日本語は grid.html に書いてあるものを使う
 const HTML_EN = {
   // 上部バー
+  'brand.title': 'Show the start screen (resume another saved session / start fresh / start with auto play). Cancel to keep watching',
   'auto.title': 'Auto play (L): lay out live channels and add or remove tiles as streams start and end',
   'auto.label': 'Auto play',
   'cruise.title': 'Cruise (C): move the main tile and audio to the next stream at a set interval',

@@ -51,6 +51,9 @@ button:hover, select:hover { border-color: #444450; }
 }
 .toolbar > * { flex: none; }
 .brand { display: inline-flex; align-items: center; gap: 6px; font-weight: 700; letter-spacing: .02em; margin-right: 6px; }
+/* ロゴは起動時の画面を出すボタン。ふだんはボタンの枠を見せず、乗せたときだけ枠を出す */
+.toolbar button.brand { background: none; border-color: transparent; padding: 0 6px 0 2px; }
+.toolbar button.brand:hover { border-color: #444450; }
 .brand-logo { width: 22px; height: 22px; flex: none; }
 .spacer { flex: 1 1 0; min-width: 8px; }
 .toolbar button { display: inline-flex; align-items: center; gap: 5px; height: 26px; }
@@ -982,8 +985,12 @@ dialog.settings-dialog::backdrop { background: rgba(0, 0, 0, .15); }
 dialog.start-dialog { width: min(440px, calc(100% - 32px)); }
 .start-form { display: flex; flex-direction: column; gap: 12px; padding: 18px; }
 .start-form h2 { margin: 0; font-size: 16px; }
+.start-form { position: relative; }
+.start-close { position: absolute; top: 12px; right: 12px; }
+.start-close:not([hidden]) ~ h2 { padding-right: 32px; }
 .start-body { color: var(--muted); }
 .start-body p { margin: 0 0 6px; }
+.start-body:empty { display: none; }
 .start-form { overflow-x: hidden; }
 .start-choices { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .start-choices button {

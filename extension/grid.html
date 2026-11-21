@@ -10,13 +10,13 @@
 </head>
 <body>
   <!-- 文言は日本語で書き、data-i18n* の付いたものは英語表示のときに i18n.js が差し替える -->
-  <!-- 上部バー: 左 = 見え方と流れの操作 (レイアウト・自動再生・クルーズ・一時停止・今の音声・アーカイブ同期)、右 = 通知・ライブラリ・全画面・設定・使い方 -->
+  <!-- 上部バー: ロゴ = 起動時の画面を出し直す、左 = 見え方と流れの操作 (レイアウト・自動再生・クルーズ・一時停止・今の音声・アーカイブ同期)、右 = 通知・ライブラリ・全画面・設定・使い方 -->
   <!-- 今の音声はチャンネル名で長さが変わるので幅を決めておく (後ろのアーカイブ同期が動かないように) -->
   <!-- ウィンドウが狭くて入りきらないときは、grid.js (fitToolbar) が文字を消してアイコンだけにする -->
   <!-- 全画面のとき、ここにマウスを寄せると上部バーが出る -->
   <div class="toolbar-hotzone" aria-hidden="true"></div>
   <header class="toolbar">
-    <span class="brand"><img class="brand-logo" src="icons/icon.svg" alt=""><span class="brand-name">Hakomado</span></span>
+    <button id="brandHome" class="brand" type="button" data-i18n-title="brand.title" title="起動したときの画面を出す (ほかの保存内容で再開 / 新しく始める / 自動再生で始める)。キャンセルすれば今のまま"><img class="brand-logo" src="icons/icon.svg" alt=""><span class="brand-name">Hakomado</span></button>
     <button id="openLayout" type="button" data-i18n-title="layout.title" title="レイアウトを選ぶ"><span class="tb-icon">▦</span><span id="layoutName" class="tb-label"></span></button>
     <button id="addTile" type="button" data-i18n-title="addTile.title" title="枠を 1 つ増やす (枠の数に合ったレイアウトに変わります)"><span class="tb-icon">＋</span></button>
     <button id="removeTile" type="button" data-i18n-title="removeTile.title" title="空き枠を 1 つ減らす (枠の数に合ったレイアウトに変わります)。配信を読み込んだ枠は消しません"><span class="tb-icon">−</span></button>
@@ -50,6 +50,8 @@
 
   <dialog id="startDialog" class="start-dialog">
     <form method="dialog" class="start-form">
+      <!-- ✕ はロゴのボタンから開いたときだけ出す (起動時は必ずどれかを選ぶ) -->
+      <button type="button" id="startClose" class="dialog-close start-close" data-i18n-title="close" title="閉じる (Esc)" hidden>✕</button>
       <h2 id="startTitle"></h2>
       <div id="startBody" class="start-body"></div>
       <div id="startChoices" class="start-choices"></div>
