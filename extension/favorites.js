@@ -484,19 +484,109 @@ const Favorites = (() => {
     return parseWatchPage(html, videoId);
   }
 
+  /** JSON の文字列 (エスケープ付き) を戻す */
+  const unjson = (s) => {
+    try {
+      return JSON.parse(`"${s}"`);
+    } catch {
+      return s;
+    }
+  };
+
+  /**
+   * 動画のページから状態を読む。
+   * state = live / upcoming / ended (配信のアーカイブ) / none (配信ではない・見られない)
+   * avail = ok / gone (削除・非公開など) / members (メンバー限定でメンバーではない) / blocked (そのほかの理由で見られない)
+   * channel / channelId = チャンネル名と ID (分かれば)
+   */
   function parseWatchPage(html, vid) {
     const at = html.indexOf('"videoDetails":{"videoId":"' + vid + '"');
-    if (at < 0) return { state: 'none' }; // 非公開・削除など
-    const details = html.slice(at, at + 3000);
+    if (at < 0) return { state: 'none', avail: 'gone' }; // 非公開・削除など
+    // videoDetails の終わりの近くにある isLiveContent までを見る (概要欄が長いと、その手前の isLive・author が
+    // 先頭から数千文字より後ろになる)。見つからなければ先頭 3000 文字
+    const endKey = html.indexOf('"isLiveContent"', at);
+    const details = html.slice(at, endKey > at && endKey - at < 40000 ? endKey + 30 : at + 3000);
+    const pAt = html.indexOf('"playabilityStatus":{');
+    const ps = pAt >= 0 ? html.slice(pAt, pAt + 6000) : '';
+    const status = ps.match(/"status":"(\w+)"/)?.[1];
+    let avail = 'ok';
+    if (status && status !== 'OK' && status !== 'LIVE_STREAM_OFFLINE') {
+      // ログインしていない状態で取れたページだと、メンバーでも見られない扱いになるので、そのときは判定しない
+      if (isMembersBlock(ps) || /BADGE_STYLE_TYPE_MEMBERS_ONLY/.test(html)) avail = /"LOGGED_IN":true/.test(html) ? 'members' : 'ok';
+      else avail = 'blocked';
+    }
+    const channel = details.match(/"author":"((?:[^"\\]|\\.)*)"/)?.[1];
+    const channelId = details.match(/"channelId":"(UC[\w-]{22})"/)?.[1];
+    const extra = { avail, ...(channel ? { channel: unjson(channel) } : {}), ...(channelId ? { channelId } : {}) };
     const title = meta(html, 'og:title') || meta(html, 'title');
     const started = html.match(/"liveBroadcastDetails":\{[^}]*"startTimestamp":"([^"]+)"/)?.[1];
-    if (/"isLive":true/.test(details)) return { state: 'live', title, startAt: started ? Date.parse(started) : undefined };
+    if (/"isLive":true/.test(details)) return { state: 'live', title, startAt: started ? Date.parse(started) : undefined, ...extra };
     if (/"isUpcoming":true/.test(details)) {
       const t = html.match(/"scheduledStartTime":"(\d+)"/)?.[1];
-      return { state: 'upcoming', title, startAt: t ? Number(t) * 1000 : undefined };
+      return { state: 'upcoming', title, startAt: t ? Number(t) * 1000 : undefined, ...extra };
     }
-    if (/"isLiveContent":true/.test(details)) return { state: 'ended', title };
-    return { state: 'none', title };
+    if (/"isLiveContent":true/.test(details)) return { state: 'ended', title, ...extra };
+    return { state: 'none', title, ...extra };
+  }
+
+  // ------------------------------------------------------------ 再生リストの動画の状態
+  // 再生リストの編集画面で、配信中・配信予定・見られない動画に印を付けるために使う。
+  // 調べた結果は配信状況と同じところ (videoStates) に入れて、タブ間・配信状況の確認と共有する
+
+  /**
+   * YouTube の再生リストのページから、動画の並びと名前を読む (最初に表示される分だけ。ふつう 100 本まで)。
+   * ほかの YouTube のページ取得と同じ順番待ち・制限中の判定を通す
+   * @returns {Promise<{ids: string[], name: string}>}
+   */
+  async function fetchYouTubePlaylist(listId) {
+    if (!/^[\w-]{10,64}$/.test(listId)) throw new Error('bad list id');
+    const html = await ytTurn((fetchText) => fetchText(`${YT}/playlist?list=${encodeURIComponent(listId)}`, { credentials: 'include' }));
+    const ids = [];
+    const add = (id) => VIDEO_RE.test(id) && !ids.includes(id) && ids.push(id);
+    // 今の作り: 1 本ずつ lockupViewModel (contentId が動画 ID)。以前の作り: playlistVideoRenderer
+    for (const m of html.matchAll(/"contentId":"([\w-]{11})","contentType":"LOCKUP_CONTENT_TYPE_VIDEO"/g)) add(m[1]);
+    if (!ids.length) for (const m of html.matchAll(/"playlistVideoRenderer":\{"videoId":"([\w-]{11})"/g)) add(m[1]);
+    // さらに作りが変わったとき用: この再生リストの中での順番が付いた再生のリンク
+    if (!ids.length) {
+      const re = new RegExp(`"watchEndpoint":\\{"videoId":"([\\w-]{11})","playlistId":"${listId}","index":\\d+`, 'g');
+      for (const m of html.matchAll(re)) add(m[1]);
+    }
+    return { ids, name: meta(html, 'og:title') };
+  }
+
+  /** 覚えている動画の状態 ({videoId: {state, startAt, title, channel, avail, at}}) */
+  async function videoStates(ids) {
+    const all = await readStates();
+    return Object.fromEntries(ids.filter((id) => all[id]).map((id) => [id, all[id]]));
+  }
+
+  /**
+   * 動画の状態を確かめる (確かめ直しが要るものだけ、max 件まで。1 件分かるごとに onEach(videoId, state))。
+   * 動画のページは重いので、YouTube への取得の順番待ち (ytTurn) に並ぶ。制限中はやめる
+   */
+  async function inspectVideos(ids, { max = 20, onEach, shouldStop } = {}) {
+    const known = await readStates();
+    // 見られるかどうか (avail) をまだ調べていないものも調べる (配信状況の確認で入ったものなど)
+    const stale = (st) => needsCheck(st, Date.now()) || !st.avail;
+    const due = ids.filter((id) => VIDEO_RE.test(id) && stale(known[id] || null)).slice(0, max);
+    for (const vid of due) {
+      if (shouldStop?.()) break;
+      try {
+        // ほかのタブが同じ再生リストを開いていて、先に調べ終わっていれば取りに行かない
+        const cur = (await readStates())[vid];
+        if (cur && !stale(cur)) {
+          onEach?.(vid, cur);
+          continue;
+        }
+        const r = await checkVideo(vid);
+        const st = { ...r, title: r.title || known[vid]?.title, at: Date.now() };
+        await saveStates({ [vid]: st });
+        onEach?.(vid, st);
+      } catch (e) {
+        if (e instanceof RateLimitedError) break;
+        console.warn('hakomado: 動画の状態の確認に失敗', vid, e);
+      }
+    }
   }
 
   /**
@@ -758,5 +848,6 @@ const Favorites = (() => {
     list, add, remove, setStar, seedPresets, restorePresets, removeAllPresets, presetCount, removedPresetCount, fetchStatus, fetchArchives,
     previewPack, importPack, packs, removePack, fillIcons,
     checkAccess, rememberMembersOnly, isMembersBlock,
+    videoStates, inspectVideos, fetchYouTubePlaylist,
   };
 })();
