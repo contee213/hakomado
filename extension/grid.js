@@ -3235,9 +3235,9 @@ async function collectLiveFavorites({ force = false, auto = false, onProgress = 
   const favs = (await Favorites.list()).filter((f) => target !== 'fav' || f.star);
   let done = 0;
   onProgress?.(0, favs.length);
-  // 自動再生の 1 分ごとの確認では、ホロライブ以外のチャンネルを取りに行くのは 1 回あたり 3 分の 1 ずつ
-  // (残りは前に取った結果を使う。取りに行く時期が少しずつずれて、一度にまとめて取らなくなる)
-  const budget = auto ? { yt: Math.max(2, Math.ceil(favs.filter((f) => !f.preset).length / 3)) } : null;
+  // 1 回の確認で動画のページ (重い) を確かめる件数の上限。残りは次の回に回す (一度にまとめて取りに行かないように)。
+  // 自動再生の 1 分ごとの確認では少なめ (開始予定が近いものから確かめるので、開始の検知は遅れない)
+  const budget = { watch: auto ? 8 : 30 };
   const results = [];
   let errors = 0;
   const failedKeys = new Set();
