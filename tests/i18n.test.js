@@ -60,6 +60,26 @@ test('grid.html の data-i18n* はすべて英語がある', () => {
   assert.deepEqual([...new Set(missing)], []);
 });
 
+test('使われていない文言が残っていない (画面から消したものの英語・スクリプトの文言)', () => {
+  const env = load(['i18n.js']);
+  const html = readExt('grid.html');
+  const scripts = fs
+    .readdirSync(EXT)
+    .filter((f) => f.endsWith('.js') && f !== 'i18n.js')
+    .map((f) => readExt(f))
+    .join('\n');
+  const usedInHtml = new Set([...html.matchAll(/data-i18n(?:-html|-title|-placeholder|-aria)?="([^"]+)"/g)].map((m) => m[1]));
+  const staleHtml = Object.keys(env.get('HTML_EN')).filter((k) => !usedInHtml.has(k) && !scripts.includes(`'${k}'`));
+  assert.deepEqual(staleHtml, [], 'grid.html に無い英語の文言');
+  // 組み立てて使うもの (tr(step.key + 'T') の使い方ツアー、tr(`layoutTab_${…}`) のような「前半_」) は、組み立てる元が出てくればよい
+  const used = (k) =>
+    scripts.includes(`'${k}'`) ||
+    scripts.includes(`'${k.replace(/T$/, '')}'`) ||
+    (k.includes('_') && new RegExp(`['\`]${k.split('_')[0]}_`).test(scripts));
+  const staleMsg = Object.keys(env.get('MESSAGES')).filter((k) => !used(k));
+  assert.deepEqual(staleMsg, [], 'どこからも使われていないスクリプトの文言');
+});
+
 test('_locales: manifest.json の __MSG_…__ が日本語・英語の両方にある', () => {
   const manifest = readExt('manifest.json');
   const keys = [...new Set([...manifest.matchAll(/__MSG_(\w+)__/g)].map((m) => m[1]))];

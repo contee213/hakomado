@@ -2482,9 +2482,38 @@ function setupDragSwap() {
 
 // ---------------------------------------------------------------- toolbar & settings
 
-function openHelp() {
-  const d = document.getElementById('help');
-  if (!d.open) d.showModal();
+/** 使い方を開く。page = 開く項目 (省くと、このタブで最後に見ていたもの) */
+let openHelp = () => {};
+
+function setupHelp() {
+  const dialog = document.getElementById('help');
+  const tabs = dialog.querySelectorAll('[data-help]');
+  const KEY = 'hakomado.helpPage';
+  const show = (name) => {
+    const page = [...tabs].some((t) => t.dataset.help === name) ? name : 'start';
+    for (const t of tabs) {
+      t.classList.toggle('selected', t.dataset.help === page);
+      t.setAttribute('aria-selected', String(t.dataset.help === page));
+    }
+    for (const p of dialog.querySelectorAll('.help-page')) p.hidden = p.dataset.helpPage !== page;
+    dialog.querySelector('.help-content').scrollTop = 0;
+    try {
+      sessionStorage.setItem(KEY, page);
+    } catch {
+      /* ignore */
+    }
+  };
+  for (const t of tabs) t.addEventListener('click', () => show(t.dataset.help));
+  openHelp = (page) => {
+    let last = null;
+    try {
+      last = sessionStorage.getItem(KEY);
+    } catch {
+      /* ignore */
+    }
+    show(typeof page === 'string' ? page : last);
+    if (!dialog.open) dialog.showModal();
+  };
 }
 
 // ---------------------------------------------------------------- 🔗 共有 / 📥 読み込み
@@ -3246,6 +3275,8 @@ function setupRead() {
     saveBtn.classList.toggle('primary-action', primary === 'save');
   };
   const primaryBtn = () => (primary === 'save' ? saveBtn : applyBtn);
+  /** 保存するときの名前 (名前欄か読み取った名前。再生リストと同じく改行を除いて 40 文字まで。空なら '') */
+  const saveName = (set) => (nameEl.value.trim() || set.name || '').replace(/[\r\n\t]/g, ' ').trim().slice(0, Playlists.NAME_MAX).trim();
 
   /** 読み取った内容 (1 行目に名前・本数・レイアウト・同期、続けて注意) */
   const describe = async (set) => {
@@ -3259,7 +3290,7 @@ function setupRead() {
     if (set.bad) notes.push(tr('shareBadLines', set.bad));
     if (set.tooMany) notes.push(tr('plTooMany', Playlists.MAX_ITEMS));
     if (set.items.length > SHARE_MAX) notes.push(tr(set.sync ? 'readOverSync' : 'readOverTiles', SHARE_MAX));
-    const name = nameEl.value.trim() || set.name;
+    const name = saveName(set);
     if (name && (await Playlists.list()).some((p) => p.name === name)) notes.push(tr('readReplace', name));
     return [parts.join(' / '), ...notes].join('\n');
   };
@@ -3281,7 +3312,7 @@ function setupRead() {
       });
       if (seq !== parseSeq) return;
       if (!set.items.length) {
-        setSummary(tr('shareNothing'), true);
+        setSummary(tr('readNothing'), true);
         return;
       }
       if (!nameTouched) nameEl.value = set.name.slice(0, Playlists.NAME_MAX);
@@ -3439,7 +3470,7 @@ function setupRead() {
     busy = true;
     updateButtons();
     try {
-      const r = await Playlists.save(nameEl.value.trim() || set.name || defaultPlaylistName(), set.items, {
+      const r = await Playlists.save(saveName(set) || defaultPlaylistName(), set.items, {
         sync: set.sync,
         layoutId: set.layoutId,
         ref: set.ref,
@@ -3820,13 +3851,14 @@ function setupToolbar() {
   });
   document.getElementById('settingsReset').addEventListener('click', resetSettings);
   setupBackup();
+  setupHelp();
   setupShare();
   setupRead();
   setupPlaylistPicker();
   setupPacks();
   Sync.setup();
   showAppVersion();
-  document.getElementById('openHelp').addEventListener('click', openHelp);
+  document.getElementById('openHelp').addEventListener('click', () => openHelp());
   document.getElementById('tourReplay').addEventListener('click', () => {
     document.getElementById('help').close();
     Tour.start();
@@ -3855,6 +3887,12 @@ function setupToolbar() {
     }
   };
   for (const t of tabs) t.addEventListener('click', () => showTab(t.dataset.tab));
+  // 「? 詳しい説明」: 今のタブの設定の説明を、使い方の画面で開く
+  const HELP_OF_TAB = { danmaku: 'look', audio: 'look', chat: 'look', auto: 'auto', channels: 'channels', backup: 'backup' };
+  document.getElementById('settingsHelp').addEventListener('click', () => {
+    const tab = [...tabs].find((t) => t.classList.contains('selected'))?.dataset.tab;
+    openHelp(HELP_OF_TAB[tab] || 'start');
+  });
 
   // 表示言語 (変えたらページを読み込み直す。視聴中の枠はこのタブのセッションとしてそのまま戻る)
   const langSelect = document.getElementById('langSelect');
@@ -4033,8 +4071,6 @@ function openFavorites(target, view) {
   favTarget = target;
   const favView = view === 'channels' ? 'channels' : 'library';
   favErrorEl.textContent = '';
-  document.querySelector('.fav-target').textContent =
-    target != null ? tr('favTarget', displayNumber(target)) : tr('favTargetAny');
   document.getElementById('favTitle').textContent = tr(favView === 'channels' ? 'chTitle' : 'libTitle');
   document.querySelector('.fav-tabs').hidden = favView === 'channels';
   setFavMode(favView === 'channels' ? 'all' : savedLibraryTab(), { render: false });
@@ -4114,8 +4150,8 @@ function formatStart(ms) {
 
 let favFilter = '';
 
-/** 見出し付きの一覧。action を渡すと見出しの右にボタンを出す */
-function favSection(title, items, { cls = '', action = null } = {}) {
+/** 見出し付きの一覧 */
+function favSection(title, items, { cls = '' } = {}) {
   const ul = document.createElement('ul');
   ul.className = 'fav-sub';
   ul.append(...items.flat());
@@ -4125,15 +4161,6 @@ function favSection(title, items, { cls = '', action = null } = {}) {
   const label = document.createElement('span');
   label.textContent = `${title} (${items.length})`; // 開いたアーカイブは数えない (items は行ごと)
   h.append(label);
-  if (action) {
-    const b = document.createElement('button');
-    b.type = 'button';
-    b.className = 'section-action';
-    b.textContent = action.label;
-    b.title = action.title || '';
-    b.addEventListener('click', action.onClick);
-    h.append(b);
-  }
   sec.append(h, ul);
   return sec;
 }
@@ -4157,14 +4184,7 @@ function renderFavorites(favs) {
   const sections = [];
   if (live.length) {
     sections.push(
-      favSection(tr('secLive'), live.map(favItem), {
-        cls: 'live-sec',
-        action: {
-          label: tr('fillEmpty'),
-          title: tr('fillEmptyTitle'),
-          onClick: fillLiveIntoEmptyTiles,
-        },
-      }),
+      favSection(tr('secLive'), live.map(favItem), { cls: 'live-sec' }),
     );
   }
   if (upcoming.length) sections.push(favSection(tr('secUpcoming'), upcoming.map(favItem), { cls: 'upcoming-sec' }));
@@ -4210,10 +4230,11 @@ function favItem({ f, st }) {
     li.addEventListener('click', () => pickFavorite(f, st));
   }
 
-  // ▸: このチャンネルの最近の配信アーカイブを、行の下に開く
+  // 「最近 ⌄」: このチャンネルの最近の配信アーカイブを、行の下に開く
+  // (以前の ▸ は再生ボタンに見えて、枠に入れるつもりで押されやすかったので、文字で出す)
   const arch = li.querySelector('.fav-arch');
   const open = archiveOpen.has(f.channelId);
-  arch.textContent = open ? '▾' : '▸';
+  arch.textContent = tr(open ? 'archiveBtnOpen' : 'archiveBtn');
   arch.title = tr(open ? 'archiveClose' : 'archiveOpen');
   arch.classList.toggle('on', open);
   arch.addEventListener('click', async (e) => {
@@ -4264,10 +4285,10 @@ function favItem({ f, st }) {
   return [li, sub];
 }
 
-// ---------------------------------------------------------------- 最近の配信 (ライブラリの「🎞 最近の配信」タブと、チャンネルの行の ▸)
+// ---------------------------------------------------------------- 最近の配信 (ライブラリの「🎞 最近の配信」タブと、チャンネルの行の「最近 ⌄」)
 
 const archiveData = new Map(); // channelId -> 'loading' | 'error' | [{videoId, title, at}]
-const archiveOpen = new Set(); // ▸ で開いているチャンネル
+const archiveOpen = new Set(); // 「最近 ⌄」で開いているチャンネル
 const ARCHIVE_DAYS = 7; // 「最近の配信」に出す範囲 (日)
 const archiveQueue = [];
 let archiveWorkers = 0;
@@ -4454,7 +4475,6 @@ function setFavMode(mode, { render = true } = {}) {
   document.getElementById('libScope').hidden = isPl;
   for (const id of ['plSelect', 'plNew', 'plFromTiles', 'plImport']) document.getElementById(id).hidden = !isPl;
   // 再生リストは行の ▶ で読み込む (行そのものは編集に使うので、クリックで読み込む案内は出さない)
-  document.querySelector('.fav-target').hidden = isPl;
   favErrorEl.textContent = '';
   if (render) renderFavPane();
 }
@@ -5668,28 +5688,6 @@ function pickFavorite(f, st) {
   favDialog.close();
 }
 
-async function fillLiveIntoEmptyTiles() {
-  const favs = await Favorites.list();
-  if (favs.some((f) => favStatus.get(f.channelId) === 'loading')) {
-    favErrorEl.textContent = tr('stillChecking');
-    return;
-  }
-  const shown = new Set(state.tiles.filter((_, i) => isVisible(i)).map((t) => t.videoId));
-  const lives = favs
-    .map((f) => ({ f, st: favStatus.get(f.channelId) }))
-    .filter(({ st }) => st?.state === 'live' && !shown.has(st.videoId));
-  let placed = 0;
-  for (const { f, st } of lives) {
-    const i = firstEmptyTile();
-    if (i == null) break;
-    setTileVideo(i, st.videoId, f.handle || f.channelId);
-    placed++;
-  }
-  if (lives.length === 0) favErrorEl.textContent = tr('noUnshownLive');
-  else if (placed < lives.length) favErrorEl.textContent = tr('notEnoughTiles', lives.length - placed);
-  else favDialog.close();
-}
-
 // ---------------------------------------------------------------- 自動再生
 
 /**
@@ -5844,6 +5842,25 @@ async function startAllLiveInner() {
   if (!state.autoMode) return; // 準備している間に OFF にされた
   showAutoProgress(tr('progressTiles'), 0.97);
   let lives = ok;
+  // 自分で入れた枠 (自動再生が入れたものではない枠) が置き換わるなら、先に確かめる。やめたら自動再生は OFF に戻す。
+  // ライブが無くて最近の配信で埋めるときは全部、ライブがあるときは配信中のものに入っていない枠が置き換わる
+  const keepIds = new Set(lives.map((l) => l.st.videoId));
+  const archiveOnly = lives.length === 0 && state.settings.autoArchive;
+  const replaced = visibleIndexes().filter((i) => {
+    const t = state.tiles[i];
+    return t.videoId && !t.auto && !t.fill && (archiveOnly || (lives.length > 0 && !keepIds.has(t.videoId)));
+  });
+  if (replaced.length) {
+    hideAutoProgress();
+    const names = replaced.map((i) => tileName(i) || state.tiles[i].videoId);
+    const list = names.slice(0, 3).join(tr('sep')) + (names.length > 3 ? tr('andMore', names.length - 3) : '');
+    if (!confirm(tr('autoReplaceConfirm', replaced.length, list))) {
+      await setAutoMode(false);
+      notify(tr('autoReplaceCanceled'));
+      return;
+    }
+    if (!state.autoMode) return; // 確かめている間に OFF にされた
+  }
   if (lives.length === 0) {
     if (state.settings.autoArchive) {
       // ライブが無い → 最近の配信で
