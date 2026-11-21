@@ -7,6 +7,13 @@ Chrome ウェブストアのデベロッパー ダッシュボードに入れる
 - 対象バージョン: 0.2.0 (`extension/manifest.json`)
 - 最低 Chrome バージョン: 128 (Manifest V3)
 
+## 拡張機能の ID
+
+- GitHub のリリースの ZIP は、`manifest.json` に `"key"` (公開鍵 `tools/release-key.pub`) を入れて ID を `lhafnnpnfpgogdbapeepkgohemnnifpp` に固定している
+  (`.github/workflows/release.yml` が ZIP を作るときに `tools/release-key.js` で差し込む。リポジトリの `extension/manifest.json` には入れない)
+- ストアに上げるパッケージには `"key"` を入れない (ストアが自分の鍵で ID を決める)。ストア版と ZIP 版の ID をそろえたいときは、
+  ダッシュボードの「パッケージ」→「公開鍵を表示」の鍵を `tools/release-key.pub` に入れ替える (`tests/release-key.test.js` の ID も直す)
+
 ## ストアの掲載情報
 
 - 名前: Hakomado

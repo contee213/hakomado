@@ -553,7 +553,7 @@ const HTML_EN = {
   'pack.listNote': 'Packs in your channel list. Hololive (bundled) is included from the start. You can remove a pack at once or bring back what you removed. Channels you added and channels in pickup (📌) are never removed',
   'tab.backup': 'Backup',
   'backup.h': 'Back up your settings',
-  'backup.note': 'Saves your settings, channels (including pickup 📌), watch history, Watch later, playlists and display language to one file. Moving or reinstalling the extension folder erases what is saved, so export first and import the file afterwards',
+  'backup.note': 'Saves your settings, channels (including pickup 📌), watch history, Watch later, playlists and display language to one file. Removing and reinstalling the extension, or switching to another copy (a development folder or a version from before the ID was fixed), does not carry over what is saved, so export first and import the file afterwards',
   'backup.export': '⬇ Export to a file',
   'backup.import': '⬆ Import from a file',
   'backup.importNote': 'Importing replaces your current settings, channels, watch history and Watch later with the contents of the file. Streams in the tiles now stay as they are',

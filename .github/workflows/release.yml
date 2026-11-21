@@ -32,6 +32,11 @@ jobs:
           fi
           echo "VER=$VER" >> "$GITHUB_ENV"
 
+      # ZIP の manifest.json にだけ "key" を入れて、拡張機能の ID を固定する (展開する場所を変えても同じ拡張機能のまま)。
+      # リポジトリの extension/ には入れない (開発用フォルダと配布版を同じプロファイルに並べて入れられるように)
+      - name: Fix the extension ID
+        run: node tools/release-key.js inject extension/manifest.json
+
       # ZIP の直下に manifest.json が来るようにする (展開したフォルダをそのまま読み込めるように)
       - name: Make the zip
         run: |
