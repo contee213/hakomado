@@ -6707,8 +6707,8 @@ async function chooseSession() {
 }
 
 (async function main() {
-  // 再生リストが以前の版の形 (全部で 1 つの項目) で保存されていれば、1 つずつに分けて移す
-  await Promise.all([loadSettings(), Favorites.seedPresets(), SyncOffsets.load(), Playlists.migrate()]);
+  // 再生リスト: 以前の版の形 (全部で 1 つの項目) なら 1 つずつに分けて移す。1 つも無ければ既定の「新規マイリスト」を作る
+  await Promise.all([loadSettings(), Favorites.seedPresets(), SyncOffsets.load(), Playlists.setup(tr('plSeedName'))]);
   buildTiles();
   refreshFavKeys().catch(() => {});
   refreshSavedIds().catch(() => {});
