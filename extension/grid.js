@@ -301,7 +301,8 @@ async function resolveVideoId(raw) {
 
 /** チャンネルの /live ページから、現在配信中 (または待機所) の動画IDを取り出す */
 async function resolveLive(liveUrl) {
-  const res = await fetch(liveUrl, { credentials: 'include', signal: AbortSignal.timeout(20000) });
+  // スマホ版 (m.youtube.com) に転送されると取得が止まる (CORS) ので、PC 版のページを指定する
+  const res = await fetch(`${liveUrl}?app=desktop`, { credentials: 'include', signal: AbortSignal.timeout(20000) });
   if (!res.ok) throw new Error(tr('channelOpenFail', res.status));
   const html = await res.text();
   const m = html.match(/<link rel="canonical" href="https:\/\/www\.youtube\.com\/watch\?v=([A-Za-z0-9_-]{11})"/);
@@ -641,6 +642,8 @@ function setTileVideo(i, videoId, input) {
 function playerUrl(t) {
   const p = new URLSearchParams({
     v: t.videoId,
+    // スマホ版 (m.youtube.com) に転送されると、枠の中のスクリプト (www.youtube.com 用) が動かないので PC 版を指定する
+    app: 'desktop',
     hakomado: '1',
     hakomado_muted: t.muted ? '1' : '0',
     hakomado_fill: state.fit === 'fill' ? '1' : '0',
@@ -762,6 +765,7 @@ function renderTile(i, { reloadPlayer = false, reloadChat = false } = {}) {
     v.player?.remove();
     const f = document.createElement('iframe');
     f.allow = 'autoplay; encrypted-media; picture-in-picture; fullscreen';
+    Diagnose.playerCreated(i, f);
     f.src = playerUrl(t);
     f.addEventListener('load', () => {
       f.dataset.loaded = '1';
@@ -1926,11 +1930,22 @@ const Diagnose = (() => {
     }, WAIT_MS);
   }
 
-  function playerLoaded(i, f) {
+  /**
+   * 枠のプレイヤーを作った (読み込み始めた)。届いた知らせの記録はここで消す。
+   * (読み込みが終わったとき (load) に消すと、それより前に届いた知らせ (チャンネル名など。同じ内容は 1 度しか送られない) まで
+   * 消えてしまい、届いているのに「止まった」と判定してしまう。YouTube のページは load までに数秒以上かかる)
+   */
+  function playerCreated(i, f) {
     const d = get(i);
     Object.assign(d, { frame: f, seen: new Set() });
     d.problems.clear();
     show(i);
+  }
+
+  /** 枠のプレイヤーの読み込みが終わった → 30 秒後に、届くはずの知らせが届いたかを確かめる */
+  function playerLoaded(i, f) {
+    const d = get(i);
+    if (d.frame !== f) playerCreated(i, f); // 念のため (作ったことを知らされていない枠)
     later(() => {
       if (views[i].player !== f) return; // 読み込み直した / 片付けた
       if (!d.seen.size) d.problems.add('frame');
@@ -1990,7 +2005,7 @@ const Diagnose = (() => {
     badge.title = problems.length ? tr('diagTitle', problems.map((p) => tr('diag_' + p)).join('\n・')) : '';
   }
 
-  return { playerLoaded, chatLoaded, seen, chatSeen, clear };
+  return { playerCreated, playerLoaded, chatLoaded, seen, chatSeen, clear };
 })();
 
 // プレイヤー (watch ページ) からの連絡

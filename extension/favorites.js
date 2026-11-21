@@ -98,6 +98,9 @@ const Favorites = (() => {
   const ARCHIVE_TTL_MS = 30 * 60 * 1000;
   const CHANNEL_ID_RE = /^UC[\w-]{22}$/;
   const VIDEO_RE = /^[A-Za-z0-9_-]{11}$/;
+  // YouTube は条件によって (スマホと判断したときなど) ページを m.youtube.com に転送する。そちらは取得の許可が無く
+  // (CORS で止まる)、ページの作りも違うので、PC 版のページを指定する
+  const desktop = (url) => `${url}${url.includes('?') ? '&' : '?'}app=desktop`;
 
   /**
    * そのチャンネルの再生リストの中身 (maxAge より新しい結果があればそれを使う)。配信をしたことがないチャンネルは []。
@@ -330,7 +333,7 @@ const Favorites = (() => {
     for (const f of targets) {
       iconTried.add(f.channelId);
       try {
-        const html = await ytTurn((fetchText) => fetchText(`${YT}/channel/${f.channelId}`, { credentials: 'omit' }));
+        const html = await ytTurn((fetchText) => fetchText(desktop(`${YT}/channel/${f.channelId}`), { credentials: 'omit' }));
         const icon = meta(html, 'og:image');
         const handle = html.match(/"canonicalBaseUrl":"\/(@[^"]+)"/)?.[1];
         if (/^https:\/\//.test(icon)) found.set(f.channelId, { icon, handle: handle ? decodeURIComponent(handle) : '' });
@@ -484,7 +487,7 @@ const Favorites = (() => {
 
   /** 動画のページを見て状態を調べる */
   async function checkVideo(videoId) {
-    const html = await ytTurn((fetchText) => fetchText(`${YT}/watch?v=${videoId}`, { credentials: 'include' }));
+    const html = await ytTurn((fetchText) => fetchText(desktop(`${YT}/watch?v=${videoId}`), { credentials: 'include' }));
     return parseWatchPage(html, videoId);
   }
 
@@ -544,7 +547,7 @@ const Favorites = (() => {
    */
   async function fetchYouTubePlaylist(listId) {
     if (!/^[\w-]{10,64}$/.test(listId)) throw new Error('bad list id');
-    const html = await ytTurn((fetchText) => fetchText(`${YT}/playlist?list=${encodeURIComponent(listId)}`, { credentials: 'include' }));
+    const html = await ytTurn((fetchText) => fetchText(desktop(`${YT}/playlist?list=${encodeURIComponent(listId)}`), { credentials: 'include' }));
     const ids = [];
     const add = (id) => VIDEO_RE.test(id) && !ids.includes(id) && ids.push(id);
     // 今の作り: 1 本ずつ lockupViewModel (contentId が動画 ID)。以前の作り: playlistVideoRenderer
@@ -827,7 +830,7 @@ const Favorites = (() => {
     let result = 'unknown';
     try {
       const html = await ytTurn((fetchText) =>
-        fetchText(`${YT}/watch?v=${encodeURIComponent(videoId)}`, { credentials: 'include' }),
+        fetchText(desktop(`${YT}/watch?v=${encodeURIComponent(videoId)}`), { credentials: 'include' }),
       );
       const at = html.indexOf('"playabilityStatus":{');
       const ps = at >= 0 ? html.slice(at, at + 6000) : '';
