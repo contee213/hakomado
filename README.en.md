@@ -105,7 +105,7 @@ A pack is a JSON file like the one below. Besides submitting it to `packs/`, you
 | `https://schedule.hololive.tv/*` | Getting the stream schedule of the initial data channels |
 | `contextMenus` | The right-click menu "Add to an empty Hakomado tile" |
 
-- Besides YouTube and the schedule site, it only connects to GitHub to check for new versions (`api.github.com`), to the pack list when you press "Get the list" in Find packs (`raw.githubusercontent.com`), and to pack URLs you enter. No data is sent to any other server
+- Besides YouTube and the schedule site, it only connects to GitHub to check for new versions (`api.github.com`), to the pack list when you press "Get the list" in Find packs (`raw.githubusercontent.com`), and to pack URLs you enter. No data is sent to any other server. See the [privacy policy](docs/privacy.md) for details
 - Requests to YouTube use the browser's cookies (your sign-in). This is needed to show members-only streams and, in auto play, to check whether you can watch them
 - YouTube watch pages and live chat forbid embedding in other pages with the `X-Frame-Options` header, so a rule that removes this header
   (a declarativeNetRequest session rule) is registered **only for the multi-view page's tab**.

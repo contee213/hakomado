@@ -45,3 +45,12 @@ test('manifest.json に key を差し込む: ほかの項目はそのまま', ()
 test('version の行が無い manifest は断る', () => {
   assert.throws(() => injectKey('{"name": "x"}', publicKey()));
 });
+
+test('リリースの workflow: ストア用の ZIP は key を差し込む前に作る', () => {
+  const yml = require('node:fs').readFileSync(require('node:path').join(__dirname, '../.github/workflows/release.yml'), 'utf8');
+  const store = yml.indexOf('-chrome-web-store.zip" . -x');
+  const inject = yml.indexOf('node tools/release-key.js inject');
+  assert.ok(store > 0 && inject > 0, 'どちらの手順も見つからない');
+  assert.ok(store < inject, 'ストア用の ZIP が key の差し込みより後に作られている');
+  assert.match(yml, /gh release create [^\n]*-chrome-web-store\.zip/);
+});
