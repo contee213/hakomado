@@ -4230,11 +4230,11 @@ function favItem({ f, st }) {
     li.addEventListener('click', () => pickFavorite(f, st));
   }
 
-  // 🎞: このチャンネルの最近の配信アーカイブを、行の下に開く
-  // (▸ は再生ボタンに見えて、枠に入れるつもりで押されやすいので、最近の配信のタブと同じ 🎞 と開閉の印にする)
+  // 「最近 ⌄」: このチャンネルの最近の配信アーカイブを、行の下に開く
+  // (以前の ▸ は再生ボタンに見えて、枠に入れるつもりで押されやすかったので、文字で出す)
   const arch = li.querySelector('.fav-arch');
   const open = archiveOpen.has(f.channelId);
-  arch.textContent = open ? '🎞 ⌃' : '🎞 ⌄';
+  arch.textContent = tr(open ? 'archiveBtnOpen' : 'archiveBtn');
   arch.title = tr(open ? 'archiveClose' : 'archiveOpen');
   arch.classList.toggle('on', open);
   arch.addEventListener('click', async (e) => {
@@ -4285,10 +4285,10 @@ function favItem({ f, st }) {
   return [li, sub];
 }
 
-// ---------------------------------------------------------------- 最近の配信 (ライブラリの「🎞 最近の配信」タブと、チャンネルの行の 🎞)
+// ---------------------------------------------------------------- 最近の配信 (ライブラリの「🎞 最近の配信」タブと、チャンネルの行の「最近 ⌄」)
 
 const archiveData = new Map(); // channelId -> 'loading' | 'error' | [{videoId, title, at}]
-const archiveOpen = new Set(); // 🎞 で開いているチャンネル
+const archiveOpen = new Set(); // 「最近 ⌄」で開いているチャンネル
 const ARCHIVE_DAYS = 7; // 「最近の配信」に出す範囲 (日)
 const archiveQueue = [];
 let archiveWorkers = 0;

@@ -297,16 +297,34 @@ const MESSAGES = {
   tourWelcomeT: ['Hakomado へようこそ', 'Welcome to Hakomado'],
   tourWelcome: ['YouTube の配信を最大 16 枠、並べて同時に見られます。', 'Watch up to 16 YouTube streams side by side.'],
   tourPickT: ['見たい配信を入れる', 'Add a stream'],
-  tourPick: ['URL を貼るか、今の配信は「📺 チャンネル」、終わった配信は「📚 ライブラリ」から選びます。', 'Paste a URL, or pick live streams from "📺 Channels" and past ones from "📚 Library".'],
+  tourPick: [
+    'URL を貼るか、今の配信は「📺 チャンネルから選ぶ」、終わった配信は「📚 ライブラリから選ぶ」で入れます。「🎲 おまかせ」なら 1 本選んで入れます。YouTube のリンクを右クリックしても追加できます。',
+    'Paste a URL, or pick live streams with “📺 Pick from channels” and past ones with “📚 Pick from library”. “🎲 Surprise me” picks one for you. You can also right-click a YouTube link to add it.',
+  ],
   tourTileT: ['枠の操作', 'Tile controls'],
-  tourTile: ['配信の入った枠にマウスを乗せると、このバーが出ます。🔊 で音を出す枠を切り替えます。', 'Hover over a tile with a stream to show this bar. Use 🔊 to choose which tile plays audio.'],
+  tourTile: [
+    '配信の入った枠にマウスを乗せると、このバーが出ます。🔊 で音を出す枠を切り替え、🎚 で音の左右と音量、💬 でチャット欄、≋ で弾幕。左端の ⠿ をドラッグすると枠を入れ替えます。',
+    'Hover over a tile with a stream to show this bar. 🔊 chooses which tile plays audio, 🎚 sets left/right and volume, 💬 opens chat and ≋ toggles danmaku. Drag ⠿ at the left to swap tiles.',
+  ],
+  tourLayoutT: ['レイアウト', 'Layouts'],
+  tourLayout: ['▦ で並べ方を選び、＋ − で枠を増やしたり減らしたりします。', 'Choose an arrangement with ▦, and add or remove tiles with + and −.'],
+  tourShareT: ['共有と読み込み', 'Share and import'],
+  tourShare: [
+    '🔗 で今の枠や再生リストを画像・コード・テキスト・リンクにして人に渡し、📥 で受け取ったものを開きます。',
+    'Use 🔗 to share the current tiles or a playlist as an image, code, text or link, and 📥 to open what you receive.',
+  ],
   tourMockName: ['チャンネル名', 'Channel name'],
   tourMoreT: ['そのほかの機能', 'More features'],
-  tourMore: ['通知・チャンネル・ライブラリ・設定はここから。? でツアーをもう一度見られます。', 'Notifications, channels, library and settings are here. Press ? to replay this tour.'],
+  tourMore: [
+    '通知・チャンネル・ライブラリ・全画面・設定はここから。? の使い方で、詳しい説明とこのツアーをいつでも見られます。',
+    'Notifications, channels, library, fullscreen and settings are here. ? Help has the details and replays this tour any time.',
+  ],
   tourAutoT: ['自動再生ではじめましょう', 'Start with auto play'],
   tourAuto: ['押すと、配信中のチャンネルが並びます。', 'Press it to lay out the channels that are live.'],
   resumeAll: ['再開', 'Resume'],
   pauseLabel: ['一時停止', 'Pause'],
+  archiveBtn: ['最近 ⌄', 'Recent ⌄'],
+  archiveBtnOpen: ['最近 ⌃', 'Recent ⌃'],
   archiveOpen: ['最近の配信を見る', 'Show recent streams'],
   archiveClose: ['最近の配信を閉じる', 'Hide recent streams'],
   archiveLoading: ['最近の配信を取得しています…', 'Getting recent streams…'],
@@ -729,12 +747,12 @@ const HTML_EN = {
 </ul>
 <h3>Settings → Auto play</h3>
 <ul>
-<li><b>Auto play targets</b>: all channels, or pickup (📌) only</li>
-<li><b>Members-only streams</b>: checks whether your signed-in account can watch a stream before adding it</li>
-<li><b>Max tiles</b>: never plays more than this many, however many are live. Lower it on a slow connection or a busy computer</li>
-<li><b>Pickup in the main tile</b>: puts pickup live streams in the big main tile and others in sub tiles. Pickup also goes first when the limit is reached. Not rearranged in uniform layouts (no main tile) or while cruising</li>
-<li><b>Upcoming tiles</b>: makes tiles before streams start, so you see them from the beginning. When nothing is live, shows the next upcoming stream and any starting within an hour after it</li>
-<li><b>Recent streams</b>: when nothing is live (late at night, for example), plays 4 recently ended streams from your channels (pickup first, already watched ones skipped). They are cleared when a live stream starts</li>
+<li><b>Auto play plays</b>: all channels, or pickup (📌) only</li>
+<li><b>Skip members-only streams you're not a member of</b>: checks whether your signed-in account can watch a stream before adding it</li>
+<li><b>Max tiles in auto play</b>: never plays more than this many, however many are live. Lower it on a slow connection or a busy computer</li>
+<li><b>Put pickup (📌) streams in the main tiles first</b>: puts pickup live streams in the big main tile and others in sub tiles. Pickup also goes first when the limit is reached. Not rearranged in uniform layouts (no main tile) or while cruising</li>
+<li><b>Prepare tiles for upcoming streams</b>: makes tiles before streams start, so you see them from the beginning. When nothing is live, shows the next upcoming stream and any starting within an hour after it</li>
+<li><b>Play recent streams when nothing is live</b>: when nothing is live (late at night, for example), plays 4 recently ended streams from your channels (pickup first, already watched ones skipped). They are cleared when a live stream starts</li>
 </ul>`,
   'helpPage.cruise': `<p>Turn on “Cruise” (<kbd>C</kbd>) to move the main tile and audio to the next stream at a set interval, so you can sample many streams. It works without auto play, with tiles you arranged yourself.</p>
 <ul>
@@ -744,7 +762,7 @@ const HTML_EN = {
 </ul>`,
   'helpPage.channels': `<ul>
 <li>“📺 Channels” (<kbd>F</kbd>) lists your channels: live, upcoming and the rest. Press a live or upcoming row to put it in an empty tile</li>
-<li>🎞 on a row opens that channel’s recent streams, and 📌 adds it to pickup</li>
+<li>“Recent ⌄” on a row opens that channel’s recent streams, and 📌 adds it to pickup</li>
 <li><b>Pickup</b>: the channels you are following right now (e.g. the members of a group event). Filter the list with “📺 All / 📌 Pickup” at the top, and use it as the target of auto play and notifications</li>
 <li>Add a channel by entering an <code>@handle</code>, a channel URL or a video URL in the box at the bottom</li>
 <li><b>🔔 Notifications</b>: tell you when a channel goes live. Choose the target in Settings → Auto play → “Notifications for”</li>
@@ -753,8 +771,8 @@ const HTML_EN = {
 <ul>
 <li>A channel pack is a ready-made list of channels. Hololive (bundled) is there from the start. You can remove or bring back a whole pack. Channels you added yourself and pickup channels are never removed</li>
 <li><b>Find packs</b>: choose from the packs collected in the Hakomado repository (GitHub). They are unofficial, made by users, and not affiliated with any agency or streamer. Report mistakes or requests on GitHub</li>
-<li><b>Import</b>: paste the URL or contents of a pack made by someone else, or choose a file. Channels you already have stay as they are</li>
-<li><b>Export</b>: save the bundled Hololive pack, an imported pack, the channels you added, or all of them as a pack (JSON) to give to others or publish</li>
+<li><b>Import a channel pack</b>: paste the URL or contents of a pack made by someone else, or choose a file. Channels you already have stay as they are</li>
+<li><b>Export a channel pack</b>: save the bundled Hololive pack, an imported pack, the channels you added, or all of them as a pack (JSON) to give to others or publish</li>
 </ul>`,
   'helpPage.library': `<ul>
 <li>“📚 Library” (<kbd>B</kbd>): 🎞 Recent streams (ended in the last 7 days) / 🕘 Watch history (100) / 🔖 Watch later (100) / 📃 Playlists</li>
