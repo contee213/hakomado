@@ -15,6 +15,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # テストが通らない版は配らない
+      - name: Test
+        run: npm test
+
       - name: Check the version
         run: |
           VER=$(node -p "require('./extension/manifest.json').version")

@@ -119,6 +119,9 @@ A pack is a JSON file like the one below. Put it on GitHub (raw), Gist or elsewh
 - Releases: bump `version` in `manifest.json`, commit, and push a tag with the same number (e.g. `v0.2.0`).
   GitHub Actions (`.github/workflows/release.yml`) zips the contents of `extension` and creates the release. It stops if the tag and `version` differ
 - For development, `git clone` the repository and load the `extension` folder to try changes right away
+- Tests: `npm test` (Node.js 22 or later; there are no dependencies, so no `npm install`). They live in `tests/` and also run on every push and PR
+  in GitHub Actions (`.github/workflows/test.yml`). The release zip is only built after the tests pass.
+  Checks that need the real YouTube are done by hand with `tests/MANUAL.md` (in Japanese)
 - The embed player (`youtube.com/embed`) refuses to play from extension pages (error 152), so tiles use the regular watch page
 
 ## Disclaimer
