@@ -4,6 +4,8 @@
 //   (他のサイトには一切影響させないよう tabIds で限定する)
 // - 右クリックのメニュー「Hakomado の空き枠に追加」(YouTube のリンク・動画のページ)
 
+importScripts('errlog.js'); // ErrLog (エラーの記録。最初に始めて、ほかのファイルのエラーも記録する)
+ErrLog.install('background');
 importScripts('share-code.js'); // videoIdFromUrl
 
 const RULE_IDS = [1, 2];
@@ -106,6 +108,7 @@ function openImport(sender) {
 }
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  if (msg?.type === ErrLog.MSG_TYPE) return false; // errlog.js が受け取る
   if (msg?.type === 'import-link') {
     openImport(sender);
     return false;
