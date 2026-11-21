@@ -53,6 +53,29 @@
     if (Number.isFinite(t)) window.parent.postMessage({ hakomado: 'progress', t }, PARENT_ORIGIN);
   });
 
+  // アーカイブの同期再生用 (watch-main.js から): 配信の時刻と、再生の状態
+  document.addEventListener('hakomado:archive', (e) => {
+    let d;
+    try {
+      d = JSON.parse(e.detail);
+    } catch {
+      return;
+    }
+    const [start, end, dur] = [Number(d.start), Number(d.end), Number(d.dur)];
+    if ([start, end, dur].every(Number.isFinite)) window.parent.postMessage({ hakomado: 'archive', start, end, dur }, PARENT_ORIGIN);
+  });
+  document.addEventListener('hakomado:sync-state', (e) => {
+    let d;
+    try {
+      d = JSON.parse(e.detail);
+    } catch {
+      return;
+    }
+    const t = Number(d.t);
+    if (!Number.isFinite(t)) return;
+    window.parent.postMessage({ hakomado: 'syncState', t, ps: Number(d.ps), ad: !!d.ad, r: Number(d.r) || 1 }, PARENT_ORIGIN);
+  });
+
   // 配信・動画が終わった → 親に知らせる (自動再生中に枠を片付けるため)
   document.addEventListener('hakomado:ended', (e) => {
     const reason = e.detail === 'played' ? 'played' : 'already';
@@ -117,6 +140,9 @@
       document.dispatchEvent(new CustomEvent('hakomado:social-act', { detail: e.data.act }));
     } else if (e.data?.hakomado === 'playback') {
       document.dispatchEvent(new CustomEvent('hakomado:playback', { detail: e.data.play ? 'play' : 'pause' }));
+    } else if (e.data?.hakomado === 'sync' && ['seek', 'play', 'pause', 'rate'].includes(e.data.op)) {
+      const detail = JSON.stringify({ op: e.data.op, t: Number(e.data.t), r: Number(e.data.r) });
+      document.dispatchEvent(new CustomEvent('hakomado:sync', { detail }));
     } else if (e.data?.hakomado === 'away') {
       // マウスが枠の外に出ている間は、プレイヤーの操作 UI を隠す (watch.css)
       document.documentElement.classList.toggle('hakomado-away', !!e.data.on);

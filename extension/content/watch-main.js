@@ -357,6 +357,58 @@
     reportSocial(ok ? null : { failed: act });
   });
 
+  // ---- アーカイブの同期再生 (コラボの各視点を、同じ瞬間にそろえて見る)
+  //   ここ → watch.js : 'hakomado:archive'    detail JSON {start, end, dur} (配信の実際の開始・終了時刻 (ミリ秒) と長さ (秒)。1 度だけ)
+  //   ここ → watch.js : 'hakomado:sync-state' detail JSON {t, ps, ad, r} (再生位置・プレイヤーの状態・広告中か・速度。0.5 秒ごと)
+  //   watch.js → ここ : 'hakomado:sync'       detail JSON {op: 'seek' | 'play' | 'pause' | 'rate', t?, r?}
+  // 終わった配信のアーカイブを開いたときだけ動く (ライブ配信中・ふつうの動画は同期しない)
+  let archiveSent = false;
+  setInterval(() => {
+    if (!alreadyEnded()) return;
+    const p = player();
+    if (!p) return;
+    let t;
+    let ps;
+    try {
+      t = Number(p.getCurrentTime?.());
+      ps = Number(p.getPlayerState?.());
+    } catch {
+      return;
+    }
+    if (!archiveSent) {
+      const lbd = window.ytInitialPlayerResponse?.microformat?.playerMicroformatRenderer?.liveBroadcastDetails;
+      const start = Date.parse(lbd?.startTimestamp || '');
+      const end = Date.parse(lbd?.endTimestamp || '');
+      const dur = Number(p.getDuration?.());
+      const id = videoData().video_id || '';
+      if (!Number.isFinite(start) || !(dur > 0) || (id && id !== myVideoId)) return;
+      archiveSent = true;
+      const detail = JSON.stringify({ start, end: Number.isFinite(end) ? end : start + dur * 1000, dur });
+      document.dispatchEvent(new CustomEvent('hakomado:archive', { detail }));
+    }
+    if (!Number.isFinite(t)) return;
+    const detail = JSON.stringify({ t, ps, ad: adShowing(), r: video()?.playbackRate || 1 });
+    document.dispatchEvent(new CustomEvent('hakomado:sync-state', { detail }));
+  }, 500);
+  document.addEventListener('hakomado:sync', (e) => {
+    let c;
+    try {
+      c = JSON.parse(e.detail);
+    } catch {
+      return;
+    }
+    const p = player();
+    if (!p || !archiveSent) return;
+    if (c.op === 'seek' && Number.isFinite(c.t)) p.seekTo?.(Math.max(0, c.t), true);
+    else if (c.op === 'play') p.playVideo?.();
+    else if (c.op === 'pause') p.pauseVideo?.();
+    else if (c.op === 'rate' && Number.isFinite(c.r)) {
+      // 少しのずれは速度をわずかに変えて吸収する (シークすると読み込みで止まるため)。プレイヤーの速度設定は変えない
+      const v = video();
+      if (v) v.playbackRate = Math.min(1.25, Math.max(0.75, c.r));
+    }
+  });
+
   // 状態を時々確かめて、変わったら知らせる (読み込み直後は 1 秒ごと、その後は 5 秒ごと)
   let socialTicks = 0;
   const socialTimer = setInterval(() => {

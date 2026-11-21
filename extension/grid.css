@@ -545,7 +545,7 @@ dialog.fav-dialog[open] { display: flex; flex-direction: column; }
 .lib-scope { flex: none; }
 /* 再生リストのタブ: どの再生リストを出すか / 削除 */
 .pl-select { flex: 0 1 260px; min-width: 0; text-overflow: ellipsis; }
-.pl-delete { flex: none; }
+.pl-delete, .pl-new { flex: none; }
 /* 一覧の上の目立つボタン (あとで見るの「▶ 今の枠で順に再生」) */
 .primary-action { border-color: var(--on); background: var(--on-bg); color: #fff; }
 .fav-tools input {
@@ -1135,7 +1135,15 @@ dialog.settings-dialog { width: min(780px, calc(100% - 32px)); overflow: hidden;
 /* 使い方 */
 dialog.help-dialog { width: min(520px, calc(100% - 32px)); }
 /* 視聴セットの共有 */
-dialog.share-dialog { width: min(560px, calc(100% - 32px)); }
+dialog.share-dialog { width: min(600px, calc(100% - 32px)); }
+.share-preview { width: 100%; aspect-ratio: 16 / 9; background: #000; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.share-preview img { display: block; width: 100%; height: 100%; object-fit: contain; }
+.share-preview img:not([src]) { visibility: hidden; }
+.share-code-row { display: flex; gap: 8px; align-items: center; }
+.share-name { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.share-name > span { flex: none; font-weight: 600; }
+.share-name input { flex: 1 1 auto; min-width: 0; background: #000; color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; }
+.share-code { flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .share-form .field-label { font-weight: 600; font-size: 13px; }
 .share-text {
   width: 100%;
@@ -1149,16 +1157,6 @@ dialog.share-dialog { width: min(560px, calc(100% - 32px)); }
   font: 12px/1.5 ui-monospace, Consolas, monospace;
 }
 .share-buttons { display: flex; align-items: center; gap: 10px; }
-.share-or { color: var(--muted); font-size: 12px; }
-.share-name {
-  flex: 1;
-  min-width: 0;
-  background: #000;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  padding: 5px 8px;
-}
-.share-status:empty { display: none; }
 .share-status { color: var(--muted); font-size: 12px; }
 .share-error { color: #ff8a80; }
 .help-form { display: flex; flex-direction: column; gap: 10px; padding: 16px; }
@@ -1184,3 +1182,63 @@ code { font-size: 12px; background: #222228; padding: 0 4px; border-radius: 3px;
 /* 自己診断の ⚠ (枠のバー) */
 .diag-badge { color: #ffcc66; font-size: 12px; cursor: help; }
 .diag-badge[hidden] { display: none; }
+
+/* ---------- アーカイブの同期再生 ---------- */
+.sync-bar { flex: 1 1 160px; min-width: 140px; max-width: 520px; display: flex; align-items: center; gap: 6px; }
+.sync-bar[hidden] { display: none; }
+.sync-bar input[type="range"] { flex: 1 1 auto; min-width: 60px; margin: 0; }
+.sync-time { color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+#syncNow { color: var(--text); }
+/* 枠の配信がまだ始まっていない / もう終わっている時刻 */
+.sync-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+  background: rgba(0, 0, 0, .72);
+  color: var(--text);
+  font-size: 13px;
+  text-align: center;
+  pointer-events: none;
+}
+.sync-overlay[hidden] { display: none; }
+.sync-adj { font-variant-numeric: tabular-nums; }
+.sync-adj[hidden] { display: none; }
+.sync-ref { flex: 0 1 auto; max-width: 170px; font-size: 12px; }
+/* 同期の基準の枠の印 (枠のバーの、チャンネル名の前) */
+.sync-ref-badge {
+  flex: none;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+.sync-ref-badge[hidden], .sync-set-ref[hidden] { display: none; }
+/* 同期中は、基準の印を、マウスを乗せなくても出しておく (バーごと出すと映像の邪魔になるので印だけ) */
+.tile:not(:hover) .bar:has(.sync-ref-badge:not([hidden])) { opacity: 1; background: none; }
+.tile:not(:hover) .bar:has(.sync-ref-badge:not([hidden])) > :not(.sync-ref-badge) { visibility: hidden; }
+/* ずれの微調整 (枠の上部、バーの下) */
+.sync-panel {
+  position: absolute;
+  top: 34px;
+  right: 6px;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 8px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, .5);
+}
+.sync-panel[hidden] { display: none; }
+.sync-panel button { padding: 1px 7px; font-size: 12px; }
+.sync-panel-label { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; min-width: 4.5em; }
+#syncToggle[hidden] { display: none; }

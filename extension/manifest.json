@@ -3,7 +3,7 @@
   "name": "__MSG_extName__",
   "short_name": "Hakomado",
   "version": "0.2.0",
-  "version_name": "0.2.0 (build 29 / 2026-11-21)",
+  "version_name": "0.2.0 (build 30 / 2026-11-21)",
   "description": "__MSG_extDescription__",
   "default_locale": "en",
   "minimum_chrome_version": "128",
@@ -47,13 +47,6 @@
       "js": ["content/watch.js"],
       "css": ["content/watch.css"],
       "all_frames": true,
-      "run_at": "document_start"
-    },
-    {
-      "matches": [
-        "https://www.youtube.com/hakomado_import*"
-      ],
-      "js": ["content/import.js"],
       "run_at": "document_start"
     },
     {
