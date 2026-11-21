@@ -18,6 +18,7 @@ This is an unofficial tool made by an individual. Please read the [Disclaimer](#
 - **Pickup**: limit auto play and notifications to the channels you are following right now (e.g. the members of a group event)
 - **Notifications / watch history / watch later**: notifications when streams start, a history of what you watched, and streams to watch later (🔖; play them in order in the current tiles, removed once watched to the end)
 - **📃 Playlists**: edit named lists of streams (up to 30, names up to 40 characters; an empty “My list” is there to start with) as a single column in “📃 Playlists” in the library (“+ New”, “▦ From current tiles”, the add box for URLs, 📃 on tile bars and lists, drag ⠿ to reorder, rename what each tile shows). Two ways to play: “▶ In order” fills the current tiles from the top and puts the next one in each tile that finishes; “⏱ All at once, in sync” lays out all of them (up to 16, the number of tiles) and plays the archives in step. Sync playlists also keep the layout, the reference video and each video’s offset, and offsets you fix with ⏱ while playing are written back. “🔗 Share” gives text (restores the name, sync settings and offsets), an import link (`https://www.youtube.com/watch_videos?video_ids=ID,ID,…&hakomado=name`, which opens as a temporary YouTube playlist without Hakomado) and a viewing set code. Rows show the title and channel (fetched right after adding) and badges for live, upcoming and unavailable (deleted, private or members-only) videos. “▶ In order” marks videos played to the end with ✓ and continues from there next time, and “▶ From here” on a row plays from that row. Sync playlists remember where you were and continue in step next time. ⧉ duplicates a playlist, and a row removed with ✕ can be brought back with “Undo”. Pasting a YouTube playlist URL adds its videos at once. Paste text you received into “📥 Paste to make”, where you can also copy a request for an AI chat such as Claude to build one
+- **Right-click to add**: right-click a link to a YouTube video or stream, or a watch page, and choose "Add to an empty Hakomado tile" to put it in an empty tile of the open multi-view page (a tile is added if none is empty; a new tab opens if the page is not open)
 - **Japanese / English**: follows the browser language (can be fixed in settings)
 
 ## Requirements
@@ -95,6 +96,7 @@ A pack is a JSON file like the one below. Put it on GitHub (raw), Gist or elsewh
 | `declarativeNetRequestWithHostAccess` | The header change described below |
 | `https://www.youtube.com/*` | Showing watch pages and live chat in tiles, getting channel info and live status |
 | `https://schedule.hololive.tv/*` | Getting the stream schedule of the initial data channels |
+| `contextMenus` | The right-click menu "Add to an empty Hakomado tile" |
 
 - It only talks to YouTube and the schedule site. No data is sent to any other server
 - Requests to YouTube use the browser's cookies (your sign-in). This is needed to show members-only streams and, in auto play, to check whether you can watch them

@@ -3084,6 +3084,48 @@ function handleImportLink() {
   });
 }
 
+// ---- 右クリックのメニュー「Hakomado の空き枠に追加」(background.js から届く / 画面が無ければ #add=<ID> で開く)
+
+/**
+ * 動画を空き枠に入れる。空き枠が無ければ (16 枠未満なら) 枠を 1 つ足す。結果は画面に短く出す。
+ * @returns {'added'|'already'|'full'}
+ */
+function addVideoFromMenu(videoId) {
+  const shown = visibleIndexes().find((i) => state.tiles[i].videoId === videoId);
+  if (shown != null) {
+    showToast(shown, tr('menuAlready'));
+    return 'already';
+  }
+  const target = emptyTileOrAdd();
+  if (target == null) {
+    notify(tr('menuFull', MAX_TILES));
+    return 'full';
+  }
+  forgetAutoMarks(videoId);
+  setTileVideo(target, videoId, `${YT}/watch?v=${videoId}`);
+  showToast(target, tr('menuAdded'));
+  return 'added';
+}
+
+/** 新しいタブで開いたとき (#add=<動画 ID>) */
+function handleAddLink() {
+  const m = location.hash.match(/^#add=([A-Za-z0-9_-]{11})$/);
+  if (!m) return;
+  // 再読み込みでもう一度入れないよう、先に URL から外す
+  history.replaceState(null, '', location.pathname + location.search);
+  addVideoFromMenu(m[1]);
+}
+
+/** 開いている画面に届いた「追加」。届くのは全部の画面なので、自分のタブ宛てのものだけに返事をする */
+function listenAddVideo(myTabId) {
+  chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+    if (msg?.type !== 'add-video' || sender.id !== chrome.runtime.id || sender.tab || msg.tabId !== myTabId) return false;
+    if (!ID_RE.test(msg.videoId)) return false;
+    sendResponse({ handled: true, result: addVideoFromMenu(msg.videoId) });
+    return false;
+  });
+}
+
 // 設定画面のスライダーの表示形式
 const SETTING_FORMATS = {
   duration: (v) => tr('sec', v),
@@ -3460,6 +3502,18 @@ function displayNumber(i) {
 
 function firstEmptyTile() {
   return visibleIndexes().find((i) => !state.tiles[i].videoId);
+}
+
+/** 空き枠。無ければ (16 枠未満なら) 枠を 1 つ足して、その枠。16 枠埋まっていれば null */
+function emptyTileOrAdd() {
+  if (firstEmptyTile() == null && state.count < MAX_TILES) addTileSlot();
+  return firstEmptyTile() ?? null;
+}
+
+/** 手で読み込み直した配信について、自動再生の「終わった」「✕ で閉じた」「メンバー限定」の記録を消す (誤判定・誤操作から戻せるように) */
+function forgetAutoMarks(videoId) {
+  for (const set of [finishedIds, autoDismissed, membersBlocked]) set.delete(videoId);
+  autoMissing.delete(videoId);
 }
 
 /**
@@ -4004,17 +4058,12 @@ function videoItem(h, saved, { onRemove, removeTitle } = {}) {
  * 自動再生中で、いま配信中・配信予定のチャンネルの配信なら自動再生の枠として扱う (終わったら片付ける)
  */
 function loadFromHistory(h) {
-  let target = favTarget ?? firstEmptyTile();
-  if (target == null && state.count < MAX_TILES) {
-    addTileSlot();
-    target = firstEmptyTile();
-  }
+  const target = favTarget ?? emptyTileOrAdd();
   if (target == null) {
     favErrorEl.textContent = tr('noEmptyTile');
     return;
   }
-  for (const set of [finishedIds, autoDismissed, membersBlocked]) set.delete(h.videoId);
-  autoMissing.delete(h.videoId);
+  forgetAutoMarks(h.videoId);
   setTileVideo(target, h.videoId, h.input || `https://www.youtube.com/watch?v=${h.videoId}`);
   const t = state.tiles[target];
   t.label = h.label || '';
@@ -6608,6 +6657,12 @@ async function chooseSession() {
   else if (state.autoMode) setAutoMode(true, { resume: true });
   startNoticeWatch();
   handleImportLink();
+  handleAddLink();
+  // 右クリックのメニューからの追加を受け取る (起動し終えてから。それまでに押されたものは新しいタブで開く)
+  chrome.tabs
+    .getCurrent()
+    .then((tab) => tab && listenAddVideo(tab.id))
+    .catch(() => {});
 
   // インストール直後の 1 回だけ、使い方ツアーを出す (先に印を消して、他のタブでは出さない)
   const { tourPending } = await chrome.storage.local.get('tourPending');

@@ -1,13 +1,38 @@
 // hakomado: 視聴セットのコード (#Hakomado …)・取り込み用リンク・1 行 1 本のテキストの読み書き
 // 画面 (DOM) に触らない関数だけをここに置く (grid.js から切り出し。tests/ から読み込んで試せるように)。
-// 読み込む順: grid.html で grid.js より前。parseVideoLines は呼ばれたときに grid.js の resolveVideoId と
-// favorites.js の Favorites を使う
-/* exported SHARE_TAG, SHARE_CODE_RE, formatShareCode, parseShareCode, parseWatchVideosLink, youtubePlaylistId, parseVideoLines, metaOn */
+// 読み込む順: grid.html で grid.js より前。background.js も importScripts で読む (右クリックのメニューで videoIdFromUrl を使う)。
+// parseVideoLines は呼ばれたときに grid.js の resolveVideoId と favorites.js の Favorites を使う
+/* exported SHARE_TAG, SHARE_CODE_RE, videoIdFromUrl, formatShareCode, parseShareCode, parseWatchVideosLink, youtubePlaylistId, parseVideoLines, metaOn */
 /* global resolveVideoId, Favorites */
 'use strict';
 
 // 動画 ID (11 文字)。grid.js の ID_RE と同じ形 (名前がぶつからないよう別の名前)
 const SHARE_ID_RE = /^[A-Za-z0-9_-]{11}$/;
+
+/**
+ * YouTube の動画・配信の URL から動画 ID を取り出す (問い合わせはしない。チャンネルの URL などは null)。
+ * watch?v=… / live/… / shorts/… / embed/… (www・m・music) と youtu.be/… を読む
+ */
+function videoIdFromUrl(raw) {
+  let url;
+  try {
+    url = new URL(raw);
+  } catch {
+    return null;
+  }
+  if (url.protocol !== 'https:' && url.protocol !== 'http:') return null;
+  const host = url.hostname.replace(/^(www|m|music)\./, '');
+  if (host === 'youtu.be') {
+    const id = url.pathname.slice(1);
+    return SHARE_ID_RE.test(id) ? id : null;
+  }
+  if (host !== 'youtube.com') return null;
+  if (url.pathname === '/watch') {
+    const v = url.searchParams.get('v');
+    return v && SHARE_ID_RE.test(v) ? v : null;
+  }
+  return url.pathname.match(/^\/(?:live|shorts|embed)\/([A-Za-z0-9_-]{11})\/?$/)?.[1] || null;
+}
 
 const SHARE_TAG = 'Hakomado';
 // 末尾の「~…」はアーカイブの同期のずれ (動画の並び順に「,」区切りの秒。「*」の付いた動画が同期の基準)。

@@ -10,5 +10,9 @@
   "actionTitle": {
     "message": "Hakomado を開く",
     "description": "ツールバーのアイコンに乗せたときの説明"
+  },
+  "menuAddToTile": {
+    "message": "Hakomado の空き枠に追加",
+    "description": "右クリックのメニュー (YouTube のリンク・視聴ページ)"
   }
 }

@@ -447,6 +447,9 @@ const MESSAGES = {
     '空いている枠がありません。枠の「📺 チャンネルから選ぶ」「📚 ライブラリから選ぶ」から開くと、その枠に読み込めます。',
     "There's no empty tile. Open it from a tile's “📺 Pick from channels” or “📚 Pick from library” to load into that tile.",
   ],
+  menuAdded: ['右クリックから追加しました', 'Added from the right-click menu'],
+  menuAlready: ['この配信はもう枠に入っています', 'This stream is already in a tile'],
+  menuFull: ['{0} 枠がすべて埋まっているので追加できませんでした。どれかの枠を ✕ で空けてから、もう一度追加してください', "All {0} tiles are in use, so it couldn't be added. Clear a tile with ✕ and try again"],
   stillChecking: ['配信状況を確認中です。終わってからもう一度押してください。', 'Still checking live status. Try again when it finishes.'],
   noUnshownLive: ['まだ表示していない配信中のチャンネルはありません。', 'Every live channel is already shown.'],
   notEnoughTiles: [
