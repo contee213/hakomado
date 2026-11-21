@@ -136,6 +136,10 @@ A pack is a JSON file like the one below. Besides submitting it to `packs/`, you
   in the repository (it is only needed to build a CRX). When publishing to the store, swap in the store's public key to share the store version's ID
 - Tests: `npm test` (Node.js 22 or later; there are no dependencies, so no `npm install`). They live in `tests/` and also run on every push and PR
   in GitHub Actions (`.github/workflows/test.yml`). The release zip is only built after the tests pass.
+  E2E tests: after `npm ci` and `npx playwright install chromium`, run `npm run test:e2e`. They live in `e2e/`, start Chromium with `extension/`
+  loaded in a fresh profile, and drive the multiview page and the service worker (outside network access is blocked, so they never touch
+  YouTube or your account). They also run on every push and PR. Where the bundled Chromium does not start, use Edge with `E2E_CHANNEL=msedge`
+  (branded Chrome ignores the flag that loads an extension).
   Checks that need the real YouTube are done by hand with `tests/MANUAL.md` (in Japanese)
 - The embed player (`youtube.com/embed`) refuses to play from extension pages (error 152), so tiles use the regular watch page
 

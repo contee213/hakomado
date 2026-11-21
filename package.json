@@ -1,12 +1,16 @@
 {
   "name": "hakomado",
   "private": true,
-  "description": "Hakomado の開発用 (テストの実行だけ。拡張機能の本体は extension/ で、ビルドも依存パッケージも無い)",
+  "description": "Hakomado の開発用 (テストの実行だけ。拡張機能の本体は extension/ で、ビルドは無い。依存パッケージは E2E テスト用の Playwright だけ)",
   "license": "MIT",
   "engines": {
     "node": ">=22"
   },
   "scripts": {
-    "test": "node --test \"tests/**/*.test.js\""
+    "test": "node --test \"tests/**/*.test.js\"",
+    "test:e2e": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.65.1"
   }
 }
