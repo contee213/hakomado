@@ -1,4 +1,4 @@
-/* global Danmaku, LAYOUTS, ANCHORS, DEFAULT_LAYOUT_ID, MAX_SLOTS, getLayout, layoutFor, solveTracks, LANG, LANG_PREF, tr, setLangPref, Backup, UpdateCheck, qrcode, jsQR, ChannelPack */
+/* global Danmaku, LAYOUTS, ANCHORS, DEFAULT_LAYOUT_ID, MAX_SLOTS, getLayout, layoutFor, solveTracks, LANG, LANG_PREF, tr, setLangPref, Backup, UpdateCheck, qrcode, jsQR, ChannelPack, SyncOffsets */
 'use strict';
 
 const MAX_TILES = MAX_SLOTS;
@@ -66,8 +66,8 @@ function newTileState() {
   // danmaku: null = 自動 (メイン枠なら出す) / true・false = 枠の ≋ で自分で決めた
   // queue = 「あとで見る」を順に再生している枠
   // fill = 自動再生で、ライブの代わりに最近の配信を入れた枠
-  // syncOffset = アーカイブの同期再生で、この枠だけずらす秒数 (+ = 先へ進める)
-  return { input: '', videoId: null, chat: false, danmaku: null, muted: true, auto: false, queue: false, fill: false, label: '', syncOffset: 0 };
+  // (アーカイブの同期再生のずれは、枠ではなく動画ごとに記録する: SyncOffsets)
+  return { input: '', videoId: null, chat: false, danmaku: null, muted: true, auto: false, queue: false, fill: false, label: '' };
 }
 
 const gridEl = document.getElementById('grid');
@@ -108,6 +108,10 @@ function applySession(saved = {}) {
     const keys = Object.keys(newTileState());
     saved.tiles.slice(0, MAX_TILES).forEach((t, i) => {
       if (!t || typeof t !== 'object') return;
+      // 以前の版は同期のずれを枠ごとに持っていた → 入っている動画のずれとして引き継ぐ (動画のほうに記録が無ければ)
+      if (Number(t.syncOffset) && typeof t.videoId === 'string' && ID_RE.test(t.videoId) && !SyncOffsets.get(t.videoId)) {
+        SyncOffsets.set(t.videoId, Number(t.syncOffset));
+      }
       const picked = Object.fromEntries(keys.filter((k) => k in t).map((k) => [k, t[k]]));
       // 形の違う値は使わない (動画 ID は 11 文字、文字列の項目は文字列だけ)
       for (const [k, v] of Object.entries(newTileState())) {
@@ -1082,7 +1086,10 @@ let pausedAll = false;
 /** 全部の枠をまとめて一時停止 / 再開する (再開するとき、ライブ配信は最新の位置に戻す) */
 function togglePauseAll() {
   pausedAll = !pausedAll;
-  for (const i of visibleIndexes()) postToFrame(views[i].player, { hakomado: 'playback', play: !pausedAll });
+  for (const i of visibleIndexes()) {
+    if (!pausedAll && Sync.isWaiting(i)) continue; // 同期の「止めて待つ」中の枠は、止めたままにする
+    postToFrame(views[i].player, { hakomado: 'playback', play: !pausedAll });
+  }
   updatePauseButton();
 }
 
@@ -1284,7 +1291,10 @@ window.addEventListener('message', (e) => {
 // ---------------------------------------------------------------- ⏱ アーカイブの同期再生
 // コラボ配信を、参加者それぞれの視点のアーカイブで、同じ瞬間にそろえて見る。
 // - そろえる基準は実際の時刻: 各アーカイブの 0 秒 = その配信が始まった時刻 (動画の liveBroadcastDetails.startTimestamp)。
-//   枠ごとのずれ (配信の遅延の違いなど) は、枠のバーの ⏱ で ±0.1 秒単位で直せる (tile.syncOffset)
+//   ずれ (配信の遅延の違いなど) は、枠のバーの ⏱ で直せる (±0.01〜1 秒の微調整のボタンか、0.01 秒単位で秒数を直接入れる)。
+//   ずれは動画ごとに記録する (SyncOffsets)。別の枠に入れても、次に開いても、視聴セットで人に渡しても同じ値を使う
+// - アーカイブは冒頭 (開始前の待機画面など) が切られていることがあり、そのときは「0 秒 = 開始時刻」がずれる。
+//   配信していた時間 (end − start) よりアーカイブが短ければ ⏱ に知らせ、冒頭が切られた場合の値を候補として出す
 // - 全体で 1 つの「同期の時計」(実際の時刻) を持つ。時計は基準の枠の再生位置に合わせて進む (基準の枠の中で
 //   一時停止・シークすると、ほかの枠もついてくる)。ほかの枠は時計に合わせて
 //   シーク・一時停止・再生・速度の微調整 (少しのずれは速度で吸収し、大きくずれたときだけシーク) を受ける
@@ -1295,11 +1305,20 @@ window.addEventListener('message', (e) => {
 // - 基準の枠は、同期を始めたときに音を出している枠 (複数ならレイアウトで一番前、無ければ先頭のアーカイブ)。
 //   その後は音を切り替えても変わらない (音を聞き比べるたびに基準が黙って変わらないように)。基準の枠には「基準」の印を付け、
 //   上部バーの「基準: …」や、枠の ⏱ の「この枠を基準にする」で選び直せる。基準の枠を閉じたら、同じ決め方で選び直して知らせる
-// ON / OFF は保存しない (開き直したら OFF)。ずれの微調整は枠ごとに保存する
+// - 「止めて待つ」: 先に進んでいる枠を止めて、ほかが追いつくのを待ってから再生すると、そこでずれが決まる。
+//   基準でない枠は、枠の中のプレイヤーで一時停止するだけでよい (同期が再生し直さず待つ)。基準の枠を含め、⏱ の「止めて待つ」でもできる
+//   (基準の枠をプレイヤーで一時停止したときは、これまでどおり全部止まる)。待っている間は、時計は基準の枠に合わせず進む
+// - 基準でない枠を、枠の中のプレイヤーでシーク (シークバー・← → キー) すると、引き戻さずに、その位置でずれを決める
+//   (進みすぎた枠をシークバーで戻す、など)。基準の枠をシークしたときは、これまでどおりほかの枠がついてくる
+// ON / OFF は保存しない (開き直したら OFF。視聴セットを開いたときは、ずれが入っていれば自動で ON にする)
 const Sync = (() => {
   const TICK_MS = 500;
   const SEEK_DRIFT = 2; // これ以上ずれたらシーク (秒)
-  const RATE_DRIFT = 0.25; // これ以上ずれたら速度で詰める (秒)
+  // 音を重ねて聞いても気にならないよう、数十ミリ秒までそろえる。少しのずれは速度をわずかに変えて詰める
+  // (始める・やめるの幅を変えて、行ったり来たりしないように)
+  const RATE_DRIFT = 0.04; // これ以上ずれたら速度で詰め始める (秒)
+  const RATE_STOP = 0.012; // 詰めている途中は、ここまで詰める (秒)
+  const FORCE_SEEK_DRIFT = 0.5; // ずれを変えた直後は、これ以上ずれていればシークする (細かな変更は速度で詰める)
   const SEEK_GAP_MS = 3000; // 同じ枠を続けてシークしない (読み込み中の位置で判断してシークし直さないように)
   const CMD_GAP_MS = 1500; // 再生・一時停止の指示を続けて送らない
 
@@ -1311,11 +1330,13 @@ const Sync = (() => {
   let refTile = null; // 基準の枠 (同期中だけ)
   const sent = new Map(); // i -> {seekAt, cmd, cmdAt, rate}
   const forceSeek = new Set(); // ずれを微調整した枠 (速度で詰めず、すぐシークする)
+  const waiting = new Map(); // i -> {paused} 「止めて待つ」中の枠 (paused = 止まったのを確かめた)
+  const seenSeeks = new Map(); // i -> 最後に見た、枠の中でユーザーがシークした回数
 
   const now = () => performance.now();
   const nowR = () => (clock.playing ? clock.R0 + (now() - clock.at) : clock.R0);
   const setClock = (R, playing) => (clock = { R0: R, at: now(), playing });
-  const off = (i) => Number(state.tiles[i].syncOffset) || 0;
+  const off = (i) => SyncOffsets.get(state.tiles[i].videoId);
   const archived = (i) => isVisible(i) && !!state.tiles[i].videoId && !!views[i].archive;
   const rangeOf = (i) => [views[i].archive.start, views[i].archive.start + views[i].archive.dur * 1000];
   const overlaps = (i, j) => {
@@ -1421,7 +1442,7 @@ const Sync = (() => {
     const rs = views[ref].ss;
     let playing = !pausedAll;
     let R = nowR();
-    if (now() > holdUntil && rs && !rs.ad && now() - rs.at < 2000) {
+    if (now() > holdUntil && !waiting.has(ref) && rs && !rs.ad && now() - rs.at < 2000) {
       const [s, e] = rangeOf(ref);
       const Rref = realOf(ref, posOf(ref));
       if (Rref >= s && Rref < e - 1000) {
@@ -1433,6 +1454,11 @@ const Sync = (() => {
 
     for (const i of visibleIndexes()) {
       if (!archived(i)) continue;
+      const userSeek = sawUserSeek(i);
+      if (waiting.has(i) && list.includes(i)) {
+        tickWaiting(i, R);
+        continue;
+      }
       if (!list.includes(i)) {
         // 時間帯が重ならない: 同期しない (ふつうに再生させる)
         overlay(i, tr('syncNoOverlap'));
@@ -1442,6 +1468,7 @@ const Sync = (() => {
       // 基準の枠は動かさない (シークバーで動かした直後だけ、ほかと同じように合わせる)
       if (i === ref && now() > holdUntil) {
         overlay(i, '');
+        showDrift(i, null);
         rate(i, 1);
         continue;
       }
@@ -1460,6 +1487,16 @@ const Sync = (() => {
       }
       overlay(i, '');
       if (!ss || ss.ad) continue; // 広告中は待たずに進める (終わったら追いつかせる)
+      // 枠の中のプレイヤーでシークした → 引き戻さず、その位置でずれを決める
+      if (userSeek) {
+        adoptOffset(i, R);
+        continue;
+      }
+      // 枠の中のプレイヤーで一時停止した → 再生し直さず、ほかが追いつくのを待つ
+      if (playing && ss.ps === 2 && ss.up && now() - ss.at < 2000) {
+        beginWait(i, true);
+        continue;
+      }
       const target = targetOf(i, R);
       const drift = posOf(i) - target;
       if (!playing) {
@@ -1469,16 +1506,23 @@ const Sync = (() => {
         continue;
       }
       if (ss.ps !== 1 && ss.ps !== 3) cmd(i, 'play');
-      if (Math.abs(drift) > SEEK_DRIFT || (forceSeek.has(i) && Math.abs(drift) > RATE_DRIFT)) {
+      const ad = Math.abs(drift);
+      const correcting = (sent.get(i)?.rate ?? 1) !== 1;
+      if (ad > SEEK_DRIFT || (forceSeek.has(i) && ad > FORCE_SEEK_DRIFT)) {
         forceSeek.delete(i);
         rate(i, 1);
         seek(i, target + 0.2); // 読み込みに掛かる分、少し先へ (速度で詰め始めるずれより小さく)
-      } else if (Math.abs(drift) > RATE_DRIFT) {
-        // ずれが大きいほど速く詰める (3〜10% 速く / 遅く。1% 単位で丸めて、指示を送り直しすぎないように)
-        const k = Math.round(Math.min(0.1, Math.max(0.03, Math.abs(drift) * 0.1)) * 100) / 100;
+        showDrift(i, drift, false);
+      } else if (ad > RATE_DRIFT || (correcting && ad > RATE_STOP)) {
+        // 3 秒ほどで詰め終わる速さ (1〜10% 速く / 遅く。0.5% 単位で丸めて、指示を送り直しすぎないように)
+        forceSeek.delete(i);
+        const k = Math.round(Math.min(0.1, Math.max(0.01, ad / 3)) * 200) / 200;
         rate(i, drift > 0 ? 1 - k : 1 + k);
+        showDrift(i, drift, false);
       } else {
+        forceSeek.delete(i);
         rate(i, 1);
+        showDrift(i, drift, true);
       }
     }
     updateBar(list);
@@ -1518,6 +1562,8 @@ const Sync = (() => {
   function stop() {
     on = false;
     refTile = null;
+    waiting.clear();
+    seenSeeks.clear();
     clearInterval(timer);
     timer = 0;
     for (let i = 0; i < MAX_TILES; i++) {
@@ -1533,12 +1579,14 @@ const Sync = (() => {
   /** ボタン・シークバー・枠の ⏱ の表示を今の状態に合わせる (枠の中身が変わったとき・アーカイブだと分かったとき) */
   function refresh() {
     if (views.length < MAX_TILES) return;
+    if (pending) checkPending();
     const can = available();
     if (on && !can) {
       stop();
       notify(tr('syncStopped'));
       return;
     }
+    for (const i of [...waiting.keys()]) if (!archived(i)) waiting.delete(i); // 閉じた・別の動画にした枠は待つのをやめる
     const btn = document.getElementById('syncToggle');
     btn.hidden = !can && !on;
     setToggle(btn, on);
@@ -1581,39 +1629,213 @@ const Sync = (() => {
     sel.value = String(ref);
   }
 
-  function updateAdj(i) {
-    const v = off(i);
-    const signed = (v > 0 ? '+' : '') + v.toFixed(1);
-    views[i].el.querySelector('.sync-panel-label').textContent = tr('syncOffset', signed);
-    views[i].el.querySelector('.sync-adj').textContent = v ? `⏱ ${signed}` : '⏱';
+  /** 「止めて待つ」を始める (paused = もう止まっている。⏱ のボタンからなら、止める指示を送る) */
+  function beginWait(i, paused) {
+    if (!on || waiting.has(i)) return;
+    waiting.set(i, { paused });
+    rate(i, 1);
+    if (!paused) cmd(i, 'pause');
+    overlay(i, '');
+    showToast(i, tr('syncWaitStart'));
+    updateAdj(i);
+  }
+  /** 「止めて待つ」を終える: 今の再生位置が今の時刻に合うように、ずれを決める */
+  function endWait(i) {
+    if (!waiting.delete(i)) return;
+    adoptOffset(i, nowR());
+  }
+  /** 今の再生位置が時刻 R に合うずれ (秒、0.01 秒単位)。位置が分からなければ null */
+  function offsetAt(i, R) {
+    const p = posOf(i);
+    return p == null ? null : Math.round((p - (R - views[i].archive.start) / 1000) * 100) / 100;
+  }
+  /** 今の再生位置のまま合うように、ずれを決める (「止めて待つ」の再生・枠の中でのシーク) */
+  function adoptOffset(i, R) {
+    const v = offsetAt(i, R);
+    if (v == null) return updateAdj(i);
+    SyncOffsets.set(state.tiles[i].videoId, v);
+    sent.delete(i);
+    forceSeek.delete(i);
+    rate(i, 1);
+    updateAdj(i);
+    showToast(i, tr('syncOffsetSet', signedSec(v)));
+  }
+  /** 前の確認のあとで、枠の中でユーザーがシークしたか (同期を始めて最初に見たときは、数を覚えるだけ) */
+  function sawUserSeek(i) {
+    const sk = views[i].ss?.sk;
+    if (sk == null) return false;
+    const prev = seenSeeks.get(i);
+    seenSeeks.set(i, sk);
+    return prev != null && sk !== prev;
+  }
+  /** 待っている枠: 止まったのを確かめたあと、再生されたら (枠の中のプレイヤーでも ⏱ でも) そこでずれを決める */
+  function tickWaiting(i, R) {
+    const w = waiting.get(i);
+    const ss = views[i].ss;
+    if (!ss) return;
+    if (ss.ps === 2) w.paused = true;
+    else if (w.paused && ss.ps === 1 && now() - ss.at < 2000) {
+      endWait(i);
+      return;
+    }
+    if (!w.paused) cmd(i, 'pause');
+    updateAdj(i, R);
+  }
+  /** ⏱ の「止めて待つ / ここで合わせる」 */
+  function toggleWait(i) {
+    if (!waiting.has(i)) return beginWait(i, false);
+    const w = waiting.get(i);
+    if (!w.paused) {
+      waiting.delete(i); // まだ止まっていない: 取りやめる
+      updateAdj(i);
+      return;
+    }
+    send(i, { op: 'play' }); // 再生が始まったら tickWaiting がずれを決める
+    w.paused = true;
+  }
+
+  // 視聴セットを開いたあと、アーカイブだと分かりしだい同期を始める ({tiles, ref, until})
+  let pending = null;
+  let pendingTimer = 0;
+  /** tiles の枠がアーカイブだと分かったら (最長 30 秒待って、分かった分だけで)、ref の枠を基準にして同期を始める */
+  function startWhenReady(tiles, ref) {
+    pending = { tiles, ref, until: now() + 30000 };
+    clearTimeout(pendingTimer);
+    pendingTimer = setTimeout(refresh, 30500);
+    setTimeout(refresh, 0); // もう読み込んである動画だけなら、すぐ始める
+  }
+  function checkPending() {
+    const { tiles, ref, until } = pending;
+    const ready = tiles.every((i) => archived(i) || !state.tiles[i].videoId);
+    if (!ready && now() < until) return;
+    pending = null;
+    clearTimeout(pendingTimer);
+    setTimeout(() => {
+      // 基準にしたい枠に音を出しておく (同期を始めたときの基準は、音を出している枠)
+      if (!on && available()) start();
+      if (on && archived(ref)) setReference(ref);
+    }, 0);
+  }
+  /** ほかのタブなどで動画のずれが変わった */
+  function offsetsChanged(ids) {
+    for (const i of visibleIndexes()) {
+      if (!ids.includes(state.tiles[i].videoId)) continue;
+      sent.delete(i);
+      forceSeek.add(i);
+      updateAdj(i);
+    }
+  }
+
+  /** +1.25 / -300.00 のような符号付きの秒 (0.01 秒単位) */
+  const signedSec = (v) => (v > 0 ? '+' : '') + v.toFixed(2);
+  const signedSec3 = (v) => (v > 0 ? '+' : v < 0 ? '−' : '±') + Math.abs(v).toFixed(3);
+  /**
+   * ⏱ パネルを開いている枠に、追いつき具合 (設定したずれどおりの位置と、実際の再生位置の差。+ = 進んでいる) を出す。
+   * d = null なら基準の枠。ok = 同期が詰める必要が無いと見ている (詰めている途中・シークしたときは false)
+   */
+  function showDrift(i, d, ok) {
+    const el = views[i].el.querySelector('.sync-drift');
+    if (views[i].el.querySelector('.sync-panel').hidden) return;
+    const ms = (v) => (Math.ceil(Math.abs(v) * 1000) / 1000).toFixed(3);
+    const text =
+      d == null
+        ? tr('syncDriftRef')
+        : ok
+          ? tr('syncDriftOk', signedSec3(d))
+          : tr(d > 0 ? 'syncDriftAhead' : 'syncDriftBehind', ms(d));
+    if (el.textContent !== text) el.textContent = text;
+  }
+
+  const TRIM_MIN = 30; // アーカイブが配信よりこれ以上 (秒) 短ければ、切られていると知らせる
+  /** アーカイブが配信していた時間より何秒短いか (冒頭か末尾が切られたぶん。どちらかはわからない) */
+  function trimmedOf(i) {
+    const a = views[i].archive;
+    if (!a || !(a.end > a.start)) return 0;
+    return Math.round((a.end - a.start) / 1000 - a.dur);
+  }
+  const approxText = (sec) => (sec >= 120 ? tr('approxMin', Math.round(sec / 60)) : tr('approxSec', sec));
+
+  function updateAdj(i, R = nowR()) {
+    const el = views[i].el;
+    const wait = waiting.get(i);
+    // 待っている間は、今再生したら決まるずれを出す
+    const v = (wait && views[i].archive ? offsetAt(i, R) : null) ?? off(i);
+    const signed = signedSec(v);
+    el.querySelector('.sync-panel-label').textContent = tr('syncOffset', signed);
+    const adj = el.querySelector('.sync-adj');
+    adj.textContent = wait ? `⏸ ${signed}` : v ? `⏱ ${signed}` : '⏱';
+    adj.classList.toggle('is-waiting', !!wait);
+    const waitBtn = el.querySelector('.sync-wait');
+    waitBtn.textContent = tr(wait ? 'syncWaitResume' : 'syncWait');
+    waitBtn.classList.toggle('is-waiting', !!wait);
+    const input = el.querySelector('.sync-input');
+    if (document.activeElement !== input) input.value = String(v);
+    // 切られたアーカイブ: 自動では直さず (冒頭か末尾かわからないため)、冒頭が切られた場合の値をワンクリックで出す
+    const trimmed = trimmedOf(i);
+    const trimEl = el.querySelector('.sync-trim');
+    trimEl.hidden = trimmed < TRIM_MIN;
+    adj.classList.toggle('has-trim', !trimEl.hidden && v === 0); // まだずらしていなければ、⏱ を目立たせて知らせる
+    if (!trimEl.hidden) {
+      el.querySelector('.sync-trim-text').textContent = tr('syncTrimmed', approxText(trimmed));
+      const b = el.querySelector('.sync-trim-head');
+      b.textContent = tr('syncTrimHead', -trimmed);
+      b.disabled = v === -trimmed;
+    }
   }
 
   function togglePanel(i) {
     const panel = views[i].el.querySelector('.sync-panel');
     panel.hidden = !panel.hidden;
+    views[i].el.querySelector('.sync-drift').textContent = '';
     updateAdj(i);
+  }
+
+  /** この枠のずれを v 秒にして、すぐ合わせ直す */
+  function setOffset(i, v) {
+    SyncOffsets.set(state.tiles[i].videoId, v);
+    sent.delete(i);
+    forceSeek.add(i); // 速度で詰めず、すぐ合わせ直す
+    updateAdj(i);
+    tick();
   }
 
   function setupTile(i, el) {
     el.querySelector('.sync-panel').addEventListener('click', (e) => {
-      const b = e.target.closest('button[data-sync]');
+      const b = e.target.closest('button');
       if (!b) return;
+      if (b.classList.contains('sync-trim-head')) {
+        setOffset(i, -trimmedOf(i));
+        return;
+      }
+      if (b.dataset.sync == null) return;
       if (b.dataset.sync === 'ref') {
         setReference(i);
         return;
       }
+      if (b.dataset.sync === 'wait') {
+        toggleWait(i);
+        return;
+      }
       const d = Number(b.dataset.sync);
-      const t = state.tiles[i];
-      t.syncOffset = d === 0 ? 0 : Math.round(((Number(t.syncOffset) || 0) + d) * 10) / 10;
-      sent.delete(i);
-      forceSeek.add(i); // 速度で詰めず、すぐ合わせ直す
-      updateAdj(i);
-      save();
-      tick();
+      setOffset(i, d === 0 ? 0 : off(i) + d);
+    });
+    const input = el.querySelector('.sync-input');
+    input.addEventListener('change', () => {
+      const v = Number(input.value);
+      if (input.value.trim() !== '' && Number.isFinite(v)) setOffset(i, v);
+      else updateAdj(i);
+    });
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') input.blur(); // blur で change が走る
+      else if (e.key === 'Escape') {
+        input.value = String(off(i));
+        input.blur();
+      }
     });
   }
 
   function setup() {
+    SyncOffsets.onChange(offsetsChanged);
     document.getElementById('syncToggle').addEventListener('click', (e) => {
       e.currentTarget.blur(); // Space キーでボタンが押し直されないように
       if (on) stop();
@@ -1640,7 +1862,17 @@ const Sync = (() => {
     });
   }
 
-  return { setup, setupTile, refresh, togglePanel, isOn: () => on };
+  return {
+    setup,
+    setupTile,
+    refresh,
+    togglePanel,
+    startWhenReady,
+    offsetsChanged,
+    isOn: () => on,
+    isWaiting: (i) => on && waiting.has(i),
+    refIfOn: () => (on ? reference() : null),
+  };
 })();
 
 // ---------------------------------------------------------------- 自己診断 (YouTube 側の変更に気づく)
@@ -1744,7 +1976,11 @@ window.addEventListener('message', (e) => {
   if (i < 0) return;
   Diagnose.seen(i, data.hakomado);
   if (data.hakomado === 'syncState') {
-    views[i].ss = { t: Number(data.t), ps: Number(data.ps), ad: !!data.ad, r: Number(data.r) || 1, at: performance.now() };
+    // 位置を読んだ時刻が分かれば、それをこのページの時刻に直して使う (届くまでの遅れの揺れを除く)。おかしな値なら届いた時刻
+    const recv = performance.now();
+    const sampled = Number(data.ts) - performance.timeOrigin;
+    const at = sampled > recv - 1000 && sampled <= recv + 5 ? Math.min(sampled, recv) : recv;
+    views[i].ss = { t: Number(data.t), ps: Number(data.ps), ad: !!data.ad, r: Number(data.r) || 1, up: !!data.up, sk: Number(data.sk) || 0, at };
     return;
   }
   if (data.hakomado === 'archive') {
@@ -2130,7 +2366,9 @@ function openHelp() {
 // - 読み込むときは、投稿の本文をまるごと貼ってもコードの部分だけを拾う。YouTube の URL を 1 行に 1 つ並べたものも読める
 const SHARE_MAX = MAX_TILES;
 const SHARE_TAG = 'Hakomado';
-const SHARE_CODE_RE = /#?Hakomado\s+([a-z0-9-]{1,24})\.((?:[A-Za-z0-9_-]{11}){1,16})(?![A-Za-z0-9_-])/i;
+// 末尾の「~…」はアーカイブの同期のずれ (動画の並び順に「,」区切りの秒。「*」の付いた動画が同期の基準)。
+// 以前の版はこの部分を読み飛ばすので、動画とレイアウトだけが再現される
+const SHARE_CODE_RE = /#?Hakomado\s+([a-z0-9-]{1,24})\.((?:[A-Za-z0-9_-]{11}){1,16})(?:~([-+*\d.,]{1,240}))?(?![A-Za-z0-9_-])/i;
 
 /** 表示中の枠のうち、配信の入っている枠 (並び順。空き枠は詰める) */
 const shareTiles = () => visibleIndexes().filter((i) => state.tiles[i].videoId);
@@ -2139,19 +2377,36 @@ const shareTiles = () => visibleIndexes().filter((i) => state.tiles[i].videoId);
 function viewingSetCode() {
   const filled = shareTiles();
   if (!filled.length) return '';
-  return `#${SHARE_TAG} ${state.layoutId}.${filled.map((i) => state.tiles[i].videoId).join('')}`;
+  const ids = filled.map((i) => state.tiles[i].videoId);
+  // 同期のずれ: ずれのある動画があるか、同期の基準が先頭以外のときだけ付ける (先頭が基準なら印は省く)
+  const offs = ids.map((id) => SyncOffsets.get(id));
+  const refK = filled.indexOf(Sync.refIfOn());
+  const tail = offs.some(Boolean) || refK > 0 ? '~' + offs.map((o, k) => (k === refK && k > 0 ? '*' : '') + String(o)).join(',') : '';
+  return `#${SHARE_TAG} ${state.layoutId}.${ids.join('')}${tail}`;
 }
 
 /**
  * テキストから視聴セットを読み取る。コード (#Hakomado …) があればそれを、無ければ各行の最初の語を
  * URL / 動画 ID / @チャンネル名 として読む (# で始まる行は説明。「# layout=…」があればレイアウト)
- * @returns {Promise<{ids: string[], layoutId: string|null, bad: number, tooMany: boolean}>}
+ * offsets = 動画ごとの同期のずれ (コードに入っていなければ null)、ref = 同期の基準にする動画の番号
+ * @returns {Promise<{ids: string[], layoutId: string|null, bad: number, tooMany: boolean, offsets: number[]|null, ref: number}>}
  */
 async function parseViewingSet(text, onProgress) {
   const code = text.match(SHARE_CODE_RE);
   if (code) {
-    const ids = [...new Set(code[2].match(/.{11}/g))];
-    return { ids, layoutId: code[1], bad: 0, tooMany: false };
+    const raw = code[2].match(/.{11}/g);
+    const tail = code[3] ? code[3].split(',') : null;
+    const ids = [];
+    const offsets = [];
+    let ref = 0;
+    raw.forEach((id, k) => {
+      if (ids.includes(id)) return;
+      const t = tail?.[k] ?? '';
+      if (t.startsWith('*')) ref = ids.length;
+      ids.push(id);
+      offsets.push(Number(t.replace('*', '')) || 0);
+    });
+    return { ids, layoutId: code[1], bad: 0, tooMany: false, offsets: tail ? offsets : null, ref };
   }
   let layoutId = null;
   const tokens = [];
@@ -2177,11 +2432,14 @@ async function parseViewingSet(text, onProgress) {
       bad++;
     }
   }
-  return { ids, layoutId, bad, tooMany: tokens.length - bad > SHARE_MAX };
+  return { ids, layoutId, bad, tooMany: tokens.length - bad > SHARE_MAX, offsets: null, ref: 0 };
 }
 
-/** 視聴セットで今の枠を置き換える (同じ配信を表示中の枠はそのまま使い、読み込み直さない) */
-async function applyViewingSet(ids, layoutId) {
+/**
+ * 視聴セットで今の枠を置き換える (同じ配信を表示中の枠はそのまま使い、読み込み直さない)。
+ * offsets (動画ごとの同期のずれ) があれば記録し、アーカイブだと分かりしだい ref 番目の動画を基準に同期を始める
+ */
+async function applyViewingSet(ids, layoutId, { offsets = null, ref = 0 } = {}) {
   if (state.autoMode) await setAutoMode(false); // 自動再生が枠を入れ替えないように
   stopQueue();
   const used = new Set();
@@ -2211,9 +2469,12 @@ async function applyViewingSet(ids, layoutId) {
   if (state.layout.anchor) state.anchor = state.layout.anchor;
   state.order = [...assigned, ...state.order.filter((j) => !assigned.includes(j))];
   if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
-  setAudioSet([assigned[0]]); // 音は先頭 (メイン) の枠
+  const refK = offsets && ref < ids.length ? ref : 0;
+  setAudioSet([assigned[refK]]); // 音は先頭 (メイン) の枠。同期のずれ付きなら基準の枠
+  if (offsets) offsets.forEach((o, k) => SyncOffsets.set(ids[k], o));
   renderAll();
   save();
+  if (offsets) Sync.startWhenReady(assigned, assigned[refK]);
 }
 
 // ---- 共有画像
@@ -2474,19 +2735,19 @@ function setupShare() {
   const loadText = async (text) => {
     loadBtn.disabled = true;
     try {
-      const { ids, layoutId, bad, tooMany } = await parseViewingSet(text, (done, total) => {
+      const { ids, layoutId, bad, tooMany, offsets, ref } = await parseViewingSet(text, (done, total) => {
         setStatus(error, tr('shareLoading', done, total));
       });
       if (!ids.length) {
         setStatus(error, tr('shareNothing'), true);
         return;
       }
-      await applyViewingSet(ids, layoutId);
+      await applyViewingSet(ids, layoutId, { offsets, ref });
       setStatus(error, '');
       input.value = '';
       dialog.close();
       const notes = [bad ? tr('shareBadLines', bad) : '', tooMany ? tr('shareTooMany') : ''].filter(Boolean);
-      notify([tr('shareLoaded', ids.length), ...notes].join(' / '));
+      notify([tr(offsets ? 'shareLoadedSync' : 'shareLoaded', ids.length), ...notes].join(' / '));
     } finally {
       loadBtn.disabled = false;
     }
@@ -5026,7 +5287,7 @@ async function chooseSession() {
 }
 
 (async function main() {
-  await Promise.all([loadSettings(), Favorites.seedPresets()]);
+  await Promise.all([loadSettings(), Favorites.seedPresets(), SyncOffsets.load()]);
   buildTiles();
   refreshFavKeys().catch(() => {});
   refreshSavedIds().catch(() => {});

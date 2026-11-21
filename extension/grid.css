@@ -1235,8 +1235,10 @@ code { font-size: 12px; background: #222228; padding: 0 4px; border-radius: 3px;
   right: 6px;
   z-index: 5;
   display: flex;
-  align-items: center;
-  gap: 4px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  max-width: calc(100% - 12px);
   padding: 6px 8px;
   background: var(--panel);
   border: 1px solid var(--line);
@@ -1246,4 +1248,13 @@ code { font-size: 12px; background: #222228; padding: 0 4px; border-radius: 3px;
 .sync-panel[hidden] { display: none; }
 .sync-panel button { padding: 1px 7px; font-size: 12px; }
 .sync-panel-label { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; min-width: 4.5em; }
+.sync-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.sync-row[hidden] { display: none; }
+.sync-input { width: 6.5em; padding: 1px 4px; background: #000; color: var(--text); border: 1px solid var(--line); border-radius: 6px; font-size: 12px; font-variant-numeric: tabular-nums; }
+.sync-drift { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.sync-drift:empty { display: none; }
+.sync-trim { max-width: 36em; padding-top: 6px; border-top: 1px solid var(--line); }
+.sync-trim-text { color: #f0c36d; font-size: 12px; }
+.sync-adj.has-trim { color: #f0c36d; border-color: #f0c36d; }
+.sync-adj.is-waiting, .sync-wait.is-waiting { color: #8fd3ff; border-color: #8fd3ff; }
 #syncToggle[hidden] { display: none; }
