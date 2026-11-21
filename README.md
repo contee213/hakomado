@@ -118,6 +118,9 @@ Hakomado の初期データはホロライブのチャンネルだけです。�
 - リリース: `manifest.json` の `version` を上げてコミットし、同じ番号のタグ (例: `v0.2.0`) をプッシュすると、
   GitHub Actions (`.github/workflows/release.yml`) が `extension` の中身を ZIP にしてリリースを作ります。タグと `version` が違うと止まります
 - 開発中は、リポジトリを `git clone` して `extension` フォルダを読み込むと、変更をすぐ試せます
+- テスト: `npm test` (Node.js 22 以上。依存パッケージは無いので `npm install` は要りません)。`tests/` にあり、push と PR のたびに
+  GitHub Actions (`.github/workflows/test.yml`) でも回ります。リリースの ZIP もテストが通ってから作ります。
+  実際の YouTube を使う確認は `tests/MANUAL.md` の手順で手で行います
 - 埋め込みプレイヤー (`youtube.com/embed`) は拡張機能のページからだと再生を拒否される (エラー 152) ため、通常の視聴ページを枠に入れています
 
 ## 免責事項
