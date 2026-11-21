@@ -19,6 +19,8 @@ This is an unofficial tool made by an individual. Please read the [Disclaimer](#
 - **Notifications / watch history / watch later**: notifications when streams start, a history of what you watched, and streams to watch later (🔖; play them in order in the current tiles, removed once watched to the end)
 - **📃 Playlists**: edit named lists of streams (up to 30, names up to 40 characters; an empty “My list” is there to start with) as a single column in “📃 Playlists” in the library (“+ New”, “▦ From current tiles”, the add box for URLs, 📃 on tile bars and lists, drag ⠿ to reorder, rename what each tile shows). Two ways to play: “▶ In order” fills the current tiles from the top and puts the next one in each tile that finishes; “⏱ All at once, in sync” lays out all of them (up to 16, the number of tiles) and plays the archives in step. Sync playlists also keep the layout, the reference video and each video’s offset, and offsets you fix with ⏱ while playing are written back. “🔗 Share” lets you pass it on (see “🔗 Share / 📥 Import” below). Rows show the title and channel (fetched right after adding) and badges for live, upcoming and unavailable (deleted, private or members-only) videos. “▶ In order” marks videos played to the end with ✓ and continues from there next time, and “▶ From here” on a row plays from that row. Sync playlists remember where you were and continue in step next time. ⧉ duplicates a playlist, and a row removed with ✕ can be brought back with “Undo”. Pasting a YouTube playlist URL adds its videos at once. Paste what you received into “📥 Import”, where you can also copy a request for an AI chat such as Claude to build one
 - **🔗 Share / 📥 Import**: pick the current tiles (a viewing set) or a playlist and turn it into one of four forms: an **image** (thumbnails in the layout's shape plus a QR of the code), a **code** (one line, `#Hakomado 2x2.<video IDs>~<offsets> "name"`, up to 16), **text** (one per line, with the name, sync setting, layout, offsets and tile names) or a **link** (`https://www.youtube.com/watch_videos?video_ids=ID,ID,…&hakomado=name`, up to 50, which opens as a temporary YouTube playlist without Hakomado). Paste what you receive into “📥 Import” (drop images too, or just press Ctrl+V anywhere): it shows what was read and lets you “▦ Lay out in tiles” or “📃 Save as playlist”. Opening an import link also lands here
+- **Left/right and volume**: the 🎚 button on a tile bar makes that tile heard from the left, center or right and changes its volume (0–200%). "⇆ Split 2 tiles left/right" sends the 2 tiles playing audio to the left and right by their position on screen (to tell two views of a collab apart; for headphones)
+- **Right-click to add**: right-click a link to a YouTube video or stream, or a watch page, and choose "Add to an empty Hakomado tile" to put it in an empty tile of the open multi-view page (a tile is added if none is empty; a new tab opens if the page is not open)
 - **Japanese / English**: follows the browser language (can be fixed in settings)
 
 ## Requirements
@@ -35,8 +37,13 @@ It is not on the Chrome Web Store, so load it in developer mode.
 4. Click "Load unpacked" and choose the extracted folder (the one with `manifest.json` in it)
 5. Click the Hakomado icon in the toolbar (pin it from the puzzle-piece menu) to open the multi-view page
 
-To update, extract the new zip over the same folder, press "⟳" for the extension on the extensions page, then reload the multi-view page
-(if you move the folder, it is treated as a different extension and your settings and channels are not carried over).
+To update, extract the new zip over the same folder, press "⟳" for the extension on the extensions page, then reload the multi-view page.
+The release zip fixes the extension ID to `lhafnnpnfpgogdbapeepkgohemnnifpp`, so even if you extract it to another folder it stays the same extension
+and your settings and channels are carried over.
+
+> **Upgrading from v0.2.0 or earlier**: zips up to v0.2.0 did not fix the ID, so switching to a version with the fixed ID treats it as a different
+> extension once. Before switching, export your data with ⚙ Settings → "Backup" → "⬇ Export to a file", then import it in the new version with
+> "⬆ Import from a file". Once it is restored, you can remove the old version from the extensions page
 
 ## Quick start
 
@@ -57,7 +64,9 @@ For more controls and keys, open "?" (help) at the top right. The tour shown the
 
 Hakomado's default data covers Hololive channels only. Channels of other groups can be added by importing a "channel pack" made by someone else (⚙ Settings → Channels tab). A pack can be imported from a URL, pasted contents or a file. It is added to your channel list (channels you already have stay as they are), and each pack can be removed at once. You can also export the bundled Hololive pack, an imported pack or the channels you added as a pack.
 
-A pack is a JSON file like the one below. Put it on GitHub (raw), Gist or elsewhere and share the URL.
+"Find packs" lists the packs collected in this repository's [`packs/`](packs/) folder so you can import one with a click (packs in the list are unofficial and submitted by users). New packs and updates are welcome as PRs; see [`packs/README.md`](packs/README.md) (in Japanese).
+
+A pack is a JSON file like the one below. Besides submitting it to `packs/`, you can put it on GitHub (raw), Gist or elsewhere and share the URL.
 
 ```json
 {
@@ -91,8 +100,9 @@ A pack is a JSON file like the one below. Put it on GitHub (raw), Gist or elsewh
 | `declarativeNetRequestWithHostAccess` | The header change described below |
 | `https://www.youtube.com/*` | Showing watch pages and live chat in tiles, getting channel info and live status |
 | `https://schedule.hololive.tv/*` | Getting the stream schedule of the initial data channels |
+| `contextMenus` | The right-click menu "Add to an empty Hakomado tile" |
 
-- It only talks to YouTube and the schedule site. No data is sent to any other server
+- Besides YouTube and the schedule site, it only connects to GitHub to check for new versions (`api.github.com`), to the pack list when you press "Get the list" in Find packs (`raw.githubusercontent.com`), and to pack URLs you enter. No data is sent to any other server
 - Requests to YouTube use the browser's cookies (your sign-in). This is needed to show members-only streams and, in auto play, to check whether you can watch them
 - YouTube watch pages and live chat forbid embedding in other pages with the `X-Frame-Options` header, so a rule that removes this header
   (a declarativeNetRequest session rule) is registered **only for the multi-view page's tab**.
@@ -120,6 +130,13 @@ A pack is a JSON file like the one below. Put it on GitHub (raw), Gist or elsewh
 - Releases: bump `version` in `manifest.json`, commit, and push a tag with the same number (e.g. `v0.2.0`).
   GitHub Actions (`.github/workflows/release.yml`) zips the contents of `extension` and creates the release. It stops if the tag and `version` differ
 - For development, `git clone` the repository and load the `extension` folder to try changes right away
+- Extension ID: `release.yml` adds `"key"` (the public key in `tools/release-key.pub`) to `manifest.json` in the release zip only, which fixes the ID
+  (`node tools/release-key.js id` prints it). It is not in the repository's `extension/`, so a development folder gets its own path-based ID and
+  you can load the development and release versions side by side in one Chrome profile (with separate saved data). The matching private key is not
+  in the repository (it is only needed to build a CRX). When publishing to the store, swap in the store's public key to share the store version's ID
+- Tests: `npm test` (Node.js 22 or later; there are no dependencies, so no `npm install`). They live in `tests/` and also run on every push and PR
+  in GitHub Actions (`.github/workflows/test.yml`). The release zip is only built after the tests pass.
+  Checks that need the real YouTube are done by hand with `tests/MANUAL.md` (in Japanese)
 - The embed player (`youtube.com/embed`) refuses to play from extension pages (error 152), so tiles use the regular watch page
 
 ## Disclaimer

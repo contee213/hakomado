@@ -67,7 +67,8 @@ function newTileState() {
   // queue = 「あとで見る」を順に再生している枠
   // fill = 自動再生で、ライブの代わりに最近の配信を入れた枠
   // (アーカイブの同期再生のずれは、枠ではなく動画ごとに記録する: SyncOffsets)
-  return { input: '', videoId: null, chat: false, danmaku: null, muted: true, auto: false, queue: false, fill: false, label: '' };
+  // pan = 音の左右 (-1 = 左・0 = 真ん中・1 = 右)、gain = 音量 (1 = 元のまま、0〜2)。枠の中の Web Audio で変える (content/watch.js)
+  return { input: '', videoId: null, chat: false, danmaku: null, muted: true, auto: false, queue: false, fill: false, label: '', pan: 0, gain: 1 };
 }
 
 const gridEl = document.getElementById('grid');
@@ -118,6 +119,8 @@ function applySession(saved = {}) {
         if (k in picked && typeof picked[k] !== typeof v && v !== null) delete picked[k];
       }
       if (picked.videoId != null && !(typeof picked.videoId === 'string' && ID_RE.test(picked.videoId))) picked.videoId = null;
+      if ('pan' in picked) picked.pan = clampPan(picked.pan);
+      if ('gain' in picked) picked.gain = clampGain(picked.gain);
       // 以前の版は弾幕の初期値が「表示」だったので、そのときの true は自動 (メイン枠だけ) として扱う
       if (!saved.dmAuto && picked.danmaku === true) picked.danmaku = null;
       // あとで見るの再生中かどうかは保存しない (開き直したら、ふつうの枠として扱う)
@@ -599,6 +602,7 @@ function buildTiles() {
     el.querySelector('.pick-fav').addEventListener('click', () => openFavorites(i, 'library'));
     el.querySelector('.pick-any').addEventListener('click', () => pickAnything(i));
     Sync.setupTile(i, el);
+    setupMixPanel(i, el);
     // マウスが枠から離れたら、枠内の YouTube プレイヤーの操作 UI を隠させ、キー操作をこの画面に戻す
     // (枠の上に重ねたつかみ範囲や操作バーを通って離れると、プレイヤー側は離れたことに気づかず UI が出たままになるため)
     el.addEventListener('pointerenter', () => setTileAway(i, false));
@@ -815,6 +819,7 @@ function renderTile(i, { reloadPlayer = false, reloadChat = false } = {}) {
   el.classList.toggle('audible', visible && !!t.videoId && !t.muted && state.count > 1);
   setToggle(el.querySelector('.bar [data-act="chat"]'), t.chat);
   setToggle(el.querySelector('.bar [data-act="danmaku"]'), tileDanmaku(i));
+  renderMix(i);
   updateSocialButtons(i);
   updateFavButton(i);
   updateTileName(i);
@@ -990,7 +995,69 @@ function setToggle(btn, on) {
 // ---------------------------------------------------------------- audio
 
 function applyAudio(i) {
-  postToFrame(views[i].player, { hakomado: 'audio', muted: state.tiles[i].muted });
+  const t = state.tiles[i];
+  postToFrame(views[i].player, { hakomado: 'audio', muted: t.muted });
+  postToFrame(views[i].player, { hakomado: 'mix', pan: t.pan, gain: t.gain });
+}
+
+// ---- 音の左右 (パン) と音量 (枠のバーの 🎚)
+const clampPan = (v) => (Number.isFinite(v) ? Math.max(-1, Math.min(1, Math.round(v * 100) / 100)) : 0);
+const clampGain = (v) => (Number.isFinite(v) ? Math.max(0, Math.min(2, Math.round(v * 100) / 100)) : 1);
+
+function setMix(i, { pan, gain } = {}) {
+  const t = state.tiles[i];
+  if (pan != null) t.pan = clampPan(pan);
+  if (gain != null) t.gain = clampGain(gain);
+  applyAudio(i);
+  renderMix(i);
+  save();
+}
+
+/** バーの 🎚 (L / R の印) と、開いていればパネルの表示 */
+function renderMix(i) {
+  const t = state.tiles[i];
+  const el = views[i].el;
+  const btn = el.querySelector('.bar [data-act="mix"]');
+  btn.textContent = '🎚' + (t.pan < 0 ? 'L' : t.pan > 0 ? 'R' : '');
+  btn.classList.toggle('on', t.pan !== 0 || t.gain !== 1);
+  btn.disabled = !t.videoId;
+  const panel = el.querySelector('.mix-panel');
+  if (!t.videoId) panel.hidden = true;
+  if (panel.hidden) return;
+  for (const b of panel.querySelectorAll('[data-pan]')) b.classList.toggle('on', Number(b.dataset.pan) === t.pan);
+  panel.querySelector('.mix-gain').value = String(Math.round(t.gain * 100));
+  panel.querySelector('.mix-gain-value').textContent = `${Math.round(t.gain * 100)}%`;
+}
+
+/** 音の出ている 2 枠を、画面の左にあるほうを左・右にあるほうを右へ (コラボの 2 視点の聞き分け用) */
+function splitStereo() {
+  const audible = audibleTiles();
+  if (audible.length !== 2) {
+    notify(tr('mixNeed2', audible.length));
+    return;
+  }
+  const pos = (i) => {
+    const r = views[i].el.getBoundingClientRect();
+    return r.left + r.width / 2;
+  };
+  const [left, right] = audible.sort((a, b) => pos(a) - pos(b));
+  setMix(left, { pan: -1 });
+  setMix(right, { pan: 1 });
+  showToast(left, tr('mixLeft'));
+  showToast(right, tr('mixRight'));
+}
+
+function setupMixPanel(i, el) {
+  const panel = el.querySelector('.mix-panel');
+  panel.addEventListener('click', (e) => {
+    const b = e.target.closest('button');
+    if (!b) return;
+    if (b.dataset.pan != null) setMix(i, { pan: Number(b.dataset.pan) });
+    else if (b.dataset.mix === 'split') splitStereo();
+    else if (b.dataset.mix === 'reset') setMix(i, { pan: 0, gain: 1 });
+  });
+  const range = panel.querySelector('.mix-gain');
+  range.addEventListener('input', () => setMix(i, { gain: Number(range.value) / 100 }));
 }
 
 /**
@@ -1174,6 +1241,12 @@ function onBarAction(i, act, e) {
     case 'syncAdj':
       Sync.togglePanel(i);
       break;
+    case 'mix': {
+      const panel = views[i].el.querySelector('.mix-panel');
+      panel.hidden = !panel.hidden;
+      renderMix(i);
+      return;
+    }
     case 'reload':
       renderTile(i, { reloadPlayer: true, reloadChat: true });
       return;
@@ -2033,6 +2106,9 @@ window.addEventListener('message', (e) => {
   if (data.hakomado === 'userAudio') {
     // 枠内のプレイヤーのスピーカーで切り替え → この枠だけ切り替える (他の枠はそのまま。複数枠の同時再生用)
     setAudio(i, { on: !data.muted });
+  } else if (data.hakomado === 'mix') {
+    // 枠の中で左右・音量の経路を作れなかった (AudioContext が動かない)
+    if (data.ok === false) showToast(i, tr('mixBlocked'));
   } else if (data.hakomado === 'live') {
     views[i].el.classList.toggle('is-live', !!data.on);
   } else if (data.hakomado === 'replay') {
@@ -2420,18 +2496,13 @@ function openHelp() {
 // - リンク: YouTube の watch_videos の URL (playlistImportLink)。Hakomado が無い人も YouTube で開ける
 // 読み込むときは、どの形式も (投稿の本文をまるごと貼っても) parseIncoming で同じ形に読み、枠に並べるか再生リストとして保存する
 const SHARE_MAX = MAX_TILES;
-const SHARE_TAG = 'Hakomado';
-const SHARE_NAME_MAX = 40; // 再生リストの名前と同じ
-// 「~…」はアーカイブの同期のずれ (動画の並び順に「,」区切りの秒。「*」の付いた動画が同期の基準)、
-// 続く「 "…"」は名前。以前の版はコードの直後で読むのをやめるので、ずれや名前が無視されるだけで読める
-const SHARE_CODE_RE =
-  /#?Hakomado\s+([a-z0-9-]{1,24})\.((?:[A-Za-z0-9_-]{11}){1,16})(?:~([-+*\d.,]{1,240}))?(?![A-Za-z0-9_-])(?: "([^"\r\n]{1,40})")?/i;
 
 /**
  * 共有セット: 共有するもの (今の枠 / 再生リスト) と、読み込んだものの共通の形
  * @typedef {{name: string, items: {videoId: string, label?: string, channel?: string, offset?: number}[],
  *   sync: boolean, layoutId: string|null, ref: string|null}} ShareSet
  */
+// コードの読み書き (formatShareCode / parseShareCode / shareName)・取り込み用リンク・1 行 1 本のテキストの読み取りは share-code.js
 
 /** 表示中の枠のうち、配信の入っている枠 (並び順。空き枠は詰める) */
 const shareTiles = () => visibleIndexes().filter((i) => state.tiles[i].videoId);
@@ -2444,162 +2515,8 @@ function tilesShareSet(name = '') {
   return { name, items, sync, layoutId: state.layoutId, ref: sync && refTile != null ? state.tiles[refTile].videoId : null };
 }
 
-/** コードや画像に入れる名前 (「"」と改行は入れない) */
-const shareName = (s) => String(s || '').replace(/["\r\n]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, SHARE_NAME_MAX);
-
-/**
- * 視聴セットのコードを作る。ids = 動画 (並び順)、offs = 動画ごとのずれ (秒)、refK = 同期の基準の番号、name = 名前。
- * ずれのある動画があるか、同期の基準が先頭以外のときだけ「~…」を付ける (先頭が基準なら印は省く)
- */
-function formatShareCode(layoutId, ids, offs = [], refK = 0, name = '') {
-  const o = ids.map((_, k) => offs[k] || 0);
-  const tail = o.some(Boolean) || refK > 0 ? '~' + o.map((v, k) => (k === refK && k > 0 ? '*' : '') + String(v)).join(',') : '';
-  const n = shareName(name);
-  return `#${SHARE_TAG} ${layoutId}.${ids.join('')}${tail}${n ? ` "${n}"` : ''}`;
-}
-
-// ---- 貼られたテキストの読み取り
-
-/**
- * テキストの中の視聴セットのコード (#Hakomado …) を読む。無ければ null。
- * 同じ動画が 2 回あれば 1 回目だけ使う。offsets = 動画ごとの同期のずれ (コードに入っていなければ null)、
- * ref = 同期の基準にする動画の番号、name = 名前 (入っていなければ '')
- * @returns {{ids: string[], layoutId: string, offsets: number[]|null, ref: number, name: string}|null}
- */
-function parseShareCode(text) {
-  const code = text.match(SHARE_CODE_RE);
-  if (!code) return null;
-  const tail = code[3] ? code[3].split(',') : null;
-  const ids = [];
-  const offsets = [];
-  let ref = 0;
-  code[2].match(/.{11}/g).forEach((id, k) => {
-    if (ids.includes(id)) return;
-    const t = tail?.[k] ?? '';
-    if (t.startsWith('*')) ref = ids.length;
-    ids.push(id);
-    offsets.push(Number(t.replace('*', '')) || 0);
-  });
-  return { ids, layoutId: code[1], offsets: tail ? offsets : null, ref, name: (code[4] || '').trim() };
-}
-
-/**
- * 取り込み用リンク (YouTube の https://www.youtube.com/watch_videos?video_ids=ID,ID,…&hakomado=名前) を読む。
- * YouTube はこの URL を名前の無い一時的な再生リストとして開くので、Hakomado を入れていない人にもそのまま見られる
- * (hakomado= は YouTube には無視される)。違う URL なら null
- * @returns {{ids: string[], name: string}|null}
- */
-function parseWatchVideosLink(raw) {
-  let url;
-  try {
-    url = new URL(raw);
-  } catch {
-    return null;
-  }
-  if (!/^((www|m)\.)?youtube\.com$/.test(url.hostname) || url.pathname !== '/watch_videos') return null;
-  const ids = (url.searchParams.get('video_ids') || '').split(',').map((s) => s.trim()).filter((id) => ID_RE.test(id));
-  return { ids: [...new Set(ids)], name: (url.searchParams.get('hakomado') || '').trim() };
-}
-
 /** 取り込み用リンクに入れる動画の数 (YouTube の一時的な再生リストが開ける数) */
 const IMPORT_LINK_MAX = 50;
-
-/** YouTube の再生リストの URL (https://www.youtube.com/playlist?list=…) なら、その ID。違えば null */
-function youtubePlaylistId(raw) {
-  let url;
-  try {
-    url = new URL(raw);
-  } catch {
-    return null;
-  }
-  if (!/^((www|m|music)\.)?youtube\.com$/.test(url.hostname) || url.pathname !== '/playlist') return null;
-  const id = url.searchParams.get('list') || '';
-  return /^[\w-]{10,64}$/.test(id) ? id : null;
-}
-
-
-/**
- * 1 行に 1 本のテキストを読む (再生リストのテキスト形式。playlistText で書き出したものもそのまま読める)。
- *   # playlist=名前        … meta.playlist (再生リストの名前)
- *   # sync=on              … meta.sync (同期再生する)
- *   # layout=2x2           … meta.layout (レイアウト)
- *   https://www.youtube.com/watch?v=ID  ~*1.5  # 名前
- * - 各行の最初の語を URL / 動画 ID / @チャンネル名 として読む。続く「~秒」は同期のずれ (「~*秒」なら同期の基準)、
- *   行の後ろの「# …」はその配信の名前 (label)
- * - 取り込み用リンク・YouTube の再生リストの URL の行は、中の動画をすべて読む
- *   (リンクや再生リストの名前は meta.playlist に入れる。先に書いたものが優先)
- * - # で始まる行は説明。「# 名前=値」の形なら meta に入れる
- * 同じ動画は 1 回だけ。max 本読んだところでやめ、まだ残っていれば tooMany
- * @returns {Promise<{items: {videoId: string, label?: string, offset?: number}[], ref: string|null,
- *   hasOffsets: boolean, meta: Record<string, string>, bad: number, tooMany: boolean}>}
- */
-async function parseVideoLines(text, max, onProgress) {
-  const meta = {};
-  const setMeta = (k, v) => {
-    if (v && !(k in meta)) meta[k] = v;
-  };
-  const tokens = [];
-  for (const line of text.split(/\r?\n/)) {
-    const s = line.trim();
-    if (!s) continue;
-    if (s.startsWith('#')) {
-      const m = s.match(/^#\s*(\w+)\s*=\s*(.+)$/);
-      if (m) setMeta(m[1].toLowerCase(), m[2].trim());
-      continue;
-    }
-    const t = s.split(/\s+/)[0];
-    const link = parseWatchVideosLink(t);
-    if (link) {
-      tokens.push(...link.ids.map((id) => ({ t: id, label: '', offset: null, ref: false })));
-      setMeta('playlist', link.name);
-      continue;
-    }
-    const listId = youtubePlaylistId(t);
-    if (listId) {
-      try {
-        const yl = await Favorites.fetchYouTubePlaylist(listId);
-        if (!yl.ids.length) throw new Error('empty');
-        tokens.push(...yl.ids.map((id) => ({ t: id, label: '', offset: null, ref: false })));
-        setMeta('playlist', yl.name);
-      } catch {
-        tokens.push({ t, label: '', offset: null, ref: false }); // 読めなかった行として数える
-      }
-      continue;
-    }
-    let rest = s.slice(t.length);
-    const off = rest.match(/^\s+~(\*?)([-+]?\d+(?:\.\d+)?)?(?=\s|$)/);
-    if (off) rest = rest.slice(off[0].length);
-    const label = (rest.match(/^\s+#\s*(.*)$/)?.[1] || '').replace(/\s+/g, ' ').trim();
-    tokens.push({ t, label, offset: off ? Number(off[2]) || 0 : null, ref: !!off?.[1] });
-  }
-  const items = [];
-  let ref = null;
-  let hasOffsets = false;
-  let bad = 0;
-  let k = 0;
-  for (; k < tokens.length && items.length < max; k++) {
-    onProgress?.(k + 1, tokens.length);
-    try {
-      const id = await resolveVideoId(tokens[k].t);
-      const { label, offset } = tokens[k];
-      if (items.some((h) => h.videoId === id)) continue;
-      const h = { videoId: id };
-      if (label) h.label = label;
-      if (offset != null) {
-        hasOffsets = true;
-        h.offset = offset;
-      }
-      if (tokens[k].ref && !ref) ref = id;
-      items.push(h);
-    } catch {
-      bad++;
-    }
-  }
-  return { items, ref, hasOffsets, meta, bad, tooMany: k < tokens.length };
-}
-
-/** 「# sync=…」の値が ON か */
-const metaOn = (v) => /^(on|1|true|yes)$/i.test(String(v ?? '').trim());
 
 /**
  * 貼られたテキストを共有セットとして読む (どの形式でも。投稿の本文をまるごと貼ってもよい)。
@@ -3676,6 +3593,48 @@ function handleImportLink() {
   });
 }
 
+// ---- 右クリックのメニュー「Hakomado の空き枠に追加」(background.js から届く / 画面が無ければ #add=<ID> で開く)
+
+/**
+ * 動画を空き枠に入れる。空き枠が無ければ (16 枠未満なら) 枠を 1 つ足す。結果は画面に短く出す。
+ * @returns {'added'|'already'|'full'}
+ */
+function addVideoFromMenu(videoId) {
+  const shown = visibleIndexes().find((i) => state.tiles[i].videoId === videoId);
+  if (shown != null) {
+    showToast(shown, tr('menuAlready'));
+    return 'already';
+  }
+  const target = emptyTileOrAdd();
+  if (target == null) {
+    notify(tr('menuFull', MAX_TILES));
+    return 'full';
+  }
+  forgetAutoMarks(videoId);
+  setTileVideo(target, videoId, `${YT}/watch?v=${videoId}`);
+  showToast(target, tr('menuAdded'));
+  return 'added';
+}
+
+/** 新しいタブで開いたとき (#add=<動画 ID>) */
+function handleAddLink() {
+  const m = location.hash.match(/^#add=([A-Za-z0-9_-]{11})$/);
+  if (!m) return;
+  // 再読み込みでもう一度入れないよう、先に URL から外す
+  history.replaceState(null, '', location.pathname + location.search);
+  addVideoFromMenu(m[1]);
+}
+
+/** 開いている画面に届いた「追加」。届くのは全部の画面なので、自分のタブ宛てのものだけに返事をする */
+function listenAddVideo(myTabId) {
+  chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+    if (msg?.type !== 'add-video' || sender.id !== chrome.runtime.id || sender.tab || msg.tabId !== myTabId) return false;
+    if (!ID_RE.test(msg.videoId)) return false;
+    sendResponse({ handled: true, result: addVideoFromMenu(msg.videoId) });
+    return false;
+  });
+}
+
 // 設定画面のスライダーの表示形式
 const SETTING_FORMATS = {
   duration: (v) => tr('sec', v),
@@ -4051,6 +4010,18 @@ function displayNumber(i) {
 
 function firstEmptyTile() {
   return visibleIndexes().find((i) => !state.tiles[i].videoId);
+}
+
+/** 空き枠。無ければ (16 枠未満なら) 枠を 1 つ足して、その枠。16 枠埋まっていれば null */
+function emptyTileOrAdd() {
+  if (firstEmptyTile() == null && state.count < MAX_TILES) addTileSlot();
+  return firstEmptyTile() ?? null;
+}
+
+/** 手で読み込み直した配信について、自動再生の「終わった」「✕ で閉じた」「メンバー限定」の記録を消す (誤判定・誤操作から戻せるように) */
+function forgetAutoMarks(videoId) {
+  for (const set of [finishedIds, autoDismissed, membersBlocked]) set.delete(videoId);
+  autoMissing.delete(videoId);
 }
 
 /**
@@ -4595,17 +4566,12 @@ function videoItem(h, saved, { onRemove, removeTitle } = {}) {
  * 自動再生中で、いま配信中・配信予定のチャンネルの配信なら自動再生の枠として扱う (終わったら片付ける)
  */
 function loadFromHistory(h) {
-  let target = favTarget ?? firstEmptyTile();
-  if (target == null && state.count < MAX_TILES) {
-    addTileSlot();
-    target = firstEmptyTile();
-  }
+  const target = favTarget ?? emptyTileOrAdd();
   if (target == null) {
     favErrorEl.textContent = tr('noEmptyTile');
     return;
   }
-  for (const set of [finishedIds, autoDismissed, membersBlocked]) set.delete(h.videoId);
-  autoMissing.delete(h.videoId);
+  forgetAutoMarks(h.videoId);
   setTileVideo(target, h.videoId, h.input || `https://www.youtube.com/watch?v=${h.videoId}`);
   const t = state.tiles[target];
   t.label = h.label || '';
@@ -5546,6 +5512,9 @@ function exportSelection(value, favs) {
   return { name: tr('packAllGroups'), list: favs };
 }
 
+/** 「パックを探す」の一覧を作り直す (一覧を取得したあとだけ。setupPacks で入れる) */
+let refreshCatalog = async () => {};
+
 function setupPacks() {
   const input = document.getElementById('packIn');
   const status = document.getElementById('packStatus');
@@ -5558,29 +5527,91 @@ function setupPacks() {
     ({ notPack: tr('packNotPack'), emptyPack: tr('packEmpty'), tooLarge: tr('packTooLarge'), badUrl: tr('packBadUrl') })[e.message] ||
     tr('packFetchFail', e.message || e);
 
-  /** パックの中身 (JSON) を確かめて、確認してから足す */
-  const importText = async (text) => {
+  /**
+   * パックの中身 (JSON) を確かめて、確認してから足す。report = 結果を出す場所。
+   * 戻り値: 読めたパック (足すものが無かったときも)。読めなかった・やめたときは null
+   */
+  const importText = async (text, report = setStatus) => {
     let pack;
     try {
       pack = ChannelPack.parse(text);
     } catch (e) {
-      setStatus(errorText(e), true);
-      return;
+      report(errorText(e), true);
+      return null;
     }
     const { added, existing } = await Favorites.previewPack(pack);
     if (!added) {
-      setStatus(tr('packNothing', pack.name));
-      return;
+      report(tr('packNothing', pack.name));
+      return pack;
     }
     if (!confirm(tr('packConfirm', pack.name, added, existing))) {
-      setStatus('');
-      return;
+      report('');
+      return null;
     }
     const n = await Favorites.importPack(pack);
-    input.value = '';
-    setStatus(tr('packAdded', pack.name, n));
+    if (report === setStatus) input.value = '';
+    report(tr('packAdded', pack.name, n));
     await afterPresetsChanged();
+    return pack;
   };
+
+  // ---- パックを探す (リポジトリの packs/ の一覧)。開いたときには取りに行かず、「一覧を取得」を押したときだけ取る
+  const catalogList = document.getElementById('catalogList');
+  const catalogStatus = document.getElementById('catalogStatus');
+  const setCatalogStatus = (text, isError = false) => {
+    catalogStatus.textContent = text;
+    catalogStatus.classList.toggle('share-error', isError);
+  };
+  let catalog = null;
+  const span = (className, text) => Object.assign(document.createElement('span'), { className, textContent: text });
+  refreshCatalog = async () => {
+    if (!catalog) return;
+    const [have, dates] = await Promise.all([Favorites.packs(), ChannelPack.importedDates()]);
+    const names = new Set(have.map((p) => p.name));
+    catalogList.replaceChildren(
+      ...catalog.map((p) => {
+        const li = document.createElement('li');
+        const body = document.createElement('div');
+        body.className = 'catalog-body';
+        const name = LANG === 'ja' ? p.name : p.nameEn;
+        const meta = [p.author && tr('catalogBy', p.author), p.updated && tr('catalogUpdated', p.updated), p.channels && tr('catalogChannels', p.channels)];
+        body.append(span('pack-name', name), span('catalog-meta', meta.filter(Boolean).join(' ・ ')));
+        const desc = LANG === 'ja' ? p.description : p.descriptionEn;
+        if (desc) body.append(span('catalog-desc', desc));
+        // 読み込み済み = そのパックから足したチャンネルが一覧にある。一覧の更新日が、読み込んだときより新しければ更新あり
+        const imported = names.has(p.name);
+        const newer = imported && !!p.updated && !!dates[p.name] && p.updated > dates[p.name];
+        if (newer) body.append(span('catalog-new', tr('catalogUpdateNote')));
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.textContent = tr(newer ? 'catalogUpdate' : imported ? 'catalogImported' : 'catalogImport');
+        b.disabled = imported && !newer;
+        b.addEventListener('click', async () => {
+          b.disabled = true;
+          setCatalogStatus(tr('packLoading'));
+          try {
+            const pack = await importText(await ChannelPack.fetchText(p.url), setCatalogStatus);
+            if (pack) await ChannelPack.markImported(pack.name, p.updated);
+          } catch (e) {
+            setCatalogStatus(errorText(e), true);
+          }
+          await refreshCatalog();
+        });
+        li.append(body, b);
+        return li;
+      }),
+    );
+  };
+  document.getElementById('catalogLoad').addEventListener('click', async () => {
+    setCatalogStatus(tr('packLoading'));
+    try {
+      catalog = await ChannelPack.fetchIndex();
+      setCatalogStatus(catalog.length ? '' : tr('catalogEmpty'));
+      await refreshCatalog();
+    } catch (e) {
+      setCatalogStatus(e.message === 'notIndex' ? tr('catalogBad') : errorText(e), true);
+    }
+  });
 
   document.getElementById('packLoad').addEventListener('click', async () => {
     const raw = input.value.trim();
@@ -5623,6 +5654,7 @@ function setupPacks() {
 async function afterPresetsChanged() {
   await refreshFavKeys();
   await updatePacks();
+  await refreshCatalog();
   if (favDialog.open && !isVideoMode()) await refreshFavorites(false);
 }
 
@@ -7159,6 +7191,12 @@ async function chooseSession() {
   else if (state.autoMode) setAutoMode(true, { resume: true });
   startNoticeWatch();
   handleImportLink();
+  handleAddLink();
+  // 右クリックのメニューからの追加を受け取る (起動し終えてから。それまでに押されたものは新しいタブで開く)
+  chrome.tabs
+    .getCurrent()
+    .then((tab) => tab && listenAddVideo(tab.id))
+    .catch(() => {});
 
   // インストール直後の 1 回だけ、使い方ツアーを出す (先に印を消して、他のタブでは出さない)
   const { tourPending } = await chrome.storage.local.get('tourPending');
