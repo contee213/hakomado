@@ -2845,12 +2845,24 @@ function drawQr(ctx, { qr, n, cell, size }, x, y) {
   }
 }
 
+/** 共有画像に描くロゴ (拡張機能の中の icons/icon.svg。読めなければ null で、文字だけにする) */
+let shareLogo = null;
+function loadShareLogo() {
+  shareLogo ||= new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => resolve(null);
+    img.src = 'icons/icon.svg';
+  });
+  return shareLogo;
+}
+
 /**
  * 共有セットの画像 (PNG の Blob) を作る (先頭から 16 本)。サムネイルの並びを画像いっぱいに敷いて背景にし、
  * その上に、左下に名前 (大きく) と小さい説明、右下に QR を重ねる:
  *   ┌──────────────────────────┐
  *   │ サムネイルの並び (画像いっぱい。チャンネル名は各枠の左上)  │
- *   │                                                  #tag │
+ *   │                                        [ロゴ] Hakomado │
  *   │ ░░░░░░░░░░░░░░░ 下を暗くぼかす ░░░░░░░░░░░░░░░  QR  │
  *   │ 名前 (大きく) / 本数・使い方 (小さく)                 QR  │
  *   └──────────────────────────┘
@@ -2930,12 +2942,17 @@ async function renderShareImage(set) {
   ctx.fillRect(qx, qy, qr.size, qr.size);
   ctx.shadowBlur = 0;
   drawQr(ctx, qr, qx, qy);
+  // QR の上: ロゴと「Hakomado」(QR の幅の真ん中に)
+  const LOGO = 40;
+  ctx.font = `700 26px ${SHARE_FONT}`;
+  const labelW = LOGO + 8 + ctx.measureText(SHARE_TAG).width;
+  const lx = Math.min(qx + (qr.size - labelW) / 2, SHARE_W - M - labelW);
+  const ly = qy - 12 - LOGO;
+  const logo = await loadShareLogo();
   ctx.shadowBlur = 8;
+  if (logo) ctx.drawImage(logo, lx, ly, LOGO, LOGO);
   ctx.fillStyle = '#fff';
-  ctx.font = `700 24px ${SHARE_FONT}`;
-  ctx.textAlign = 'center';
-  ctx.fillText(`#${SHARE_TAG}`, qx + qr.size / 2, qy - 12);
-  ctx.textAlign = 'start';
+  ctx.fillText(SHARE_TAG, lx + LOGO + 8, ly + LOGO / 2 + 9);
   ctx.shadowBlur = 0;
 
   return new Promise((resolve, reject) => canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('toBlob'))), 'image/png'));
