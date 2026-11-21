@@ -3,6 +3,8 @@
 //   (グループ名付きのチャンネルの一覧の JSON) を読み込めるようにする。形式は README の「チャンネルパック」を参照
 // - 読み込むときは中身を確かめ、知っている項目・正しい形の値だけを取り込む (データとして読むだけ。スクリプトなどは動かない)
 // - 取り込んだチャンネルには、どのパックから来たか (pack: パックの名前) を付けておき、パックごとにまとめて外せるようにする
+// - Hakomado のリポジトリの packs/ に集めたパックの一覧 (packs/index.json) を取ってきて、設定画面の「パックを探す」に出す。
+//   一覧のパックは利用者が PR で投稿したもの (非公式)。取得先は raw.githubusercontent.com (CORS で読めるので host 権限は要らない)
 // ここは形式の読み書きだけ。チャンネル一覧への足し引きは favorites.js
 /* exported ChannelPack */
 'use strict';
@@ -16,6 +18,14 @@ const ChannelPack = (() => {
   const HANDLE_RE = /^@[^\s/?#]{1,100}$/;
   // アイコンは YouTube の画像の置き場所のものだけ (ほかの URL は読み込ませない)
   const ICON_RE = /^https:\/\/(yt3\.ggpht\.com|yt3\.googleusercontent\.com|i\.ytimg\.com)\//;
+
+  // パックの一覧 (リポジトリの packs/)。一覧の各パックは、この下のファイル名だけを持つ (ほかの場所の URL は持たせない)
+  const CATALOG_BASE = 'https://raw.githubusercontent.com/contee213/hakomado/main/packs/';
+  const CATALOG_TYPE = 'pack-index';
+  const MAX_CATALOG = 300;
+  const ID_RE = /^[a-z0-9][a-z0-9-]{0,39}$/;
+  const FILE_RE = /^[a-z0-9][a-z0-9-]{0,39}\.json$/;
+  const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
   const str = (v, max) => (typeof v === 'string' ? v.replace(/[\u0000-\u001f]/g, ' ').trim().slice(0, max) : '');
 
@@ -85,5 +95,62 @@ const ChannelPack = (() => {
     return text;
   }
 
-  return { parse, build, fetchText };
+  /**
+   * パックの一覧 (packs/index.json) を確かめて、出せる形にする。おかしな項目は飛ばす。
+   * @returns {Array<{id, url, name, nameEn, author, updated, channels, description, descriptionEn}>}
+   * @throws {Error} message = 'notIndex'
+   */
+  function parseIndex(text) {
+    let json;
+    try {
+      json = JSON.parse(text);
+    } catch {
+      throw new Error('notIndex');
+    }
+    if (!json || typeof json !== 'object' || json.app !== APP || json.type !== CATALOG_TYPE || !Array.isArray(json.packs)) {
+      throw new Error('notIndex');
+    }
+    const seen = new Set();
+    const out = [];
+    for (const p of json.packs) {
+      if (out.length >= MAX_CATALOG) break;
+      if (!p || typeof p !== 'object' || !ID_RE.test(p.id) || !FILE_RE.test(p.file) || seen.has(p.id)) continue;
+      const name = str(p.name, 50);
+      if (!name) continue;
+      seen.add(p.id);
+      out.push({
+        id: p.id,
+        url: CATALOG_BASE + p.file,
+        name,
+        nameEn: str(p.nameEn, 50) || name,
+        author: str(p.author, 100),
+        updated: DATE_RE.test(p.updated) ? p.updated : '',
+        channels: Number.isInteger(p.channels) && p.channels > 0 ? Math.min(p.channels, MAX_CHANNELS) : 0,
+        description: str(p.description, 300),
+        descriptionEn: str(p.descriptionEn, 300) || str(p.description, 300),
+      });
+    }
+    return out;
+  }
+
+  /** パックの一覧を取ってくる */
+  async function fetchIndex() {
+    return parseIndex(await fetchText(CATALOG_BASE + 'index.json'));
+  }
+
+  // 一覧から読み込んだパックの更新日 ({パックの名前: 更新日})。一覧の更新日のほうが新しければ「更新があります」と出す
+  const IMPORTED_KEY = 'packCatalogImported';
+  async function importedDates() {
+    const { [IMPORTED_KEY]: v } = await chrome.storage.local.get(IMPORTED_KEY);
+    return v && typeof v === 'object' && !Array.isArray(v) ? v : {};
+  }
+  async function markImported(name, updated) {
+    await navigator.locks.request('hakomado-pack-catalog', async () => {
+      const all = await importedDates();
+      all[name] = updated;
+      await chrome.storage.local.set({ [IMPORTED_KEY]: all });
+    });
+  }
+
+  return { parse, build, fetchText, parseIndex, fetchIndex, importedDates, markImported, CATALOG_BASE };
 })();

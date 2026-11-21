@@ -5044,6 +5044,9 @@ function exportSelection(value, favs) {
   return { name: tr('packAllGroups'), list: favs };
 }
 
+/** 「パックを探す」の一覧を作り直す (一覧を取得したあとだけ。setupPacks で入れる) */
+let refreshCatalog = async () => {};
+
 function setupPacks() {
   const input = document.getElementById('packIn');
   const status = document.getElementById('packStatus');
@@ -5056,29 +5059,91 @@ function setupPacks() {
     ({ notPack: tr('packNotPack'), emptyPack: tr('packEmpty'), tooLarge: tr('packTooLarge'), badUrl: tr('packBadUrl') })[e.message] ||
     tr('packFetchFail', e.message || e);
 
-  /** パックの中身 (JSON) を確かめて、確認してから足す */
-  const importText = async (text) => {
+  /**
+   * パックの中身 (JSON) を確かめて、確認してから足す。report = 結果を出す場所。
+   * 戻り値: 読めたパック (足すものが無かったときも)。読めなかった・やめたときは null
+   */
+  const importText = async (text, report = setStatus) => {
     let pack;
     try {
       pack = ChannelPack.parse(text);
     } catch (e) {
-      setStatus(errorText(e), true);
-      return;
+      report(errorText(e), true);
+      return null;
     }
     const { added, existing } = await Favorites.previewPack(pack);
     if (!added) {
-      setStatus(tr('packNothing', pack.name));
-      return;
+      report(tr('packNothing', pack.name));
+      return pack;
     }
     if (!confirm(tr('packConfirm', pack.name, added, existing))) {
-      setStatus('');
-      return;
+      report('');
+      return null;
     }
     const n = await Favorites.importPack(pack);
-    input.value = '';
-    setStatus(tr('packAdded', pack.name, n));
+    if (report === setStatus) input.value = '';
+    report(tr('packAdded', pack.name, n));
     await afterPresetsChanged();
+    return pack;
   };
+
+  // ---- パックを探す (リポジトリの packs/ の一覧)。開いたときには取りに行かず、「一覧を取得」を押したときだけ取る
+  const catalogList = document.getElementById('catalogList');
+  const catalogStatus = document.getElementById('catalogStatus');
+  const setCatalogStatus = (text, isError = false) => {
+    catalogStatus.textContent = text;
+    catalogStatus.classList.toggle('share-error', isError);
+  };
+  let catalog = null;
+  const span = (className, text) => Object.assign(document.createElement('span'), { className, textContent: text });
+  refreshCatalog = async () => {
+    if (!catalog) return;
+    const [have, dates] = await Promise.all([Favorites.packs(), ChannelPack.importedDates()]);
+    const names = new Set(have.map((p) => p.name));
+    catalogList.replaceChildren(
+      ...catalog.map((p) => {
+        const li = document.createElement('li');
+        const body = document.createElement('div');
+        body.className = 'catalog-body';
+        const name = LANG === 'ja' ? p.name : p.nameEn;
+        const meta = [p.author && tr('catalogBy', p.author), p.updated && tr('catalogUpdated', p.updated), p.channels && tr('catalogChannels', p.channels)];
+        body.append(span('pack-name', name), span('catalog-meta', meta.filter(Boolean).join(' ・ ')));
+        const desc = LANG === 'ja' ? p.description : p.descriptionEn;
+        if (desc) body.append(span('catalog-desc', desc));
+        // 読み込み済み = そのパックから足したチャンネルが一覧にある。一覧の更新日が、読み込んだときより新しければ更新あり
+        const imported = names.has(p.name);
+        const newer = imported && !!p.updated && !!dates[p.name] && p.updated > dates[p.name];
+        if (newer) body.append(span('catalog-new', tr('catalogUpdateNote')));
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.textContent = tr(newer ? 'catalogUpdate' : imported ? 'catalogImported' : 'catalogImport');
+        b.disabled = imported && !newer;
+        b.addEventListener('click', async () => {
+          b.disabled = true;
+          setCatalogStatus(tr('packLoading'));
+          try {
+            const pack = await importText(await ChannelPack.fetchText(p.url), setCatalogStatus);
+            if (pack) await ChannelPack.markImported(pack.name, p.updated);
+          } catch (e) {
+            setCatalogStatus(errorText(e), true);
+          }
+          await refreshCatalog();
+        });
+        li.append(body, b);
+        return li;
+      }),
+    );
+  };
+  document.getElementById('catalogLoad').addEventListener('click', async () => {
+    setCatalogStatus(tr('packLoading'));
+    try {
+      catalog = await ChannelPack.fetchIndex();
+      setCatalogStatus(catalog.length ? '' : tr('catalogEmpty'));
+      await refreshCatalog();
+    } catch (e) {
+      setCatalogStatus(e.message === 'notIndex' ? tr('catalogBad') : errorText(e), true);
+    }
+  });
 
   document.getElementById('packLoad').addEventListener('click', async () => {
     const raw = input.value.trim();
@@ -5121,6 +5186,7 @@ function setupPacks() {
 async function afterPresetsChanged() {
   await refreshFavKeys();
   await updatePacks();
+  await refreshCatalog();
   if (favDialog.open && !isVideoMode()) await refreshFavorites(false);
 }
 

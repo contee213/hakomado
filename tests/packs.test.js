@@ -163,3 +163,66 @@ test('URL からの取得: 失敗した応答・大きすぎる中身', async ()
   res = { ok: true, status: 200, text: async () => 'x'.repeat(2 * 1024 * 1024 + 1) };
   await assert.rejects(P.fetchText('https://example.com/p.json'), { message: 'tooLarge' });
 });
+
+// ---- パックの一覧 (packs/index.json の形式)
+const index = (packs) => JSON.stringify({ app: 'hakomado', type: 'pack-index', packs });
+const entry = (over = {}) => ({ id: 'group', file: 'group.json', name: 'グループ', updated: '2026-11-21', channels: 10, ...over });
+
+test('パックの一覧を読む: URL はリポジトリの packs/ の下だけ', () => {
+  const P = setup();
+  const [e] = plain(P.parseIndex(index([entry({ nameEn: 'Group', author: 'A', description: '説明', descriptionEn: 'Desc' })])));
+  assert.deepEqual(e, {
+    id: 'group',
+    url: 'https://raw.githubusercontent.com/contee213/hakomado/main/packs/group.json',
+    name: 'グループ',
+    nameEn: 'Group',
+    author: 'A',
+    updated: '2026-11-21',
+    channels: 10,
+    description: '説明',
+    descriptionEn: 'Desc',
+  });
+  // 英語が無ければ日本語のまま
+  const [f] = plain(P.parseIndex(index([entry({ description: 'だけ' })])));
+  assert.equal(f.nameEn, 'グループ');
+  assert.equal(f.descriptionEn, 'だけ');
+});
+
+test('パックの一覧: おかしな項目は飛ばす', () => {
+  const P = setup();
+  const r = plain(
+    P.parseIndex(
+      index([
+        entry(),
+        entry(), // 同じ id
+        entry({ id: 'x', file: '../secret.json' }),
+        entry({ id: 'y', file: 'https://evil.example/p.json' }),
+        entry({ id: 'z', file: 'z.txt' }),
+        entry({ id: 'Upper', file: 'u.json' }),
+        entry({ id: 'noname', file: 'n.json', name: '' }),
+        null,
+        entry({ id: 'odd', file: 'odd.json', updated: 'yesterday', channels: -3 }),
+      ]),
+    ),
+  );
+  assert.deepEqual(r.map((e) => e.id), ['group', 'odd']);
+  assert.equal(r[1].updated, '');
+  assert.equal(r[1].channels, 0);
+});
+
+test('パックの一覧として読めないものは notIndex', () => {
+  const P = setup();
+  for (const text of ['{', 'null', '[]', JSON.stringify({ app: 'hakomado', type: 'channels', packs: [] }), JSON.stringify({ app: 'x', type: 'pack-index', packs: [] }), JSON.stringify({ app: 'hakomado', type: 'pack-index' })]) {
+    assert.throws(() => P.parseIndex(text), { message: 'notIndex' }, text);
+  }
+});
+
+test('一覧から読み込んだパックの更新日を覚える', async () => {
+  const env = load(['packs.js']);
+  const P = env.get('ChannelPack');
+  assert.deepEqual(plain(await P.importedDates()), {});
+  await P.markImported('A', '2026-11-01');
+  await P.markImported('B', '2026-11-02');
+  await P.markImported('A', '2026-11-21');
+  assert.deepEqual(plain(await P.importedDates()), { A: '2026-11-21', B: '2026-11-02' });
+});

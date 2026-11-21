@@ -205,6 +205,13 @@
           </div>
         </div>
         <div class="settings-col">
+          <span class="field-label" data-i18n="catalog.h">パックを探す</span>
+          <p class="settings-note" data-i18n="catalog.note">Hakomado のリポジトリ (GitHub) に集めたチャンネルパックの一覧です。パックは利用者が作って投稿した非公式のもので、各事務所・配信者とは関係ありません。内容の誤りや追加の希望は GitHub で知らせてください</p>
+          <div class="pack-row">
+            <button type="button" id="catalogLoad" data-i18n="catalog.load">一覧を取得</button>
+            <span id="catalogStatus" class="share-status" role="status"></span>
+          </div>
+          <ul id="catalogList" class="pack-list catalog-list"></ul>
           <span class="field-label" data-i18n="pack.h">チャンネルパックを読み込む</span>
           <p class="settings-note" data-i18n="pack.note">ほかの人が作ったチャンネルの一覧 (チャンネルパック) を、今のチャンネル一覧に足します。URL か中身を貼り付けて「読み込む」を押すか、ファイルを選んでください。登録済みのチャンネルはそのままです</p>
           <textarea id="packIn" class="share-text pack-in" rows="2" spellcheck="false" data-i18n-placeholder="pack.placeholder" placeholder="https://… (パックの URL) / { &quot;app&quot;: &quot;hakomado&quot;, … }"></textarea>
