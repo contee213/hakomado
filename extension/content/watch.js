@@ -6,6 +6,7 @@
 
   const params = new URLSearchParams(location.search);
   if (window.top === window || params.get('hakomado') !== '1') return;
+  ErrLog.install('watch');
 
   const PARENT_ORIGIN = 'chrome-extension://' + chrome.runtime.id;
   document.documentElement.classList.add('hakomado-frame');

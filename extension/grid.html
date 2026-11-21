@@ -267,6 +267,7 @@
           <button type="button" role="tab" data-help="look" data-i18n="helpNav.look">弾幕・チャット・枠の線</button>
           <button type="button" role="tab" data-help="backup" data-i18n="helpNav.backup">バックアップ</button>
           <button type="button" role="tab" data-help="keys" data-i18n="helpNav.keys">キー操作</button>
+          <button type="button" role="tab" data-help="report" id="helpReportTab" data-i18n="helpNav.report">不具合の報告</button>
         </nav>
         <div class="help-content">
           <section class="help-page" data-help-page="start" role="tabpanel" data-i18n-html="helpPage.start">
@@ -385,6 +386,23 @@
               <tr><th><kbd>?</kbd></th><td data-i18n="key.help">この画面を開く</td></tr>
             </table>
           </section>
+          <section class="help-page" data-help-page="report" role="tabpanel" hidden>
+            <div data-i18n-html="helpPage.report">
+              <p>この拡張機能で発生したエラーと、動作しなかった機能の記録です。不具合の報告に使用します。</p>
+              <ul>
+                <li>記録はこのパソコン内にのみ保存され、外部には送信されません。新しい順に最大 100 件を保存し、7 日を過ぎたものは削除します。同じ内容は 1 件にまとめ、発生回数を表示します</li>
+                <li><b>GitHub で報告</b>: 記録と環境情報 (バージョン・ブラウザ・OS) を記入した Issue の作成画面を開きます。送信前に内容を確認・編集できます。Issue は公開されるため、公開したくない情報 (動画 ID・チャンネル名など) は削除してから送信してください。GitHub のアカウントが必要です</li>
+                <li><b>コピー</b>: 同じ内容をクリップボードにコピーします。メールなど GitHub 以外で報告する場合に使用してください</li>
+              </ul>
+            </div>
+            <div class="errlog-actions">
+              <button type="button" id="errReport" class="primary" data-i18n="errlog.report">GitHub で報告</button>
+              <button type="button" id="errCopy" data-i18n="errlog.copy">コピー</button>
+              <button type="button" id="errClear" data-i18n="errlog.clear">記録を削除</button>
+            </div>
+            <p class="errlog-empty" id="errEmpty" data-i18n="errlog.empty">記録はありません</p>
+            <ol class="errlog-list" id="errList"></ol>
+          </section>
         </div>
       </div>
       <div class="help-foot">
@@ -472,7 +490,9 @@
       </div>
       <details class="pl-ai">
         <summary data-i18n="read.aiH">🤖 AI チャットに作ってもらう</summary>
-        <p class="settings-note" data-i18n="read.aiNote">頼み文 (書き方の説明と、登録しているチャンネルの一覧) をコピーして Claude などの AI チャットに貼り、見たいものを書き足して送ります。返ってきたリストを上に貼るか、取り込み用リンクを開くと読み込めます</p>
+        <p class="settings-note" data-i18n="read.aiNote">見たいものを書いて頼み文 (見たいもの・書き方の説明・登録しているチャンネルの一覧) をコピーし、Claude などの AI チャット (Web 検索が使えるもの) に貼って送ります。返ってきたリストを上に貼るか、取り込み用リンクを開くと読み込めます</p>
+        <label class="field-label" for="readAiWant" data-i18n="read.aiWantLabel">見たいもの</label>
+        <textarea id="readAiWant" class="share-text" rows="3" maxlength="1000" data-i18n-placeholder="read.aiWantPlaceholder" placeholder="例: 昨日の配信で話題になっていたものを 10 本 / 今週のコラボ企画を参加者全員の視点で / 明日の夜に見られる歌枠"></textarea>
         <div class="share-buttons">
           <button type="button" id="readAi" data-i18n="read.ai">📋 頼み文をコピー</button>
           <span id="readAiCopied" class="share-status" role="status"></span>
@@ -730,6 +750,7 @@
     </section>
   </template>
 
+  <script src="errlog.js"></script>
   <script src="i18n.js"></script>
   <script src="layouts-generated.js"></script>
   <script src="layouts.js"></script>

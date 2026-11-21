@@ -34,6 +34,21 @@ function setLangPref(v) {
 
 // スクリプトから出す文言 (両方の言語)
 const MESSAGES = {
+  // 不具合の報告 (エラーの記録)
+  errSrc_grid: ['マルチビュー画面', 'Multiview page'],
+  errSrc_background: ['バックグラウンド', 'Background'],
+  errSrc_watch: ['枠の動画', 'Video in a tile'],
+  errSrc_chat: ['枠のチャット', 'Chat in a tile'],
+  errTimes: ['×{0} 回', '×{0}'],
+  errCopied: ['報告の内容をクリップボードにコピーしました', 'Copied the report to the clipboard'],
+  errCleared: ['エラーの記録を削除しました', 'Deleted the error record'],
+  errClearConfirm: ['エラーの記録をすべて削除します。よろしいですか？', 'All entries in the error record will be deleted. Continue?'],
+  errIssueTitle: ['不具合の報告: ', 'Problem report: '],
+  errBodyWhat: ['## 発生した問題\n(操作内容と、発生した現象を記入してください)', '## Problem\n(Describe what you did and what happened)'],
+  errBodyEnv: ['## 環境', '## Environment'],
+  errBodyLog: ['## エラーの記録 (新しい順、{0} / {1} 件)', '## Error record (newest first, {0} of {1})'],
+  errBodyNone: ['(記録はありません)', '(nothing recorded)'],
+
   // 入力
   inputEmpty: ['URL か動画 ID を入力してください', 'Enter a URL or video ID'],
   notUrl: ['URL として読み取れませんでした', 'Could not read this as a URL'],
@@ -522,7 +537,11 @@ const MESSAGES = {
   plSyncStarted: ['⏱ 再生リスト「{0}」を同期再生します ({1} 本)。アーカイブだと分かりしだい同期を始めます', '⏱ Playing playlist "{0}" in sync ({1}). Sync starts once the archives are recognized'],
   plShareCopiedText: ['テキストをコピーしました', 'Copied the text'],
   plShareCopiedLink: ['リンクをコピーしました', 'Copied the link'],
-  shareAiCopied: ['コピーしました。AI チャットに貼って、「見たいもの」を書き足してください', 'Copied. Paste it into an AI chat and fill in what you want to watch'],
+  shareAiCopied: ['コピーしました。AI チャットに貼って送ってください', 'Copied. Paste it into an AI chat and send it'],
+  shareAiCopiedEmpty: [
+    'コピーしました。AI チャットに貼り、「見たいもの」を書き足して送ってください',
+    'Copied. Paste it into an AI chat, fill in what you want to watch and send it',
+  ],
   shareAiFailed: ['コピーできませんでした', 'Could not copy'],
   importReceived: [
     'リンクから {0} 本を受け取りました。名前を確かめて「📃 再生リストとして保存」を押してください (枠に並べることもできます)',
@@ -775,7 +794,9 @@ const HTML_EN = {
   'read.save': '📃 Save as playlist',
   'read.saveTitle': 'Save as a playlist with this name and open it in the library (up to 200; a playlist with the same name is replaced)',
   'read.aiH': '🤖 Ask an AI chat to make one',
-  'read.aiNote': 'Copy a request (how to write the list, plus the channels you follow), paste it into an AI chat such as Claude, add what you want to watch and send it. Paste the list you get back above, or open the import link',
+  'read.aiNote': 'Write what you want to watch, copy the request (what you want, how to write the list, and the channels you follow), then paste it into an AI chat that can search the web, such as Claude, and send it. Paste the list you get back above, or open the import link',
+  'read.aiWantLabel': 'What you want to watch',
+  'read.aiWantPlaceholder': 'e.g. 10 of yesterday’s streams people were talking about / this week’s collab from every participant’s view / karaoke streams I can watch tomorrow night',
   'read.ai': '📋 Copy request',
   'helpNav.start': 'Getting started',
   'helpNav.tiles': '▦ Tiles and layouts',
@@ -882,6 +903,17 @@ const HTML_EN = {
   'key.info': 'Open the tile info',
   'key.danmaku': 'Hide / show danmaku on all tiles for now (unless set with ≋ on a tile, danmaku shows only on main tiles)',
   'tour.replay': '▶ Replay the tour',
+  'helpNav.report': 'Report a problem',
+  'helpPage.report': `<p>A record of errors in this extension and features that did not work. Use it to report problems.</p>
+<ul>
+<li>The record is stored only on this computer and is not sent anywhere. Up to 100 entries are kept, newest first, and entries older than 7 days are deleted. Identical entries are combined and shown with a count</li>
+<li><b>Report on GitHub</b>: opens a new GitHub issue form with the record and environment details (version, browser, OS) filled in. You can review and edit it before submitting. Issues are public, so remove any information you do not want to make public (video IDs, channel names, etc.) before submitting. A GitHub account is required</li>
+<li><b>Copy</b>: copies the same content to the clipboard. Use this to report by email or other means</li>
+</ul>`,
+  'errlog.report': 'Report on GitHub',
+  'errlog.copy': 'Copy',
+  'errlog.clear': 'Delete the record',
+  'errlog.empty': 'Nothing recorded',
   'key.help': 'Open this screen',
 
   // レイアウト

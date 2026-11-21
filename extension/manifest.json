@@ -3,7 +3,7 @@
   "name": "__MSG_extName__",
   "short_name": "Hakomado",
   "version": "0.2.0",
-  "version_name": "0.2.0 (build 86 / 2026-11-22)",
+  "version_name": "0.2.0 (build 87 / 2026-11-22)",
   "description": "__MSG_extDescription__",
   "default_locale": "en",
   "minimum_chrome_version": "128",
@@ -37,7 +37,7 @@
       "matches": [
         "https://www.youtube.com/live_chat*"
       ],
-      "js": ["content/chat.js"],
+      "js": ["errlog.js", "content/chat.js"],
       "all_frames": true,
       "run_at": "document_idle"
     },
@@ -45,7 +45,7 @@
       "matches": [
         "https://www.youtube.com/watch*"
       ],
-      "js": ["content/watch.js"],
+      "js": ["errlog.js", "content/watch.js"],
       "css": ["content/watch.css"],
       "all_frames": true,
       "run_at": "document_start"
