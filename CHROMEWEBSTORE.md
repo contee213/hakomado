@@ -1,29 +1,188 @@
 # Chrome Web Store 掲載情報
 
 Chrome ウェブストアのデベロッパー ダッシュボードに入れる内容の控えです。
-今はストアに公開していません (GitHub のリリースから開発者モードで読み込む配布) が、
-権限の理由をいつでも説明できるように、拡張機能を変えたらここも合わせて直します。
+**限定公開 (Unlisted) で出す準備中**です (まだ登録・提出はしていません)。今の配布は GitHub のリリースから開発者モードで読み込む形で、
+ストア版を出したあとも ZIP の配布は続けます。拡張機能を変えたらここも合わせて直します。
 
+- 最終更新: 2026-11-22
 - 対象バージョン: 0.2.0 (`extension/manifest.json`)
 - 最低 Chrome バージョン: 128 (Manifest V3)
+
+## 公開の設定
+
+- 公開範囲: **限定公開 (Unlisted)**。ストアの検索・一覧には出ず、掲載ページの URL を知っている人だけが入れられる。
+  URL は README・GitHub のリリースに載せる。審査は一般公開と同じように受ける
+- 地域: すべての地域
+- 一般公開に切り替えるのは、限定公開で審査が通り、数回の更新でも問題が無いと分かってから考える (下の「審査で指摘されそうな点」)
 
 ## 拡張機能の ID
 
 - GitHub のリリースの ZIP は、`manifest.json` に `"key"` (公開鍵 `tools/release-key.pub`) を入れて ID を `lhafnnpnfpgogdbapeepkgohemnnifpp` に固定している
   (`.github/workflows/release.yml` が ZIP を作るときに `tools/release-key.js` で差し込む。リポジトリの `extension/manifest.json` には入れない)
-- ストアに上げるパッケージには `"key"` を入れない (ストアが自分の鍵で ID を決める)。ストア版と ZIP 版の ID をそろえたいときは、
-  ダッシュボードの「パッケージ」→「公開鍵を表示」の鍵を `tools/release-key.pub` に入れ替える (`tests/release-key.test.js` の ID も直す)
+- ストアに上げるパッケージには `"key"` を入れない (ストアが自分の鍵で ID を決める)。リリースの workflow が、`"key"` を差し込む前に
+  `hakomado-x.y.z-chrome-web-store.zip` を作ってリリースに添える
+- **ストア版と ZIP 版は別の ID のままにする**。ZIP 版の ID をストアの鍵に入れ替えると、ZIP 版を使っている人の ID がまた変わり、
+  設定やチャンネルが引き継がれなくなるため。両方を同じプロファイルに入れると別の拡張機能として 2 つ動く
+  (右クリックのメニューも 2 つ出る) ので、乗り換える人には「⚙ 設定 →『バックアップ』で書き出し → ストア版で読み込み → ZIP 版を削除」を案内する
+
+## ストアに上げる手順
+
+初回 (デベロッパー登録とアイテムの作成):
+
+1. [デベロッパー ダッシュボード](https://chrome.google.com/webstore/devconsole) で登録する (登録料 5 ドル・1 回だけ)。
+   2 段階認証が要る。連絡先メールアドレスはストアに公開されるので、公開してよいアドレスを使う
+2. 「取引業者 (Trader) かどうか」の申告: 無料の趣味のツールで収益も無いので「取引業者ではない」を選ぶ (取引業者を選ぶと住所・電話番号が EU の利用者に公開される)
+3. タグ `vX.Y.Z` で作られた GitHub のリリースから `hakomado-X.Y.Z-chrome-web-store.zip` をダウンロードし、「新しいアイテム」でアップロードする
+4. 「ストアの掲載情報」「プライバシー」「配布」の各タブを、このファイルの内容で埋める (下の各節)
+5. 「審査のために送信」。公開のタイミングは「審査が通ったら自動で公開」でかまわない (限定公開なので人目に付かない)
+6. 公開されたら、掲載ページの URL を README / README.en.md の「インストール」に足す
+
+更新のとき:
+
+1. いつもどおり `manifest.json` の version を上げてタグを打つ (ストアは前に上げた版以下の version を受け付けない)
+2. リリースの `-chrome-web-store.zip` を「パッケージ」→「新しいパッケージをアップロード」で上げて、審査に送る
+3. 権限・通信先・保存する情報が変わったときは、送る前にこのファイルとダッシュボードの「プライバシー」タブ・[プライバシーポリシー](docs/privacy.md) を合わせて直す
+
+版を上げるたびにストアに出す必要は無い。審査に数日かかることもあるので、まとまった区切りで出す。
 
 ## ストアの掲載情報
 
-- 名前: Hakomado
-- 概要 (short description): YouTube の配信を 1 画面で最大 16 枠並べて同時視聴する (`_locales/*/messages.json` の `extDescription`)
+- 名前: `manifest.json` の `extName` がそのまま使われる (ja: `Hakomado – YouTube配信の複窓・マルチビュー(最大16枠)` / en: `Hakomado – Multiview for YouTube (up to 16 streams)`)
+- 概要 (short description): `manifest.json` の `extDescription` がそのまま使われる (ja 41 文字 / en 88 文字。上限 132 文字)
 - カテゴリ: エンターテイメント
-- 言語: 日本語 / 英語 (既定は英語 `default_locale: en`)
+- 言語: 日本語 / 英語 (既定は英語 `default_locale: en`)。ダッシュボードで言語ごとに詳しい説明を入れる
+- ホームページの URL: https://github.com/contee213/hakomado
+- サポートの URL: https://github.com/contee213/hakomado/issues
+
+### 詳しい説明 (日本語)
+
+ストアは Markdown を使えないので、そのまま貼る。
+
+```text
+YouTube の配信・動画を 1 つの画面に最大 16 枠並べて、同時に視聴できます。
+
+コラボ配信の各視点や、同じ時間に重なった推しの配信を、タブを切り替えずにまとめて見るための拡張機能です。ブラウザでログインしている YouTube アカウントがそのまま使われるので、メンバー限定配信も見られます。
+
+■ 主な機能
+・分割表示: 均等・メイン + サブ・小窓 (PinP) のレイアウト。どの枠も 16:9 に自動で合わせます
+・弾幕 / チャット欄: 各枠のライブチャットを画面に流したり、横に出して書き込んだりできます
+・チャンネル: 追加したチャンネルの配信中・予定と、最近終わった配信を一覧で表示
+・自動再生: 配信中のチャンネルを自動で並べ、始まった / 終わった配信に合わせて枠を増減
+・アーカイブ同期: コラボ配信の各視点のアーカイブを、配信していた実際の時刻でそろえて再生
+・音の左右と音量: 枠ごとに音を左 / 右から聞こえるようにしたり、音量を変えたりできます (2 視点の聞き分けに)
+・再生リスト / 視聴履歴 / あとで見る / 配信開始の通知
+・共有: 今の枠や再生リストを、画像・1 行のコード・リンクにして人に渡せます
+・右クリックで追加: YouTube のリンクを右クリック →「Hakomado の空き枠に追加」
+
+■ 使い方
+1. ツールバーの Hakomado のアイコンを押すと、マルチビュー画面が開きます
+2. 上の「自動再生」を押すと、配信中のチャンネルが自動で並びます
+3. 自分で選ぶときは、空いている枠に URL・動画 ID・@チャンネル名を貼るか、「チャンネルから選ぶ」「ライブラリから選ぶ」で選びます
+4. 音を出す枠は、枠のバーのスピーカーか数字キー (1〜9) で切り替えます
+細かい操作は、画面右上の「?」(使い方) で見られます。
+
+■ プライバシー
+開発者は利用者の情報を一切集めません (アクセス解析・広告もありません)。設定・チャンネル・視聴履歴などは、すべてお使いのブラウザの中にだけ保存されます。
+
+■ 権限について
+「www.youtube.com のデータの読み取りと変更」は、YouTube のプレイヤーとライブチャットをマルチビュー画面の枠の中に表示し、再生・音量・同期を操作するためと、配信の一覧を取得するために使います。マルチビュー画面を開いているタブの中でだけ働きます。
+「schedule.hololive.tv のデータの読み取りと変更」は、初期データのチャンネルの配信予定をまとめて取得するために使います。
+
+■ ご注意
+個人が作った非公式のツールです。YouTube / Google や、初期データとして入っているチャンネルの運営元とは関係ありません。YouTube のページの構成が変わると、一部の機能が動かなくなることがあります。
+
+■ 不具合・要望
+画面右上の「?」→「不具合の報告」から、エラーの記録を確かめて GitHub で報告できます。
+https://github.com/contee213/hakomado/issues
+```
+
+### 詳しい説明 (英語)
+
+```text
+Watch up to 16 YouTube streams and videos side by side on one screen.
+
+Built for watching every point of view of a collab stream, or several overlapping streams, without switching tabs. It uses the YouTube account you are already signed in to in your browser, so members-only streams work too.
+
+FEATURES
+• Layouts: equal grid, main + sub tiles, or picture-in-picture. Every tile keeps a 16:9 shape
+• Danmaku / chat panel: scroll each tile's live chat across the video, or open the chat beside it and post
+• Channels: see live, upcoming and recently finished streams from the channels you add
+• Auto play: automatically fills tiles with live channels and adds or removes tiles as streams start and end
+• Archive sync: play the archives of a collab's different points of view aligned to the real time they were streamed
+• Per-tile audio: pan each tile's sound left or right and change its volume (handy for telling two voices apart)
+• Playlists, watch history, Watch later and go-live notifications
+• Sharing: turn your current tiles or a playlist into an image, a one-line code or a link
+• Right-click to add: right-click a YouTube link and choose "Add to an empty Hakomado tile"
+
+HOW TO USE
+1. Click the Hakomado icon in the toolbar to open the multiview screen
+2. Press "Auto play" at the top to fill tiles with live channels
+3. To choose yourself, paste a URL, video ID or @handle into an empty tile, or use "Pick from channels" / "Pick from library"
+4. Pick the tile you hear with the speaker button on its bar or the number keys (1–9)
+Press "?" (Help) at the top right for all controls and shortcuts.
+
+PRIVACY
+The developer collects no information about you (no analytics, no ads). Your settings, channels, watch history and so on are stored only in your own browser.
+
+PERMISSIONS
+"Read and change your data on www.youtube.com" is used to show the YouTube player and live chat inside the tiles of the multiview screen, to control playback, volume and sync, and to load stream lists. It only takes effect in tabs where the multiview screen is open.
+"Read and change your data on schedule.hololive.tv" is used to load the stream schedule of the bundled channels in one request.
+
+NOTE
+This is an unofficial tool made by an individual. It is not affiliated with YouTube / Google or with the operators of the bundled channels. Some features may stop working when YouTube changes its pages.
+
+BUGS AND REQUESTS
+Open "?" → "Report a problem" at the top right to review the error record and report it on GitHub.
+https://github.com/contee213/hakomado/issues
+```
+
+### 画像
+
+| 画像 | 大きさ | 状態 | メモ |
+| --- | --- | --- | --- |
+| ストアのアイコン | 128×128 PNG | ✅ | `extension/icons/icon-128.png` をそのまま使う |
+| スクリーンショット 1 (必須) | 1280×800 | ⬜ まだ | 2×2 で 4 枠を並べた画面。弾幕を流している |
+| スクリーンショット 2 | 1280×800 | ⬜ まだ | メイン + サブのレイアウトで、横にチャット欄を出した画面 |
+| スクリーンショット 3 | 1280×800 | ⬜ まだ | 「📺 チャンネル」の一覧 (配信中・予定) |
+| スクリーンショット 4 | 1280×800 | ⬜ まだ | 「⏱ アーカイブ同期」か「🎚 音の左右と音量」の画面 |
+| スクリーンショット 5 | 1280×800 | ⬜ まだ | 「🔗 共有」の画像・コード |
+| 小さいプロモーション タイル | 440×280 | ⬜ まだ (任意) | ロゴと「最大 16 枠を同時視聴」の文字だけ |
+
+スクリーンショットの決まり (他人の権利と商標を写さないため):
+
+- 枠に映す動画は、自分で権利を持っているもの (自分のチャンネルの動画)、またはクリエイティブ・コモンズ (CC BY) の動画にする。ホロライブなど他人の配信・サムネイル・チャンネルのアイコンは写さない
+- 写すしかないところ (チャンネルの一覧のアイコンなど) はぼかすか、無地の画像に置き換える
+- YouTube のロゴを大きく見せない。説明文や画像の文字で「公式」「YouTube 公認」のように見せない
+- ブラウザのアドレスバー・ブックマーク・ログイン中のアカウント名とアイコンは写さない (マルチビュー画面だけを切り取る)
+- 画面は今の版のものにする。見た目を大きく変えたら撮り直す
+
+## 審査向けのメモ (テストの手順)
+
+ダッシュボードの「テストの手順」欄に入れる (英語)。ログインは要らない (公開の配信は未ログインでも見られる)。
+
+```text
+No account is needed; public streams can be watched without signing in to YouTube.
+
+1. Click the Hakomado toolbar icon. The multiview screen opens in a new tab (a short tour is shown on first run; it can be skipped).
+2. Paste https://www.youtube.com/watch?v=jfKfPfyJRdk into an empty tile and press Enter. The YouTube player appears in the tile.
+3. Add a second video the same way (any public video or live stream). Hover over a tile to show its bar, and use the 🔊 button on each tile's bar or the number keys 1-9 to switch which tile you hear.
+4. "▦ Layout" at the top changes the arrangement. Hover over a tile to show its bar; for a live stream, the 💬 button opens the live chat beside the video.
+5. Right-click any YouTube video link on youtube.com and choose "Add to an empty Hakomado tile".
+
+About declarativeNetRequest: YouTube watch and live chat pages send X-Frame-Options, which blocks them from appearing inside the extension's multiview page. The extension removes only that header, only for youtube.com/watch and youtube.com/live_chat sub-frame responses, and only in tabs where the multiview screen is open (session rules scoped by tabIds). No other headers or sites are touched.
+```
+
+## 審査で指摘されそうな点
+
+- **`X-Frame-Options` を外していること**: 拡張機能の作りそのものなので外せない。対象を「マルチビュー画面のタブ・`watch` / `live_chat` の iframe・このヘッダーだけ」に絞っていることを、権限の理由と審査向けのメモに書いてある。
+  同じ仕組みのマルチビュー拡張機能はストアにほかにもあるが、通らなかったり、掲載後に取り下げられたりすることもありうる。その場合は ZIP の配布だけに戻す
+- **名前の「YouTube」**: 「〜 for YouTube」の形は、提供元と誤解させない書き方として一般に使われている。ロゴは使っていない。指摘されたら `extName` から外す
+- **ホロライブの初期データ**: チャンネル名・アイコンの URL と、配信予定の取得先 (`schedule.hololive.tv`)。説明文では「初期データのチャンネル」とだけ書き、事務所の名前は出していない。スクリーンショットにも写さない
+- **ユーザーの操作で読み込むデータ**: チャンネルパック・取り込み用リンクは JSON / テキストのデータとして読むだけで、スクリプトは読み込まない (リモートコードではない)
 
 ## 単一用途 (Single purpose)
 
-YouTube の複数の配信・動画を 1 つの画面に並べて同時に視聴し、各枠のライブチャットを表示・書き込みできるようにする。
+YouTube の複数の配信・動画を 1 つの画面に並べて同時に視聴し、各枠のライブチャットを表示・書き込みできるようにする。ダッシュボードには下の「プライバシー」タブの節の英語の文を入れる。
 
 ## 権限と理由
 
@@ -52,7 +211,7 @@ YouTube の複数の配信・動画を 1 つの画面に並べて同時に視聴
 
 | 宛先 | 内容 |
 | --- | --- |
-| `www.youtube.com` / `i.ytimg.com` | 配信・動画の情報とサムネイル (上記) |
+| `www.youtube.com` / `i.ytimg.com` / `yt3.googleusercontent.com` | 配信・動画の情報とサムネイル (上記)、チャンネルのアイコン (画像の読み込みだけ) |
 | `schedule.hololive.tv` | ホロライブの配信予定 |
 | `api.github.com` | 新しい版が出ていないかの確認 (1 日 1 回まで。ストア版 = `update_url` がある場合は行わない)。Cookie は送らない |
 | `raw.githubusercontent.com` | 「パックを探す」を押したときだけ、リポジトリの `packs/index.json` (パックの一覧) と、選んだパックを取得する。CORS で読めるので host 権限は使わない。Cookie は送らない |
@@ -65,3 +224,37 @@ YouTube の複数の配信・動画を 1 つの画面に並べて同時に視聴
 - 保存はすべてブラウザ内 (`chrome.storage`)。バックアップは利用者が自分でファイルに書き出す
 - 「ウェブ履歴」に当たるもの: 視聴履歴をローカルにのみ保存。外部へ送信・販売・譲渡しない
 - エラーの記録: ローカルにのみ保存 (最大 100 件・7 日)。自動では送らない。利用者が「GitHub で報告」「コピー」を押したときだけ、利用者自身が中身を確かめてから送る
+
+### ダッシュボードの「プライバシー」タブに入れる内容
+
+- プライバシーポリシーの URL: https://github.com/contee213/hakomado/blob/main/docs/privacy.md
+  (中身は [docs/privacy.md](docs/privacy.md)。main にマージされてから URL が開くことを確かめて提出する)
+- 単一用途の説明: 下の英語の文を入れる
+- 権限ごとの理由: 上の「権限と理由」を英語にして入れる (下の英語の表)
+- リモートコードを使っているか: **いいえ**
+- データの使用 (収集するデータの種類): **どれにもチェックを入れない**。
+  「収集」は開発者や第三者に送ることを指し、ブラウザの中にだけ保存する視聴履歴・設定はこれに当たらない。
+  YouTube への問い合わせは、利用者が見る配信の情報を YouTube から取ってくるだけで、利用者のデータを渡してはいない
+- 3 つの宣誓 (第三者に販売・譲渡しない / 単一用途と関係ない目的に使わない / 信用力の判断に使わない): すべてチェックする
+
+単一用途 (英語):
+
+```text
+Lets the user watch several YouTube streams and videos side by side on one screen, with each tile's live chat shown as scrolling comments or in a chat panel.
+```
+
+権限ごとの理由 (英語):
+
+| 権限 | 理由 |
+| --- | --- |
+| `storage` | Saves the user's tile arrangement, layout, channel list, watch history, playlists and settings locally. Keeps the list of tabs showing the multiview screen for the current browser session. Keeps a local record of errors raised by the extension's own scripts (up to 100 entries, deleted after 7 days), shown in "Report a problem". Nothing is sent to any server. |
+| `declarativeNetRequestWithHostAccess` | (1) YouTube watch and live chat pages send X-Frame-Options, which blocks them from appearing in the extension's multiview page. A session rule removes only that header, only from www.youtube.com/watch and www.youtube.com/live_chat sub-frame responses, and only in tabs where the multiview screen is open (limited by tabIds). No other headers are changed. (2) A dynamic rule redirects only shared playlist links (https://www.youtube.com/watch_videos?... with a "hakomado=" parameter) to the extension's import screen. |
+| `contextMenus` | Adds "Add to an empty Hakomado tile" to the right-click menu, shown only on links to YouTube videos/streams and on YouTube watch pages. It takes the video ID from the clicked link and passes it to the open multiview screen. The extension does not use the tabs permission and does not read tab URLs or titles. |
+| `https://www.youtube.com/*` | Target of the rules above. Content scripts in the embedded watch and live chat frames control playback, volume, audio panning and archive sync, and read chat messages to show them as scrolling comments. Loads live / upcoming / archived stream lists and video and playlist details with the user's signed-in session, so members-only streams the user can access also work. |
+| `https://schedule.hololive.tv/*` | Loads the stream schedule for the bundled default channels in a single request, which reduces the number of requests made to YouTube. |
+
+## 版の履歴 (ストアに出したもの)
+
+| 版 | 日付 | 内容 | 状態 |
+| --- | --- | --- | --- |
+| 0.2.0 か次の版 | — | 初めての提出 (限定公開) | 準備中 |
