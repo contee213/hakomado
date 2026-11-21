@@ -3496,10 +3496,15 @@ function setupRead() {
     }
   });
 
+  const aiWant = document.getElementById('readAiWant');
+  aiWant.addEventListener('input', () => {
+    aiCopied.textContent = '';
+  });
   document.getElementById('readAi').addEventListener('click', async () => {
+    const want = aiWant.value.trim();
     try {
-      await navigator.clipboard.writeText(await aiPromptText());
-      aiCopied.textContent = tr('shareAiCopied');
+      await navigator.clipboard.writeText(await aiPromptText(want));
+      aiCopied.textContent = tr(want ? 'shareAiCopied' : 'shareAiCopiedEmpty');
     } catch {
       aiCopied.textContent = tr('shareAiFailed');
     }
@@ -3530,21 +3535,27 @@ function defaultPlaylistName() {
 }
 
 /**
- * AI チャットに貼る頼み文。書き方 (Hakomado が読める形式) と、登録しているチャンネルの一覧を入れる。
- * 「見たいもの」は利用者が書き足す
+ * AI チャットに貼る頼み文。見たいもの (読み込む画面で書いたもの。空なら AI チャットで書き足してもらう)・進め方・
+ * 書き方 (Hakomado が読める形式)・選び方と調べ方のヒント・頼み方の例・登録しているチャンネルの一覧を入れる。
+ * 特定の事務所・サイトに寄せた内容は入れない (どのチャンネルを登録していても使えるように)
  */
-async function aiPromptText() {
+async function aiPromptText(want = '') {
   const favs = await Favorites.list();
   const ja = LANG === 'ja';
   const channels = favs.map((f) => `- ${f.star ? '📌 ' : ''}${f.name}${f.handle ? ` (${f.handle})` : ''} channel_id=${f.channelId}`);
   const today = new Date().toLocaleString(ja ? 'ja-JP' : 'en-US', { dateStyle: 'full', timeStyle: 'short' });
   if (ja) {
     return [
-      'Hakomado (YouTube の配信を並べて見る Chrome 拡張機能) に登録する再生リストを作ってください。',
-      `今は ${today} です。`,
+      'Hakomado (YouTube の配信・動画を最大 16 枠まで並べて同時に見る Chrome 拡張機能) で見る再生リストを作ってください。',
+      `今は ${today} です。「昨日」「今週」「今夜」などは、この日時を基準にしてください。`,
       '',
       '## 見たいもの',
-      '(ここに書いてください。例: 今週の箱企画のコラボ配信を、参加した全員の視点で / 明日の夜に見られる歌枠)',
+      want || '(ここに見たいものを書いてください。下の「頼み方の例」も参考に)',
+      '',
+      '## 進め方',
+      '1. 見たいものに合う配信・動画を、Web 検索や YouTube で調べる',
+      '2. 一つひとつ、実際の YouTube のページや RSS で動画 ID・チャンネル・タイトル・配信日時を確かめる',
+      '3. 見る順に並べて、下の形式で出力する',
       '',
       '## 出力してほしいもの',
       '1. 再生リストのテキスト (コードブロックで。1 行に 1 本、見る順に。最大 200 本):',
@@ -3554,24 +3565,47 @@ async function aiPromptText() {
       '```',
       '2. 取り込み用リンク (50 本まで。名前は URL エンコード):',
       'https://www.youtube.com/watch_videos?video_ids=動画ID,動画ID,...&hakomado=再生リストの名前',
+      '3. 選んだ理由 (1 本につき 1 行。リストの外に)',
+      '4. 見つからなかったもの・確かめられなかったもの (あれば。リストの外に)',
+      '',
+      '## 選び方のヒント',
+      '- 本数の指定がなければ、同時に並べて見る前提で 4〜16 本くらいにする (再生リストの「▶ 順に再生」なら、16 本を超えた分は見終わった枠に順に入る)',
+      '- 「話題になった」「盛り上がった」配信は、再生数・同時接続数、切り抜き動画の多さ、ニュース記事や SNS での言及を手がかりに選ぶ',
+      '- 同じ企画 (コラボ・大会・合同の配信など) を複数の人がそれぞれの視点で配信していたら、まとめて並べる',
+      '- 下の登録チャンネルを優先してよいが、見たいものに合えば登録していないチャンネルも入れてよい',
+      '- まだ始まっていない配信予定を入れるときは、開始予定の日時をコメント (# の後ろ) に書く',
+      '- メンバー限定・非公開・削除済みのものは入れない',
+      '- 動画 ID は実際に確認できたものだけを使い、推測で作らない',
       '',
       '## 調べ方のヒント',
       '- チャンネルのライブ配信 (予定を含む) の RSS: https://www.youtube.com/feeds/videos.xml?playlist_id=UULV + channel_id の 3 文字目以降',
       '- チャンネルの動画の RSS: https://www.youtube.com/feeds/videos.xml?channel_id=チャンネルID',
-      '- ホロライブの配信予定 (ホロジュール): https://schedule.hololive.tv/',
-      '- 動画 ID は実際に確認できたものだけを使い、推測で作らないでください。見つからなかったものは、リストの外に書いてください',
-      '- 同じ企画を複数の視点で配信している場合は、まとめて並べてください',
+      '- チャンネルの配信の一覧: https://www.youtube.com/@ハンドル/streams',
+      '',
+      '## 頼み方の例 (参考。今回の依頼は上の「見たいもの」です)',
+      '- 昨日の配信で話題になっていたものを 10 本',
+      '- 今週のコラボ企画を、参加した全員の視点で',
+      '- 明日の夜に見られる歌枠',
+      '- ○○ (ゲーム名) の大会を、出場した配信者ごとの視点で',
+      '- 登録チャンネルの最新のアーカイブを 1 本ずつ',
+      '- 作業しながら流せる雑談配信を 6 本',
+      '- 今週の新衣装・記念配信のまとめ',
       '',
       '## 私が登録しているチャンネル (📌 = 特によく見る)',
-      ...channels,
+      ...(channels.length ? channels : ['(なし)']),
     ].join('\n');
   }
   return [
-    'Please make a playlist for Hakomado (a Chrome extension for watching several YouTube streams side by side).',
-    `It is now ${today}.`,
+    'Please make a playlist for Hakomado (a Chrome extension for watching up to 16 YouTube streams or videos side by side).',
+    `It is now ${today}. Read “yesterday”, “this week”, “tonight” and so on from this date and time.`,
     '',
     '## What I want to watch',
-    '(Write here. e.g. this week’s group collab streams from every participant’s view / karaoke streams I can watch tomorrow night)',
+    want || '(Write it here. See “Example requests” below)',
+    '',
+    '## How to go about it',
+    '1. Find streams and videos that match, using web search and YouTube',
+    '2. Check each one on its actual YouTube page or RSS feed: video ID, channel, title and date',
+    '3. Put them in watching order and output them in the format below',
     '',
     '## Output',
     '1. Playlist text (in a code block, one per line in watching order, up to 200):',
@@ -3581,16 +3615,34 @@ async function aiPromptText() {
     '```',
     '2. Import link (up to 50 videos; URL-encode the name):',
     'https://www.youtube.com/watch_videos?video_ids=VIDEO_ID,VIDEO_ID,...&hakomado=Playlist%20name',
+    '3. Why you picked each one (one line each, outside the list)',
+    '4. Anything you could not find or confirm (if any, outside the list)',
     '',
-    '## Hints',
+    '## Tips for choosing',
+    '- If no number is given, aim for about 4–16, since they are watched side by side (with “▶ In order”, any beyond 16 go into tiles as they finish)',
+    '- For streams people were “talking about”, go by views and concurrent viewers, how many clips were made, and mentions in news and on social media',
+    '- When several people streamed the same event (a collab, tournament or joint stream) from their own view, put them together',
+    '- Prefer the channels I follow below, but include others when they fit',
+    '- For streams that have not started yet, put the scheduled date and time in the comment (after #)',
+    '- Leave out members-only, private and deleted videos',
+    '- Only use video IDs you actually confirmed; never guess them',
+    '',
+    '## Tips for searching',
     '- RSS of a channel’s live streams (including upcoming): https://www.youtube.com/feeds/videos.xml?playlist_id=UULV + channel_id without its first 2 characters',
     '- RSS of a channel’s videos: https://www.youtube.com/feeds/videos.xml?channel_id=CHANNEL_ID',
-    '- hololive schedule: https://schedule.hololive.tv/',
-    '- Only use video IDs you actually confirmed; never guess them. List anything you could not find outside the playlist',
-    '- When several people stream the same event from their own view, put them together',
+    '- A channel’s list of streams: https://www.youtube.com/@handle/streams',
+    '',
+    '## Example requests (for reference; my request is “What I want to watch” above)',
+    '- 10 of yesterday’s streams people were talking about',
+    '- This week’s collab, from every participant’s view',
+    '- Karaoke streams I can watch tomorrow night',
+    '- The ○○ (game) tournament, from each player’s view',
+    '- The latest archive from each channel I follow',
+    '- 6 chatting streams to play while I work',
+    '- This week’s new outfit reveals and anniversary streams',
     '',
     '## Channels I follow (📌 = watch most)',
-    ...channels,
+    ...(channels.length ? channels : ['(none)']),
   ].join('\n');
 }
 
