@@ -1171,3 +1171,47 @@ code { font-size: 12px; background: #222228; padding: 0 4px; border-radius: 3px;
 /* 自己診断の ⚠ (枠のバー) */
 .diag-badge { color: #ffcc66; font-size: 12px; cursor: help; }
 .diag-badge[hidden] { display: none; }
+
+/* ---------- アーカイブの同期再生 ---------- */
+.sync-bar { flex: 1 1 160px; min-width: 140px; max-width: 520px; display: flex; align-items: center; gap: 6px; }
+.sync-bar[hidden] { display: none; }
+.sync-bar input[type="range"] { flex: 1 1 auto; min-width: 60px; margin: 0; }
+.sync-time { color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+#syncNow { color: var(--text); }
+/* 枠の配信がまだ始まっていない / もう終わっている時刻 */
+.sync-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+  background: rgba(0, 0, 0, .72);
+  color: var(--text);
+  font-size: 13px;
+  text-align: center;
+  pointer-events: none;
+}
+.sync-overlay[hidden] { display: none; }
+.sync-adj { font-variant-numeric: tabular-nums; }
+.sync-adj[hidden] { display: none; }
+/* ずれの微調整 (枠の上部、バーの下) */
+.sync-panel {
+  position: absolute;
+  top: 34px;
+  right: 6px;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 8px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, .5);
+}
+.sync-panel[hidden] { display: none; }
+.sync-panel button { padding: 1px 7px; font-size: 12px; }
+.sync-panel-label { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; min-width: 4.5em; }
+#syncToggle[hidden] { display: none; }

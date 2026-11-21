@@ -66,7 +66,8 @@ function newTileState() {
   // danmaku: null = 自動 (メイン枠なら出す) / true・false = 枠の ≋ で自分で決めた
   // queue = 「あとで見る」を順に再生している枠
   // fill = 自動再生で、ライブの代わりに最近の配信を入れた枠
-  return { input: '', videoId: null, chat: false, danmaku: null, muted: true, auto: false, queue: false, fill: false, label: '' };
+  // syncOffset = アーカイブの同期再生で、この枠だけずらす秒数 (+ = 先へ進める)
+  return { input: '', videoId: null, chat: false, danmaku: null, muted: true, auto: false, queue: false, fill: false, label: '', syncOffset: 0 };
 }
 
 const gridEl = document.getElementById('grid');
@@ -592,6 +593,7 @@ function buildTiles() {
     el.querySelector('.pick-ch').addEventListener('click', () => openFavorites(i, 'channels'));
     el.querySelector('.pick-fav').addEventListener('click', () => openFavorites(i, 'library'));
     el.querySelector('.pick-any').addEventListener('click', () => pickAnything(i));
+    Sync.setupTile(i, el);
     // マウスが枠から離れたら、枠内の YouTube プレイヤーの操作 UI を隠させ、キー操作をこの画面に戻す
     // (枠の上に重ねたつかみ範囲や操作バーを通って離れると、プレイヤー側は離れたことに気づかず UI が出たままになるため)
     el.addEventListener('pointerenter', () => setTileAway(i, false));
@@ -747,6 +749,8 @@ function renderTile(i, { reloadPlayer = false, reloadChat = false } = {}) {
   if (!visible || !t.videoId) {
     v.player?.remove();
     v.player = null;
+    v.archive = null;
+    v.ss = null;
     Diagnose.clear(i);
     v.meta = null;
     v.social = null;
@@ -772,6 +776,8 @@ function renderTile(i, { reloadPlayer = false, reloadChat = false } = {}) {
     v.social = null;
     v.replay = ''; // アーカイブなら、読み込んだプレイヤーがリプレイを開く鍵を知らせてくる
     el.classList.remove('is-live'); // ライブかどうかも、読み込んだプレイヤーが知らせてくる
+    v.archive = null; // アーカイブなら、読み込んだプレイヤーが配信の時刻を知らせてくる (同期再生用)
+    v.ss = null;
   }
 
   // --- chat (チャット欄 表示中 or 弾幕 ON のときだけ読み込む)
@@ -946,6 +952,7 @@ function updateTileName(i) {
 function renderAll() {
   for (let i = 0; i < MAX_TILES; i++) renderTile(i);
   layout();
+  Sync.refresh();
 }
 
 /**
@@ -1149,6 +1156,9 @@ function onBarAction(i, act, e) {
       renderTile(i);
       layout();
       break;
+    case 'syncAdj':
+      Sync.togglePanel(i);
+      break;
     case 'reload':
       renderTile(i, { reloadPlayer: true, reloadChat: true });
       return;
@@ -1271,6 +1281,303 @@ window.addEventListener('message', (e) => {
   for (const msg of data.messages.slice(0, 50)) views[i].danmaku.add(msg);
 });
 
+// ---------------------------------------------------------------- ⏱ アーカイブの同期再生
+// コラボ配信を、参加者それぞれの視点のアーカイブで、同じ瞬間にそろえて見る。
+// - そろえる基準は実際の時刻: 各アーカイブの 0 秒 = その配信が始まった時刻 (動画の liveBroadcastDetails.startTimestamp)。
+//   枠ごとのずれ (配信の遅延の違いなど) は、枠のバーの ⏱ で ±0.1 秒単位で直せる (tile.syncOffset)
+// - 全体で 1 つの「同期の時計」(実際の時刻) を持つ。音を出している枠 (無ければ先頭の枠) を基準にし、時計は基準の枠の
+//   再生位置に合わせて進む (基準の枠の中で一時停止・シークすると、ほかの枠もついてくる)。ほかの枠は時計に合わせて
+//   シーク・一時停止・再生・速度の微調整 (少しのずれは速度で吸収し、大きくずれたときだけシーク) を受ける
+// - 基準の枠と配信の時間帯 (開始〜終了) が重ならないアーカイブは同期しない (同じ瞬間が無いため)。重なっていれば、
+//   開始の差に上限は無い。まだ始まっていない / もう終わっている時刻の枠は止めて、そのことを枠に出す
+// - 広告中の枠は待たずに進め、広告が終わったら追いつかせる
+// - 上部バーのシークバーで、同期している全部のアーカイブを同じ時刻に動かせる
+// ON / OFF は保存しない (開き直したら OFF)。ずれの微調整は枠ごとに保存する
+const Sync = (() => {
+  const TICK_MS = 500;
+  const SEEK_DRIFT = 2; // これ以上ずれたらシーク (秒)
+  const RATE_DRIFT = 0.25; // これ以上ずれたら速度で詰める (秒)
+  const SEEK_GAP_MS = 3000; // 同じ枠を続けてシークしない (読み込み中の位置で判断してシークし直さないように)
+  const CMD_GAP_MS = 1500; // 再生・一時停止の指示を続けて送らない
+
+  let on = false;
+  let timer = 0;
+  let clock = { R0: 0, at: 0, playing: true }; // R = 実際の時刻 (ミリ秒)
+  let holdUntil = 0; // シークバーで動かした直後は、基準の枠が追いつくまで時計を基準に合わせない
+  let dragging = false;
+  const sent = new Map(); // i -> {seekAt, cmd, cmdAt, rate}
+  const forceSeek = new Set(); // ずれを微調整した枠 (速度で詰めず、すぐシークする)
+
+  const now = () => performance.now();
+  const nowR = () => (clock.playing ? clock.R0 + (now() - clock.at) : clock.R0);
+  const setClock = (R, playing) => (clock = { R0: R, at: now(), playing });
+  const off = (i) => Number(state.tiles[i].syncOffset) || 0;
+  const archived = (i) => isVisible(i) && !!state.tiles[i].videoId && !!views[i].archive;
+  const rangeOf = (i) => [views[i].archive.start, views[i].archive.start + views[i].archive.dur * 1000];
+  const overlaps = (i, j) => {
+    const [a, b] = rangeOf(i);
+    const [c, d] = rangeOf(j);
+    return a < d && c < b;
+  };
+  /** 今の再生位置 (秒)。最後に届いた位置から、再生中なら経った分を足す */
+  const posOf = (i) => {
+    const ss = views[i].ss;
+    if (!ss) return null;
+    const moving = ss.ps === 1 && !ss.ad;
+    return ss.t + (moving ? ((now() - ss.at) / 1000) * (ss.r || 1) : 0);
+  };
+  const realOf = (i, t) => views[i].archive.start + (t - off(i)) * 1000;
+  const targetOf = (i, R) => (R - views[i].archive.start) / 1000 + off(i);
+
+  /** 基準の枠: 音を出しているアーカイブ。無ければ先頭のアーカイブ */
+  function reference() {
+    const list = visibleIndexes().filter(archived);
+    return list.find((i) => !state.tiles[i].muted) ?? list[0] ?? null;
+  }
+  /** 同期する枠 (基準の枠と時間帯が重なるアーカイブ) */
+  function members(ref) {
+    return visibleIndexes().filter((i) => archived(i) && (i === ref || overlaps(i, ref)));
+  }
+  const available = () => {
+    const ref = reference();
+    return ref != null && members(ref).length >= 2;
+  };
+
+  function send(i, msg) {
+    postToFrame(views[i].player, { hakomado: 'sync', ...msg });
+  }
+  function seek(i, t) {
+    const s = sent.get(i) || {};
+    if (now() - (s.seekAt || 0) < SEEK_GAP_MS) return;
+    send(i, { op: 'seek', t });
+    sent.set(i, { ...s, seekAt: now() });
+  }
+  function cmd(i, op) {
+    const s = sent.get(i) || {};
+    if (s.cmd === op && now() - (s.cmdAt || 0) < CMD_GAP_MS) return;
+    send(i, { op });
+    sent.set(i, { ...s, cmd: op, cmdAt: now() });
+  }
+  function rate(i, r) {
+    const s = sent.get(i) || {};
+    if (s.rate === r) return;
+    send(i, { op: 'rate', r });
+    sent.set(i, { ...s, rate: r });
+  }
+
+  const pad = (n) => String(n).padStart(2, '0');
+  const clockText = (ms) => {
+    const d = new Date(ms);
+    return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+  };
+  const spanText = (sec) => {
+    const s = Math.max(0, Math.ceil(sec));
+    const h = Math.floor(s / 3600);
+    return h ? `${h}:${pad(Math.floor((s % 3600) / 60))}:${pad(s % 60)}` : `${Math.floor(s / 60)}:${pad(s % 60)}`;
+  };
+
+  function overlay(i, text) {
+    const el = views[i].el.querySelector('.sync-overlay');
+    el.hidden = !text;
+    if (text && el.textContent !== text) el.textContent = text;
+  }
+
+  function tick() {
+    if (!on) return;
+    const ref = reference();
+    if (ref == null || !available()) {
+      stop();
+      notify(tr('syncStopped'));
+      return;
+    }
+    const list = members(ref);
+    // 時計を基準の枠に合わせる (基準の枠が配信の時間帯の中で、知らせが新しく、広告中でないとき)
+    const rs = views[ref].ss;
+    let playing = !pausedAll;
+    let R = nowR();
+    if (now() > holdUntil && rs && !rs.ad && now() - rs.at < 2000) {
+      const [s, e] = rangeOf(ref);
+      const Rref = realOf(ref, posOf(ref));
+      if (Rref >= s && Rref < e - 1000) {
+        R = Rref;
+        if (rs.ps === 2) playing = false; // 基準の枠の中で一時停止した → 全部止める
+      }
+    }
+    setClock(R, playing);
+
+    for (const i of visibleIndexes()) {
+      if (!archived(i)) continue;
+      if (!list.includes(i)) {
+        // 時間帯が重ならない: 同期しない (ふつうに再生させる)
+        overlay(i, tr('syncNoOverlap'));
+        rate(i, 1);
+        continue;
+      }
+      // 基準の枠は動かさない (シークバーで動かした直後だけ、ほかと同じように合わせる)
+      if (i === ref && now() > holdUntil) {
+        overlay(i, '');
+        rate(i, 1);
+        continue;
+      }
+      const ss = views[i].ss;
+      const [s, e] = rangeOf(i);
+      if (R < s) {
+        overlay(i, tr('syncStartsIn', spanText((s - R) / 1000)));
+        cmd(i, 'pause');
+        if (ss && ss.t > 1) seek(i, 0);
+        continue;
+      }
+      if (R >= e) {
+        overlay(i, tr('syncEnded'));
+        cmd(i, 'pause');
+        continue;
+      }
+      overlay(i, '');
+      if (!ss || ss.ad) continue; // 広告中は待たずに進める (終わったら追いつかせる)
+      const target = targetOf(i, R);
+      const drift = posOf(i) - target;
+      if (!playing) {
+        rate(i, 1);
+        if (ss.ps === 1 || ss.ps === 3) cmd(i, 'pause');
+        if (Math.abs(drift) > 0.5) seek(i, target);
+        continue;
+      }
+      if (ss.ps !== 1 && ss.ps !== 3) cmd(i, 'play');
+      if (Math.abs(drift) > SEEK_DRIFT || (forceSeek.has(i) && Math.abs(drift) > RATE_DRIFT)) {
+        forceSeek.delete(i);
+        rate(i, 1);
+        seek(i, target + 0.2); // 読み込みに掛かる分、少し先へ (速度で詰め始めるずれより小さく)
+      } else if (Math.abs(drift) > RATE_DRIFT) {
+        // ずれが大きいほど速く詰める (3〜10% 速く / 遅く。1% 単位で丸めて、指示を送り直しすぎないように)
+        const k = Math.round(Math.min(0.1, Math.max(0.03, Math.abs(drift) * 0.1)) * 100) / 100;
+        rate(i, drift > 0 ? 1 - k : 1 + k);
+      } else {
+        rate(i, 1);
+      }
+    }
+    updateBar(list);
+  }
+
+  /** 上部バーのシークバー: 同期している枠の時間帯を全部まとめた範囲 */
+  function updateBar(list) {
+    const seekEl = document.getElementById('syncSeek');
+    const lo = Math.min(...list.map((i) => rangeOf(i)[0]));
+    const hi = Math.max(...list.map((i) => rangeOf(i)[1]));
+    seekEl.dataset.lo = String(lo);
+    seekEl.max = String(Math.max(1, Math.round((hi - lo) / 1000)));
+    if (!dragging) {
+      seekEl.value = String(Math.round((nowR() - lo) / 1000));
+      document.getElementById('syncNow').textContent = clockText(nowR());
+    }
+    document.getElementById('syncEnd').textContent = clockText(hi);
+  }
+
+  function start() {
+    const ref = reference();
+    if (ref == null) return;
+    const p = posOf(ref);
+    setClock(p != null ? realOf(ref, p) : rangeOf(ref)[0], !pausedAll);
+    holdUntil = 0;
+    sent.clear();
+    on = true;
+    clearInterval(timer);
+    timer = setInterval(tick, TICK_MS);
+    tick();
+    notify(tr('syncOn', members(ref).length));
+    refresh();
+  }
+
+  function stop() {
+    on = false;
+    clearInterval(timer);
+    timer = 0;
+    for (let i = 0; i < MAX_TILES; i++) {
+      if (!views[i]) continue;
+      if (views[i].archive) send(i, { op: 'rate', r: 1 });
+      overlay(i, '');
+      views[i].el.querySelector('.sync-panel').hidden = true;
+    }
+    sent.clear();
+    refresh();
+  }
+
+  /** ボタン・シークバー・枠の ⏱ の表示を今の状態に合わせる (枠の中身が変わったとき・アーカイブだと分かったとき) */
+  function refresh() {
+    if (views.length < MAX_TILES) return;
+    const can = available();
+    if (on && !can) {
+      stop();
+      notify(tr('syncStopped'));
+      return;
+    }
+    const btn = document.getElementById('syncToggle');
+    btn.hidden = !can && !on;
+    setToggle(btn, on);
+    document.getElementById('syncBar').hidden = !on;
+    const ref = on ? reference() : null;
+    const list = ref != null ? members(ref) : [];
+    for (let i = 0; i < MAX_TILES; i++) {
+      const inSync = on && list.includes(i);
+      views[i].el.querySelector('.sync-adj').hidden = !inSync;
+      if (!inSync) views[i].el.querySelector('.sync-panel').hidden = true;
+      if (!archived(i) || !on) overlay(i, '');
+      updateAdj(i);
+    }
+  }
+
+  function updateAdj(i) {
+    const v = off(i);
+    const signed = (v > 0 ? '+' : '') + v.toFixed(1);
+    views[i].el.querySelector('.sync-panel-label').textContent = tr('syncOffset', signed);
+    views[i].el.querySelector('.sync-adj').textContent = v ? `⏱ ${signed}` : '⏱';
+  }
+
+  function togglePanel(i) {
+    const panel = views[i].el.querySelector('.sync-panel');
+    panel.hidden = !panel.hidden;
+    updateAdj(i);
+  }
+
+  function setupTile(i, el) {
+    el.querySelector('.sync-panel').addEventListener('click', (e) => {
+      const b = e.target.closest('button[data-sync]');
+      if (!b) return;
+      const d = Number(b.dataset.sync);
+      const t = state.tiles[i];
+      t.syncOffset = d === 0 ? 0 : Math.round(((Number(t.syncOffset) || 0) + d) * 10) / 10;
+      sent.delete(i);
+      forceSeek.add(i); // 速度で詰めず、すぐ合わせ直す
+      updateAdj(i);
+      save();
+      tick();
+    });
+  }
+
+  function setup() {
+    document.getElementById('syncToggle').addEventListener('click', (e) => {
+      e.currentTarget.blur(); // Space キーでボタンが押し直されないように
+      if (on) stop();
+      else start();
+    });
+    const seekEl = document.getElementById('syncSeek');
+    seekEl.addEventListener('input', () => {
+      dragging = true;
+      document.getElementById('syncNow').textContent = clockText(Number(seekEl.dataset.lo) + Number(seekEl.value) * 1000);
+    });
+    seekEl.addEventListener('change', () => {
+      dragging = false;
+      seekEl.blur();
+      // 時計を動かし、基準の枠も含めて全部その時刻へ (基準の枠が追いつくまで、時計は基準の枠に合わせない)
+      setClock(Number(seekEl.dataset.lo) + Number(seekEl.value) * 1000, !pausedAll);
+      holdUntil = now() + 4000;
+      sent.clear();
+      tick();
+    });
+  }
+
+  return { setup, setupTile, refresh, togglePanel, isOn: () => on };
+})();
+
 // ---------------------------------------------------------------- 自己診断 (YouTube 側の変更に気づく)
 // 枠の中のスクリプト (content/*.js) は YouTube のページの作りに頼っているので、YouTube が作りを変えると
 // 黙って動かなくなる。枠を読み込んでからしばらく待っても、届くはずの知らせが来なければ、止まった機能を枠のバーの ⚠ と
@@ -1371,6 +1678,16 @@ window.addEventListener('message', (e) => {
   const i = views.findIndex((v) => v.player && v.player.contentWindow === e.source);
   if (i < 0) return;
   Diagnose.seen(i, data.hakomado);
+  if (data.hakomado === 'syncState') {
+    views[i].ss = { t: Number(data.t), ps: Number(data.ps), ad: !!data.ad, r: Number(data.r) || 1, at: performance.now() };
+    return;
+  }
+  if (data.hakomado === 'archive') {
+    const [start, end, dur] = [Number(data.start), Number(data.end), Number(data.dur)];
+    if ([start, end, dur].every(Number.isFinite) && dur > 0) views[i].archive = { start, end, dur };
+    Sync.refresh();
+    return;
+  }
   if (data.hakomado === 'userAudio') {
     // 枠内のプレイヤーのスピーカーで切り替え → この枠だけ切り替える (他の枠はそのまま。複数枠の同時再生用)
     setAudio(i, { on: !data.muted });
@@ -2069,6 +2386,7 @@ function setupToolbar() {
   document.getElementById('settingsReset').addEventListener('click', resetSettings);
   setupBackup();
   setupShare();
+  Sync.setup();
   showAppVersion();
   document.getElementById('openHelp').addEventListener('click', openHelp);
   document.getElementById('tourReplay').addEventListener('click', () => {
