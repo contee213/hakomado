@@ -168,6 +168,8 @@
           <input type="range" id="autoMaxTiles" min="1" max="16" step="1">
         </label>
         <p class="settings-note" data-i18n="auto.maxTilesNote">配信中のものが多くても、この数までしか再生しません。回線が細いときや、パソコンが重いときは少なくしてください</p>
+        <label class="check"><input type="checkbox" id="autoPickupMain"> <span data-i18n="auto.pickupMain">ピックアップ (📌) の配信をメイン枠に優先して置く</span></label>
+        <p class="settings-note" data-i18n="auto.pickupMainNote">自動再生で、ピックアップのチャンネルのライブ配信を大きいメイン枠に入れ、ほかの配信はサブ枠に回します。枠数の上限に届いたときも、ピックアップを先に入れます。メイン枠の無い均等レイアウトのときと、クルーズ中は並べ替えません</p>
         </div>
         <div class="settings-col">
         <label><span data-i18n="auto.prestart">配信予定の枠を用意する</span> <output id="prestartMinOut"></output>

@@ -30,6 +30,7 @@ const DEFAULT_SETTINGS = {
   cruiseSec: 120, // クルーズでメイン枠 (と音声) を次の配信に回す間隔 (秒)
   prestartMin: 10, // 開始の何分前から、配信予定の枠を用意しておくか (0 = しない)
   autoArchive: false, // 自動再生: 配信中が 1 本も無いときは、最近の配信 (アーカイブ) を流す
+  autoPickupMain: true, // 自動再生: ピックアップ (📌) のライブ配信をメイン枠に優先して置く
   autoMaxTiles: 8, // 自動再生で同時に再生する最大の枠数 (回線が細いときは少なく)
   autoTarget: 'all', // 自動再生の対象: 'all' = チャンネル全部 / 'fav' = ピックアップ (📌) だけ
   noticeTarget: 'all', // 通知の対象: 'all' = チャンネル全部 / 'fav' = ピックアップだけ / 'off' = 知らせない
@@ -390,6 +391,38 @@ function chooseLayoutFor(n, base = currentBase()) {
 /** 自動で選ぶときの基準 = 今のレイアウト (均等のときも、覚えている基準位置を使う) */
 function currentBase() {
   return { ...state.layout, anchor: state.layout.anchor || state.anchor };
+}
+
+/** 自動再生でピックアップ (📌) を優先するか (設定が ON で、クルーズ中でないとき。クルーズはメイン枠を回すため) */
+function pickupPriority() {
+  return !!state.settings.autoPickupMain && !state.cruise;
+}
+
+/** ピックアップ (📌) の配信を先にする (それ以外の順は変えない) */
+function pickupFirst(list, isPick) {
+  if (!pickupPriority()) return list;
+  return [...list.filter(isPick), ...list.filter((x) => !isPick(x))];
+}
+
+/**
+ * 並び順 order (表示する枠の番号) のうち、サブ枠にあるピックアップの枠を、メイン枠にあるピックアップでない枠と入れ替える。
+ * 入れ替えるだけなので、ほかの枠の並びはなるべく動かさない (自分で並べ替えた順を崩しすぎないように)。
+ * メイン枠の無いレイアウト (均等) では何もしない
+ * @param {number[]} order
+ * @param {number} mains レイアウトのメイン枠の数
+ * @param {(i: number) => boolean} isPick
+ */
+function promotePickups(order, mains, isPick) {
+  const out = [...order];
+  if (!pickupPriority()) return out;
+  const m = Math.min(mains, out.length);
+  for (let k = m; k < out.length; k++) {
+    if (!isPick(out[k])) continue;
+    const slot = out.slice(0, m).findIndex((j) => !isPick(j));
+    if (slot < 0) break; // メイン枠が全部ピックアップで埋まった
+    [out[slot], out[k]] = [out[k], out[slot]];
+  }
+  return out;
 }
 
 /** 自動再生で同時に再生する最大の枠数 (設定。1〜16) */
@@ -1638,7 +1671,7 @@ function stepIndex(key, v) {
   return best;
 }
 
-const SETTING_CHECKBOXES = ['showPaid', 'chatHideAvatars', 'hlAnimate', 'skipMembersOnly', 'autoArchive'];
+const SETTING_CHECKBOXES = ['showPaid', 'chatHideAvatars', 'hlAnimate', 'skipMembersOnly', 'autoArchive', 'autoPickupMain'];
 const SETTING_SELECTS = ['dmFont', 'dmWeight', 'authorName', 'autoTarget', 'noticeTarget'];
 
 /** 設定画面の入力欄を state.settings に合わせる (他のタブで設定が変わったときも呼ぶ) */
@@ -2697,7 +2730,9 @@ async function startAllLiveInner() {
     const k = shownFirst.indexOf(l.st.videoId);
     return k < 0 ? 1e9 : k;
   };
-  targets.sort((a, b) => rankShown(a) - rankShown(b));
+  // 最大枠数に収まらないときに、ピックアップ (📌) のライブ配信が押し出されないよう、表示していないものの中では先にする
+  const pickRank = (l) => (pickupPriority() && l.f.star && l.st.state === 'live' ? 0 : 1);
+  targets.sort((a, b) => rankShown(a) - rankShown(b) || pickRank(a) - pickRank(b));
   const { ok, blocked } = await filterAccessible(targets, {
     limit: autoMaxTiles(),
     onProgress: (done, total) => showAutoProgress(tr('progressAccess', done, total), 0.7 + (total ? (done / total) * 0.25 : 0.25)),
@@ -2757,7 +2792,9 @@ async function startAllLiveInner() {
       views[j].danmaku.clear();
     }
   });
-  state.order = [...assigned, ...state.order.filter((j) => !assigned.includes(j))];
+  // ピックアップ (📌) のライブ配信はメイン枠へ
+  const placed = promotePickups(assigned, layout.mains, (i) => pickRank(lives[assigned.indexOf(i)]) === 0);
+  state.order = [...placed, ...state.order.filter((j) => !placed.includes(j))];
   state.layoutId = layout.id;
   if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
 
@@ -2773,7 +2810,7 @@ async function startAllLiveInner() {
 
   // 音: 直前に聞いていた配信が残っていればそのまま、無ければ 1 番 (メイン) の枠
   const keep = assigned.filter((i) => audibleBefore.includes(state.tiles[i].videoId));
-  setAudioSet(keep.length ? keep : [assigned[0]]);
+  setAudioSet(keep.length ? keep : [placed[0]]);
   renderAll();
   save();
   if (favDialog.open) favDialog.close();
@@ -3061,8 +3098,11 @@ async function autoTickOnceInner() {
     const shownIds = new Set(visible.map((i) => state.tiles[i].videoId));
     let keep = visible.filter((i) => !ended.includes(i));
     // 別のタブで表示中の配信は足さない (複数のディスプレイで分けて見るときに、同じ配信が両方に入らないように)
-    const candidates = lives.filter(
-      (l) => !shownIds.has(l.st.videoId) && !autoDismissed.has(l.st.videoId) && !shownInOtherTab(l.st.videoId),
+    // 空きが足りないときに、ピックアップ (📌) のライブ配信が押し出されないよう先にする
+    const isPickLive = (l) => !!l.f.star && l.st.state === 'live';
+    const candidates = pickupFirst(
+      lives.filter((l) => !shownIds.has(l.st.videoId) && !autoDismissed.has(l.st.videoId) && !shownInOtherTab(l.st.videoId)),
+      isPickLive,
     );
     // メンバー限定の確認は、まだ表示していない配信だけ (表示中のものは枠のプレイヤーが知らせてくる)
     // 最近の配信で埋めた枠は、ライブが始まったら明け渡すので空きとして数える
@@ -3120,9 +3160,15 @@ async function autoTickOnceInner() {
       views[i].danmaku.clear();
       return i;
     });
-    const nextVisible = [...keep, ...added];
+    let nextVisible = [...keep, ...added];
     if (nextVisible.length > 0) {
-      state.layoutId = chooseLayoutFor(nextVisible.length).id;
+      const next = chooseLayoutFor(nextVisible.length);
+      // ピックアップ (📌) のライブ配信がサブ枠にあれば、メイン枠と入れ替える (今始まったもの・前から表示していたもの)
+      const liveNow = new Set(collected.lives.map((l) => l.st.videoId));
+      const pickAdded = new Set(added.filter((i, k) => isPickLive(started[k])));
+      const isPick = (i) => pickAdded.has(i) || (keep.includes(i) && liveNow.has(state.tiles[i].videoId) && pickedChannelOf(i) != null);
+      nextVisible = promotePickups(nextVisible, next.mains, isPick);
+      state.layoutId = next.id;
       state.order = [...nextVisible, ...state.order.filter((j) => !nextVisible.includes(j))];
     }
     if (document.fullscreenElement && ended.some((i) => views[i].el === document.fullscreenElement)) {

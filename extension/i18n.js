@@ -415,6 +415,8 @@ const HTML_EN = {
   // チャンネル・ピックアップ
   'scope.title': 'Which channels to show: only pickup (📌) / all (shared by every tab)',
   'auto.target': 'Auto play plays',
+  'auto.pickupMain': 'Put pickup (📌) streams in the main tiles first',
+  'auto.pickupMainNote': 'In auto play, live streams from pickup channels go into the large main tiles and other streams move to the sub tiles. When the tile limit is reached, pickup streams are added first. Nothing is rearranged with even layouts (no main tile) or while Cruise is on',
   'notice.target': 'Notifications for',
   'target.all': 'All channels',
   'target.fav': 'Pickup (📌) only',
