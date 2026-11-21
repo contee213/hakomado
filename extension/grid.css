@@ -1132,7 +1132,15 @@ dialog.settings-dialog { width: min(780px, calc(100% - 32px)); overflow: hidden;
 /* 使い方 */
 dialog.help-dialog { width: min(520px, calc(100% - 32px)); }
 /* 視聴セットの共有 */
-dialog.share-dialog { width: min(560px, calc(100% - 32px)); }
+dialog.share-dialog { width: min(600px, calc(100% - 32px)); }
+.share-preview { width: 100%; aspect-ratio: 16 / 9; background: #000; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.share-preview img { display: block; width: 100%; height: 100%; object-fit: contain; }
+.share-preview img:not([src]) { visibility: hidden; }
+.share-code-row { display: flex; gap: 8px; align-items: center; }
+.share-name { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.share-name > span { flex: none; font-weight: 600; }
+.share-name input { flex: 1 1 auto; min-width: 0; background: #000; color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; }
+.share-code { flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .share-form .field-label { font-weight: 600; font-size: 13px; }
 .share-text {
   width: 100%;

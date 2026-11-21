@@ -1,4 +1,4 @@
-/* global Danmaku, LAYOUTS, ANCHORS, DEFAULT_LAYOUT_ID, MAX_SLOTS, getLayout, layoutFor, solveTracks, LANG, LANG_PREF, tr, setLangPref, Backup, UpdateCheck */
+/* global Danmaku, LAYOUTS, ANCHORS, DEFAULT_LAYOUT_ID, MAX_SLOTS, getLayout, layoutFor, solveTracks, LANG, LANG_PREF, tr, setLangPref, Backup, UpdateCheck, qrcode, jsQR */
 'use strict';
 
 const MAX_TILES = MAX_SLOTS;
@@ -2122,32 +2122,37 @@ function openHelp() {
 }
 
 // ---------------------------------------------------------------- 🔗 視聴セットの共有
-// 表示中の枠の配信とレイアウトを、テキスト (1 行に YouTube の URL 1 つ) にする / テキストから同じ並びを作る。
-// 拡張機能の画面の URL は入れた環境ごとに ID が違うので、共有には使えない。YouTube の URL なら、
-// Hakomado を入れていない人にもそのまま開ける。先頭の「# layout=…」の行でレイアウトも伝える
+// 表示中の枠の配信とレイアウトを、短いコード (と、それを QR にした画像) にする / コードや画像から同じ並びを作る。
+// - コードは「#Hakomado <レイアウト>.<動画 ID をつなげたもの>」の 1 行。動画 ID は必ず 11 文字なので区切らない。
+//   X に貼っても 16 本で約 200 文字に収まる (拡張機能の画面の URL は入れた環境ごとに ID が違うので、共有には使えない)
+// - 画像は、今のレイアウトの形にサムネイルとチャンネル名を並べ、コードを入れた QR を添えたもの。X は画像を文字数に
+//   数えず、見ただけで何を並べているか分かる。読み込むときは、画像を貼り付ける (Ctrl+V) かドロップすると QR を読む
+// - 読み込むときは、投稿の本文をまるごと貼ってもコードの部分だけを拾う。YouTube の URL を 1 行に 1 つ並べたものも読める
 const SHARE_MAX = MAX_TILES;
+const SHARE_TAG = 'Hakomado';
+const SHARE_CODE_RE = /#?Hakomado\s+([a-z0-9-]{1,24})\.((?:[A-Za-z0-9_-]{11}){1,16})(?![A-Za-z0-9_-])/i;
 
-/** 今の視聴セットのテキスト (表示中の枠の並び順。空き枠は詰める) */
-function viewingSetText() {
-  const filled = visibleIndexes().filter((i) => state.tiles[i].videoId);
+/** 表示中の枠のうち、配信の入っている枠 (並び順。空き枠は詰める) */
+const shareTiles = () => visibleIndexes().filter((i) => state.tiles[i].videoId);
+
+/** 今の視聴セットのコード (配信が無ければ '') */
+function viewingSetCode() {
+  const filled = shareTiles();
   if (!filled.length) return '';
-  const name = (i) => state.tiles[i].label || views[i].meta?.channel || '';
-  return [
-    `# ${tr('shareHeader', filled.length, state.layout.name)}`,
-    `# layout=${state.layoutId}`,
-    ...filled.map((i) => {
-      const n = name(i).replace(/[\r\n#]/g, ' ').trim();
-      return `${YT}/watch?v=${state.tiles[i].videoId}${n ? `  # ${n}` : ''}`;
-    }),
-  ].join('\n');
+  return `#${SHARE_TAG} ${state.layoutId}.${filled.map((i) => state.tiles[i].videoId).join('')}`;
 }
 
 /**
- * テキストから視聴セットを読み取る。各行の最初の語を URL / 動画 ID / @チャンネル名 として読む
- * (# で始まる行は説明。「# layout=…」があればレイアウト)
+ * テキストから視聴セットを読み取る。コード (#Hakomado …) があればそれを、無ければ各行の最初の語を
+ * URL / 動画 ID / @チャンネル名 として読む (# で始まる行は説明。「# layout=…」があればレイアウト)
  * @returns {Promise<{ids: string[], layoutId: string|null, bad: number, tooMany: boolean}>}
  */
 async function parseViewingSet(text, onProgress) {
+  const code = text.match(SHARE_CODE_RE);
+  if (code) {
+    const ids = [...new Set(code[2].match(/.{11}/g))];
+    return { ids, layoutId: code[1], bad: 0, tooMany: false };
+  }
   let layoutId = null;
   const tokens = [];
   for (const line of text.split(/\r?\n/)) {
@@ -2211,6 +2216,166 @@ async function applyViewingSet(ids, layoutId) {
   save();
 }
 
+// ---- 共有画像
+const SHARE_W = 1600;
+const SHARE_H = 900;
+const SHARE_FONT = '"Segoe UI", "Yu Gothic UI", "Hiragino Sans", "Noto Sans JP", sans-serif';
+
+const thumbCache = new Map(); // videoId -> Promise (名前を変えて画像を作り直すたびに読み込み直さない)
+
+/** サムネイルを読み込む (大きいものから順に試す。i.ytimg.com は CORS を許しているので、画像として書き出せる) */
+function loadThumb(videoId) {
+  if (!thumbCache.has(videoId)) thumbCache.set(videoId, loadThumbNow(videoId));
+  return thumbCache.get(videoId);
+}
+
+async function loadThumbNow(videoId) {
+  const load = (url) =>
+    new Promise((resolve) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.referrerPolicy = 'no-referrer';
+      img.onload = () => resolve(img);
+      img.onerror = () => resolve(null);
+      img.src = url;
+    });
+  // maxresdefault が無い動画は 120×90 の代わりの画像が返るので、小さいものは使わない
+  const max = await load(`https://i.ytimg.com/vi/${videoId}/maxresdefault.jpg`);
+  if (max && max.naturalWidth >= 640) return { img: max, crop: null };
+  // hqdefault は 4:3 で上下に黒帯があるので、真ん中の 16:9 を切り出す
+  const hq = await load(`https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`);
+  if (hq && hq.naturalWidth >= 400) return { img: hq, crop: [0, hq.naturalHeight / 8, hq.naturalWidth, (hq.naturalHeight * 3) / 4] };
+  return null;
+}
+
+/** ctx の (x, y, w, h) に画像を、はみ出た分を切って敷き詰める */
+function drawCover(ctx, { img, crop }, x, y, w, h) {
+  let [sx, sy, sw, sh] = crop || [0, 0, img.naturalWidth, img.naturalHeight];
+  const scale = Math.max(w / sw, h / sh);
+  const cw = w / scale;
+  const ch = h / scale;
+  sx += (sw - cw) / 2;
+  sy += (sh - ch) / 2;
+  ctx.drawImage(img, sx, sy, cw, ch, x, y, w, h);
+}
+
+/** 文字を幅に収まるように切って描く */
+function fillTextFit(ctx, text, x, y, maxW) {
+  let s = text;
+  if (ctx.measureText(s).width > maxW) {
+    while (s.length > 1 && ctx.measureText(s + '…').width > maxW) s = s.slice(0, -1);
+    s += '…';
+  }
+  ctx.fillText(s, x, y);
+}
+
+/** QR を描く (白い四角の中に、周りの余白 4 マスを取って) */
+function drawQr(ctx, text, x, y, size) {
+  const qr = qrcode(0, 'M');
+  qr.addData(text);
+  qr.make();
+  const n = qr.getModuleCount();
+  const cell = Math.floor(size / (n + 8));
+  const off = Math.floor((size - cell * n) / 2);
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(x, y, size, size);
+  ctx.fillStyle = '#000';
+  for (let r = 0; r < n; r++) {
+    for (let c = 0; c < n; c++) if (qr.isDark(r, c)) ctx.fillRect(x + off + c * cell, y + off + r * cell, cell, cell);
+  }
+}
+
+/** 共有画像 (PNG の Blob) を作る。title = 左下に大きく出す名前 (空なら「Hakomado 視聴セット」) */
+async function renderShareImage(title = '') {
+  const filled = shareTiles();
+  const code = viewingSetCode();
+  const canvas = document.createElement('canvas');
+  canvas.width = SHARE_W;
+  canvas.height = SHARE_H;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#0d0d10';
+  ctx.fillRect(0, 0, SHARE_W, SHARE_H);
+
+  // 左上: 今のレイアウトの形に、サムネイルとチャンネル名を並べる (枠の形は画面と同じ計算で 16:9 にそろえる)
+  const area = { x: 48, y: 48, w: 1040, h: 585 };
+  const l = state.layout;
+  const { colW, rowH } = solveTracks(l);
+  const sum = (a) => a.reduce((s, v) => s + v, 0);
+  const scale = Math.min(area.w / sum(colW), area.h / sum(rowH));
+  const ox = area.x + (area.w - sum(colW) * scale) / 2;
+  const oy = area.y + (area.h - sum(rowH) * scale) / 2;
+  const thumbs = await Promise.all(filled.map((i) => loadThumb(state.tiles[i].videoId)));
+  const GAP = 6;
+  l.slots.forEach(([cx, cy, cw, chh], k) => {
+    const x = ox + sum(colW.slice(0, cx)) * scale + GAP / 2;
+    const y = oy + sum(rowH.slice(0, cy)) * scale + GAP / 2;
+    const w = sum(colW.slice(cx, cx + cw)) * scale - GAP;
+    const h = sum(rowH.slice(cy, cy + chh)) * scale - GAP;
+    ctx.fillStyle = '#1c1c22';
+    ctx.fillRect(x, y, w, h);
+    if (k >= filled.length) return;
+    const i = filled[k];
+    if (thumbs[k]) drawCover(ctx, thumbs[k], x, y, w, h);
+    // チャンネル名 (下に暗いぼかしを敷いて読めるように)
+    const fs = Math.max(14, Math.min(30, Math.round(h / 9)));
+    const grad = ctx.createLinearGradient(0, y + h - fs * 2.4, 0, y + h);
+    grad.addColorStop(0, 'rgba(0,0,0,0)');
+    grad.addColorStop(1, 'rgba(0,0,0,.85)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(x, y + h - fs * 2.4, w, fs * 2.4);
+    ctx.fillStyle = '#fff';
+    ctx.font = `700 ${fs}px ${SHARE_FONT}`;
+    ctx.textBaseline = 'alphabetic';
+    fillTextFit(ctx, tileName(i) || state.tiles[i].videoId, x + fs * 0.5, y + h - fs * 0.55, w - fs);
+  });
+  // 左下: 説明
+  ctx.fillStyle = '#fff';
+  ctx.font = `700 44px ${SHARE_FONT}`;
+  fillTextFit(ctx, title.trim() || `${SHARE_TAG} ${tr('shareImageTitle')}`, 48, 706, 1040);
+  ctx.fillStyle = '#a0a0ad';
+  ctx.font = `400 28px ${SHARE_FONT}`;
+  ctx.fillText(tr('shareImageCount', filled.length, l.name), 48, 760);
+  ctx.font = `400 24px ${SHARE_FONT}`;
+  fillTextFit(ctx, tr('shareImageHow'), 48, 830, 1040);
+
+  // 右: QR (コード入り) とハッシュタグ
+  drawQr(ctx, code, 1124, 48, 428);
+  ctx.fillStyle = '#fff';
+  ctx.font = `700 34px ${SHARE_FONT}`;
+  ctx.textAlign = 'center';
+  ctx.fillText(`#${SHARE_TAG}`, 1124 + 214, 532);
+  ctx.fillStyle = '#a0a0ad';
+  ctx.font = `400 22px ${SHARE_FONT}`;
+  ctx.fillText(tr('shareImageQr'), 1124 + 214, 572);
+  ctx.textAlign = 'start';
+
+  return new Promise((resolve, reject) => canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('toBlob'))), 'image/png'));
+}
+
+/** 画像 (Blob) の中の QR を読む。読めなければ null */
+async function readQrFromImage(blob) {
+  const bmp = await createImageBitmap(blob);
+  try {
+    // 大きすぎる画像は縮めて読む (読み取りが遅くなるため)。読めなければ元の大きさでも試す
+    for (const max of [1600, Infinity]) {
+      const k = Math.min(1, max / Math.max(bmp.width, bmp.height));
+      const w = Math.round(bmp.width * k);
+      const h = Math.round(bmp.height * k);
+      const canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
+      ctx.drawImage(bmp, 0, 0, w, h);
+      const hit = jsQR(ctx.getImageData(0, 0, w, h).data, w, h, { inversionAttempts: 'attemptBoth' });
+      if (hit?.data) return hit.data;
+      if (k === 1) break;
+    }
+    return null;
+  } finally {
+    bmp.close();
+  }
+}
+
 function setupShare() {
   const dialog = document.getElementById('shareDialog');
   const out = document.getElementById('shareOut');
@@ -2218,16 +2383,63 @@ function setupShare() {
   const copied = document.getElementById('shareCopied');
   const error = document.getElementById('shareError');
   const loadBtn = document.getElementById('shareLoad');
+  const imgEl = document.getElementById('shareImg');
+  const nameEl = document.getElementById('shareName');
+  const imgBtns = ['shareImgCopy', 'shareImgSave', 'shareCopy'].map((id) => document.getElementById(id));
+  let imageBlob = null;
+  let imageUrl = '';
+  let renderSeq = 0;
+  let nameTimer = 0;
   closeOnBackdrop(dialog);
 
-  document.getElementById('openShare').addEventListener('click', () => {
-    const text = viewingSetText();
-    out.value = text;
-    out.placeholder = text ? '' : tr('shareEmpty');
-    document.getElementById('shareCopy').disabled = !text;
-    copied.textContent = '';
-    error.textContent = '';
+  const setStatus = (el, text, isError = false) => {
+    el.textContent = text;
+    el.classList.toggle('share-error', isError);
+  };
+
+  /** 共有画像を作り直す (名前を打っている途中に作り直したときは、最後のものだけ使う) */
+  const makeImage = async () => {
+    const seq = ++renderSeq;
+    setStatus(copied, tr('shareImageMaking'));
+    for (const id of ['shareImgCopy', 'shareImgSave']) document.getElementById(id).disabled = true;
+    try {
+      const blob = await renderShareImage(nameEl.value);
+      if (seq !== renderSeq) return;
+      imageBlob = blob;
+      if (imageUrl) URL.revokeObjectURL(imageUrl);
+      imageUrl = URL.createObjectURL(blob);
+      imgEl.src = imageUrl;
+      setStatus(copied, '');
+      for (const id of ['shareImgCopy', 'shareImgSave']) document.getElementById(id).disabled = false;
+    } catch (e) {
+      if (seq === renderSeq) setStatus(copied, tr('shareImageFail', e.message || e), true);
+    }
+  };
+  // 名前は、このタブで最後に付けたものを次に開いたときも出しておく (同じ並びを何度か共有するとき用)
+  // Enter で共有画面 (form method="dialog") が閉じないように
+  nameEl.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') e.preventDefault();
+  });
+  nameEl.addEventListener('input', () => {
+    clearTimeout(nameTimer);
+    nameTimer = setTimeout(() => viewingSetCode() && makeImage(), 300);
+  });
+
+  document.getElementById('openShare').addEventListener('click', async () => {
+    const code = viewingSetCode();
+    out.value = code;
+    out.placeholder = code ? '' : tr('shareEmpty');
+    for (const b of imgBtns) b.disabled = !code;
+    setStatus(copied, '');
+    setStatus(error, '');
+    imageBlob = null;
+    if (imageUrl) URL.revokeObjectURL(imageUrl);
+    imageUrl = '';
+    imgEl.removeAttribute('src');
+    imgEl.classList.toggle('empty', !code);
+    nameEl.disabled = !code;
     dialog.showModal();
+    if (code) await makeImage();
   });
 
   document.getElementById('shareCopy').addEventListener('click', async () => {
@@ -2237,30 +2449,94 @@ function setupShare() {
       out.select();
       document.execCommand('copy');
     }
-    copied.textContent = tr('shareCopied');
+    setStatus(copied, tr('shareCopied'));
+  });
+  document.getElementById('shareImgCopy').addEventListener('click', async () => {
+    if (!imageBlob) return;
+    try {
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': imageBlob })]);
+      setStatus(copied, tr('shareImageCopied'));
+    } catch (e) {
+      setStatus(copied, tr('shareImageFail', e.message || e), true);
+    }
+  });
+  document.getElementById('shareImgSave').addEventListener('click', () => {
+    if (!imageUrl) return;
+    const d = new Date();
+    const pad = (n) => String(n).padStart(2, '0');
+    const a = document.createElement('a');
+    a.href = imageUrl;
+    a.download = `hakomado-${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}.png`;
+    a.click();
   });
 
-  loadBtn.addEventListener('click', async () => {
-    error.classList.remove('share-error');
+  /** テキストを読み込んで、今の枠を置き換える */
+  const loadText = async (text) => {
     loadBtn.disabled = true;
     try {
-      const { ids, layoutId, bad, tooMany } = await parseViewingSet(input.value, (done, total) => {
-        error.textContent = tr('shareLoading', done, total);
+      const { ids, layoutId, bad, tooMany } = await parseViewingSet(text, (done, total) => {
+        setStatus(error, tr('shareLoading', done, total));
       });
-      error.classList.add('share-error');
       if (!ids.length) {
-        error.textContent = tr('shareNothing');
+        setStatus(error, tr('shareNothing'), true);
         return;
       }
       await applyViewingSet(ids, layoutId);
-      error.textContent = '';
+      setStatus(error, '');
       input.value = '';
       dialog.close();
       const notes = [bad ? tr('shareBadLines', bad) : '', tooMany ? tr('shareTooMany') : ''].filter(Boolean);
       notify([tr('shareLoaded', ids.length), ...notes].join(' / '));
     } finally {
-      error.classList.add('share-error');
       loadBtn.disabled = false;
+    }
+  };
+  /** 画像の QR を読んで、読めたら読み込む */
+  const loadImage = async (blob) => {
+    setStatus(error, tr('shareImageReading'));
+    let text = null;
+    try {
+      text = await readQrFromImage(blob);
+    } catch {
+      /* 画像として読めない */
+    }
+    if (!text || !SHARE_CODE_RE.test(text)) {
+      setStatus(error, tr('shareImageNoQr'), true);
+      return;
+    }
+    input.value = text;
+    await loadText(text);
+  };
+  loadBtn.addEventListener('click', () => loadText(input.value));
+
+  // 画像の貼り付け (X の画像を「画像をコピー」したものなど)
+  input.addEventListener('paste', (e) => {
+    const file = [...(e.clipboardData?.files || [])].find((f) => f.type.startsWith('image/'));
+    if (!file) return;
+    e.preventDefault();
+    loadImage(file);
+  });
+  // 画像ファイル・ほかのタブの画像のドロップ
+  dialog.addEventListener('dragover', (e) => {
+    if ([...e.dataTransfer.types].some((t) => t === 'Files' || t === 'text/uri-list')) e.preventDefault();
+  });
+  dialog.addEventListener('drop', async (e) => {
+    const file = [...e.dataTransfer.files].find((f) => f.type.startsWith('image/'));
+    const url = e.dataTransfer.getData('text/uri-list').split(/\r?\n/).find((u) => /^https:\/\//.test(u));
+    if (!file && !url) return;
+    e.preventDefault();
+    if (file) {
+      loadImage(file);
+      return;
+    }
+    // ほかのタブからドラッグした画像は URL で届くので、取りに行く (X の画像は CORS で読める)
+    try {
+      const res = await fetch(url, { credentials: 'omit', signal: AbortSignal.timeout(20000) });
+      const blob = await res.blob();
+      if (blob.type.startsWith('image/')) loadImage(blob);
+      else setStatus(error, tr('shareImageNoQr'), true);
+    } catch {
+      setStatus(error, tr('shareImageNoQr'), true);
     }
   });
 }

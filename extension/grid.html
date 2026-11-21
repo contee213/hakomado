@@ -265,15 +265,24 @@
         <button value="close" class="dialog-close" data-i18n-title="close" title="閉じる (Esc)">✕</button>
       </div>
       <span class="field-label" data-i18n="share.copyH">今の視聴セット</span>
-      <p class="settings-note" data-i18n="share.copyNote">表示中の枠の配信 (YouTube の URL) とレイアウトです。コピーして、SNS やチャットに貼ったり、別のパソコンの Hakomado に貼り付けたりできます</p>
-      <textarea id="shareOut" class="share-text" rows="7" readonly spellcheck="false"></textarea>
+      <p class="settings-note" data-i18n="share.copyNote">表示中の枠の配信とレイアウトを、画像と短いコードにします。X などに画像を添えて投稿すると、受け取った人は画像を Hakomado に貼り付けるだけで同じ並びを作れます (画像の QR にコードが入っています)</p>
+      <label class="share-name"><span data-i18n="share.nameLabel">画像の名前</span>
+        <input type="text" id="shareName" maxlength="40" spellcheck="false" data-i18n-placeholder="share.namePlaceholder" placeholder="Hakomado 視聴セット (空のときはこの名前)">
+      </label>
+      <!-- 大きさを固定して、画像ができる前後でダイアログの大きさが変わらないようにする -->
+      <div class="share-preview"><img id="shareImg" alt=""></div>
       <div class="share-buttons">
-        <button type="button" id="shareCopy" data-i18n="share.copy">📋 コピー</button>
+        <button type="button" id="shareImgCopy" data-i18n="share.imgCopy">🖼 画像をコピー</button>
+        <button type="button" id="shareImgSave" data-i18n="share.imgSave">⬇ 画像を保存</button>
         <span id="shareCopied" class="share-status" role="status"></span>
       </div>
+      <div class="share-code-row">
+        <input type="text" id="shareOut" class="share-text share-code" readonly spellcheck="false">
+        <button type="button" id="shareCopy" data-i18n="share.copy">📋 コードをコピー</button>
+      </div>
       <span class="field-label" data-i18n="share.pasteH">貼り付けて再現</span>
-      <p class="settings-note" data-i18n="share.pasteNote">ここにコピーした視聴セットや、YouTube の URL を 1 行に 1 つずつ貼り付けて「読み込む」を押すと、今の枠を置き換えてその順に並べます (最大 16 本。自動再生は OFF になります)</p>
-      <textarea id="shareIn" class="share-text" rows="7" spellcheck="false" data-i18n-placeholder="share.placeholder" placeholder="https://www.youtube.com/watch?v=..."></textarea>
+      <p class="settings-note" data-i18n="share.pasteNote">共有画像をここに貼り付ける (Ctrl+V) かドロップすると、すぐに同じ並びを作ります。コードを含む投稿の文や、YouTube の URL を 1 行に 1 つずつ貼って「読み込む」でも作れます。今の枠は置き換わります (最大 16 本。自動再生は OFF になります)</p>
+      <textarea id="shareIn" class="share-text" rows="4" spellcheck="false" data-i18n-placeholder="share.placeholder" placeholder="画像 / #Hakomado … / https://www.youtube.com/watch?v=..."></textarea>
       <div class="share-buttons">
         <button type="button" id="shareLoad" data-i18n="share.load">読み込む</button>
         <span id="shareError" class="share-status share-error" role="status"></span>
@@ -451,6 +460,8 @@
   <script src="favorites.js"></script>
   <script src="history.js"></script>
   <script src="tour.js"></script>
+  <script src="vendor/qrcode-generator.js"></script>
+  <script src="vendor/jsQR.js"></script>
   <script src="backup.js"></script>
   <script src="update-check.js"></script>
   <script src="grid.js"></script>
