@@ -78,7 +78,7 @@ const Backup = (() => {
   function cleanChannel(f) {
     if (!f || typeof f !== 'object' || !CHANNEL_RE.test(f.channelId)) return null;
     const out = { channelId: f.channelId };
-    for (const k of ['handle', 'name', 'nameEn', 'group', 'groupEn']) {
+    for (const k of ['handle', 'name', 'nameEn', 'group', 'groupEn', 'pack']) {
       const v = str(f[k]);
       if (v) out[k] = v;
     }

@@ -32,6 +32,8 @@ const UpdateCheck = (() => {
       headers: { Accept: 'application/vnd.github+json' },
       signal: AbortSignal.timeout(10000),
     });
+    // 404 = まだリリースが 1 つも無い (失敗ではないので記録しない)
+    if (res.status === 404) return null;
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const json = await res.json();
     const latest = String(json?.tag_name || '').match(/^v?(\d+(?:\.\d+){0,3})$/)?.[1];
@@ -51,9 +53,11 @@ const UpdateCheck = (() => {
     const { [KEY]: cached, [NOTIFIED_KEY]: notified } = await chrome.storage.local.get([KEY, NOTIFIED_KEY]);
     let info = cached && typeof cached === 'object' ? cached : null;
     const age = Date.now() - (info?.at || 0);
-    if (!info || age > (info.latest ? INTERVAL_MS : RETRY_MS) || age < 0) {
+    // 確かめ直すのは 1 日後 (分かったとき・リリースがまだ無いとき) か、1 時間後 (取得に失敗したとき)
+    if (!info || age > (info.latest || info.none ? INTERVAL_MS : RETRY_MS) || age < 0) {
       try {
-        info = { at: Date.now(), ...(await fetchLatest()) };
+        const latest = await fetchLatest();
+        info = latest ? { at: Date.now(), ...latest } : { at: Date.now(), latest: '', url: '', none: true };
       } catch (e) {
         console.warn('hakomado: 新しいバージョンの確認に失敗', e);
         info = { at: Date.now(), latest: info?.latest || '', url: info?.url || '' };

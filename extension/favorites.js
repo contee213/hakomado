@@ -274,6 +274,80 @@ const Favorites = (() => {
     await saveList(favs);
   }
 
+  // ---- チャンネルパック (packs.js で確かめた中身を、チャンネル一覧に足す / パックごとに外す)
+  /** 読み込む前の確認用: 足されるチャンネルと、登録済みのチャンネルの数 */
+  async function previewPack(pack) {
+    const have = new Set((await list()).map((f) => f.channelId));
+    const existing = pack.channels.filter((c) => have.has(c.channelId)).length;
+    return { added: pack.channels.length - existing, existing };
+  }
+
+  /** パックのチャンネルを足す (登録済みのチャンネルは、名前もピックアップもそのまま) */
+  function importPack(pack) {
+    return withListLock(async () => {
+      const favs = await list();
+      const have = new Set(favs.map((f) => f.channelId));
+      let added = 0;
+      for (const c of pack.channels) {
+        if (have.has(c.channelId)) continue;
+        favs.push({ ...c, pack: pack.name });
+        added++;
+      }
+      if (added) await saveList(favs);
+      return added;
+    });
+  }
+
+  /** 読み込んだパック [{name, count}] (パックから足したチャンネルの数) */
+  async function packs() {
+    const counts = new Map();
+    for (const f of await list()) if (f.pack) counts.set(f.pack, (counts.get(f.pack) || 0) + 1);
+    return [...counts].map(([name, count]) => ({ name, count }));
+  }
+
+  /** パックから足したチャンネルをまとめて外す (ピックアップ (📌) に入れたものは残す)。外した数を返す */
+  function removePack(name) {
+    return withListLock(async () => {
+      const favs = await list();
+      const keep = favs.filter((f) => f.pack !== name || f.star);
+      for (const f of favs) if (!keep.includes(f)) statusCache.delete(f.channelId);
+      if (keep.length !== favs.length) await saveList(keep);
+      return favs.length - keep.length;
+    });
+  }
+
+  // ---- アイコンの無いチャンネル (パックにアイコンが無かったもの) は、一覧を開いたときに少しずつ取りに行く。
+  // チャンネルのページは重い (1 件 1MB ほど) ので、1 回に数件だけ、YouTube への取得の順番待ちに並べて取る
+  const iconTried = new Set(); // このタブで取りに行ったチャンネル (失敗しても、開き直すまでは取り直さない)
+  async function fillIcons({ limit = 4 } = {}) {
+    const targets = (await list()).filter((f) => !f.icon && !f.preset && !iconTried.has(f.channelId)).slice(0, limit);
+    if (!targets.length) return 0;
+    const found = new Map();
+    for (const f of targets) {
+      iconTried.add(f.channelId);
+      try {
+        const html = await ytTurn((fetchText) => fetchText(`${YT}/channel/${f.channelId}`, { credentials: 'omit' }));
+        const icon = meta(html, 'og:image');
+        const handle = html.match(/"canonicalBaseUrl":"\/(@[^"]+)"/)?.[1];
+        if (/^https:\/\//.test(icon)) found.set(f.channelId, { icon, handle: handle ? decodeURIComponent(handle) : '' });
+      } catch (e) {
+        if (e instanceof RateLimitedError) break;
+      }
+    }
+    if (!found.size) return 0;
+    await withListLock(async () => {
+      const favs = await list();
+      for (const f of favs) {
+        const hit = found.get(f.channelId);
+        if (!hit) continue;
+        if (!f.icon) f.icon = hit.icon;
+        if (!f.handle && hit.handle) f.handle = hit.handle;
+      }
+      await saveList(favs);
+    });
+    return found.size;
+  }
+
   function remove(channelId) {
     return withListLock(() => removeLocked(channelId));
   }
@@ -682,6 +756,7 @@ const Favorites = (() => {
 
   return {
     list, add, remove, setStar, seedPresets, restorePresets, removeAllPresets, presetCount, removedPresetCount, fetchStatus, fetchArchives,
+    previewPack, importPack, packs, removePack, fillIcons,
     checkAccess, rememberMembersOnly, isMembersBlock,
   };
 })();

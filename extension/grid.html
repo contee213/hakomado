@@ -194,14 +194,27 @@
       </section>
       <section class="settings-panel" data-panel="channels" role="tabpanel" hidden>
         <div class="settings-col">
-          <span class="field-label" data-i18n="presets.h">初期データのチャンネル</span>
-          <p class="settings-note" data-i18n="presets.note">インストールしたときに入っているチャンネルです。まとめて外したり、外したものを戻したりできます。自分で追加したチャンネルと、ピックアップ (📌) に入れたチャンネルは外しません</p>
-          <div class="preset-buttons">
-            <button type="button" id="presetRemoveAll"></button>
-            <button type="button" id="presetRestore"></button>
+          <span class="field-label" data-i18n="pack.listH">チャンネルパック</span>
+          <p class="settings-note" data-i18n="pack.listNote">チャンネル一覧に入っているパックです。ホロライブ (同梱版) は最初から入っています。パックごとに、まとめて外したり、外したものを戻したりできます。自分で追加したチャンネルと、ピックアップ (📌) に入れたチャンネルは外しません</p>
+          <ul id="packList" class="pack-list"></ul>
+          <span class="field-label" data-i18n="pack.exportH">チャンネルパックを書き出す</span>
+          <p class="settings-note" data-i18n="pack.exportNote">チャンネル一覧から、パック (同梱のホロライブ・読み込んだパック・自分で追加したチャンネル・すべて) を選んでチャンネルパック (JSON) にします。ほかの人に配ったり、GitHub などで公開したりできます</p>
+          <div class="pack-row">
+            <select id="packGroup"></select>
+            <button type="button" id="packExport" data-i18n="pack.export">⬇ 書き出す</button>
           </div>
         </div>
-        <div class="settings-col"></div>
+        <div class="settings-col">
+          <span class="field-label" data-i18n="pack.h">チャンネルパックを読み込む</span>
+          <p class="settings-note" data-i18n="pack.note">ほかの人が作ったチャンネルの一覧 (チャンネルパック) を、今のチャンネル一覧に足します。URL か中身を貼り付けて「読み込む」を押すか、ファイルを選んでください。登録済みのチャンネルはそのままです</p>
+          <textarea id="packIn" class="share-text pack-in" rows="2" spellcheck="false" data-i18n-placeholder="pack.placeholder" placeholder="https://… (パックの URL) / { &quot;app&quot;: &quot;hakomado&quot;, … }"></textarea>
+          <div class="pack-row">
+            <button type="button" id="packLoad" data-i18n="pack.load">読み込む</button>
+            <button type="button" id="packFileBtn" data-i18n="pack.file">ファイルを選ぶ</button>
+            <input type="file" id="packFile" accept=".json,application/json" hidden>
+            <span id="packStatus" class="share-status" role="status"></span>
+          </div>
+        </div>
       </section>
       <section class="settings-panel" data-panel="backup" role="tabpanel" hidden>
         <div class="settings-col">
@@ -265,7 +278,7 @@
         <button value="close" class="dialog-close" data-i18n-title="close" title="閉じる (Esc)">✕</button>
       </div>
       <span class="field-label" data-i18n="share.copyH">今の視聴セット</span>
-      <p class="settings-note" data-i18n="share.copyNote">表示中の枠の配信とレイアウトを、画像と短いコードにします。X などに画像を添えて投稿すると、受け取った人は画像を Hakomado に貼り付けるだけで同じ並びを作れます (画像の QR にコードが入っています)</p>
+      <p class="settings-note" data-i18n="share.copyNote">表示中の枠の配信とレイアウトを、画像と短いコードにします。X などに画像を添えて投稿すると、受け取った人は画像を Hakomado に貼り付けるだけで同じ並びを作れます (画像の QR にコードが入っています)。同期のずれを合わせたアーカイブは、ずれも入るので、受け取った人も最初からそろった状態で同期できます</p>
       <label class="share-name"><span data-i18n="share.nameLabel">画像の名前</span>
         <input type="text" id="shareName" maxlength="40" spellcheck="false" data-i18n-placeholder="share.namePlaceholder" placeholder="Hakomado 視聴セット (空のときはこの名前)">
       </label>
@@ -444,13 +457,28 @@
         <div class="sync-overlay" hidden></div>
         <!-- 同期のずれの微調整 (枠のバーの ⏱ で開く) -->
         <div class="sync-panel" hidden>
-          <span class="sync-panel-label"></span>
-          <button type="button" data-sync="-1">−1s</button>
-          <button type="button" data-sync="-0.1">−0.1s</button>
-          <button type="button" data-sync="0.1">+0.1s</button>
-          <button type="button" data-sync="1">+1s</button>
-          <button type="button" data-sync="0" data-i18n="sync.reset">0 に戻す</button>
-          <button type="button" data-sync="ref" class="sync-set-ref" data-i18n="sync.setRef">この枠を基準にする</button>
+          <div class="sync-row">
+            <span class="sync-panel-label"></span>
+            <input type="number" class="sync-input" step="0.01" data-i18n-title="sync.inputTitle" title="ずらす秒数を直接入れる (+ = 先へ進める、− = 戻す)。Enter で決定" />
+            <button type="button" data-sync="wait" class="sync-wait" data-i18n-title="sync.waitTitle" title="この枠だけ止めて、ほかが追いつくのを待つ。合ったところで再生すると、そこでずれが決まります (基準でない枠は、枠の中のプレイヤーで一時停止してもできます)"></button>
+            <button type="button" data-sync="0" data-i18n="sync.reset">0 に戻す</button>
+            <button type="button" data-sync="ref" class="sync-set-ref" data-i18n="sync.setRef">この枠を基準にする</button>
+          </div>
+          <div class="sync-row">
+            <button type="button" data-sync="-1">−1s</button>
+            <button type="button" data-sync="-0.1">−0.1s</button>
+            <button type="button" data-sync="-0.01">−0.01s</button>
+            <button type="button" data-sync="0.01">+0.01s</button>
+            <button type="button" data-sync="0.1">+0.1s</button>
+            <button type="button" data-sync="1">+1s</button>
+          </div>
+          <!-- 追いつき具合: 設定したずれどおりの位置と、実際の再生位置の差 (同期が追いついたかの目安。ずれの設定値ではない) -->
+          <div class="sync-row sync-drift" data-i18n-title="sync.driftTitle" title="設定したずれのとおりなら今いるはずの位置と、実際の再生位置との差です (+ = 進んでいる)。同期が追いついたかを見るためのもので、ずれの設定値ではありません。追いついてから、音を聞いて設定を動かしてください"></div>
+          <!-- アーカイブが配信より短い (冒頭か末尾が切られている) ときの知らせ -->
+          <div class="sync-row sync-trim" hidden>
+            <span class="sync-trim-text"></span>
+            <button type="button" class="sync-trim-head"></button>
+          </div>
         </div>
         <form class="empty">
           <div class="empty-title"></div>
@@ -510,10 +538,12 @@
   <script src="favorites.js"></script>
   <script src="history.js"></script>
   <script src="playlists.js"></script>
+  <script src="sync-offsets.js"></script>
   <script src="tour.js"></script>
   <script src="vendor/qrcode-generator.js"></script>
   <script src="vendor/jsQR.js"></script>
   <script src="backup.js"></script>
+  <script src="packs.js"></script>
   <script src="update-check.js"></script>
   <script src="grid.js"></script>
 </body>

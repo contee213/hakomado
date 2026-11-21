@@ -52,6 +52,36 @@ For more controls and keys, open "?" (help) at the top right. The tour shown the
 > - To show only certain channels, pick them up with 📌 and set "Auto play plays" in ⚙ Settings to "Pickup (📌) only"
 > - To watch more than 16, open another one in a separate window (auto play skips streams shown in another tab)
 
+## Channel packs
+
+Hakomado's default data covers Hololive channels only. Channels of other groups can be added by importing a "channel pack" made by someone else (⚙ Settings → Channels tab). A pack can be imported from a URL, pasted contents or a file. It is added to your channel list (channels you already have stay as they are), and each pack can be removed at once. You can also export the bundled Hololive pack, an imported pack or the channels you added as a pack.
+
+A pack is a JSON file like the one below. Put it on GitHub (raw), Gist or elsewhere and share the URL.
+
+```json
+{
+  "app": "hakomado",
+  "type": "channels",
+  "name": "Pack name (shown in the list of imported packs, up to 50 characters)",
+  "author": "Who made it (optional)",
+  "updated": "2026-11-21",
+  "channels": [
+    {
+      "channelId": "UCxxxxxxxxxxxxxxxxxxxxxx",
+      "name": "Name shown in the channel list",
+      "handle": "@xxxx",
+      "group": "Group name (the pack name if omitted)",
+      "icon": "https://yt3.googleusercontent.com/... (optional)"
+    }
+  ]
+}
+```
+
+- `app`, `type`, `channels` and each channel's `channelId` (24 characters starting with `UC`) are required
+- Up to 1,000 channels per pack and 2 MB per file
+- `icon` is used only for YouTube images (`yt3.ggpht.com`, `yt3.googleusercontent.com`, `i.ytimg.com`). Missing icons are fetched little by little when you open the channel list
+- The contents are read as data only; unknown fields and values of the wrong shape are not imported
+
 ## Permissions and privacy
 
 | Permission | Used for |
