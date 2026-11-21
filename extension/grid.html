@@ -278,7 +278,7 @@
         <button value="close" class="dialog-close" data-i18n-title="close" title="閉じる (Esc)">✕</button>
       </div>
       <span class="field-label" data-i18n="share.copyH">今の視聴セット</span>
-      <p class="settings-note" data-i18n="share.copyNote">表示中の枠の配信とレイアウトを、画像と短いコードにします。X などに画像を添えて投稿すると、受け取った人は画像を Hakomado に貼り付けるだけで同じ並びを作れます (画像の QR にコードが入っています)</p>
+      <p class="settings-note" data-i18n="share.copyNote">表示中の枠の配信とレイアウトを、画像と短いコードにします。X などに画像を添えて投稿すると、受け取った人は画像を Hakomado に貼り付けるだけで同じ並びを作れます (画像の QR にコードが入っています)。同期のずれを合わせたアーカイブは、ずれも入るので、受け取った人も最初からそろった状態で同期できます</p>
       <label class="share-name"><span data-i18n="share.nameLabel">画像の名前</span>
         <input type="text" id="shareName" maxlength="40" spellcheck="false" data-i18n-placeholder="share.namePlaceholder" placeholder="Hakomado 視聴セット (空のときはこの名前)">
       </label>
@@ -408,13 +408,28 @@
         <div class="sync-overlay" hidden></div>
         <!-- 同期のずれの微調整 (枠のバーの ⏱ で開く) -->
         <div class="sync-panel" hidden>
-          <span class="sync-panel-label"></span>
-          <button type="button" data-sync="-1">−1s</button>
-          <button type="button" data-sync="-0.1">−0.1s</button>
-          <button type="button" data-sync="0.1">+0.1s</button>
-          <button type="button" data-sync="1">+1s</button>
-          <button type="button" data-sync="0" data-i18n="sync.reset">0 に戻す</button>
-          <button type="button" data-sync="ref" class="sync-set-ref" data-i18n="sync.setRef">この枠を基準にする</button>
+          <div class="sync-row">
+            <span class="sync-panel-label"></span>
+            <input type="number" class="sync-input" step="0.1" data-i18n-title="sync.inputTitle" title="ずらす秒数を直接入れる (+ = 先へ進める、− = 戻す)。Enter で決定" />
+            <button type="button" data-sync="wait" class="sync-wait" data-i18n-title="sync.waitTitle" title="この枠だけ止めて、ほかが追いつくのを待つ。合ったところで再生すると、そこでずれが決まります (基準でない枠は、枠の中のプレイヤーで一時停止してもできます)"></button>
+            <button type="button" data-sync="0" data-i18n="sync.reset">0 に戻す</button>
+            <button type="button" data-sync="ref" class="sync-set-ref" data-i18n="sync.setRef">この枠を基準にする</button>
+          </div>
+          <div class="sync-row">
+            <button type="button" data-sync="-60">−60s</button>
+            <button type="button" data-sync="-10">−10s</button>
+            <button type="button" data-sync="-1">−1s</button>
+            <button type="button" data-sync="-0.1">−0.1s</button>
+            <button type="button" data-sync="0.1">+0.1s</button>
+            <button type="button" data-sync="1">+1s</button>
+            <button type="button" data-sync="10">+10s</button>
+            <button type="button" data-sync="60">+60s</button>
+          </div>
+          <!-- アーカイブが配信より短い (冒頭か末尾が切られている) ときの知らせ -->
+          <div class="sync-row sync-trim" hidden>
+            <span class="sync-trim-text"></span>
+            <button type="button" class="sync-trim-head"></button>
+          </div>
         </div>
         <form class="empty">
           <div class="empty-title"></div>
@@ -472,6 +487,7 @@
   <script src="presets.js"></script>
   <script src="favorites.js"></script>
   <script src="history.js"></script>
+  <script src="sync-offsets.js"></script>
   <script src="tour.js"></script>
   <script src="vendor/qrcode-generator.js"></script>
   <script src="vendor/jsQR.js"></script>

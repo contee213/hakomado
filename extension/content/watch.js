@@ -73,7 +73,7 @@
     }
     const t = Number(d.t);
     if (!Number.isFinite(t)) return;
-    window.parent.postMessage({ hakomado: 'syncState', t, ps: Number(d.ps), ad: !!d.ad, r: Number(d.r) || 1 }, PARENT_ORIGIN);
+    window.parent.postMessage({ hakomado: 'syncState', t, ps: Number(d.ps), ad: !!d.ad, r: Number(d.r) || 1, up: !!d.up, sk: Number(d.sk) || 0 }, PARENT_ORIGIN);
   });
 
   // 配信・動画が終わった → 親に知らせる (自動再生中に枠を片付けるため)

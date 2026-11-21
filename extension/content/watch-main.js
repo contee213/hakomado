@@ -359,10 +359,29 @@
 
   // ---- アーカイブの同期再生 (コラボの各視点を、同じ瞬間にそろえて見る)
   //   ここ → watch.js : 'hakomado:archive'    detail JSON {start, end, dur} (配信の実際の開始・終了時刻 (ミリ秒) と長さ (秒)。1 度だけ)
-  //   ここ → watch.js : 'hakomado:sync-state' detail JSON {t, ps, ad, r} (再生位置・プレイヤーの状態・広告中か・速度。0.5 秒ごと)
+  //   ここ → watch.js : 'hakomado:sync-state' detail JSON {t, ps, ad, r, up, sk} (再生位置・プレイヤーの状態・広告中か・速度・
+  //                     枠の中でユーザーが一時停止したか・枠の中でユーザーがシークした回数。0.5 秒ごと)
   //   watch.js → ここ : 'hakomado:sync'       detail JSON {op: 'seek' | 'play' | 'pause' | 'rate', t?, r?}
   // 終わった配信のアーカイブを開いたときだけ動く (ライブ配信中・ふつうの動画は同期しない)
   let archiveSent = false;
+  // 今の一時停止が、枠の中でのユーザーの操作によるものか (親の指示による一時停止と見分ける。同期中に「止めて待つ」ため)
+  let userPaused = false;
+  document.addEventListener('pause', () => (userPaused = performance.now() - lastInput < 1000), true);
+  document.addEventListener('play', () => (userPaused = false), true);
+  // 枠の中でユーザーがシークした回数 (シークバー・← → キーなど。親の指示によるシークは数えない)。
+  // 'seeked' でなく 'seeking' で数える (再生位置は seeking の時点で新しくなるので、位置と回数が同じ知らせで届くように)
+  let userSeeks = 0;
+  let lastAct = -Infinity; // シークバーは押してから離すまで長いことがあるので、離したときも数える
+  for (const type of ['pointerdown', 'pointerup', 'keydown']) {
+    document.addEventListener(type, () => (lastAct = performance.now()), true);
+  }
+  document.addEventListener(
+    'seeking',
+    () => {
+      if (performance.now() - lastAct < 1500) userSeeks++;
+    },
+    true,
+  );
   setInterval(() => {
     if (!alreadyEnded()) return;
     const p = player();
@@ -387,7 +406,7 @@
       document.dispatchEvent(new CustomEvent('hakomado:archive', { detail }));
     }
     if (!Number.isFinite(t)) return;
-    const detail = JSON.stringify({ t, ps, ad: adShowing(), r: video()?.playbackRate || 1 });
+    const detail = JSON.stringify({ t, ps, ad: adShowing(), r: video()?.playbackRate || 1, up: ps === 2 && userPaused, sk: userSeeks });
     document.dispatchEvent(new CustomEvent('hakomado:sync-state', { detail }));
   }, 500);
   document.addEventListener('hakomado:sync', (e) => {
