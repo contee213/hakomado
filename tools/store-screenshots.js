@@ -1,5 +1,6 @@
 // Chrome ウェブストアの掲載用スクリーンショット (1280×800) を、ダミーの配信で撮る。
-//   node tools/store-screenshots.js [出力先フォルダ (既定: store-assets/screenshots)] [--lang=ja|en]
+//   node tools/store-screenshots.js [出力先フォルダ (既定: store-assets/screenshots/<lang>)] [--lang=ja|en]
+// 小さいプロモーション タイル (440×280) は --promo を付ける (既定の出力先: store-assets/promo/<lang>)
 //
 // - E2E テストと同じく、extension/ を読み込んだ Chromium をまっさらなプロファイルで起動する
 //   (ふだんの Chrome・YouTube アカウントには触れない。アドレスバーなども写らない)
@@ -404,8 +405,53 @@ async function seed(worker, session) {
   );
 }
 
+// ---------------------------------------------------------------- 小さいプロモーション タイル (440×280)
+// ロゴ・名前・ひとこと と、右に 16 枠 (4×4) の絵。拡張機能は読み込まない
+async function promoTile() {
+  const out = path.resolve(args.find((a) => !a.startsWith('--')) || path.join(ROOT, 'store-assets', 'promo', LANG));
+  fs.mkdirSync(out, { recursive: true });
+  const logo = fs.readFileSync(path.join(EXTENSION, 'icons', 'icon.svg'), 'utf8').replace(/<!--[\s\S]*?-->/g, '');
+  // 枠の色 (ダミーの映像の絵柄と同じ系統)。5 番目 (2 行目の 2 つ目) は音が出ている枠として線を付ける
+  const fills = [
+    ['#0b1030', '#2a2f6b'], ['#ff9a5b', '#7b2ff7'], ['#8fe9ff', '#0b4f8a'], ['#d7f5e3', '#2e7d5b'],
+    ['#ffc1e0', '#ff6a88'], ['#1a1440', '#5b3a8a'], ['#3b2a2a', '#6b4a3a'], ['#03122b', '#2a8a7a'],
+    ['#0a0620', '#c48bff'], ['#ffd27a', '#e07a5f'], ['#29a9ff', '#1b5f91'], ['#2fbf8f', '#0d3b4f'],
+    ['#ff7ab8', '#5b8cff'], ['#7fd6ff', '#9b7bff'], ['#f5a524', '#a8457a'], ['#e8f4ff', '#6fcbff'],
+  ];
+  const cells = fills
+    .map(([a, b], i) => `<i style="background:linear-gradient(135deg,${a},${b})"${i === 5 ? ' class="on"' : ''}></i>`)
+    .join('');
+  const [line1, line2] = JA ? ['配信を最大 16 枠で', '同時視聴'] : ['Watch up to', '16 streams at once'];
+  const html = `<!doctype html><html><head><meta charset="utf-8"><style>
+html,body{margin:0;width:440px;height:280px;overflow:hidden}
+body{background:radial-gradient(120% 140% at 0% 0%,#1f3550 0%,#16161b 55%,#0e0e12 100%);color:#fff;
+  font-family:'Segoe UI','Yu Gothic UI','Meiryo',sans-serif;position:relative}
+.left{position:absolute;left:28px;top:0;bottom:0;width:200px;display:flex;flex-direction:column;justify-content:center;gap:10px}
+.left svg{width:64px;height:64px;filter:drop-shadow(0 6px 14px #29a9ff55)}
+.name{font-size:30px;font-weight:700;letter-spacing:.5px;line-height:1}
+.tag{font-size:${JA ? 19 : 18}px;font-weight:700;line-height:1.35;color:#cfe9ff}
+.tag b{color:#6fcbff;font-size:1.25em}
+.grid{position:absolute;right:10px;top:62px;width:236px;display:grid;grid-template-columns:repeat(4,1fr);gap:5px;
+  transform:perspective(600px) rotateY(-16deg) rotateX(6deg);transform-origin:right center}
+.grid i{aspect-ratio:16/9;border-radius:5px;box-shadow:0 4px 10px #0008;opacity:.92}
+.grid i.on{outline:2px solid #8fe9ff;box-shadow:0 0 14px #29a9ffaa;opacity:1}
+</style></head><body>
+<div class="grid">${cells}</div>
+<div class="left">${logo}<div class="name">Hakomado</div>
+<div class="tag">${line1.replace('16', '<b>16</b>')}<br>${line2.replace('16', '<b>16</b>')}</div></div>
+</body></html>`;
+  const browser = await chromium.launch({ channel: process.env.E2E_CHANNEL || 'chromium' });
+  const page = await browser.newPage({ viewport: { width: 440, height: 280 }, deviceScaleFactor: 1 });
+  await page.setContent(html);
+  const file = path.join(out, 'small-promo-tile-440x280.png');
+  await page.screenshot({ path: file });
+  console.log('saved', file);
+  await browser.close();
+}
+
 // ---------------------------------------------------------------- 撮影
 async function main() {
+  if (args.includes('--promo')) return promoTile();
   fs.mkdirSync(OUT, { recursive: true });
   const context = await chromium.launchPersistentContext('', {
     channel: process.env.E2E_CHANNEL || 'chromium',

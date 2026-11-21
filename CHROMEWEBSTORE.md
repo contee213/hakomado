@@ -146,7 +146,7 @@ https://github.com/contee213/hakomado/issues
 | スクリーンショット 3 | 1280×800 | ✅ | `3-channels.png`: 「📺 チャンネル」の一覧 (配信中・予定) |
 | スクリーンショット 4 | 1280×800 | ✅ | `4-audio-mix.png`: 「🎚 音の左右と音量」の画面 (2 枠を左右に分けた) |
 | スクリーンショット 5 | 1280×800 | ✅ | `5-share.png`: 「🔗 共有」の画像 |
-| 小さいプロモーション タイル | 440×280 | ⬜ まだ (任意) | ロゴと「最大 16 枠を同時視聴」の文字だけ |
+| 小さいプロモーション タイル | 440×280 | ✅ | `store-assets/promo/ja/`・`en/` の `small-promo-tile-440x280.png`: ロゴ・名前・「配信を最大 16 枠で同時視聴」と、16 枠 (4×4) の絵 |
 
 スクリーンショットは `tools/store-screenshots.js` で撮る (`store-assets/screenshots/ja/`・`en/` に出る。ダッシュボードの言語ごとに上げる)。
 まっさらなプロファイルの Chromium に拡張機能を読み込み、YouTube への通信をすべてダミー (架空のチャンネル・配信、絵で描いた映像、ダミーのチャット) で返すので、
@@ -155,6 +155,8 @@ https://github.com/contee213/hakomado/issues
 ```text
 node tools/store-screenshots.js --lang=ja
 node tools/store-screenshots.js --lang=en
+node tools/store-screenshots.js --promo --lang=ja
+node tools/store-screenshots.js --promo --lang=en
 ```
 
 同梱の Chromium が起動できない環境 (Windows で `spawn UNKNOWN` など) では、先に環境変数 `E2E_CHANNEL=msedge` を設定して Edge で撮る。
