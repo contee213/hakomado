@@ -67,7 +67,8 @@ function newTileState() {
   // queue = 「あとで見る」を順に再生している枠
   // fill = 自動再生で、ライブの代わりに最近の配信を入れた枠
   // (アーカイブの同期再生のずれは、枠ではなく動画ごとに記録する: SyncOffsets)
-  return { input: '', videoId: null, chat: false, danmaku: null, muted: true, auto: false, queue: false, fill: false, label: '' };
+  // pan = 音の左右 (-1 = 左・0 = 真ん中・1 = 右)、gain = 音量 (1 = 元のまま、0〜2)。枠の中の Web Audio で変える (content/watch.js)
+  return { input: '', videoId: null, chat: false, danmaku: null, muted: true, auto: false, queue: false, fill: false, label: '', pan: 0, gain: 1 };
 }
 
 const gridEl = document.getElementById('grid');
@@ -118,6 +119,8 @@ function applySession(saved = {}) {
         if (k in picked && typeof picked[k] !== typeof v && v !== null) delete picked[k];
       }
       if (picked.videoId != null && !(typeof picked.videoId === 'string' && ID_RE.test(picked.videoId))) picked.videoId = null;
+      if ('pan' in picked) picked.pan = clampPan(picked.pan);
+      if ('gain' in picked) picked.gain = clampGain(picked.gain);
       // 以前の版は弾幕の初期値が「表示」だったので、そのときの true は自動 (メイン枠だけ) として扱う
       if (!saved.dmAuto && picked.danmaku === true) picked.danmaku = null;
       // あとで見るの再生中かどうかは保存しない (開き直したら、ふつうの枠として扱う)
@@ -599,6 +602,7 @@ function buildTiles() {
     el.querySelector('.pick-fav').addEventListener('click', () => openFavorites(i, 'library'));
     el.querySelector('.pick-any').addEventListener('click', () => pickAnything(i));
     Sync.setupTile(i, el);
+    setupMixPanel(i, el);
     // マウスが枠から離れたら、枠内の YouTube プレイヤーの操作 UI を隠させ、キー操作をこの画面に戻す
     // (枠の上に重ねたつかみ範囲や操作バーを通って離れると、プレイヤー側は離れたことに気づかず UI が出たままになるため)
     el.addEventListener('pointerenter', () => setTileAway(i, false));
@@ -815,6 +819,7 @@ function renderTile(i, { reloadPlayer = false, reloadChat = false } = {}) {
   el.classList.toggle('audible', visible && !!t.videoId && !t.muted && state.count > 1);
   setToggle(el.querySelector('.bar [data-act="chat"]'), t.chat);
   setToggle(el.querySelector('.bar [data-act="danmaku"]'), tileDanmaku(i));
+  renderMix(i);
   updateSocialButtons(i);
   updateFavButton(i);
   updateTileName(i);
@@ -990,7 +995,69 @@ function setToggle(btn, on) {
 // ---------------------------------------------------------------- audio
 
 function applyAudio(i) {
-  postToFrame(views[i].player, { hakomado: 'audio', muted: state.tiles[i].muted });
+  const t = state.tiles[i];
+  postToFrame(views[i].player, { hakomado: 'audio', muted: t.muted });
+  postToFrame(views[i].player, { hakomado: 'mix', pan: t.pan, gain: t.gain });
+}
+
+// ---- 音の左右 (パン) と音量 (枠のバーの 🎚)
+const clampPan = (v) => (Number.isFinite(v) ? Math.max(-1, Math.min(1, Math.round(v * 100) / 100)) : 0);
+const clampGain = (v) => (Number.isFinite(v) ? Math.max(0, Math.min(2, Math.round(v * 100) / 100)) : 1);
+
+function setMix(i, { pan, gain } = {}) {
+  const t = state.tiles[i];
+  if (pan != null) t.pan = clampPan(pan);
+  if (gain != null) t.gain = clampGain(gain);
+  applyAudio(i);
+  renderMix(i);
+  save();
+}
+
+/** バーの 🎚 (L / R の印) と、開いていればパネルの表示 */
+function renderMix(i) {
+  const t = state.tiles[i];
+  const el = views[i].el;
+  const btn = el.querySelector('.bar [data-act="mix"]');
+  btn.textContent = '🎚' + (t.pan < 0 ? 'L' : t.pan > 0 ? 'R' : '');
+  btn.classList.toggle('on', t.pan !== 0 || t.gain !== 1);
+  btn.disabled = !t.videoId;
+  const panel = el.querySelector('.mix-panel');
+  if (!t.videoId) panel.hidden = true;
+  if (panel.hidden) return;
+  for (const b of panel.querySelectorAll('[data-pan]')) b.classList.toggle('on', Number(b.dataset.pan) === t.pan);
+  panel.querySelector('.mix-gain').value = String(Math.round(t.gain * 100));
+  panel.querySelector('.mix-gain-value').textContent = `${Math.round(t.gain * 100)}%`;
+}
+
+/** 音の出ている 2 枠を、画面の左にあるほうを左・右にあるほうを右へ (コラボの 2 視点の聞き分け用) */
+function splitStereo() {
+  const audible = audibleTiles();
+  if (audible.length !== 2) {
+    notify(tr('mixNeed2', audible.length));
+    return;
+  }
+  const pos = (i) => {
+    const r = views[i].el.getBoundingClientRect();
+    return r.left + r.width / 2;
+  };
+  const [left, right] = audible.sort((a, b) => pos(a) - pos(b));
+  setMix(left, { pan: -1 });
+  setMix(right, { pan: 1 });
+  showToast(left, tr('mixLeft'));
+  showToast(right, tr('mixRight'));
+}
+
+function setupMixPanel(i, el) {
+  const panel = el.querySelector('.mix-panel');
+  panel.addEventListener('click', (e) => {
+    const b = e.target.closest('button');
+    if (!b) return;
+    if (b.dataset.pan != null) setMix(i, { pan: Number(b.dataset.pan) });
+    else if (b.dataset.mix === 'split') splitStereo();
+    else if (b.dataset.mix === 'reset') setMix(i, { pan: 0, gain: 1 });
+  });
+  const range = panel.querySelector('.mix-gain');
+  range.addEventListener('input', () => setMix(i, { gain: Number(range.value) / 100 }));
 }
 
 /**
@@ -1174,6 +1241,12 @@ function onBarAction(i, act, e) {
     case 'syncAdj':
       Sync.togglePanel(i);
       break;
+    case 'mix': {
+      const panel = views[i].el.querySelector('.mix-panel');
+      panel.hidden = !panel.hidden;
+      renderMix(i);
+      return;
+    }
     case 'reload':
       renderTile(i, { reloadPlayer: true, reloadChat: true });
       return;
@@ -2033,6 +2106,9 @@ window.addEventListener('message', (e) => {
   if (data.hakomado === 'userAudio') {
     // 枠内のプレイヤーのスピーカーで切り替え → この枠だけ切り替える (他の枠はそのまま。複数枠の同時再生用)
     setAudio(i, { on: !data.muted });
+  } else if (data.hakomado === 'mix') {
+    // 枠の中で左右・音量の経路を作れなかった (AudioContext が動かない)
+    if (data.ok === false) showToast(i, tr('mixBlocked'));
   } else if (data.hakomado === 'live') {
     views[i].el.classList.toggle('is-live', !!data.on);
   } else if (data.hakomado === 'replay') {

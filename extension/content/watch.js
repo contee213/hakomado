@@ -130,10 +130,81 @@
   // 「ストレッチ」表示のときは映像を枠に合わせて拡大し、はみ出た端を切る
   document.documentElement.classList.toggle('hakomado-fill', params.get('hakomado_fill') === '1');
 
+  // ---- 枠ごとの音の左右 (パン) と音量。Web Audio で video → StereoPanner → Gain → 出力 とつなぐ
+  // - 経路は、初めて中央・等倍以外にしたときだけ作る (使っていない枠には何もしない)。
+  //   一度つなぐと元には戻せない (createMediaElementSource は 1 つの要素に 1 回だけ) ので、中央・等倍に戻したときは値だけ戻す
+  // - AudioContext が動いていない (自動再生の許可が無いなど) ときにつなぐと音が消えるので、動いているのを確かめてからつなぐ。
+  //   つなげなかったら親に知らせる
+  // - 消音・音量・再生速度はプレイヤー (video 要素) 側の操作のまま効く (経路は video の出力のあとにつなぐ)
+  // - YouTube は video 要素を差し替えることがあるので、つないでいる間は見張って、差し替わったらつなぎ直す
+  const Mix = (() => {
+    let ctx = null;
+    let panner = null;
+    let gainNode = null;
+    let connected = null; // 今つないでいる video
+    let timer = 0;
+    const sources = new WeakMap(); // video → MediaElementAudioSourceNode
+    const video = () => document.querySelector('#movie_player video');
+    const report = (ok) => window.parent.postMessage({ hakomado: 'mix', ok }, PARENT_ORIGIN);
+
+    async function running() {
+      if (!ctx) {
+        ctx = new AudioContext();
+        panner = new StereoPannerNode(ctx);
+        gainNode = new GainNode(ctx);
+        panner.connect(gainNode).connect(ctx.destination);
+        // 途中で止められたら (タブを長く隠したなど) 動かし直す。動かなければ親に知らせる
+        ctx.addEventListener('statechange', () => {
+          if (ctx.state === 'suspended') ctx.resume().catch(() => {}).finally(() => ctx.state !== 'running' && report(false));
+        });
+      }
+      if (ctx.state !== 'running') await ctx.resume().catch(() => {});
+      return ctx.state === 'running';
+    }
+
+    function connectVideo() {
+      const v = video();
+      if (!v || v === connected) return;
+      let src = sources.get(v);
+      if (!src) {
+        src = ctx.createMediaElementSource(v);
+        sources.set(v, src);
+      }
+      if (connected) sources.get(connected)?.disconnect();
+      src.connect(panner);
+      connected = v;
+    }
+
+    async function set(pan, gain) {
+      pan = Math.max(-1, Math.min(1, Number(pan) || 0));
+      gain = Math.max(0, Math.min(2, Number.isFinite(Number(gain)) ? Number(gain) : 1));
+      if (!ctx && pan === 0 && gain === 1) return; // まだ使っていない枠は、そのまま
+      if (!(await running())) {
+        report(false);
+        return;
+      }
+      connectVideo();
+      panner.pan.setTargetAtTime(pan, ctx.currentTime, 0.02);
+      gainNode.gain.setTargetAtTime(gain, ctx.currentTime, 0.02);
+      if (!timer) timer = setInterval(connectVideo, 2000);
+      report(true);
+    }
+
+    // 枠を読み直す・閉じるときは片付ける (「戻る」で元に戻せるように残すとき (persisted) は閉じない)
+    window.addEventListener('pagehide', (e) => {
+      if (e.persisted) return;
+      clearInterval(timer);
+      ctx?.close().catch(() => {});
+    });
+    return { set };
+  })();
+
   window.addEventListener('message', (e) => {
     if (e.origin !== PARENT_ORIGIN || e.source !== window.parent) return;
     if (e.data?.hakomado === 'audio') {
       setMuted(!!e.data.muted);
+    } else if (e.data?.hakomado === 'mix') {
+      Mix.set(e.data.pan, e.data.gain);
     } else if (e.data?.hakomado === 'fill') {
       document.documentElement.classList.toggle('hakomado-fill', !!e.data.on);
     } else if (e.data?.hakomado === 'social' && ['subscribe', 'like'].includes(e.data.act)) {

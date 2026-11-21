@@ -1253,6 +1253,30 @@ code { font-size: 12px; background: #222228; padding: 0 4px; border-radius: 3px;
   box-shadow: 0 6px 18px rgba(0, 0, 0, .5);
 }
 .sync-panel[hidden] { display: none; }
+.mix-panel {
+  position: absolute;
+  top: 34px;
+  right: 6px;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  max-width: calc(100% - 12px);
+  padding: 6px 8px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, .5);
+}
+.mix-panel[hidden] { display: none; }
+.mix-panel button { padding: 1px 7px; font-size: 12px; }
+.mix-panel button.on { color: #8fd3ff; border-color: #8fd3ff; }
+.mix-label { color: var(--muted); font-size: 12px; min-width: 3em; }
+.mix-gain { width: 120px; }
+.mix-gain-value { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; min-width: 3.5em; }
+.mix-btn { font-variant-numeric: tabular-nums; }
+.mix-btn.on { color: #8fd3ff; border-color: #8fd3ff; }
 .sync-panel button { padding: 1px 7px; font-size: 12px; }
 .sync-panel-label { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; min-width: 4.5em; }
 .sync-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
