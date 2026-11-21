@@ -64,6 +64,7 @@
           <button type="button" role="tab" data-tab="chat" data-i18n="tab.chat">チャット欄</button>
           <button type="button" role="tab" data-tab="auto" data-i18n="tab.auto">自動再生</button>
           <button type="button" role="tab" data-tab="channels" data-i18n="tab.channels">チャンネル</button>
+          <button type="button" role="tab" data-tab="backup" data-i18n="tab.backup">バックアップ</button>
         </div>
       </header>
 
@@ -189,6 +190,19 @@
             <button type="button" id="presetRemoveAll"></button>
             <button type="button" id="presetRestore"></button>
           </div>
+        </div>
+        <div class="settings-col"></div>
+      </section>
+      <section class="settings-panel" data-panel="backup" role="tabpanel" hidden>
+        <div class="settings-col">
+          <span class="field-label" data-i18n="backup.h">設定のバックアップ</span>
+          <p class="settings-note" data-i18n="backup.note">設定・チャンネル (ピックアップ 📌 を含む)・視聴履歴・あとで見る・表示言語を 1 つのファイルに書き出します。拡張機能のフォルダを移したり入れ直したりすると保存した内容は消えるので、その前に書き出しておき、あとで読み込んで戻してください</p>
+          <div class="preset-buttons">
+            <button type="button" id="backupExport" data-i18n="backup.export">⬇ ファイルに書き出す</button>
+            <button type="button" id="backupImport" data-i18n="backup.import">⬆ ファイルから読み込む</button>
+            <input type="file" id="backupFile" accept=".json,application/json" hidden>
+          </div>
+          <p class="settings-note" data-i18n="backup.importNote">読み込むと、今の設定・チャンネル・視聴履歴・あとで見るは、ファイルの内容に置き換わります。いま枠に入っている配信はそのままです</p>
         </div>
         <div class="settings-col"></div>
       </section>
@@ -382,6 +396,8 @@
   <script src="favorites.js"></script>
   <script src="history.js"></script>
   <script src="tour.js"></script>
+  <script src="backup.js"></script>
+  <script src="update-check.js"></script>
   <script src="grid.js"></script>
 </body>
 </html>

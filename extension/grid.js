@@ -1,4 +1,4 @@
-/* global Danmaku, LAYOUTS, ANCHORS, DEFAULT_LAYOUT_ID, MAX_SLOTS, getLayout, layoutFor, solveTracks, LANG, LANG_PREF, tr, setLangPref */
+/* global Danmaku, LAYOUTS, ANCHORS, DEFAULT_LAYOUT_ID, MAX_SLOTS, getLayout, layoutFor, solveTracks, LANG, LANG_PREF, tr, setLangPref, Backup, UpdateCheck */
 'use strict';
 
 const MAX_TILES = MAX_SLOTS;
@@ -1711,6 +1711,68 @@ function showAppVersion() {
   const m = chrome.runtime.getManifest();
   const text = `hukumado ${m.version_name || m.version}`;
   for (const el of document.querySelectorAll('.app-version')) el.textContent = text;
+  showUpdateLink();
+}
+
+/** 新しいバージョンが出ていれば、バージョン表示の横にリリースのページへのリンクを出す (その版で初めてなら、お知らせも出す) */
+async function showUpdateLink() {
+  let info = null;
+  try {
+    info = await UpdateCheck.check();
+  } catch (e) {
+    console.warn('hukumado: 新しいバージョンの確認に失敗', e);
+  }
+  if (!info) return;
+  for (const el of document.querySelectorAll('.app-version')) {
+    el.querySelector('.update-link')?.remove();
+    const a = document.createElement('a');
+    a.className = 'update-link';
+    a.href = info.url;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    a.textContent = tr('updateLink', info.latest);
+    el.append(' · ', a);
+  }
+  if (info.notify) {
+    notify(tr('updateNotice', info.latest));
+    UpdateCheck.markNotified(info.latest);
+  }
+}
+
+/** 設定画面の「バックアップ」タブ: ファイルに書き出す / ファイルから読み込む */
+function setupBackup() {
+  document.getElementById('backupExport').addEventListener('click', () => {
+    Backup.download().catch((e) => notify(tr('backupFail', e.message)));
+  });
+  const file = document.getElementById('backupFile');
+  document.getElementById('backupImport').addEventListener('click', () => file.click());
+  file.addEventListener('change', async () => {
+    const f = file.files[0];
+    file.value = ''; // 同じファイルをもう一度選んでも change が来るように
+    if (!f) return;
+    let parsed;
+    try {
+      parsed = Backup.parse(await f.text(), DEFAULT_SETTINGS);
+    } catch (e) {
+      alert(tr(e.message === 'tooNew' ? 'backupTooNew' : 'backupNotFile'));
+      return;
+    }
+    const c = parsed.counts;
+    if (!confirm(tr('backupConfirm', c.channels, c.stars, c.history, c.saved))) return;
+    try {
+      // まだ書き込んでいない設定の変更は捨てる (読み込んだ設定を上書きしないように)
+      clearTimeout(settingsTimer);
+      dirtySettings.clear();
+      await Backup.apply(parsed);
+      await saveNow();
+    } catch (e) {
+      notify(tr('backupFail', e.message));
+      return;
+    }
+    // チャンネル一覧・📌・表示言語などをまとめて反映するため、画面を読み込み直す (枠の中身は視聴セッションから戻る)
+    notify(tr('backupImported'));
+    setTimeout(() => location.reload(), 800);
+  });
 }
 
 function setupToolbar() {
@@ -1728,6 +1790,7 @@ function setupToolbar() {
     dialog.showModal();
   });
   document.getElementById('settingsReset').addEventListener('click', resetSettings);
+  setupBackup();
   showAppVersion();
   document.getElementById('openHelp').addEventListener('click', openHelp);
   document.getElementById('tourReplay').addEventListener('click', () => {

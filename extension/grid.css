@@ -1011,6 +1011,7 @@ dialog.settings-dialog { width: min(780px, calc(100% - 32px)); overflow: hidden;
 .settings-foot { grid-row: 3; grid-column: 1; display: flex; justify-content: space-between; align-items: center; gap: 12px; padding-top: 10px; border-top: 1px solid var(--line); }
 /* バージョン表示 (使い方・設定の画面の下) */
 .app-version { color: var(--muted); font-size: 11px; user-select: text; }
+.app-version .update-link { color: #6cc4ff; font-weight: 600; }
 .help-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 14px; }
 
 /* ---------- 使い方ツアー ---------- */
