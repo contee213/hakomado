@@ -3913,7 +3913,7 @@ function setupToolbar() {
   document.getElementById('openHelp').addEventListener('click', () => openHelp());
   document.getElementById('tourReplay').addEventListener('click', () => {
     document.getElementById('help').close();
-    Tour.start();
+    startTour();
   });
   document.getElementById('gridFullscreen').addEventListener('click', (e) => {
     // 押したボタンにフォーカスを残さない (全画面中に上部バーを隠すため)
@@ -4118,15 +4118,19 @@ function forgetAutoMarks(videoId) {
  * チャンネル / ライブラリの画面を開く (同じ画面を入り口で使い分ける)。
  * view: 'channels' = 📺 チャンネル (配信中・配信予定と、チャンネルの追加・ピックアップ) /
  *       'library'  = 📚 ライブラリ (最近の配信・視聴履歴・あとで見る。前回見ていたタブを開く)
+ * modal: false = 使い方ツアーで見せるとき。モーダルにすると最前面に出てツアーのボタンが押せなくなるので、普通に開く
  */
-function openFavorites(target, view) {
+function openFavorites(target, view, { modal = true } = {}) {
   favTarget = target;
   const favView = view === 'channels' ? 'channels' : 'library';
   favErrorEl.textContent = '';
   document.getElementById('favTitle').textContent = tr(favView === 'channels' ? 'chTitle' : 'libTitle');
   document.querySelector('.fav-tabs').hidden = favView === 'channels';
   setFavMode(favView === 'channels' ? 'all' : savedLibraryTab(), { render: false });
-  if (!favDialog.open) favDialog.showModal();
+  if (!favDialog.open) {
+    if (modal) favDialog.showModal();
+    else favDialog.show();
+  }
   refreshFavorites(false);
   if (isVideoMode()) renderVideoList();
   // チャンネルパックで足した、アイコンの無いチャンネルのアイコンを少しずつ取る (取れたら一覧を描き直す)
@@ -4154,15 +4158,40 @@ let favWorkers = 0;
 
 async function refreshFavorites(force) {
   const favs = await Favorites.list();
+  queueFavStatuses(favs, force);
+  renderFavorites(favs);
+}
+
+/**
+ * 使い方ツアーを始める。ツアーで見せるチャンネル・ライブラリの画面が、そのステップに来たときに
+ * 読み込み済みで出るよう、説明を読んでいる間に、その画面を開いたときに取るものを裏で取っておく。
+ * - 配信状況: 自動再生を ON にした最初と同じ速い取り方 (ホロジュールで分かるチャンネルは RSS を取らない)。数秒で済む
+ * - 最近の配信: チャンネルごとの RSS。1 本ずつ順に取るので、同梱の 77 チャンネルで 1 分ほど (1 本 0.7 秒ほど)。
+ *   ライブラリは 6 番目なので、説明を読みながら進めばおおむね間に合う。急いで進めた場合も、読めた分から並ぶ
+ */
+function startTour() {
+  Tour.start();
+  Favorites.list()
+    .then((favs) => {
+      queueFavStatuses(favs, false, { quick: true });
+      loadArchives(libScopeNow(favs) === 'star' ? favs.filter((f) => f.star) : favs);
+    })
+    .catch((e) => console.warn('hakomado: ツアー用の先読みに失敗', e));
+}
+
+/**
+ * チャンネルの配信状況を取る行列に入れて、取りに行く (取れたら、画面が開いていれば描き直す)。
+ * quick = ホロジュールで分かるチャンネルは RSS を取り直さない (Favorites.fetchStatus の quick)
+ */
+function queueFavStatuses(favs, force, { quick = false } = {}) {
   for (const f of favs) {
     const st = favStatus.get(f.channelId);
     if (!force && st && st !== 'error' && st !== 'loading') continue;
     if (st === 'loading' && favQueue.some((q) => q.f.channelId === f.channelId)) continue;
     if (st === 'loading' && !force) continue; // 取得中
     favStatus.set(f.channelId, 'loading');
-    favQueue.push({ f, force });
+    favQueue.push({ f, force, quick });
   }
-  renderFavorites(favs);
   while (favWorkers < 4 && favQueue.length) {
     favWorkers++;
     favWorker().finally(() => favWorkers--);
@@ -4172,7 +4201,7 @@ async function refreshFavorites(force) {
 async function favWorker() {
   for (let q = favQueue.shift(); q; q = favQueue.shift()) {
     try {
-      favStatus.set(q.f.channelId, await Favorites.fetchStatus(q.f, { force: q.force }));
+      favStatus.set(q.f.channelId, await Favorites.fetchStatus(q.f, { force: q.force, quick: q.quick }));
     } catch (e) {
       console.warn('hakomado: 配信状況の取得に失敗', q.f.name, e);
       favStatus.set(q.f.channelId, 'error');
@@ -7271,6 +7300,6 @@ async function chooseSession() {
   const { tourPending } = await chrome.storage.local.get('tourPending');
   if (tourPending) {
     await chrome.storage.local.remove('tourPending');
-    Tour.start();
+    startTour();
   }
 })();

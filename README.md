@@ -135,6 +135,10 @@ Hakomado の初期データはホロライブのチャンネルだけです。�
   (CRX を作るときだけ要ります)。ストアに公開するときは、ストアが出す公開鍵に差し替えればストア版と同じ ID にできます
 - テスト: `npm test` (Node.js 22 以上。依存パッケージは無いので `npm install` は要りません)。`tests/` にあり、push と PR のたびに
   GitHub Actions (`.github/workflows/test.yml`) でも回ります。リリースの ZIP もテストが通ってから作ります。
+  E2E テスト: `npm ci` と `npx playwright install chromium` のあと `npm run test:e2e`。`e2e/` にあり、`extension/` を読み込んだ
+  Chromium をまっさらなプロファイルで起動して、マルチビュー画面と service worker を動かして確かめます (外への通信は止めるので、
+  YouTube やアカウントには触れません)。これも push と PR のたびに回ります。同梱の Chromium が動かない環境では
+  `E2E_CHANNEL=msedge` で Edge を使えます (市販版の Chrome は拡張機能の読み込みの指定を無視するので使えません)。
   実際の YouTube を使う確認は `tests/MANUAL.md` の手順で手で行います
 - 埋め込みプレイヤー (`youtube.com/embed`) は拡張機能のページからだと再生を拒否される (エラー 152) ため、通常の視聴ページを枠に入れています
 

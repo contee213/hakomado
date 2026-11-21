@@ -12,3 +12,8 @@ desktop.ini
 *.zip
 *.crx
 *.pem
+
+# E2E テスト (Playwright)
+node_modules/
+test-results/
+playwright-report/

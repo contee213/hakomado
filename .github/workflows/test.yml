@@ -1,4 +1,6 @@
-# push と PR のたびに自動テスト (tests/) を回す。依存パッケージは無いので npm install は要らない
+# push と PR のたびに自動テストを回す
+# - test: 単体テスト (tests/)。依存パッケージは無いので npm install は要らない
+# - e2e: extension/ を読み込んだ Chromium で、マルチビュー画面と service worker を動かして確かめる (e2e/)
 name: Test
 
 on:
@@ -18,3 +20,22 @@ jobs:
         with:
           node-version: 22
       - run: npm test
+
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+      # 落ちたときは、操作の記録 (trace) を Actions の画面から取り出せるようにする
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-traces
+          path: test-results/
+          retention-days: 7
