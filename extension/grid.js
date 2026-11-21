@@ -2846,14 +2846,14 @@ function drawQr(ctx, { qr, n, cell, size }, x, y) {
 }
 
 /**
- * 共有セットの画像 (PNG の Blob) を作る (先頭から 16 本)。いちばん目を引くサムネイルの並びをできるだけ大きく、
- * 名前は大きく、そのほかの文字と QR は小さくする:
- *   ┌──────────────────────┬────┐
- *   │ サムネイルの並び (レイアウトの形)   │    │
- *   │                                      │#tag│
- *   ├──────────────────────┤ QR │
- *   │ 名前 (大きく) / 本数・使い方 (小さく) │    │
- *   └──────────────────────┴────┘
+ * 共有セットの画像 (PNG の Blob) を作る (先頭から 16 本)。サムネイルの並びを画像いっぱいに敷いて背景にし、
+ * その上に、左下に名前 (大きく) と小さい説明、右下に QR を重ねる:
+ *   ┌──────────────────────────┐
+ *   │ サムネイルの並び (画像いっぱい。チャンネル名は各枠の左上)  │
+ *   │                                                  #tag │
+ *   │ ░░░░░░░░░░░░░░░ 下を暗くぼかす ░░░░░░░░░░░░░░░  QR  │
+ *   │ 名前 (大きく) / 本数・使い方 (小さく)                 QR  │
+ *   └──────────────────────────┘
  */
 async function renderShareImage(set) {
   const filled = syncItems(set);
@@ -2865,33 +2865,18 @@ async function renderShareImage(set) {
   ctx.fillStyle = '#0d0d10';
   ctx.fillRect(0, 0, SHARE_W, SHARE_H);
   ctx.textBaseline = 'alphabetic';
+  const M = 28; // 重ねる文字・QR の、画像の端からの余白
+  const SP = 24;
 
-  const M = 24; // 外側の余白
-  const SP = 20; // 並び・下の帯・QR の間
-  const BAND = 104; // 下の帯 (名前と、小さい説明 1 行)
-  const LABEL = 40; // QR の上のハッシュタグの分
-  const qr = makeShareQr(shareSetCode(set));
-  const qx = SHARE_W - M - qr.size;
-  const qy = SHARE_H - M - qr.size;
-  const bandW = qx - SP - M;
-
-  // サムネイルの並び: レイアウトの形 (枠は 16:9) で、いちばん大きくなるほうに置く
-  // - 右の QR の列を除いた幅で、下の帯の上までの高さを使う (正方形に近いレイアウト)
-  // - 全体の幅を使い、QR の上で止める (1×2 のような横長のレイアウト)
+  // サムネイルの並び: レイアウトの形 (枠は 16:9) で画像いっぱいに (16:9 のレイアウトならちょうど全体。違う形なら真ん中に)
   const l = LAYOUTS.find((x) => x.id === playlistLayoutId(set));
   const { colW, rowH } = solveTracks(l);
   const sum = (a) => a.reduce((s, v) => s + v, 0);
-  const narrow = Math.min(bandW / sum(colW), (SHARE_H - M * 2 - SP - BAND) / sum(rowH));
-  const wide = Math.min((SHARE_W - M * 2) / sum(colW), (qy - LABEL - SP - M) / sum(rowH));
-  const scale = Math.max(narrow, wide);
-  const gridH = sum(rowH) * scale;
-  // 並びと下の帯をひとまとまりにして上下の真ん中に (全体の幅を使うときは、QR にかからない高さまで)
-  let top = (SHARE_H - gridH - SP - BAND) / 2;
-  if (wide > narrow) top = Math.min(top, qy - LABEL - SP - gridH);
-  const ox = M;
-  const oy = Math.max(M, top);
+  const scale = Math.min(SHARE_W / sum(colW), SHARE_H / sum(rowH));
+  const ox = (SHARE_W - sum(colW) * scale) / 2;
+  const oy = (SHARE_H - sum(rowH) * scale) / 2;
   const thumbs = await Promise.all(filled.map((h) => loadThumb(h.videoId)));
-  const GAP = 6;
+  const GAP = 4;
   l.slots.forEach(([cx, cy, cw, chh], k) => {
     const x = ox + sum(colW.slice(0, cx)) * scale + GAP / 2;
     const y = oy + sum(rowH.slice(0, cy)) * scale + GAP / 2;
@@ -2902,39 +2887,56 @@ async function renderShareImage(set) {
     if (k >= filled.length) return;
     const item = filled[k];
     if (thumbs[k]) drawCover(ctx, thumbs[k], x, y, w, h);
-    // チャンネル名 (下に暗いぼかしを敷いて読めるように)
-    const fs = Math.max(14, Math.min(28, Math.round(h / 10)));
-    const grad = ctx.createLinearGradient(0, y + h - fs * 2.4, 0, y + h);
-    grad.addColorStop(0, 'rgba(0,0,0,0)');
-    grad.addColorStop(1, 'rgba(0,0,0,.85)');
+    // チャンネル名は枠の左上 (下は名前と QR を重ねるので)。上に暗いぼかしを敷いて読めるように
+    const fs = Math.max(14, Math.min(26, Math.round(h / 10)));
+    const grad = ctx.createLinearGradient(0, y, 0, y + fs * 2.4);
+    grad.addColorStop(0, 'rgba(0,0,0,.75)');
+    grad.addColorStop(1, 'rgba(0,0,0,0)');
     ctx.fillStyle = grad;
-    ctx.fillRect(x, y + h - fs * 2.4, w, fs * 2.4);
+    ctx.fillRect(x, y, w, fs * 2.4);
     ctx.fillStyle = '#fff';
     ctx.font = `700 ${fs}px ${SHARE_FONT}`;
-    fillTextFit(ctx, item.label || item.channel || item.videoId, x + fs * 0.5, y + h - fs * 0.55, w - fs);
+    fillTextFit(ctx, item.label || item.channel || item.videoId, x + fs * 0.5, y + fs * 1.3, w - fs);
   });
 
-  // 下の帯: 名前は大きく (長ければ 40px まで縮め、それでも入らなければ切る)、その下に本数・レイアウトと使い方を小さく
+  // 下を暗くぼかして、名前と説明を重ねる (名前は大きく。長ければ 40px まで縮め、それでも入らなければ切る)
+  const qr = makeShareQr(shareSetCode(set));
+  const qx = SHARE_W - M - qr.size;
+  const qy = SHARE_H - M - qr.size;
+  const textW = qx - SP - M;
+  const scrim = ctx.createLinearGradient(0, SHARE_H - 300, 0, SHARE_H);
+  scrim.addColorStop(0, 'rgba(0,0,0,0)');
+  scrim.addColorStop(0.55, 'rgba(0,0,0,.7)');
+  scrim.addColorStop(1, 'rgba(0,0,0,.9)');
+  ctx.fillStyle = scrim;
+  ctx.fillRect(0, SHARE_H - 300, SHARE_W, 300);
+  ctx.shadowColor = 'rgba(0,0,0,.8)';
+  ctx.shadowBlur = 10;
   let fs = 64;
   for (; fs > 40; fs -= 4) {
     ctx.font = `700 ${fs}px ${SHARE_FONT}`;
-    if (ctx.measureText(title).width <= bandW) break;
+    if (ctx.measureText(title).width <= textW) break;
   }
   ctx.font = `700 ${fs}px ${SHARE_FONT}`;
   ctx.fillStyle = '#fff';
-  const titleY = oy + gridH + SP + 60;
-  fillTextFit(ctx, title, M, titleY, bandW);
-  ctx.fillStyle = '#a0a0ad';
+  fillTextFit(ctx, title, M, SHARE_H - M - 40, textW);
+  ctx.fillStyle = '#d0d0da';
   ctx.font = `400 22px ${SHARE_FONT}`;
-  fillTextFit(ctx, `${tr('shareImageCount', filled.length, l.name)}  ·  ${tr('shareImageHow')}`, M, titleY + 40, bandW);
+  fillTextFit(ctx, `${tr('shareImageCount', filled.length, l.name)}  ·  ${tr('shareImageHow')}`, M, SHARE_H - M, textW);
 
-  // 右下: QR (コード入り) と、その上にハッシュタグ
+  // 右下: QR (コード入り。白い四角に影を付けて背景から浮かせる) と、その上にハッシュタグ
+  ctx.shadowBlur = 18;
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(qx, qy, qr.size, qr.size);
+  ctx.shadowBlur = 0;
   drawQr(ctx, qr, qx, qy);
+  ctx.shadowBlur = 8;
   ctx.fillStyle = '#fff';
   ctx.font = `700 24px ${SHARE_FONT}`;
   ctx.textAlign = 'center';
   ctx.fillText(`#${SHARE_TAG}`, qx + qr.size / 2, qy - 12);
   ctx.textAlign = 'start';
+  ctx.shadowBlur = 0;
 
   return new Promise((resolve, reject) => canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('toBlob'))), 'image/png'));
 }
