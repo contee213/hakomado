@@ -2817,44 +2817,79 @@ function fillTextFit(ctx, text, x, y, maxW) {
   ctx.fillText(s, x, y);
 }
 
-/** QR を描く (白い四角の中に、周りの余白 4 マスを取って) */
-function drawQr(ctx, text, x, y, size) {
+// QR の周りの余白 (マス)。1 マスは整数の画素にする (端数があると、X で縮められたときに読めなくなりやすい)。
+// 誤り訂正は L (データが少ないほど QR が小さくなる)。1 マスは 4 画素以上で、QR が 1 辺 220px 前後になるまで大きくする。
+// 最大のコード (16 本 + ずれ + 名前) でも 300px 角で、X のタイムラインの大きさ (幅 680px) に縮めて JPEG にしても読める
+const SHARE_QR_QUIET = 3;
+
+/** QR を作る。cell = 1 マスの画素数、size = 余白を含めた 1 辺の画素数 */
+function makeShareQr(text) {
   // 名前に日本語などが入るので UTF-8 で入れる (jsQR は UTF-8 として読む。ASCII だけなら以前と同じ中身)
   qrcode.stringToBytes = qrcode.stringToBytesFuncs['UTF-8'];
-  const qr = qrcode(0, 'M');
+  const qr = qrcode(0, 'L');
   qr.addData(text);
   qr.make();
   const n = qr.getModuleCount();
-  const cell = Math.floor(size / (n + 8));
-  const off = Math.floor((size - cell * n) / 2);
+  const cell = Math.max(4, Math.min(8, Math.floor(220 / (n + SHARE_QR_QUIET * 2))));
+  return { qr, n, cell, size: (n + SHARE_QR_QUIET * 2) * cell };
+}
+
+/** QR を (x, y) に描く (白い四角の中に余白を取って) */
+function drawQr(ctx, { qr, n, cell, size }, x, y) {
   ctx.fillStyle = '#fff';
   ctx.fillRect(x, y, size, size);
   ctx.fillStyle = '#000';
+  const off = SHARE_QR_QUIET * cell;
   for (let r = 0; r < n; r++) {
     for (let c = 0; c < n; c++) if (qr.isDark(r, c)) ctx.fillRect(x + off + c * cell, y + off + r * cell, cell, cell);
   }
 }
 
-/** 共有セットの画像 (PNG の Blob) を作る (先頭から 16 本)。左下に大きく名前を出す (空なら「Hakomado 視聴セット」) */
+/**
+ * 共有セットの画像 (PNG の Blob) を作る (先頭から 16 本)。いちばん目を引くサムネイルの並びをできるだけ大きく、
+ * 名前は大きく、そのほかの文字と QR は小さくする:
+ *   ┌──────────────────────┬────┐
+ *   │ サムネイルの並び (レイアウトの形)   │    │
+ *   │                                      │#tag│
+ *   ├──────────────────────┤ QR │
+ *   │ 名前 (大きく) / 本数・使い方 (小さく) │    │
+ *   └──────────────────────┴────┘
+ */
 async function renderShareImage(set) {
   const filled = syncItems(set);
-  const code = shareSetCode(set);
-  const title = shareName(set.name);
+  const title = shareName(set.name) || `${SHARE_TAG} ${tr('shareImageTitle')}`;
   const canvas = document.createElement('canvas');
   canvas.width = SHARE_W;
   canvas.height = SHARE_H;
   const ctx = canvas.getContext('2d');
   ctx.fillStyle = '#0d0d10';
   ctx.fillRect(0, 0, SHARE_W, SHARE_H);
+  ctx.textBaseline = 'alphabetic';
 
-  // 左上: 今のレイアウトの形に、サムネイルとチャンネル名を並べる (枠の形は画面と同じ計算で 16:9 にそろえる)
-  const area = { x: 48, y: 48, w: 1040, h: 585 };
+  const M = 24; // 外側の余白
+  const SP = 20; // 並び・下の帯・QR の間
+  const BAND = 104; // 下の帯 (名前と、小さい説明 1 行)
+  const LABEL = 40; // QR の上のハッシュタグの分
+  const qr = makeShareQr(shareSetCode(set));
+  const qx = SHARE_W - M - qr.size;
+  const qy = SHARE_H - M - qr.size;
+  const bandW = qx - SP - M;
+
+  // サムネイルの並び: レイアウトの形 (枠は 16:9) で、いちばん大きくなるほうに置く
+  // - 右の QR の列を除いた幅で、下の帯の上までの高さを使う (正方形に近いレイアウト)
+  // - 全体の幅を使い、QR の上で止める (1×2 のような横長のレイアウト)
   const l = LAYOUTS.find((x) => x.id === playlistLayoutId(set));
   const { colW, rowH } = solveTracks(l);
   const sum = (a) => a.reduce((s, v) => s + v, 0);
-  const scale = Math.min(area.w / sum(colW), area.h / sum(rowH));
-  const ox = area.x + (area.w - sum(colW) * scale) / 2;
-  const oy = area.y + (area.h - sum(rowH) * scale) / 2;
+  const narrow = Math.min(bandW / sum(colW), (SHARE_H - M * 2 - SP - BAND) / sum(rowH));
+  const wide = Math.min((SHARE_W - M * 2) / sum(colW), (qy - LABEL - SP - M) / sum(rowH));
+  const scale = Math.max(narrow, wide);
+  const gridH = sum(rowH) * scale;
+  // 並びと下の帯をひとまとまりにして上下の真ん中に (全体の幅を使うときは、QR にかからない高さまで)
+  let top = (SHARE_H - gridH - SP - BAND) / 2;
+  if (wide > narrow) top = Math.min(top, qy - LABEL - SP - gridH);
+  const ox = M;
+  const oy = Math.max(M, top);
   const thumbs = await Promise.all(filled.map((h) => loadThumb(h.videoId)));
   const GAP = 6;
   l.slots.forEach(([cx, cy, cw, chh], k) => {
@@ -2868,7 +2903,7 @@ async function renderShareImage(set) {
     const item = filled[k];
     if (thumbs[k]) drawCover(ctx, thumbs[k], x, y, w, h);
     // チャンネル名 (下に暗いぼかしを敷いて読めるように)
-    const fs = Math.max(14, Math.min(30, Math.round(h / 9)));
+    const fs = Math.max(14, Math.min(28, Math.round(h / 10)));
     const grad = ctx.createLinearGradient(0, y + h - fs * 2.4, 0, y + h);
     grad.addColorStop(0, 'rgba(0,0,0,0)');
     grad.addColorStop(1, 'rgba(0,0,0,.85)');
@@ -2876,29 +2911,29 @@ async function renderShareImage(set) {
     ctx.fillRect(x, y + h - fs * 2.4, w, fs * 2.4);
     ctx.fillStyle = '#fff';
     ctx.font = `700 ${fs}px ${SHARE_FONT}`;
-    ctx.textBaseline = 'alphabetic';
     fillTextFit(ctx, item.label || item.channel || item.videoId, x + fs * 0.5, y + h - fs * 0.55, w - fs);
   });
-  // 左下: 説明
-  ctx.fillStyle = '#fff';
-  ctx.font = `700 44px ${SHARE_FONT}`;
-  fillTextFit(ctx, title || `${SHARE_TAG} ${tr('shareImageTitle')}`, 48, 706, 1040);
-  // 下の 2 行は、X のタイムライン (幅 600px 前後に縮む) でも読めるように 30px 以上にする
-  ctx.fillStyle = '#a0a0ad';
-  ctx.font = `400 32px ${SHARE_FONT}`;
-  ctx.fillText(tr('shareImageCount', filled.length, l.name), 48, 766);
-  ctx.font = `400 30px ${SHARE_FONT}`;
-  fillTextFit(ctx, tr('shareImageHow'), 48, 836, 1040);
 
-  // 右: QR (コード入り) とハッシュタグ
-  drawQr(ctx, code, 1124, 48, 428);
+  // 下の帯: 名前は大きく (長ければ 40px まで縮め、それでも入らなければ切る)、その下に本数・レイアウトと使い方を小さく
+  let fs = 64;
+  for (; fs > 40; fs -= 4) {
+    ctx.font = `700 ${fs}px ${SHARE_FONT}`;
+    if (ctx.measureText(title).width <= bandW) break;
+  }
+  ctx.font = `700 ${fs}px ${SHARE_FONT}`;
   ctx.fillStyle = '#fff';
-  ctx.font = `700 34px ${SHARE_FONT}`;
-  ctx.textAlign = 'center';
-  ctx.fillText(`#${SHARE_TAG}`, 1124 + 214, 532);
+  const titleY = oy + gridH + SP + 60;
+  fillTextFit(ctx, title, M, titleY, bandW);
   ctx.fillStyle = '#a0a0ad';
-  ctx.font = `400 30px ${SHARE_FONT}`;
-  ctx.fillText(tr('shareImageQr'), 1124 + 214, 580);
+  ctx.font = `400 22px ${SHARE_FONT}`;
+  fillTextFit(ctx, `${tr('shareImageCount', filled.length, l.name)}  ·  ${tr('shareImageHow')}`, M, titleY + 40, bandW);
+
+  // 右下: QR (コード入り) と、その上にハッシュタグ
+  drawQr(ctx, qr, qx, qy);
+  ctx.fillStyle = '#fff';
+  ctx.font = `700 24px ${SHARE_FONT}`;
+  ctx.textAlign = 'center';
+  ctx.fillText(`#${SHARE_TAG}`, qx + qr.size / 2, qy - 12);
   ctx.textAlign = 'start';
 
   return new Promise((resolve, reject) => canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('toBlob'))), 'image/png'));
@@ -2908,19 +2943,35 @@ async function renderShareImage(set) {
 async function readQrFromImage(blob) {
   const bmp = await createImageBitmap(blob);
   try {
-    // 大きすぎる画像は縮めて読む (読み取りが遅くなるため)。読めなければ元の大きさでも試す
-    for (const max of [1600, Infinity]) {
-      const k = Math.min(1, max / Math.max(bmp.width, bmp.height));
-      const w = Math.round(bmp.width * k);
-      const h = Math.round(bmp.height * k);
+    const W = bmp.width;
+    const H = bmp.height;
+    const fit = Math.min(1, 1600 / Math.max(W, H)); // 大きすぎる画像は縮めて読む (読み取りが遅くなるため)
+    // 順に試す: 全体 (縮めたもの・元の大きさ)、右半分を拡大したもの (QR は右側にある。X で縮められた画像は、
+    // 拡大し直すと読めることがある)、全体を少し縮めたもの。[左, 上, 幅, 高さ] (割合) と倍率
+    const tries = [
+      [[0, 0, 1, 1], fit],
+      [[0, 0, 1, 1], 1],
+      [[0.5, 0, 0.5, 1], Math.min(2, 1600 / Math.max(W / 2, H))],
+      [[0, 0, 1, 1], fit * 0.75],
+    ];
+    const seen = new Set();
+    for (const [[rx, ry, rw, rh], k] of tries) {
+      const sx = Math.round(W * rx);
+      const sy = Math.round(H * ry);
+      const sw = Math.round(W * rw);
+      const sh = Math.round(H * rh);
+      const w = Math.round(sw * k);
+      const h = Math.round(sh * k);
+      const key = `${sx},${sy},${w},${h}`;
+      if (seen.has(key) || w < 50 || h < 50) continue;
+      seen.add(key);
       const canvas = document.createElement('canvas');
       canvas.width = w;
       canvas.height = h;
       const ctx = canvas.getContext('2d', { willReadFrequently: true });
-      ctx.drawImage(bmp, 0, 0, w, h);
+      ctx.drawImage(bmp, sx, sy, sw, sh, 0, 0, w, h);
       const hit = jsQR(ctx.getImageData(0, 0, w, h).data, w, h, { inversionAttempts: 'attemptBoth' });
       if (hit?.data) return hit.data;
-      if (k === 1) break;
     }
     return null;
   } finally {

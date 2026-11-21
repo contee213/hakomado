@@ -138,7 +138,6 @@ const MESSAGES = {
   shareImageTitle: ['視聴セット', 'viewing set'],
   shareImageCount: ['{0} 本 / レイアウト {1}', '{0} streams / layout {1}'],
   shareImageHow: ['Hakomado に貼り付けると同じ並びで開けます', 'Paste into Hakomado to open the same view'],
-  shareImageQr: ['Hakomado で読み込み', 'Open in Hakomado'],
   shareNothing: ['YouTube の URL が見つかりませんでした', 'No YouTube URLs were found'],
   shareLoading: ['読み込んでいます ({0} / {1})', 'Loading ({0} / {1})'],
   shareBadLines: ['{0} 行は読み取れなかったので飛ばしました', 'Skipped {0} lines that could not be read'],
