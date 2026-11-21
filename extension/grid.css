@@ -1106,6 +1106,14 @@ dialog.settings-dialog { width: min(780px, calc(100% - 32px)); overflow: hidden;
 .settings-panel[hidden] { display: grid; visibility: hidden; }
 .settings-col { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 .preset-buttons { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+/* チャンネルパック */
+.pack-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.pack-row select { min-width: 0; max-width: 220px; }
+.pack-in { font-size: 11px; }
+.pack-list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; font-size: 12px; }
+.pack-list li { display: flex; align-items: center; gap: 8px; }
+.pack-list .pack-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pack-list button { flex: none; padding: 1px 8px; font-size: 12px; }
 @media (max-width: 720px) {
   .settings-panel { grid-template-columns: minmax(0, 1fr); gap: 12px; }
 }

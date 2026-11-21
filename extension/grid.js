@@ -1,4 +1,4 @@
-/* global Danmaku, LAYOUTS, ANCHORS, DEFAULT_LAYOUT_ID, MAX_SLOTS, getLayout, layoutFor, solveTracks, LANG, LANG_PREF, tr, setLangPref, Backup, UpdateCheck, qrcode, jsQR */
+/* global Danmaku, LAYOUTS, ANCHORS, DEFAULT_LAYOUT_ID, MAX_SLOTS, getLayout, layoutFor, solveTracks, LANG, LANG_PREF, tr, setLangPref, Backup, UpdateCheck, qrcode, jsQR, ChannelPack */
 'use strict';
 
 const MAX_TILES = MAX_SLOTS;
@@ -2721,12 +2721,13 @@ function setupToolbar() {
 
   const dialog = document.getElementById('settings');
   document.getElementById('openSettings').addEventListener('click', () => {
-    updatePresetButtons();
+    updatePacks();
     dialog.showModal();
   });
   document.getElementById('settingsReset').addEventListener('click', resetSettings);
   setupBackup();
   setupShare();
+  setupPacks();
   Sync.setup();
   showAppVersion();
   document.getElementById('openHelp').addEventListener('click', openHelp);
@@ -2932,6 +2933,12 @@ function openFavorites(target, view) {
   if (!favDialog.open) favDialog.showModal();
   refreshFavorites(false);
   if (isVideoMode()) renderVideoList();
+  // チャンネルパックで足した、アイコンの無いチャンネルのアイコンを少しずつ取る (取れたら一覧を描き直す)
+  if (favView === 'channels') {
+    Favorites.fillIcons()
+      .then((n) => n && favDialog.open && !isVideoMode() && refreshFavorites(false))
+      .catch(() => {});
+  }
 }
 
 /** ライブラリで前回見ていたタブ */
@@ -3127,7 +3134,7 @@ function favItem({ f, st }) {
     await Favorites.remove(f.channelId);
     favStatus.delete(f.channelId);
     renderFavorites(await Favorites.list());
-    updatePresetButtons();
+    updatePacks();
   });
   if (!open) return li;
   // 開いているときは、行のすぐ下にアーカイブの一覧を足す
@@ -3446,21 +3453,163 @@ chrome.storage.onChanged.addListener((changes, area) => {
   if (area === 'local' && changes[WatchHistory.KEY] && favDialog.open && favMode === 'history') renderVideoList();
 });
 
-/** 設定画面の「チャンネル」タブ: 初期データを全部外す / 外したものを戻す (件数を出し、0 件なら押せない) */
-async function updatePresetButtons() {
-  const [n, m] = await Promise.all([Favorites.removedPresetCount(), Favorites.presetCount()]);
-  const rm = document.getElementById('presetRemoveAll');
-  rm.textContent = tr('removePresets', m);
-  rm.disabled = m === 0;
-  const back = document.getElementById('presetRestore');
-  back.textContent = tr('restorePresets', n);
-  back.disabled = n === 0;
+// ---------------------------------------------------------------- チャンネルパック (設定の「チャンネル」タブ)
+/**
+ * チャンネルパックの一覧と、書き出すグループの選択肢を作り直す。
+ * 先頭は最初から入っているホロライブのパック (初期データ。中身は presets.js で、拡張機能の更新で増える)。
+ * 外したあとも一覧に残し、「戻す」で戻せるようにする
+ */
+async function updatePacks() {
+  const list = document.getElementById('packList');
+  const button = (text, onClick, disabled = false) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = text;
+    b.disabled = disabled;
+    b.addEventListener('click', onClick);
+    return b;
+  };
+  const row = (text, ...buttons) => {
+    const li = document.createElement('li');
+    const label = document.createElement('span');
+    label.className = 'pack-name';
+    label.textContent = text;
+    label.title = text;
+    li.append(label, ...buttons);
+    return li;
+  };
+  const [packs, presetIn, presetOut] = await Promise.all([Favorites.packs(), Favorites.presetCount(), Favorites.removedPresetCount()]);
+  const builtin = row(
+    tr('packCount', tr('packBuiltin'), presetIn),
+    button(tr('packRemove'), async () => {
+      if (!confirm(tr('removePresetsConfirm', presetIn))) return;
+      const n = await Favorites.removeAllPresets();
+      await afterPresetsChanged();
+      notify(tr('packRemoved', tr('packBuiltin'), n));
+    }, presetIn === 0),
+    button(tr('packRestore', presetOut), async () => {
+      await Favorites.restorePresets();
+      await afterPresetsChanged();
+    }, presetOut === 0),
+  );
+  list.replaceChildren(
+    builtin,
+    ...packs.map(({ name, count }) =>
+      row(
+        tr('packCount', name, count),
+        button(tr('packRemove'), async () => {
+          if (!confirm(tr('packRemoveConfirm', name, count))) return;
+          const n = await Favorites.removePack(name);
+          await afterPresetsChanged();
+          notify(tr('packRemoved', name, n));
+        }),
+      ),
+    ),
+  );
+  // 書き出す範囲 (パック単位): すべて / 同梱のホロライブ / 読み込んだ各パック / 自分で追加したチャンネル (チャンネルがあるものだけ)
+  const sel = document.getElementById('packGroup');
+  const prev = sel.value;
+  const favs = await Favorites.list();
+  const opt = (value, text) => Object.assign(document.createElement('option'), { value, textContent: text });
+  const options = [opt('*', tr('packAllGroups'))];
+  if (favs.some((f) => f.preset)) options.push(opt('@builtin', tr('packBuiltin')));
+  for (const { name } of packs) options.push(opt(`pack:${name}`, name));
+  if (favs.some(isMyChannel)) options.push(opt('@mine', tr('packMine')));
+  sel.replaceChildren(...options);
+  if ([...sel.options].some((o) => o.value === prev)) sel.value = prev;
 }
 
-/** 初期データのチャンネルを外した / 戻したあと、📌 の表示や開いている一覧を直す */
+/** 自分で追加したチャンネル (同梱のホロライブでも、読み込んだパックでもないもの) */
+const isMyChannel = (f) => !f.preset && !f.pack;
+
+/** 書き出す範囲の値 → {パックの名前, そのチャンネル} */
+function exportSelection(value, favs) {
+  if (value === '@builtin') return { name: tr('packBuiltinExport'), list: favs.filter((f) => f.preset) };
+  if (value === '@mine') return { name: tr('packMine'), list: favs.filter(isMyChannel) };
+  if (value.startsWith('pack:')) {
+    const name = value.slice('pack:'.length);
+    return { name, list: favs.filter((f) => f.pack === name) };
+  }
+  return { name: tr('packAllGroups'), list: favs };
+}
+
+function setupPacks() {
+  const input = document.getElementById('packIn');
+  const status = document.getElementById('packStatus');
+  const file = document.getElementById('packFile');
+  const setStatus = (text, isError = false) => {
+    status.textContent = text;
+    status.classList.toggle('share-error', isError);
+  };
+  const errorText = (e) =>
+    ({ notPack: tr('packNotPack'), emptyPack: tr('packEmpty'), tooLarge: tr('packTooLarge'), badUrl: tr('packBadUrl') })[e.message] ||
+    tr('packFetchFail', e.message || e);
+
+  /** パックの中身 (JSON) を確かめて、確認してから足す */
+  const importText = async (text) => {
+    let pack;
+    try {
+      pack = ChannelPack.parse(text);
+    } catch (e) {
+      setStatus(errorText(e), true);
+      return;
+    }
+    const { added, existing } = await Favorites.previewPack(pack);
+    if (!added) {
+      setStatus(tr('packNothing', pack.name));
+      return;
+    }
+    if (!confirm(tr('packConfirm', pack.name, added, existing))) {
+      setStatus('');
+      return;
+    }
+    const n = await Favorites.importPack(pack);
+    input.value = '';
+    setStatus(tr('packAdded', pack.name, n));
+    await afterPresetsChanged();
+  };
+
+  document.getElementById('packLoad').addEventListener('click', async () => {
+    const raw = input.value.trim();
+    if (!raw) return;
+    setStatus(tr('packLoading'));
+    // URL なら取りに行く (中身を貼った場合はそのまま)
+    if (/^https?:\/\//i.test(raw)) {
+      try {
+        await importText(await ChannelPack.fetchText(raw));
+      } catch (e) {
+        setStatus(errorText(e), true);
+      }
+      return;
+    }
+    await importText(raw);
+  });
+  document.getElementById('packFileBtn').addEventListener('click', () => file.click());
+  file.addEventListener('change', async () => {
+    const f = file.files[0];
+    file.value = '';
+    if (f) await importText(await f.text());
+  });
+
+  // 書き出す: 選んだパック (同梱のホロライブ・読み込んだパック・自分で追加したチャンネル・すべて) を、JSON ファイルで保存。
+  // チャンネルごとのグループ (ホロライブの「0期生」など) はそのまま残す
+  document.getElementById('packExport').addEventListener('click', async () => {
+    const { name, list: favs } = exportSelection(document.getElementById('packGroup').value, await Favorites.list());
+    if (!favs.length) return;
+    const body = JSON.stringify(ChannelPack.build(name, favs), null, 2);
+    const url = URL.createObjectURL(new Blob([body], { type: 'application/json' }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `hakomado-pack-${name.replace(/[\\/:*?"<>|\s]+/g, '_')}.json`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+  });
+}
+
+/** 初期データ・チャンネルパックのチャンネルを足した / 外したあと、📌 の表示や開いている一覧を直す */
 async function afterPresetsChanged() {
   await refreshFavKeys();
-  await updatePresetButtons();
+  await updatePacks();
   if (favDialog.open && !isVideoMode()) await refreshFavorites(false);
 }
 
@@ -4551,17 +4700,6 @@ function setupFavorites() {
     renderVideoList();
   });
 
-  // 設定画面の「チャンネル」タブ: 初期データを全部外す / 戻す
-  document.getElementById('presetRemoveAll').addEventListener('click', async () => {
-    const m = await Favorites.presetCount();
-    if (!m || !confirm(tr('removePresetsConfirm', m))) return;
-    await Favorites.removeAllPresets();
-    await afterPresetsChanged();
-  });
-  document.getElementById('presetRestore').addEventListener('click', async () => {
-    await Favorites.restorePresets();
-    await afterPresetsChanged();
-  });
 }
 
 /** 枠の操作バーの 📌: この枠で見ている配信のチャンネルをピックアップに入れる / 外す */

@@ -194,14 +194,27 @@
       </section>
       <section class="settings-panel" data-panel="channels" role="tabpanel" hidden>
         <div class="settings-col">
-          <span class="field-label" data-i18n="presets.h">初期データのチャンネル</span>
-          <p class="settings-note" data-i18n="presets.note">インストールしたときに入っているチャンネルです。まとめて外したり、外したものを戻したりできます。自分で追加したチャンネルと、ピックアップ (📌) に入れたチャンネルは外しません</p>
-          <div class="preset-buttons">
-            <button type="button" id="presetRemoveAll"></button>
-            <button type="button" id="presetRestore"></button>
+          <span class="field-label" data-i18n="pack.listH">チャンネルパック</span>
+          <p class="settings-note" data-i18n="pack.listNote">チャンネル一覧に入っているパックです。ホロライブ (同梱版) は最初から入っています。パックごとに、まとめて外したり、外したものを戻したりできます。自分で追加したチャンネルと、ピックアップ (📌) に入れたチャンネルは外しません</p>
+          <ul id="packList" class="pack-list"></ul>
+          <span class="field-label" data-i18n="pack.exportH">チャンネルパックを書き出す</span>
+          <p class="settings-note" data-i18n="pack.exportNote">チャンネル一覧から、パック (同梱のホロライブ・読み込んだパック・自分で追加したチャンネル・すべて) を選んでチャンネルパック (JSON) にします。ほかの人に配ったり、GitHub などで公開したりできます</p>
+          <div class="pack-row">
+            <select id="packGroup"></select>
+            <button type="button" id="packExport" data-i18n="pack.export">⬇ 書き出す</button>
           </div>
         </div>
-        <div class="settings-col"></div>
+        <div class="settings-col">
+          <span class="field-label" data-i18n="pack.h">チャンネルパックを読み込む</span>
+          <p class="settings-note" data-i18n="pack.note">ほかの人が作ったチャンネルの一覧 (チャンネルパック) を、今のチャンネル一覧に足します。URL か中身を貼り付けて「読み込む」を押すか、ファイルを選んでください。登録済みのチャンネルはそのままです</p>
+          <textarea id="packIn" class="share-text pack-in" rows="2" spellcheck="false" data-i18n-placeholder="pack.placeholder" placeholder="https://… (パックの URL) / { &quot;app&quot;: &quot;hakomado&quot;, … }"></textarea>
+          <div class="pack-row">
+            <button type="button" id="packLoad" data-i18n="pack.load">読み込む</button>
+            <button type="button" id="packFileBtn" data-i18n="pack.file">ファイルを選ぶ</button>
+            <input type="file" id="packFile" accept=".json,application/json" hidden>
+            <span id="packStatus" class="share-status" role="status"></span>
+          </div>
+        </div>
       </section>
       <section class="settings-panel" data-panel="backup" role="tabpanel" hidden>
         <div class="settings-col">
@@ -463,6 +476,7 @@
   <script src="vendor/qrcode-generator.js"></script>
   <script src="vendor/jsQR.js"></script>
   <script src="backup.js"></script>
+  <script src="packs.js"></script>
   <script src="update-check.js"></script>
   <script src="grid.js"></script>
 </body>
