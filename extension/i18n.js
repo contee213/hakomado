@@ -360,6 +360,7 @@ const MESSAGES = {
   plClearWatchedTitle: ['見た印を全部消して、次は最初から順に再生する', 'Clear all watched marks so the next play starts from the top'],
   plAllWatched: ['「{0}」は全部見ました。見た印を消して最初から再生しますか？', 'You have watched all of "{0}". Clear the watched marks and play from the start?'],
   plWatched: ['✓ 見た', '✓ Watched'],
+  queueSkipped: ['⚠ 見られないので飛ばしました: {0}', '⚠ Skipped because it cannot be played: {0}'],
   plWatchedTitle: ['最後まで見ました。押すと見た印を外す', 'Played to the end. Press to clear the mark'],
   plFromHere: ['▶ ここから', '▶ From here'],
   plFromHereTitle: ['この行から下を、今の枠で順に再生する (見た印のあるものも再生する)', 'Play from this row down in the current tiles (including ones already watched)'],

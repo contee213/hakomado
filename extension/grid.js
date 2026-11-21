@@ -2123,9 +2123,19 @@ function onEnded(i, reason) {
 function onPlayability(i, status, text) {
   const t = state.tiles[i];
   // 開始前 (待機画面) はメンバーでも OK にならないので判定しない。始まると枠のプレイヤーがもう一度知らせてくる
-  if (!t.videoId || status === 'OK' || status === 'LIVE_STREAM_OFFLINE' || !Favorites.isMembersBlock(text)) return;
-  Favorites.rememberMembersOnly(t.videoId);
-  membersBlocked.add(t.videoId);
+  if (!t.videoId || status === 'OK' || status === 'LIVE_STREAM_OFFLINE') return;
+  const members = Favorites.isMembersBlock(text);
+  if (members) {
+    Favorites.rememberMembersOnly(t.videoId);
+    membersBlocked.add(t.videoId);
+  }
+  // 順に再生の枠は、見られなければ飛ばして次を入れる (止まったままにしない)。
+  // 年齢などの確認画面 (CONTENT_CHECK_REQUIRED) は押せば見られるので飛ばさない
+  if (queueMode && t.queue && status !== 'CONTENT_CHECK_REQUIRED') {
+    skipQueueTile(i, members);
+    return;
+  }
+  if (!members) return;
   if (!state.settings.skipMembersOnly || !state.autoMode || !t.auto) return;
   const name = tileName(i);
   const wasAudible = !t.muted;
@@ -4428,6 +4438,7 @@ function hms(sec) {
 function playlistBadges(pl, x) {
   const out = [];
   const st = plVideoStates.get(x.videoId);
+  const avail = playerBlocked.get(x.videoId) || st?.avail;
   if (!pl.sync && x.watched) {
     out.push(
       mk('button', {
@@ -4440,9 +4451,9 @@ function playlistBadges(pl, x) {
     );
   }
   const badge = (cls, text, title = '') => out.push(mk('span', { class: `pl-badge ${cls}`, textContent: text, title }));
-  if (st?.avail === 'gone') badge('bad', tr('plStGone'), tr('plStGoneTitle'));
-  else if (st?.avail === 'members') badge('bad', tr('plStMembers'));
-  else if (st?.avail === 'blocked') badge('warn', tr('plStBlocked'));
+  if (avail === 'gone') badge('bad', tr('plStGone'), tr('plStGoneTitle'));
+  else if (avail === 'members') badge('bad', tr('plStMembers'));
+  else if (avail === 'blocked') badge('warn', tr('plStBlocked'));
   if (st?.state === 'live') badge('live', tr('plStLive'));
   else if (st?.state === 'upcoming') badge('upcoming', st.startAt ? tr('plStUpcomingAt', formatStart(st.startAt)) : tr('plStUpcoming'));
   return out;
@@ -5579,11 +5590,13 @@ const queueDoneIds = new Set();
 async function queueList() {
   if (queueSource) {
     // 再生リスト: ふつうは見ていないものを上から (続きから)。「ここから再生」なら、その行から下を全部
+    // 見られないと分かっているものは除く (「ここから」の位置は、除く前の並びで決める)
     const items = (await Playlists.get(queueSource))?.items || [];
-    if (!queueFromId) return items.filter((h) => !h.watched);
-    return items.slice(Math.max(0, items.findIndex((h) => h.videoId === queueFromId)));
+    const playable = (h) => !knownUnplayable(h.videoId);
+    if (!queueFromId) return items.filter((h) => !h.watched && playable(h));
+    return items.slice(Math.max(0, items.findIndex((h) => h.videoId === queueFromId))).filter(playable);
   }
-  const list = [...(await SavedVideos.list())].reverse();
+  const list = [...(await SavedVideos.list())].reverse().filter((h) => !knownUnplayable(h.videoId));
   return (await pickedOnly()) ? list.filter(isPickedEntry) : list;
 }
 
@@ -5650,6 +5663,26 @@ function queueLoad(i, h) {
   Object.assign(state.tiles[i], { queue: true, label: h.label || h.channel || '' });
   updateTileName(i);
   save();
+}
+
+/** 順に再生の枠の動画が見られなかった → 飛ばして次を入れる (再生リストなら行に印を付ける。見た印は付けない) */
+function skipQueueTile(i, members) {
+  const t = state.tiles[i];
+  const name = tileName(i) || t.videoId;
+  queueDoneIds.add(t.videoId);
+  playerBlocked.set(t.videoId, members ? 'members' : 'blocked');
+  WatchHistory.removed(t.videoId, members ? 'members' : 'replaced');
+  notify(tr('queueSkipped', name));
+  queueNext(i);
+}
+
+/** 枠のプレイヤーが「見られない」と知らせてきた動画 (このタブの間だけ。ページを調べた結果より確か) -> 'members' | 'blocked' */
+const playerBlocked = new Map();
+
+/** 見られないと分かっている動画 (削除・非公開・メンバー限定・枠で再生できなかった)。順に再生では最初から入れない */
+function knownUnplayable(videoId) {
+  const a = plVideoStates.get(videoId)?.avail;
+  return a === 'gone' || a === 'members' || membersBlocked.has(videoId) || playerBlocked.has(videoId);
 }
 
 /** あとで見るの枠が最後まで再生し終わった → まだ枠に出ていない次のものを入れる。無ければ枠を空ける。
