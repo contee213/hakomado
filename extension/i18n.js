@@ -34,6 +34,21 @@ function setLangPref(v) {
 
 // スクリプトから出す文言 (両方の言語)
 const MESSAGES = {
+  // 不具合の報告 (エラーの記録)
+  errSrc_grid: ['マルチビュー画面', 'Multiview page'],
+  errSrc_background: ['バックグラウンド', 'Background'],
+  errSrc_watch: ['枠の動画', 'Video in a tile'],
+  errSrc_chat: ['枠のチャット', 'Chat in a tile'],
+  errTimes: ['×{0} 回', '×{0}'],
+  errCopied: ['報告の内容をクリップボードにコピーしました', 'Copied the report to the clipboard'],
+  errCleared: ['エラーの記録を削除しました', 'Deleted the error record'],
+  errClearConfirm: ['エラーの記録をすべて削除します。よろしいですか？', 'All entries in the error record will be deleted. Continue?'],
+  errIssueTitle: ['不具合の報告: ', 'Problem report: '],
+  errBodyWhat: ['## 発生した問題\n(操作内容と、発生した現象を記入してください)', '## Problem\n(Describe what you did and what happened)'],
+  errBodyEnv: ['## 環境', '## Environment'],
+  errBodyLog: ['## エラーの記録 (新しい順、{0} / {1} 件)', '## Error record (newest first, {0} of {1})'],
+  errBodyNone: ['(記録はありません)', '(nothing recorded)'],
+
   // 入力
   inputEmpty: ['URL か動画 ID を入力してください', 'Enter a URL or video ID'],
   notUrl: ['URL として読み取れませんでした', 'Could not read this as a URL'],
@@ -838,6 +853,17 @@ const HTML_EN = {
   'key.lib': 'Open the library',
   'key.danmaku': 'Hide / show danmaku on all tiles for now (unless set with ≋ on a tile, danmaku shows only on main tiles)',
   'tour.replay': '▶ Replay the tour',
+  'helpNav.report': 'Report a problem',
+  'helpPage.report': `<p>A record of errors in this extension and features that did not work. Use it to report problems.</p>
+<ul>
+<li>The record is stored only on this computer and is not sent anywhere. Up to 100 entries are kept, newest first, and entries older than 7 days are deleted. Identical entries are combined and shown with a count</li>
+<li><b>Report on GitHub</b>: opens a new GitHub issue form with the record and environment details (version, browser, OS) filled in. You can review and edit it before submitting. Issues are public, so remove any information you do not want to make public (video IDs, channel names, etc.) before submitting. A GitHub account is required</li>
+<li><b>Copy</b>: copies the same content to the clipboard. Use this to report by email or other means</li>
+</ul>`,
+  'errlog.report': 'Report on GitHub',
+  'errlog.copy': 'Copy',
+  'errlog.clear': 'Delete the record',
+  'errlog.empty': 'Nothing recorded',
   'key.help': 'Open this screen',
 
   // レイアウト

@@ -2516,6 +2516,100 @@ function setupHelp() {
   };
 }
 
+// ---------------------------------------------------------------- 不具合の報告 (エラーの記録は errlog.js)
+const ISSUE_NEW = 'https://github.com/contee213/hakomado/issues/new';
+const ISSUE_BODY_MAX = 6000; // URL に入れる本文の長さ (エンコード後)。GitHub の URL の上限より十分短く
+
+function errTime(t) {
+  const d = new Date(t);
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+}
+
+/** 報告の本文 (GitHub の Issue とコピーで同じもの)。fit = URL に入る長さまで記録を減らす */
+function errReportText(list, fit) {
+  const m = chrome.runtime.getManifest();
+  const brand = navigator.userAgentData?.brands?.find((b) => /Chrome|Chromium/.test(b.brand));
+  const browser = brand ? `${brand.brand} ${brand.version}` : (navigator.userAgent.match(/Chrome\/[\d.]+/)?.[0] ?? '?');
+  const head = [
+    tr('errBodyWhat'),
+    '',
+    tr('errBodyEnv'),
+    `- Hakomado: ${m.version_name || m.version}${m.update_url ? ' (store)' : ''}`,
+    `- Browser: ${browser}`,
+    `- OS: ${navigator.userAgentData?.platform || navigator.platform || '?'}`,
+    `- Language: ${LANG}`,
+    '',
+  ];
+  const lines = list.map((e) => `${errTime(e.t)}${e.n > 1 ? ` ×${e.n}` : ''} [${e.src}/${e.kind}] ${e.msg}`);
+  const build = (k) =>
+    [...head, tr('errBodyLog', k, list.length), ...(k ? ['```', ...lines.slice(0, k), '```'] : [tr('errBodyNone')])].join('\n');
+  let k = lines.length;
+  if (fit) while (k > 0 && encodeURIComponent(build(k)).length > ISSUE_BODY_MAX) k--;
+  return build(k);
+}
+
+function setupErrLog() {
+  const dialog = document.getElementById('help');
+  const tab = document.getElementById('helpReportTab');
+  const listEl = document.getElementById('errList');
+  const page = dialog.querySelector('[data-help-page="report"]');
+  let list = [];
+
+  const render = async () => {
+    list = await ErrLog.list();
+    // 記録があれば、使い方の項目に件数を出す
+    if (list.length) tab.dataset.count = String(list.length);
+    else delete tab.dataset.count;
+    if (!dialog.open || page.hidden) return;
+    document.getElementById('errEmpty').hidden = list.length > 0;
+    document.getElementById('errClear').disabled = !list.length;
+    listEl.replaceChildren(
+      ...list.map((e) => {
+        const li = document.createElement('li');
+        li.className = `errlog-item ${e.kind}`;
+        const meta = document.createElement('div');
+        meta.className = 'errlog-meta';
+        meta.textContent = [errTime(e.t), tr('errSrc_' + e.src), e.n > 1 ? tr('errTimes', e.n) : ''].filter(Boolean).join(' · ');
+        const msg = document.createElement('div');
+        msg.className = 'errlog-msg';
+        msg.textContent = e.msg;
+        li.append(meta, msg);
+        return li;
+      }),
+    );
+  };
+
+  // 使い方の項目を切り替えた・開いたときに描き直す
+  new MutationObserver(render).observe(page, { attributes: true, attributeFilter: ['hidden'] });
+  dialog.addEventListener('toggle', render);
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area === 'local' && ErrLog.KEY in changes) render();
+  });
+
+  document.getElementById('errReport').addEventListener('click', () => {
+    const first = list[0]?.msg.replace(/^hakomado:\s*/, '').slice(0, 60) || '';
+    const url = new URL(ISSUE_NEW);
+    url.searchParams.set('title', tr('errIssueTitle') + first);
+    url.searchParams.set('body', errReportText(list, true));
+    window.open(url.href, '_blank', 'noopener,noreferrer');
+  });
+  document.getElementById('errCopy').addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(errReportText(list, false));
+      notify(tr('errCopied'));
+    } catch (e) {
+      console.warn('hakomado: 不具合の報告をコピーできませんでした', e);
+    }
+  });
+  document.getElementById('errClear').addEventListener('click', async () => {
+    if (!confirm(tr('errClearConfirm'))) return;
+    await ErrLog.clear();
+    notify(tr('errCleared'));
+  });
+  render();
+}
+
 // ---------------------------------------------------------------- 🔗 共有 / 📥 読み込み
 // 共有するもの (今の枠 = 視聴セット、または再生リスト) を「共有セット」という 1 つの形にそろえ、そこから 4 つの形式を作る:
 // - 画像: レイアウトの形にサムネイルとチャンネル名を並べ、コードを入れた QR を添えたもの (X は画像を文字数に数えない)
@@ -3904,6 +3998,7 @@ function setupToolbar() {
   document.getElementById('settingsReset').addEventListener('click', resetSettings);
   setupBackup();
   setupHelp();
+  setupErrLog();
   setupShare();
   setupRead();
   setupPlaylistPicker();

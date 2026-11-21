@@ -54,6 +54,7 @@ and your settings and channels are carried over.
 5. Change the arrangement from "▦ Layout" at the top
 
 For more controls and keys, open "?" (help) at the top right. The tour shown the first time you open it after installing can be replayed from there too. Settings are under "⚙".
+If you encounter a problem, check the error record under "?" → "Report a problem" and report it with "Report on GitHub" or "Copy" (the record is stored only on your computer and is never sent automatically).
 
 > [!TIP]
 > - If a channel you want isn't listed, add it from the field at the bottom of the "📺 Channels" window
