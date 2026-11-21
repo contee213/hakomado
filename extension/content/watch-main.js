@@ -360,7 +360,7 @@
   // ---- アーカイブの同期再生 (コラボの各視点を、同じ瞬間にそろえて見る)
   //   ここ → watch.js : 'hakomado:archive'    detail JSON {start, end, dur} (配信の実際の開始・終了時刻 (ミリ秒) と長さ (秒)。1 度だけ)
   //   ここ → watch.js : 'hakomado:sync-state' detail JSON {t, ps, ad, r, up, sk} (再生位置・プレイヤーの状態・広告中か・速度・
-  //                     枠の中でユーザーが一時停止したか・枠の中でユーザーがシークした回数。0.5 秒ごと)
+  //                     枠の中でユーザーが一時停止したか・枠の中でユーザーがシークした回数・位置を読んだ時刻。0.5 秒ごと)
   //   watch.js → ここ : 'hakomado:sync'       detail JSON {op: 'seek' | 'play' | 'pause' | 'rate', t?, r?}
   // 終わった配信のアーカイブを開いたときだけ動く (ライブ配信中・ふつうの動画は同期しない)
   let archiveSent = false;
@@ -406,7 +406,9 @@
       document.dispatchEvent(new CustomEvent('hakomado:archive', { detail }));
     }
     if (!Number.isFinite(t)) return;
-    const detail = JSON.stringify({ t, ps, ad: adShowing(), r: video()?.playbackRate || 1, up: ps === 2 && userPaused, sk: userSeeks });
+    // ts = 位置を読んだ時刻 (どのページでも同じ物差しの時刻)。親に届くまでの遅れの揺れで、位置の見積もりがぶれないように
+    const ts = performance.timeOrigin + performance.now();
+    const detail = JSON.stringify({ t, ps, ad: adShowing(), r: video()?.playbackRate || 1, up: ps === 2 && userPaused, sk: userSeeks, ts });
     document.dispatchEvent(new CustomEvent('hakomado:sync-state', { detail }));
   }, 500);
   document.addEventListener('hakomado:sync', (e) => {

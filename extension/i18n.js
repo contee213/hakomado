@@ -168,6 +168,10 @@ const MESSAGES = {
   syncRefOpt: ['基準: {0}', 'Ref: {0}'],
   syncRefMoved: ['基準の枠が無くなったので、{0} を基準にしました', 'The reference tile is gone, so {0} is now the reference'],
   syncOffset: ['ずれ {0}秒', 'Offset {0}s'],
+  syncDriftAhead: ['追いつき中: 設定の位置より {0} 秒進んでいます', 'Catching up: {0}s ahead of the set position'],
+  syncDriftBehind: ['追いつき中: 設定の位置より {0} 秒遅れています', 'Catching up: {0}s behind the set position'],
+  syncDriftOk: ['追いついています (設定の位置との差 {0} 秒)', 'Caught up ({0}s from the set position)'],
+  syncDriftRef: ['この枠が基準です (ほかの枠がこの枠に合わせます)', 'This is the reference tile (the other tiles follow it)'],
   syncTrimmed: [
     'アーカイブが配信より約 {0} 短くなっています (冒頭か末尾が切られている可能性)',
     'This archive is about {0} shorter than the stream (the start or end may have been cut)',
@@ -467,6 +471,7 @@ const HTML_EN = {
   'sync.refTitle': 'The reference tile for sync (other tiles follow it). It does not change when you switch the sound',
   'sync.setRef': 'Use as reference',
   'sync.waitTitle': 'Pause only this tile and wait for the others to catch up. Play it when they match, and the offset is set there (for a tile that is not the reference, you can also just pause it in its player)',
+  'sync.driftTitle': 'How far the actual playback position is from where it should be with the offset you set (+ = ahead). It shows whether syncing has caught up; it is not the offset setting. Adjust the offset by ear after it catches up',
   'sync.inputTitle': 'Type the offset in seconds (+ = move ahead, − = move back). Press Enter to apply',
   'sync.refBadge': 'Ref',
   'sync.refBadgeTitle': 'The reference tile for sync (other tiles follow it)',

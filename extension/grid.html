@@ -410,21 +410,21 @@
         <div class="sync-panel" hidden>
           <div class="sync-row">
             <span class="sync-panel-label"></span>
-            <input type="number" class="sync-input" step="0.1" data-i18n-title="sync.inputTitle" title="ずらす秒数を直接入れる (+ = 先へ進める、− = 戻す)。Enter で決定" />
+            <input type="number" class="sync-input" step="0.01" data-i18n-title="sync.inputTitle" title="ずらす秒数を直接入れる (+ = 先へ進める、− = 戻す)。Enter で決定" />
             <button type="button" data-sync="wait" class="sync-wait" data-i18n-title="sync.waitTitle" title="この枠だけ止めて、ほかが追いつくのを待つ。合ったところで再生すると、そこでずれが決まります (基準でない枠は、枠の中のプレイヤーで一時停止してもできます)"></button>
             <button type="button" data-sync="0" data-i18n="sync.reset">0 に戻す</button>
             <button type="button" data-sync="ref" class="sync-set-ref" data-i18n="sync.setRef">この枠を基準にする</button>
           </div>
           <div class="sync-row">
-            <button type="button" data-sync="-60">−60s</button>
-            <button type="button" data-sync="-10">−10s</button>
             <button type="button" data-sync="-1">−1s</button>
             <button type="button" data-sync="-0.1">−0.1s</button>
+            <button type="button" data-sync="-0.01">−0.01s</button>
+            <button type="button" data-sync="0.01">+0.01s</button>
             <button type="button" data-sync="0.1">+0.1s</button>
             <button type="button" data-sync="1">+1s</button>
-            <button type="button" data-sync="10">+10s</button>
-            <button type="button" data-sync="60">+60s</button>
           </div>
+          <!-- 追いつき具合: 設定したずれどおりの位置と、実際の再生位置の差 (同期が追いついたかの目安。ずれの設定値ではない) -->
+          <div class="sync-row sync-drift" data-i18n-title="sync.driftTitle" title="設定したずれのとおりなら今いるはずの位置と、実際の再生位置との差です (+ = 進んでいる)。同期が追いついたかを見るためのもので、ずれの設定値ではありません。追いついてから、音を聞いて設定を動かしてください"></div>
           <!-- アーカイブが配信より短い (冒頭か末尾が切られている) ときの知らせ -->
           <div class="sync-row sync-trim" hidden>
             <span class="sync-trim-text"></span>

@@ -12,7 +12,7 @@ const SyncOffsets = (() => {
   let cache = {}; // videoId -> {o: 秒, at: 調整した時刻}
   const listeners = new Set();
 
-  const clean = (v) => Math.round(Math.max(-86400, Math.min(86400, Number(v) || 0)) * 10) / 10;
+  const clean = (v) => Math.round(Math.max(-86400, Math.min(86400, Number(v) || 0)) * 100) / 100; // 0.01 秒単位
 
   function adopt(raw) {
     const next = {};

@@ -1291,7 +1291,7 @@ window.addEventListener('message', (e) => {
 // ---------------------------------------------------------------- ⏱ アーカイブの同期再生
 // コラボ配信を、参加者それぞれの視点のアーカイブで、同じ瞬間にそろえて見る。
 // - そろえる基準は実際の時刻: 各アーカイブの 0 秒 = その配信が始まった時刻 (動画の liveBroadcastDetails.startTimestamp)。
-//   ずれ (配信の遅延の違いなど) は、枠のバーの ⏱ で直せる (±0.1〜60 秒のボタンか、秒数を直接入れる)。
+//   ずれ (配信の遅延の違いなど) は、枠のバーの ⏱ で直せる (±0.01〜1 秒の微調整のボタンか、0.01 秒単位で秒数を直接入れる)。
 //   ずれは動画ごとに記録する (SyncOffsets)。別の枠に入れても、次に開いても、視聴セットで人に渡しても同じ値を使う
 // - アーカイブは冒頭 (開始前の待機画面など) が切られていることがあり、そのときは「0 秒 = 開始時刻」がずれる。
 //   配信していた時間 (end − start) よりアーカイブが短ければ ⏱ に知らせ、冒頭が切られた場合の値を候補として出す
@@ -1314,7 +1314,11 @@ window.addEventListener('message', (e) => {
 const Sync = (() => {
   const TICK_MS = 500;
   const SEEK_DRIFT = 2; // これ以上ずれたらシーク (秒)
-  const RATE_DRIFT = 0.25; // これ以上ずれたら速度で詰める (秒)
+  // 音を重ねて聞いても気にならないよう、数十ミリ秒までそろえる。少しのずれは速度をわずかに変えて詰める
+  // (始める・やめるの幅を変えて、行ったり来たりしないように)
+  const RATE_DRIFT = 0.04; // これ以上ずれたら速度で詰め始める (秒)
+  const RATE_STOP = 0.012; // 詰めている途中は、ここまで詰める (秒)
+  const FORCE_SEEK_DRIFT = 0.5; // ずれを変えた直後は、これ以上ずれていればシークする (細かな変更は速度で詰める)
   const SEEK_GAP_MS = 3000; // 同じ枠を続けてシークしない (読み込み中の位置で判断してシークし直さないように)
   const CMD_GAP_MS = 1500; // 再生・一時停止の指示を続けて送らない
 
@@ -1464,6 +1468,7 @@ const Sync = (() => {
       // 基準の枠は動かさない (シークバーで動かした直後だけ、ほかと同じように合わせる)
       if (i === ref && now() > holdUntil) {
         overlay(i, '');
+        showDrift(i, null);
         rate(i, 1);
         continue;
       }
@@ -1501,16 +1506,23 @@ const Sync = (() => {
         continue;
       }
       if (ss.ps !== 1 && ss.ps !== 3) cmd(i, 'play');
-      if (Math.abs(drift) > SEEK_DRIFT || (forceSeek.has(i) && Math.abs(drift) > RATE_DRIFT)) {
+      const ad = Math.abs(drift);
+      const correcting = (sent.get(i)?.rate ?? 1) !== 1;
+      if (ad > SEEK_DRIFT || (forceSeek.has(i) && ad > FORCE_SEEK_DRIFT)) {
         forceSeek.delete(i);
         rate(i, 1);
         seek(i, target + 0.2); // 読み込みに掛かる分、少し先へ (速度で詰め始めるずれより小さく)
-      } else if (Math.abs(drift) > RATE_DRIFT) {
-        // ずれが大きいほど速く詰める (3〜10% 速く / 遅く。1% 単位で丸めて、指示を送り直しすぎないように)
-        const k = Math.round(Math.min(0.1, Math.max(0.03, Math.abs(drift) * 0.1)) * 100) / 100;
+        showDrift(i, drift, false);
+      } else if (ad > RATE_DRIFT || (correcting && ad > RATE_STOP)) {
+        // 3 秒ほどで詰め終わる速さ (1〜10% 速く / 遅く。0.5% 単位で丸めて、指示を送り直しすぎないように)
+        forceSeek.delete(i);
+        const k = Math.round(Math.min(0.1, Math.max(0.01, ad / 3)) * 200) / 200;
         rate(i, drift > 0 ? 1 - k : 1 + k);
+        showDrift(i, drift, false);
       } else {
+        forceSeek.delete(i);
         rate(i, 1);
+        showDrift(i, drift, true);
       }
     }
     updateBar(list);
@@ -1632,10 +1644,10 @@ const Sync = (() => {
     if (!waiting.delete(i)) return;
     adoptOffset(i, nowR());
   }
-  /** 今の再生位置が時刻 R に合うずれ (秒、0.1 秒単位)。位置が分からなければ null */
+  /** 今の再生位置が時刻 R に合うずれ (秒、0.01 秒単位)。位置が分からなければ null */
   function offsetAt(i, R) {
     const p = posOf(i);
-    return p == null ? null : Math.round((p - (R - views[i].archive.start) / 1000) * 10) / 10;
+    return p == null ? null : Math.round((p - (R - views[i].archive.start) / 1000) * 100) / 100;
   }
   /** 今の再生位置のまま合うように、ずれを決める (「止めて待つ」の再生・枠の中でのシーク) */
   function adoptOffset(i, R) {
@@ -1646,7 +1658,7 @@ const Sync = (() => {
     forceSeek.delete(i);
     rate(i, 1);
     updateAdj(i);
-    showToast(i, tr('syncOffsetSet', (v > 0 ? '+' : '') + v.toFixed(1)));
+    showToast(i, tr('syncOffsetSet', signedSec(v)));
   }
   /** 前の確認のあとで、枠の中でユーザーがシークしたか (同期を始めて最初に見たときは、数を覚えるだけ) */
   function sawUserSeek(i) {
@@ -1714,6 +1726,26 @@ const Sync = (() => {
     }
   }
 
+  /** +1.25 / -300.00 のような符号付きの秒 (0.01 秒単位) */
+  const signedSec = (v) => (v > 0 ? '+' : '') + v.toFixed(2);
+  const signedSec3 = (v) => (v > 0 ? '+' : v < 0 ? '−' : '±') + Math.abs(v).toFixed(3);
+  /**
+   * ⏱ パネルを開いている枠に、追いつき具合 (設定したずれどおりの位置と、実際の再生位置の差。+ = 進んでいる) を出す。
+   * d = null なら基準の枠。ok = 同期が詰める必要が無いと見ている (詰めている途中・シークしたときは false)
+   */
+  function showDrift(i, d, ok) {
+    const el = views[i].el.querySelector('.sync-drift');
+    if (views[i].el.querySelector('.sync-panel').hidden) return;
+    const ms = (v) => (Math.ceil(Math.abs(v) * 1000) / 1000).toFixed(3);
+    const text =
+      d == null
+        ? tr('syncDriftRef')
+        : ok
+          ? tr('syncDriftOk', signedSec3(d))
+          : tr(d > 0 ? 'syncDriftAhead' : 'syncDriftBehind', ms(d));
+    if (el.textContent !== text) el.textContent = text;
+  }
+
   const TRIM_MIN = 30; // アーカイブが配信よりこれ以上 (秒) 短ければ、切られていると知らせる
   /** アーカイブが配信していた時間より何秒短いか (冒頭か末尾が切られたぶん。どちらかはわからない) */
   function trimmedOf(i) {
@@ -1728,7 +1760,7 @@ const Sync = (() => {
     const wait = waiting.get(i);
     // 待っている間は、今再生したら決まるずれを出す
     const v = (wait && views[i].archive ? offsetAt(i, R) : null) ?? off(i);
-    const signed = (v > 0 ? '+' : '') + v.toFixed(1);
+    const signed = signedSec(v);
     el.querySelector('.sync-panel-label').textContent = tr('syncOffset', signed);
     const adj = el.querySelector('.sync-adj');
     adj.textContent = wait ? `⏸ ${signed}` : v ? `⏱ ${signed}` : '⏱';
@@ -1754,6 +1786,7 @@ const Sync = (() => {
   function togglePanel(i) {
     const panel = views[i].el.querySelector('.sync-panel');
     panel.hidden = !panel.hidden;
+    views[i].el.querySelector('.sync-drift').textContent = '';
     updateAdj(i);
   }
 
@@ -1943,7 +1976,11 @@ window.addEventListener('message', (e) => {
   if (i < 0) return;
   Diagnose.seen(i, data.hakomado);
   if (data.hakomado === 'syncState') {
-    views[i].ss = { t: Number(data.t), ps: Number(data.ps), ad: !!data.ad, r: Number(data.r) || 1, up: !!data.up, sk: Number(data.sk) || 0, at: performance.now() };
+    // 位置を読んだ時刻が分かれば、それをこのページの時刻に直して使う (届くまでの遅れの揺れを除く)。おかしな値なら届いた時刻
+    const recv = performance.now();
+    const sampled = Number(data.ts) - performance.timeOrigin;
+    const at = sampled > recv - 1000 && sampled <= recv + 5 ? Math.min(sampled, recv) : recv;
+    views[i].ss = { t: Number(data.t), ps: Number(data.ps), ad: !!data.ad, r: Number(data.r) || 1, up: !!data.up, sk: Number(data.sk) || 0, at };
     return;
   }
   if (data.hakomado === 'archive') {
