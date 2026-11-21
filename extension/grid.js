@@ -5806,6 +5806,25 @@ async function startAllLiveInner() {
   if (!state.autoMode) return; // 準備している間に OFF にされた
   showAutoProgress(tr('progressTiles'), 0.97);
   let lives = ok;
+  // 自分で入れた枠 (自動再生が入れたものではない枠) が置き換わるなら、先に確かめる。やめたら自動再生は OFF に戻す。
+  // ライブが無くて最近の配信で埋めるときは全部、ライブがあるときは配信中のものに入っていない枠が置き換わる
+  const keepIds = new Set(lives.map((l) => l.st.videoId));
+  const archiveOnly = lives.length === 0 && state.settings.autoArchive;
+  const replaced = visibleIndexes().filter((i) => {
+    const t = state.tiles[i];
+    return t.videoId && !t.auto && !t.fill && (archiveOnly || (lives.length > 0 && !keepIds.has(t.videoId)));
+  });
+  if (replaced.length) {
+    hideAutoProgress();
+    const names = replaced.map((i) => tileName(i) || state.tiles[i].videoId);
+    const list = names.slice(0, 3).join(tr('sep')) + (names.length > 3 ? tr('andMore', names.length - 3) : '');
+    if (!confirm(tr('autoReplaceConfirm', replaced.length, list))) {
+      await setAutoMode(false);
+      notify(tr('autoReplaceCanceled'));
+      return;
+    }
+    if (!state.autoMode) return; // 確かめている間に OFF にされた
+  }
   if (lives.length === 0) {
     if (state.settings.autoArchive) {
       // ライブが無い → 最近の配信で

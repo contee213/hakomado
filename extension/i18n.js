@@ -50,6 +50,12 @@ const MESSAGES = {
   slotMain: ['メイン {0}', 'Main {0}'],
   slot: ['枠 {0}', 'Tile {0}'],
   sep: ['、', ', '],
+  andMore: [' ほか {0} 個', ' and {0} more'],
+  autoReplaceConfirm: [
+    '自動再生を ON にすると、自分で入れた枠 {0} 個 ({1}) が配信中の配信に置き換わります。続けますか？\n(キャンセルすると、枠はそのままで自動再生は OFF に戻ります)',
+    'Turning on auto play replaces {0} tiles you set yourself ({1}) with live streams. Continue?\n(Cancel keeps the tiles as they are and turns auto play back off)',
+  ],
+  autoReplaceCanceled: ['自動再生を OFF に戻しました (枠はそのままです)', 'Auto play is off again (the tiles were left as they were)'],
 
   // 音が出ている枠の色
   colorSky: ['水色', 'Sky'],
