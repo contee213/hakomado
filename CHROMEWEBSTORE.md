@@ -40,7 +40,7 @@ YouTube の複数の配信・動画を 1 つの画面に並べて同時に視聴
 | 対象 | ファイル | 用途 |
 | --- | --- | --- |
 | `https://www.youtube.com/live_chat*` (全フレーム) | `content/chat.js` | チャットのメッセージを読み取り、弾幕として親ページに渡す |
-| `https://www.youtube.com/watch*` (全フレーム) | `content/watch.js`, `content/watch.css` | 枠の中のプレイヤーの見た目を整え、再生状態をマルチビュー画面とやり取りする |
+| `https://www.youtube.com/watch*` (全フレーム) | `content/watch.js`, `content/watch.css` | 枠の中のプレイヤーの見た目を整え、再生状態をマルチビュー画面とやり取りする。利用者が枠の音の左右・音量を変えたときだけ、その枠の中で Web Audio (StereoPanner・Gain) に通す (音声はブラウザの中で処理するだけで、録音・送信はしない) |
 | `https://www.youtube.com/watch*` (全フレーム, MAIN world) | `content/watch-main.js` | ページ側のプレイヤー API (再生位置・音量など) を呼ぶ |
 | `https://www.youtube.com/hakomado_import*` | `content/import.js` | 共有リンクから転送されたときに、取り込み画面へ切り替える |
 
