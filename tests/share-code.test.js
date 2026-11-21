@@ -185,3 +185,28 @@ test('「# sync=…」の ON / OFF', () => {
   for (const v of ['on', 'ON', ' 1 ', 'true', 'yes']) assert.equal(on(v), true, v);
   for (const v of ['off', '0', 'no', '', undefined, null]) assert.equal(on(v), false, String(v));
 });
+
+test('URL から動画 ID を取り出す (右クリックのメニュー)', () => {
+  const id = setup()('videoIdFromUrl');
+  for (const [url, want] of [
+    [`https://www.youtube.com/watch?v=${A}&t=30s`, A],
+    [`https://m.youtube.com/watch?app=desktop&v=${B}`, B],
+    [`https://music.youtube.com/watch?v=${A}`, A],
+    [`https://youtube.com/watch?v=${A}`, A],
+    [`https://www.youtube.com/live/${C}?si=x`, C],
+    [`https://www.youtube.com/shorts/${A}`, A],
+    [`https://www.youtube.com/embed/${A}`, A],
+    [`https://youtu.be/${B}?t=10`, B],
+    [`https://www.youtube.com/watch?v=${A}x`, null],
+    ['https://www.youtube.com/watch', null],
+    ['https://www.youtube.com/@channel/live', null],
+    [`https://www.youtube.com/live/${A}/extra`, null],
+    [`https://youtu.be/${A}/x`, null],
+    [`https://evil.example/watch?v=${A}`, null],
+    [`https://youtube.com.evil.example/watch?v=${A}`, null],
+    [`javascript://www.youtube.com/watch?v=${A}`, null],
+    ['not a url', null],
+  ]) {
+    assert.equal(id(url), want, url);
+  }
+});

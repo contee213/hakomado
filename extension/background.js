@@ -2,6 +2,9 @@
 // - ツールバーのアイコンでマルチビュー画面を開く
 // - マルチビュー画面のタブだけに、YouTube を iframe 表示するためのヘッダー書き換えルールを適用する
 //   (他のサイトには一切影響させないよう tabIds で限定する)
+// - 右クリックのメニュー「Hakomado の空き枠に追加」(YouTube のリンク・動画のページ)
+
+importScripts('share-code.js'); // videoIdFromUrl
 
 const RULE_IDS = [1, 2];
 
@@ -63,6 +66,7 @@ async function applyRules(tabIds) {
 chrome.runtime.onInstalled.addListener(({ reason }) => {
   if (reason === 'install') chrome.storage.local.set({ tourPending: true });
   installImportRule().catch((e) => console.warn('hakomado: 取り込み用リンクのルールを設定できませんでした', e));
+  createMenus();
 });
 
 // ---- 取り込み用リンク (AI チャットなどが作る再生リストのリンク)
@@ -167,3 +171,67 @@ chrome.tabs.onUpdated.addListener(async (tabId, info) => {
   }
   removeTab(tabId);
 });
+
+// ---- 右クリックのメニュー「Hakomado の空き枠に追加」
+// - YouTube の動画・配信へのリンク (どのサイトでも) と、YouTube の視聴ページ (動画の上を含む) で出す
+// - 押したら動画 ID を取り出し、開いているマルチビュー画面 (同じウィンドウ → 最後に使ったタブの順) に送る。
+//   画面が空き枠に入れて (空き枠が無ければ枠を 1 つ足して。16 枠埋まっていれば知らせるだけ) 返事をしたら、そのタブに切り替える
+// - 受け取れる画面が無ければ、新しいタブで grid.html#add=<ID> を開く
+// - tabs 権限は使わない (送り先はマルチビュー画面の登録 (gridTabs) から選び、タブの URL は読まない)
+const MENU_LINK = 'hakomado-add-link';
+const MENU_PAGE = 'hakomado-add-page';
+const VIDEO_URL_PATTERNS = [
+  '*://www.youtube.com/watch*',
+  '*://m.youtube.com/watch*',
+  '*://music.youtube.com/watch*',
+  '*://youtube.com/watch*',
+  '*://www.youtube.com/live/*',
+  '*://www.youtube.com/shorts/*',
+  '*://m.youtube.com/shorts/*',
+  '*://youtu.be/*',
+];
+
+function createMenus() {
+  chrome.contextMenus.removeAll(() => {
+    const title = chrome.i18n.getMessage('menuAddToTile');
+    chrome.contextMenus.create({ id: MENU_LINK, title, contexts: ['link'], targetUrlPatterns: VIDEO_URL_PATTERNS });
+    chrome.contextMenus.create({
+      id: MENU_PAGE,
+      title,
+      contexts: ['page', 'video'],
+      documentUrlPatterns: VIDEO_URL_PATTERNS.filter((p) => p.startsWith('*://www.') || p.startsWith('*://m.')),
+    });
+  });
+}
+
+chrome.contextMenus.onClicked.addListener((info, tab) => {
+  const url = info.menuItemId === MENU_LINK ? info.linkUrl : info.menuItemId === MENU_PAGE ? info.frameUrl || info.pageUrl : null;
+  const videoId = url ? videoIdFromUrl(url) : null;
+  if (!videoId) return;
+  addToGrid(videoId, tab?.windowId).catch((e) => console.warn('hakomado: 枠に追加できませんでした', e));
+});
+
+/** 送り先の候補: 登録されているマルチビュー画面のタブ (同じウィンドウを先に、最後に使ったものから) */
+async function gridTabsByRecent(windowId) {
+  const tabs = (await Promise.all((await getGridTabs()).map((id) => chrome.tabs.get(id).catch(() => null)))).filter(Boolean);
+  return tabs.sort((a, b) => (b.windowId === windowId) - (a.windowId === windowId) || (b.lastAccessed || 0) - (a.lastAccessed || 0));
+}
+
+async function addToGrid(videoId, windowId) {
+  for (const t of await gridTabsByRecent(windowId)) {
+    let res = null;
+    try {
+      // 画面は全部が受け取るが、返事をするのは tabId が自分のものだけ (誰も返事をしなければ例外になる)
+      res = await chrome.runtime.sendMessage({ type: 'add-video', tabId: t.id, videoId });
+    } catch {
+      /* 受け取る画面が無い (まだ起動中・閉じかけ) */
+    }
+    if (res?.handled) {
+      await chrome.tabs.update(t.id, { active: true });
+      await chrome.windows.update(t.windowId, { focused: true });
+      return;
+    }
+  }
+  const url = `${chrome.runtime.getURL('grid.html')}#add=${videoId}`;
+  await chrome.tabs.create(windowId != null ? { url, windowId } : { url });
+}
