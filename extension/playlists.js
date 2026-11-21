@@ -35,6 +35,7 @@ const Playlists = (() => {
   const LEGACY_NAME_MAX = 80; // 以前の版で付けた長い名前は、読むときには切らない
   const LABEL_MAX = 80;
   const VIDEO_ID_RE = /^[A-Za-z0-9_-]{11}$/;
+  const SEEDED_KEY = 'playlistSeeded'; // 既定の再生リストを作ったか (一度作ったら、全部消しても作り直さない)
   const keyOf = (id) => ITEM_PREFIX + id;
 
   /** storage.onChanged の changes に再生リストの変更が入っているか */
@@ -90,8 +91,28 @@ const Playlists = (() => {
     return chain.then(() => result);
   }
 
-  /** 以前の版の形で保存されていれば、今の形に移す (画面を開いたときに呼ぶ) */
-  const migrate = () => mutate(() => null);
+  /**
+   * 画面を開いたときに呼ぶ: 以前の版の形で保存されていれば今の形に移し、まだなら既定の再生リスト (空) を 1 つ作る。
+   * 既定の再生リストは、再生リストが 1 つも無いときに 1 回だけ作る (一度作ったら、利用者が全部消しても作り直さない。
+   * 再生リストを使っていた人には作らない)。複数のタブを同時に開いても 2 つできないよう、書き込みと同じ順番待ちの中で確かめる
+   */
+  function setup(defaultName) {
+    const run = async () => {
+      const { [SEEDED_KEY]: seeded } = await chrome.storage.local.get(SEEDED_KEY);
+      const { all, legacy } = await readAll();
+      let next = all;
+      if (!seeded && !all.length && cleanName(defaultName)) {
+        const now = Date.now();
+        next = [clean({ id: crypto.randomUUID(), name: cleanName(defaultName), items: [], sync: false, createdAt: now, updatedAt: now })];
+      }
+      if (next !== all || legacy) await writeDiff(all, next, { legacy });
+      if (!seeded) await chrome.storage.local.set({ [SEEDED_KEY]: true });
+    };
+    chain = chain
+      .then(() => navigator.locks.request('hakomado-playlists', run))
+      .catch((e) => console.warn('hakomado: 再生リストの準備に失敗', e));
+    return chain;
+  }
 
   /**
    * 1 件の再生リストを書き換える (無ければ何もせず undefined)。
@@ -468,7 +489,7 @@ const Playlists = (() => {
   return {
     isChange,
     onError,
-    migrate,
+    setup,
     replaceAll,
     MAX_LISTS,
     MAX_ITEMS,

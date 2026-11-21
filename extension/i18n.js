@@ -276,6 +276,7 @@ const MESSAGES = {
     'Play this playlist from the top using the current tiles. When a tile finishes, the next one goes in (no tiles are added; auto play stops; nothing is removed from the playlist)',
   ],
   plDefaultName: ['再生リスト {0}', 'Playlist {0}'],
+  plSeedName: ['新規マイリスト', 'My list'],
   plSaved: ['📃 再生リスト「{0}」を保存しました ({1} 本)', '📃 Saved playlist "{0}" ({1})'],
   plReplaced: ['📃 再生リスト「{0}」を新しい内容で置き換えました ({1} 本)', '📃 Replaced playlist "{0}" with the new list ({1})'],
   plFull: ['再生リストは {0} 個までです。ライブラリの「📃 再生リスト」から不要なものを削除してください', 'You can have up to {0} playlists. Delete some in "📃 Playlists" in the library'],
