@@ -99,14 +99,7 @@ const MESSAGES = {
   minBefore: ['{0} 分前から', '{0} min before'],
 
   // チャンネル・ピックアップ
-  favTarget: ['→ 枠 {0} に読み込みます', '→ Loads into tile {0}'],
-  favTargetAny: ['→ クリックで空いている枠に読み込みます', '→ Click to load into an empty tile'],
   secLive: ['● 配信中', '● Live'],
-  fillEmpty: ['空いている枠に入れる', 'Fill empty tiles'],
-  fillEmptyTitle: [
-    'まだ表示していない配信中のチャンネルを、空いている枠に順に入れる (今の枠はそのまま)',
-    'Put live channels that are not shown yet into empty tiles, in order (current tiles stay)',
-  ],
   secUpcoming: ['予定', 'Upcoming'],
   secOther: ['その他', 'Others'],
   secAll: ['すべて', 'All'],
@@ -499,12 +492,6 @@ const MESSAGES = {
   menuAdded: ['右クリックから追加しました', 'Added from the right-click menu'],
   menuAlready: ['この配信はもう枠に入っています', 'This stream is already in a tile'],
   menuFull: ['{0} 枠がすべて埋まっているので追加できませんでした。どれかの枠を ✕ で空けてから、もう一度追加してください', "All {0} tiles are in use, so it couldn't be added. Clear a tile with ✕ and try again"],
-  stillChecking: ['配信状況を確認中です。終わってからもう一度押してください。', 'Still checking live status. Try again when it finishes.'],
-  noUnshownLive: ['まだ表示していない配信中のチャンネルはありません。', 'Every live channel is already shown.'],
-  notEnoughTiles: [
-    '空き枠が足りず、{0} 件は入りませんでした。枠の多いレイアウトにしてください。',
-    'Not enough empty tiles: {0} could not be added. Choose a layout with more tiles.',
-  ],
   favAdding: ['ピックアップに入れています…', 'Picking up…'],
   favAdded: ['📌 「{0}」をピックアップに入れました', '📌 Picked up "{0}"'],
   favExists: ['「{0}」は追加済みです', '"{0}" is already in channels'],

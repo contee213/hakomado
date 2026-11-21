@@ -518,7 +518,6 @@ dialog.fav-dialog[open] { display: flex; flex-direction: column; }
 .fav-item.history .fav-where { color: var(--muted); }
 .fav-item.history .badge { background: #3a3a44; color: #fff; }
 .fav-item.history .fav-icon { display: none; }
-.fav-target { color: var(--muted); font-size: 12px; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 
 /* ダイアログ右上の閉じるボタン (どのダイアログも同じ見た目・位置) */
 .dialog-close { width: 28px; height: 26px; padding: 0; flex: none; }
@@ -594,7 +593,6 @@ dialog.fav-dialog[open] { display: flex; flex-direction: column; }
   font-weight: 700;
   color: var(--muted);
 }
-.section-action { font-size: 12px; font-weight: 400; padding: 2px 8px; color: var(--text); }
 .fav-section.live-sec > h3 { color: var(--accent); }
 /* 配信していないチャンネルは件数が多いので詰めて表示 */
 .rest-sec .fav-item { padding: 4px 8px; }
@@ -1155,7 +1153,8 @@ dialog.share-dialog { width: min(600px, calc(100% - 32px)); }
 .share-panel { grid-area: 1 / 1; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .share-panel[hidden] { display: flex; visibility: hidden; }
 .share-panel .settings-note { margin: 0; }
-.share-textarea { flex: 1 1 auto; min-height: 8em; }
+/* コード・リンクは 1 語が長いので、どこでも折り返して全部見せる */
+.share-wrap { overflow-wrap: anywhere; word-break: break-all; }
 .read-summary { margin: 0; min-height: 3em; white-space: pre-line; color: var(--muted); font-size: 12px; line-height: 1.5; }
 .read-summary.share-error { color: #ff8a80; }
 .share-preview { width: 100%; aspect-ratio: 16 / 9; background: #000; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
@@ -1164,7 +1163,6 @@ dialog.share-dialog { width: min(600px, calc(100% - 32px)); }
 .share-name { display: flex; align-items: center; gap: 8px; font-size: 13px; }
 .share-name > span { flex: none; font-weight: 600; }
 .share-name input { flex: 1 1 auto; min-width: 0; background: #000; color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; }
-.share-code { flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .share-form .field-label { font-weight: 600; font-size: 13px; }
 .share-text {
   width: 100%;

@@ -310,7 +310,7 @@
           </div>
         </section>
         <section class="share-panel" data-spanel="code" role="tabpanel" hidden>
-          <input type="text" id="shareCode" class="share-text share-code" readonly spellcheck="false">
+          <textarea id="shareCode" class="share-text share-wrap" rows="3" readonly spellcheck="false"></textarea>
           <p class="settings-note" id="shareNoteCode"></p>
           <div class="share-buttons">
             <button type="button" id="shareCopyCode" data-i18n="share.copyCode">📋 コードをコピー</button>
@@ -318,14 +318,14 @@
           </div>
         </section>
         <section class="share-panel" data-spanel="text" role="tabpanel" hidden>
-          <textarea id="shareText" class="share-text share-textarea" readonly spellcheck="false"></textarea>
+          <textarea id="shareText" class="share-text" rows="9" readonly spellcheck="false"></textarea>
           <p class="settings-note" id="shareNoteText"></p>
           <div class="share-buttons">
             <button type="button" id="shareCopyText" data-i18n="share.copyText">📋 テキストをコピー</button>
           </div>
         </section>
         <section class="share-panel" data-spanel="link" role="tabpanel" hidden>
-          <input type="text" id="shareLink" class="share-text share-code" readonly spellcheck="false">
+          <textarea id="shareLink" class="share-text share-wrap" rows="3" readonly spellcheck="false"></textarea>
           <p class="settings-note" id="shareNoteLink"></p>
           <div class="share-buttons">
             <button type="button" id="shareCopyLink" data-i18n="share.copyLink">📋 リンクをコピー</button>
@@ -432,7 +432,6 @@
         <!-- 件数は一覧のすぐ上 (絞り込み欄の右) に。タブの横に出すとタブの位置と紛らわしいので -->
         <span id="favLiveCount" class="fav-count live"></span>
         <span id="savedCount" class="fav-count" hidden></span>
-        <span class="fav-target"></span>
       </div>
 
       <div id="favList" class="fav-list"></div>

@@ -4035,8 +4035,6 @@ function openFavorites(target, view) {
   favTarget = target;
   const favView = view === 'channels' ? 'channels' : 'library';
   favErrorEl.textContent = '';
-  document.querySelector('.fav-target').textContent =
-    target != null ? tr('favTarget', displayNumber(target)) : tr('favTargetAny');
   document.getElementById('favTitle').textContent = tr(favView === 'channels' ? 'chTitle' : 'libTitle');
   document.querySelector('.fav-tabs').hidden = favView === 'channels';
   setFavMode(favView === 'channels' ? 'all' : savedLibraryTab(), { render: false });
@@ -4116,8 +4114,8 @@ function formatStart(ms) {
 
 let favFilter = '';
 
-/** 見出し付きの一覧。action を渡すと見出しの右にボタンを出す */
-function favSection(title, items, { cls = '', action = null } = {}) {
+/** 見出し付きの一覧 */
+function favSection(title, items, { cls = '' } = {}) {
   const ul = document.createElement('ul');
   ul.className = 'fav-sub';
   ul.append(...items.flat());
@@ -4127,15 +4125,6 @@ function favSection(title, items, { cls = '', action = null } = {}) {
   const label = document.createElement('span');
   label.textContent = `${title} (${items.length})`; // 開いたアーカイブは数えない (items は行ごと)
   h.append(label);
-  if (action) {
-    const b = document.createElement('button');
-    b.type = 'button';
-    b.className = 'section-action';
-    b.textContent = action.label;
-    b.title = action.title || '';
-    b.addEventListener('click', action.onClick);
-    h.append(b);
-  }
   sec.append(h, ul);
   return sec;
 }
@@ -4159,14 +4148,7 @@ function renderFavorites(favs) {
   const sections = [];
   if (live.length) {
     sections.push(
-      favSection(tr('secLive'), live.map(favItem), {
-        cls: 'live-sec',
-        action: {
-          label: tr('fillEmpty'),
-          title: tr('fillEmptyTitle'),
-          onClick: fillLiveIntoEmptyTiles,
-        },
-      }),
+      favSection(tr('secLive'), live.map(favItem), { cls: 'live-sec' }),
     );
   }
   if (upcoming.length) sections.push(favSection(tr('secUpcoming'), upcoming.map(favItem), { cls: 'upcoming-sec' }));
@@ -4212,10 +4194,11 @@ function favItem({ f, st }) {
     li.addEventListener('click', () => pickFavorite(f, st));
   }
 
-  // ▸: このチャンネルの最近の配信アーカイブを、行の下に開く
+  // 🎞: このチャンネルの最近の配信アーカイブを、行の下に開く
+  // (▸ は再生ボタンに見えて、枠に入れるつもりで押されやすいので、最近の配信のタブと同じ 🎞 と開閉の印にする)
   const arch = li.querySelector('.fav-arch');
   const open = archiveOpen.has(f.channelId);
-  arch.textContent = open ? '▾' : '▸';
+  arch.textContent = open ? '🎞 ⌃' : '🎞 ⌄';
   arch.title = tr(open ? 'archiveClose' : 'archiveOpen');
   arch.classList.toggle('on', open);
   arch.addEventListener('click', async (e) => {
@@ -4266,10 +4249,10 @@ function favItem({ f, st }) {
   return [li, sub];
 }
 
-// ---------------------------------------------------------------- 最近の配信 (ライブラリの「🎞 最近の配信」タブと、チャンネルの行の ▸)
+// ---------------------------------------------------------------- 最近の配信 (ライブラリの「🎞 最近の配信」タブと、チャンネルの行の 🎞)
 
 const archiveData = new Map(); // channelId -> 'loading' | 'error' | [{videoId, title, at}]
-const archiveOpen = new Set(); // ▸ で開いているチャンネル
+const archiveOpen = new Set(); // 🎞 で開いているチャンネル
 const ARCHIVE_DAYS = 7; // 「最近の配信」に出す範囲 (日)
 const archiveQueue = [];
 let archiveWorkers = 0;
@@ -4456,7 +4439,6 @@ function setFavMode(mode, { render = true } = {}) {
   document.getElementById('libScope').hidden = isPl;
   for (const id of ['plSelect', 'plNew', 'plFromTiles', 'plImport']) document.getElementById(id).hidden = !isPl;
   // 再生リストは行の ▶ で読み込む (行そのものは編集に使うので、クリックで読み込む案内は出さない)
-  document.querySelector('.fav-target').hidden = isPl;
   favErrorEl.textContent = '';
   if (render) renderFavPane();
 }
@@ -5668,28 +5650,6 @@ function pickFavorite(f, st) {
   }
   setTileVideo(target, st.videoId, f.handle || `https://www.youtube.com/channel/${f.channelId}`);
   favDialog.close();
-}
-
-async function fillLiveIntoEmptyTiles() {
-  const favs = await Favorites.list();
-  if (favs.some((f) => favStatus.get(f.channelId) === 'loading')) {
-    favErrorEl.textContent = tr('stillChecking');
-    return;
-  }
-  const shown = new Set(state.tiles.filter((_, i) => isVisible(i)).map((t) => t.videoId));
-  const lives = favs
-    .map((f) => ({ f, st: favStatus.get(f.channelId) }))
-    .filter(({ st }) => st?.state === 'live' && !shown.has(st.videoId));
-  let placed = 0;
-  for (const { f, st } of lives) {
-    const i = firstEmptyTile();
-    if (i == null) break;
-    setTileVideo(i, st.videoId, f.handle || f.channelId);
-    placed++;
-  }
-  if (lives.length === 0) favErrorEl.textContent = tr('noUnshownLive');
-  else if (placed < lives.length) favErrorEl.textContent = tr('notEnoughTiles', lives.length - placed);
-  else favDialog.close();
 }
 
 // ---------------------------------------------------------------- 自動再生
