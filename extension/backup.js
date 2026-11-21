@@ -26,8 +26,9 @@ const Backup = (() => {
       'presetsDeclined',
       'history',
       'saved',
-      'playlists',
     ]);
+    // 再生リストは 1 つずつ別の項目に保存しているので、まとめて読む (ファイルの形は以前と同じ配列)
+    const playlists = await Playlists.list();
     return {
       app: APP,
       format: FORMAT,
@@ -42,7 +43,7 @@ const Backup = (() => {
         presetsDeclined: d.presetsDeclined === true,
         history: d.history || [],
         saved: d.saved || [],
-        playlists: d.playlists || [],
+        playlists,
       },
     };
   }
@@ -150,10 +151,13 @@ const Backup = (() => {
 
   /** 確かめた内容で今の内容を置き換える (他のタブには storage.onChanged で伝わる) */
   // 他のタブが同じ項目を読んでから書くまでの途中に割り込まないよう、それぞれの書き込みと同じロックを取ってから置き換える
-  const LOCKS = ['hakomado-favorites', 'hakomado-history', 'hakomado-saved', 'hakomado-playlists', 'hakomado-settings'];
+  // 再生リストは Playlists.replaceAll が自分のロックを取って置き換える (ここで同じロックを取ると、待ち合って止まる)
+  const LOCKS = ['hakomado-favorites', 'hakomado-history', 'hakomado-saved', 'hakomado-settings'];
   async function apply({ data, lang }) {
-    const run = (i) => (i < LOCKS.length ? navigator.locks.request(LOCKS[i], () => run(i + 1)) : chrome.storage.local.set(data));
+    const { playlists, ...rest } = data;
+    const run = (i) => (i < LOCKS.length ? navigator.locks.request(LOCKS[i], () => run(i + 1)) : chrome.storage.local.set(rest));
     await run(0);
+    await Playlists.replaceAll(playlists);
     if (lang) setLangPref(lang);
   }
 

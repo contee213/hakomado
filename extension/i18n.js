@@ -278,8 +278,13 @@ const MESSAGES = {
   plDefaultName: ['再生リスト {0}', 'Playlist {0}'],
   plSaved: ['📃 再生リスト「{0}」を保存しました ({1} 本)', '📃 Saved playlist "{0}" ({1})'],
   plReplaced: ['📃 再生リスト「{0}」を新しい内容で置き換えました ({1} 本)', '📃 Replaced playlist "{0}" with the new list ({1})'],
-  plFull: ['再生リストがいっぱい ({0} 個) です。ライブラリの「📃 再生リスト」から不要なものを削除してください', 'You have the maximum of {0} playlists. Delete some in "📃 Playlists" in the library'],
+  plFull: ['再生リストは {0} 個までです。ライブラリの「📃 再生リスト」から不要なものを削除してください', 'You can have up to {0} playlists. Delete some in "📃 Playlists" in the library'],
   plSaveFailed: ['再生リストを保存できませんでした', 'Could not save the playlist'],
+  plStorageFull: [
+    '再生リストを保存できませんでした。拡張機能の保存できる量がいっぱいです。使っていない再生リストを削除してください',
+    'Could not save the playlist: the extension’s storage is full. Delete playlists you no longer use',
+  ],
+  plWriteFailed: ['再生リストを保存できませんでした ({0})', 'Could not save the playlist ({0})'],
   plTooMany: ['{0} 本を超えた分は保存しません', 'Only the first {0} are saved'],
   plTooManySync: ['同期再生の再生リストは {0} 本までなので、それを超えた分は保存しません', 'Sync playlists hold up to {0}, so only the first {0} are saved'],
   plSyncCutConfirm: [
