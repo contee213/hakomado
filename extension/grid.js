@@ -2859,12 +2859,12 @@ function loadShareLogo() {
 
 /**
  * 共有セットの画像 (PNG の Blob) を作る (先頭から 16 本)。サムネイルの並びを画像いっぱいに敷いて背景にし、
- * その上に、左下に名前 (大きく) と小さい説明、右下に QR を重ねる:
+ * その上に、左下に名前 (大きく) と小さい説明、右下に QR と、その下にロゴと「Hakomado」を重ねる:
  *   ┌──────────────────────────┐
  *   │ サムネイルの並び (画像いっぱい。チャンネル名は各枠の左上)  │
- *   │                                        [ロゴ] Hakomado │
+ *   │                                                   QR  │
  *   │ ░░░░░░░░░░░░░░░ 下を暗くぼかす ░░░░░░░░░░░░░░░  QR  │
- *   │ 名前 (大きく) / 本数・使い方 (小さく)                 QR  │
+ *   │ 名前 (大きく) / 本数・使い方 (小さく)   [ロゴ] Hakomado │
  *   └──────────────────────────┘
  */
 async function renderShareImage(set) {
@@ -2914,7 +2914,8 @@ async function renderShareImage(set) {
   // 下を暗くぼかして、名前と説明を重ねる (名前は大きく。長ければ 40px まで縮め、それでも入らなければ切る)
   const qr = makeShareQr(shareSetCode(set));
   const qx = SHARE_W - M - qr.size;
-  const qy = SHARE_H - M - qr.size;
+  const LOGO = 40; // QR の下のロゴの大きさ (右下の角に、ロゴと「Hakomado」)
+  const qy = SHARE_H - M - LOGO - 12 - qr.size;
   const textW = qx - SP - M;
   const scrim = ctx.createLinearGradient(0, SHARE_H - 300, 0, SHARE_H);
   scrim.addColorStop(0, 'rgba(0,0,0,0)');
@@ -2942,12 +2943,11 @@ async function renderShareImage(set) {
   ctx.fillRect(qx, qy, qr.size, qr.size);
   ctx.shadowBlur = 0;
   drawQr(ctx, qr, qx, qy);
-  // QR の上: ロゴと「Hakomado」(QR の幅の真ん中に)
-  const LOGO = 40;
+  // QR の下 (右下の角): ロゴと「Hakomado」を右に寄せて
   ctx.font = `700 26px ${SHARE_FONT}`;
   const labelW = LOGO + 8 + ctx.measureText(SHARE_TAG).width;
-  const lx = Math.min(qx + (qr.size - labelW) / 2, SHARE_W - M - labelW);
-  const ly = qy - 12 - LOGO;
+  const lx = SHARE_W - M - labelW;
+  const ly = SHARE_H - M - LOGO;
   const logo = await loadShareLogo();
   ctx.shadowBlur = 8;
   if (logo) ctx.drawImage(logo, lx, ly, LOGO, LOGO);
