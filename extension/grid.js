@@ -2675,6 +2675,40 @@ function shareSetCode(pl) {
   );
 }
 
+/** X の投稿の文字数の上限 (無料のアカウント) */
+const X_TEXT_MAX = 280;
+
+/**
+ * X での文字数 (twitter-text の数え方: ラテン文字・一部の記号は 1、日本語・絵文字などは 2。URL は含まない前提)
+ */
+function xLength(text) {
+  let n = 0;
+  for (const ch of text) {
+    const c = ch.codePointAt(0);
+    const light = c <= 4351 || (c >= 8192 && c <= 8205) || (c >= 8208 && c <= 8223) || (c >= 8242 && c <= 8247);
+    n += light ? 1 : 2;
+  }
+  return n;
+}
+
+/** X の代替テキスト (ALT) の上限 */
+const X_ALT_MAX = 1000;
+
+/**
+ * 共有画像に付ける ALT の文: 名前・本数・レイアウト・並べている配信 (チャンネル名) と、読み込み用のコード。
+ * 長すぎるときは配信の並びを途中で切る (コードは必ず全部入れる)
+ */
+function shareAltText(set) {
+  const items = syncItems(set);
+  const layout = LAYOUTS.find((x) => x.id === playlistLayoutId(set));
+  const head = tr('shareAltHead', shareName(set.name) || `${SHARE_TAG} ${tr('shareImageTitle')}`, items.length, layout?.name || '');
+  const code = tr('shareAltCode', shareSetCode(set));
+  const room = X_ALT_MAX - head.length - code.length - 2;
+  let list = items.map((h, k) => `${k + 1}. ${lineLabel(h) || h.videoId}`).join(tr('shareAltSep'));
+  if (list.length > room) list = room > 1 ? list.slice(0, room - 1) + '…' : '';
+  return [head, list, code].filter(Boolean).join('\n');
+}
+
 /** 読み込んだ共有セットを今の枠に並べる (先頭から 16 本) */
 async function applyShareSet(set) {
   const items = syncItems(set);
@@ -2849,11 +2883,12 @@ async function renderShareImage(set) {
   ctx.fillStyle = '#fff';
   ctx.font = `700 44px ${SHARE_FONT}`;
   fillTextFit(ctx, title || `${SHARE_TAG} ${tr('shareImageTitle')}`, 48, 706, 1040);
+  // 下の 2 行は、X のタイムライン (幅 600px 前後に縮む) でも読めるように 30px 以上にする
   ctx.fillStyle = '#a0a0ad';
-  ctx.font = `400 28px ${SHARE_FONT}`;
-  ctx.fillText(tr('shareImageCount', filled.length, l.name), 48, 760);
-  ctx.font = `400 24px ${SHARE_FONT}`;
-  fillTextFit(ctx, tr('shareImageHow'), 48, 830, 1040);
+  ctx.font = `400 32px ${SHARE_FONT}`;
+  ctx.fillText(tr('shareImageCount', filled.length, l.name), 48, 766);
+  ctx.font = `400 30px ${SHARE_FONT}`;
+  fillTextFit(ctx, tr('shareImageHow'), 48, 836, 1040);
 
   // 右: QR (コード入り) とハッシュタグ
   drawQr(ctx, code, 1124, 48, 428);
@@ -2862,8 +2897,8 @@ async function renderShareImage(set) {
   ctx.textAlign = 'center';
   ctx.fillText(`#${SHARE_TAG}`, 1124 + 214, 532);
   ctx.fillStyle = '#a0a0ad';
-  ctx.font = `400 22px ${SHARE_FONT}`;
-  ctx.fillText(tr('shareImageQr'), 1124 + 214, 572);
+  ctx.font = `400 30px ${SHARE_FONT}`;
+  ctx.fillText(tr('shareImageQr'), 1124 + 214, 580);
   ctx.textAlign = 'start';
 
   return new Promise((resolve, reject) => canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('toBlob'))), 'image/png'));
@@ -2918,9 +2953,10 @@ function setupShare() {
   const codeEl = document.getElementById('shareCode');
   const textEl = document.getElementById('shareText');
   const linkEl = document.getElementById('shareLink');
+  const xCountEl = document.getElementById('shareXCount');
   const tabs = dialog.querySelectorAll('[data-stab]');
   const imgBtns = ['shareImgCopy', 'shareImgSave'].map((id) => document.getElementById(id));
-  const outBtns = [...imgBtns, ...['shareCopyCode', 'shareCopyText', 'shareCopyLink'].map((id) => document.getElementById(id))];
+  const outBtns = [...imgBtns, ...['shareAltCopy', 'shareCopyCode', 'shareCopyText', 'shareCopyLink'].map((id) => document.getElementById(id))];
   const TAB_KEY = 'hakomado.shareTab';
   let source = 'tiles';
   let set = null; // 今の共有セット (共有するものが無ければ null)
@@ -2982,6 +3018,10 @@ function setupShare() {
     const n = set?.items.length || 0;
     const count = (max) => (n > max ? tr('shareFirstN', max, n) : tr('shareAllN', n));
     codeEl.value = set ? shareSetCode(set) : '';
+    // X の本文に入るか (入らなければ画像で共有してもらう)
+    const xLen = set ? xLength(codeEl.value) : 0;
+    xCountEl.textContent = set ? tr(xLen > X_TEXT_MAX ? 'shareXOver' : 'shareXCount', xLen, X_TEXT_MAX) : '';
+    xCountEl.classList.toggle('share-error', xLen > X_TEXT_MAX);
     textEl.value = set ? playlistText(set) : '';
     linkEl.value = set ? playlistImportLink(set) : '';
     document.getElementById('shareNoteImage').textContent = tr('shareNoteImage', count(SHARE_MAX));
@@ -3080,6 +3120,15 @@ function setupShare() {
       setStatus(tr('shareImageCopied'));
     } catch (e) {
       setStatus(tr('shareImageFail', e.message || e), true);
+    }
+  });
+  document.getElementById('shareAltCopy').addEventListener('click', async () => {
+    if (!set) return;
+    try {
+      await navigator.clipboard.writeText(shareAltText(set));
+      setStatus(tr('shareAltCopied'));
+    } catch {
+      setStatus(tr('shareAiFailed'), true);
     }
   });
   document.getElementById('shareImgSave').addEventListener('click', () => {
