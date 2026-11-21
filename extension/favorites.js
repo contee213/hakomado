@@ -99,12 +99,16 @@ const Favorites = (() => {
   const CHANNEL_ID_RE = /^UC[\w-]{22}$/;
   const VIDEO_RE = /^[A-Za-z0-9_-]{11}$/;
 
-  /** そのチャンネルの再生リストの中身 (maxAge より新しい結果があればそれを使う)。配信をしたことがないチャンネルは [] */
-  async function fetchFeed(channelId, { maxAge }) {
+  /**
+   * そのチャンネルの再生リストの中身 (maxAge より新しい結果があればそれを使う)。配信をしたことがないチャンネルは []。
+   * cacheOnly = 取りに行かず、覚えている結果を古くても使う (無ければ [])
+   */
+  async function fetchFeed(channelId, { maxAge, cacheOnly = false }) {
     if (!CHANNEL_ID_RE.test(channelId)) return [];
     const fresh = (c) => c && Date.now() - c.at < maxAge && Array.isArray(c.items);
     const hit = await readFeed(channelId);
     if (fresh(hit)) return hit.items;
+    if (cacheOnly) return Array.isArray(hit?.items) ? hit.items : [];
     return ytTurn(
       async (fetchText) => {
         // 順番を待つ間に他のタブが取っていれば、それを使う
@@ -594,10 +598,10 @@ const Favorites = (() => {
    * @param {{maxFeedAge: number, budget: {watch: number}|null, holo: Array|null}} o
    *   holo = ホロジュールに載っているこのチャンネルの枠 [{videoId, live, startAt}] (ホロジュールを使わないチャンネルは null)
    */
-  async function channelStatus(fav, { maxFeedAge, budget, holo }) {
+  async function channelStatus(fav, { maxFeedAge, budget, holo, feedCacheOnly = false }) {
     let items = [];
     try {
-      items = await fetchFeed(fav.channelId, { maxAge: maxFeedAge });
+      items = await fetchFeed(fav.channelId, { maxAge: maxFeedAge, cacheOnly: feedCacheOnly });
     } catch (e) {
       // RSS が取れなくても、ホロジュールで分かる分は使う
       if (!holo || e instanceof RateLimitedError) throw e;
@@ -775,10 +779,14 @@ const Favorites = (() => {
   /**
    * 今の配信状況
    * @param {{channelId: string, handle?: string, preset?: boolean}} fav
-   * @param {{force?: boolean, auto?: boolean, budget?: {watch: number}|null}} [o] budget = この回に動画のページを確かめてよい件数
+   * @param {{force?: boolean, auto?: boolean, budget?: {watch: number}|null, quick?: boolean}} [o]
+   *   budget = この回に動画のページを確かめてよい件数。
+   *   quick = 自動再生を ON にした最初の 1 回など、すぐ結果がほしいとき。ホロジュールで分かるチャンネルは RSS を取り直さず、
+   *   ホロジュールと覚えている RSS で決める (RSS は 1 チャンネル 1 秒ほどかかり、全部取り直すと数十秒待たせるため。
+   *   取り直しはその後の自動再生の確認に任せる)
    * @returns {Promise<{state: 'live'|'upcoming'|'offline', videoId?: string, title?: string, startAt?: number}>}
    */
-  async function fetchStatus(fav, { force = false, auto = false, budget = null } = {}) {
+  async function fetchStatus(fav, { force = false, auto = false, budget = null, quick = false } = {}) {
     const cached = statusCache.get(fav.channelId);
     if (!force && !auto && cached && Date.now() - cached.at < STATUS_TTL_MS) return cached.status;
 
@@ -792,7 +800,7 @@ const Favorites = (() => {
       if (mine || (schedule && fav.preset)) holo = mine || [];
     }
     const maxFeedAge = force && !auto ? FEED_MANUAL_MS : holo && fav.preset ? FEED_HOLO_MS : FEED_AUTO_MS;
-    const status = await channelStatus(fav, { maxFeedAge, budget, holo });
+    const status = await channelStatus(fav, { maxFeedAge, budget, holo, feedCacheOnly: quick && !!holo });
     statusCache.set(fav.channelId, { at: Date.now(), status });
     return status;
   }

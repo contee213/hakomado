@@ -5251,13 +5251,18 @@ async function fillLiveIntoEmptyTiles() {
 /**
  * target = 'fav' ならピックアップ (📌) のチャンネルだけ、それ以外はチャンネル全部を確認する
  */
-async function collectLiveFavorites({ force = false, auto = false, onProgress = null, target = 'all' } = {}) {
+/**
+ * 対象のチャンネルの配信状況をまとめて取る。
+ * quick = 自動再生を ON にした最初の 1 回 (待たせないように、ホロジュールで分かるチャンネルの RSS は取り直さない。
+ *   動画のページを確かめる件数も 1 分ごとの確認と同じに抑える)
+ */
+async function collectLiveFavorites({ force = false, auto = false, quick = false, onProgress = null, target = 'all' } = {}) {
   const favs = (await Favorites.list()).filter((f) => target !== 'fav' || f.star);
   let done = 0;
   onProgress?.(0, favs.length);
   // 1 回の確認で動画のページ (重い) を確かめる件数の上限。残りは次の回に回す (一度にまとめて取りに行かないように)。
-  // 自動再生の 1 分ごとの確認では少なめ (開始予定が近いものから確かめるので、開始の検知は遅れない)
-  const budget = { watch: auto ? 8 : 30 };
+  // 自動再生の確認では少なめ (開始予定が近いものから確かめるので、開始の検知は遅れない)
+  const budget = { watch: auto || quick ? 8 : 30 };
   const results = [];
   let errors = 0;
   const failedKeys = new Set();
@@ -5266,7 +5271,7 @@ async function collectLiveFavorites({ force = false, auto = false, onProgress = 
     while (next < favs.length) {
       const f = favs[next++];
       try {
-        const st = await Favorites.fetchStatus(f, { force, auto, budget });
+        const st = await Favorites.fetchStatus(f, { force, auto, budget, quick });
         favStatus.set(f.channelId, st);
         results.push({ f, st });
       } catch (e) {
@@ -5358,6 +5363,7 @@ async function startAllLiveInner() {
   showAutoProgress(tr('progressStatus', 0, 0), 0);
   const collected = await collectLiveFavorites({
     force: true,
+    quick: true,
     target: state.settings.autoTarget,
     onProgress: (done, total) => showAutoProgress(tr('progressStatus', done, total), total ? (done / total) * 0.7 : 0.7),
   });
