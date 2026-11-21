@@ -1,7 +1,7 @@
 # Chrome Web Store 掲載情報
 
 Chrome ウェブストアのデベロッパー ダッシュボードに入れる内容の控えです。
-**限定公開 (Unlisted) で出す準備中**です (まだ登録・提出はしていません)。今の配布は GitHub のリリースから開発者モードで読み込む形で、
+**限定公開 (Unlisted) で 0.2.0 を審査に出したところ**です (2026-11-22 提出・審査待ち)。今の配布は GitHub のリリースから開発者モードで読み込む形で、
 ストア版を出したあとも ZIP の配布は続けます。拡張機能を変えたらここも合わせて直します。
 
 - 最終更新: 2026-11-22
@@ -19,6 +19,7 @@ Chrome ウェブストアのデベロッパー ダッシュボードに入れる
 
 - GitHub のリリースの ZIP は、`manifest.json` に `"key"` (公開鍵 `tools/release-key.pub`) を入れて ID を `lhafnnpnfpgogdbapeepkgohemnnifpp` に固定している
   (`.github/workflows/release.yml` が ZIP を作るときに `tools/release-key.js` で差し込む。リポジトリの `extension/manifest.json` には入れない)
+- ストア版の ID: `bhmbchggpdficakjfllkmfkpbdpddomp` (ストアが決めたもの。掲載ページの URL もこの ID になる)
 - ストアに上げるパッケージには `"key"` を入れない (ストアが自分の鍵で ID を決める)。リリースの workflow が、`"key"` を差し込む前に
   `hakomado-x.y.z-chrome-web-store.zip` を作ってリリースに添える
 - **ストア版と ZIP 版は別の ID のままにする**。ZIP 版の ID をストアの鍵に入れ替えると、ZIP 版を使っている人の ID がまた変わり、
@@ -270,4 +271,4 @@ Lets the user watch several YouTube streams and videos side by side on one scree
 
 | 版 | 日付 | 内容 | 状態 |
 | --- | --- | --- | --- |
-| 0.2.0 か次の版 | — | 初めての提出 (限定公開) | 準備中 |
+| 0.2.0 | 2026-11-22 | 初めての提出 (限定公開)。リリース `v0.2.0` の `hakomado-0.2.0-chrome-web-store.zip`。審査に合格したら自動で公開する設定 | 審査中 |
