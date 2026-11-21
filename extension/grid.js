@@ -1239,6 +1239,43 @@ function updateNowPlaying() {
   btn.title = `${list}\n${tr('clickToMute')}`;
 }
 
+// ---------------------------------------------------------------- 上部バーの幅
+// 入りきらないときは、ボタンの文字を消してアイコンだけにする (compact)。それでも入らなければ、
+// 今の音声のチャンネル名も消して番号だけにする (tiny)。決めた幅の境目ではなく、実際に並べてはみ出すかで決める
+// (アーカイブ同期中のつまみ・言語・レイアウト名などで、要る幅が変わるため)
+let fitQueued = false;
+function fitToolbar() {
+  fitQueued = false;
+  const bar = document.querySelector('.toolbar');
+  const over = () => bar.scrollWidth > bar.clientWidth + 1;
+  bar.classList.add('measuring');
+  bar.classList.remove('compact', 'tiny');
+  if (over()) {
+    bar.classList.add('compact');
+    if (over()) bar.classList.add('tiny');
+  }
+  bar.classList.remove('measuring');
+}
+function queueFitToolbar() {
+  if (fitQueued) return;
+  fitQueued = true;
+  requestAnimationFrame(fitToolbar);
+}
+function setupToolbarFit() {
+  const bar = document.querySelector('.toolbar');
+  new ResizeObserver(queueFitToolbar).observe(bar);
+  // 中身が変わったとき (今の音声の名前・同期のつまみを出す / 隠す・レイアウト名など)。
+  // 測るときに付け外しする class は見ない (見ると測り直しが止まらなくなる)
+  new MutationObserver(queueFitToolbar).observe(bar, {
+    subtree: true,
+    childList: true,
+    characterData: true,
+    attributes: true,
+    attributeFilter: ['hidden'],
+  });
+  queueFitToolbar();
+}
+
 // ---------------------------------------------------------------- bar actions
 
 function onBarAction(i, act, e) {
@@ -4382,6 +4419,7 @@ function setupToolbar() {
   setupFavorites();
   setupNotices();
   TileInfo.setup();
+  setupToolbarFit();
 }
 
 // ---------------------------------------------------------------- favorites
