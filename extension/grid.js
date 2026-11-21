@@ -3246,6 +3246,8 @@ function setupRead() {
     saveBtn.classList.toggle('primary-action', primary === 'save');
   };
   const primaryBtn = () => (primary === 'save' ? saveBtn : applyBtn);
+  /** 保存するときの名前 (名前欄か読み取った名前。再生リストと同じく改行を除いて 40 文字まで。空なら '') */
+  const saveName = (set) => (nameEl.value.trim() || set.name || '').replace(/[\r\n\t]/g, ' ').trim().slice(0, Playlists.NAME_MAX).trim();
 
   /** 読み取った内容 (1 行目に名前・本数・レイアウト・同期、続けて注意) */
   const describe = async (set) => {
@@ -3259,7 +3261,7 @@ function setupRead() {
     if (set.bad) notes.push(tr('shareBadLines', set.bad));
     if (set.tooMany) notes.push(tr('plTooMany', Playlists.MAX_ITEMS));
     if (set.items.length > SHARE_MAX) notes.push(tr(set.sync ? 'readOverSync' : 'readOverTiles', SHARE_MAX));
-    const name = nameEl.value.trim() || set.name;
+    const name = saveName(set);
     if (name && (await Playlists.list()).some((p) => p.name === name)) notes.push(tr('readReplace', name));
     return [parts.join(' / '), ...notes].join('\n');
   };
@@ -3281,7 +3283,7 @@ function setupRead() {
       });
       if (seq !== parseSeq) return;
       if (!set.items.length) {
-        setSummary(tr('shareNothing'), true);
+        setSummary(tr('readNothing'), true);
         return;
       }
       if (!nameTouched) nameEl.value = set.name.slice(0, Playlists.NAME_MAX);
@@ -3439,7 +3441,7 @@ function setupRead() {
     busy = true;
     updateButtons();
     try {
-      const r = await Playlists.save(nameEl.value.trim() || set.name || defaultPlaylistName(), set.items, {
+      const r = await Playlists.save(saveName(set) || defaultPlaylistName(), set.items, {
         sync: set.sync,
         layoutId: set.layoutId,
         ref: set.ref,
