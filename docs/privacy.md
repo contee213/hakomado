@@ -39,8 +39,12 @@ Hakomado (以下「この拡張機能」) は、YouTube の配信・動画を 1 
 「不具合の報告」で「GitHub で報告」を押すと、エラーの記録と環境 (版・ブラウザ・OS) を書き込んだ GitHub の Issue 作成画面を新しいタブで開きます。
 この拡張機能からは送信しません。送るかどうか・何を送るかは、利用者が GitHub の画面で確かめて決めます。
 
+共有画面の「𝕏 に投稿」を押すと、X (`x.com`) の投稿画面を新しいタブで開き、共有画像・名前・取り込み用リンクを入れます。
+画像を入れるために、初めて押したときに `x.com` へのアクセスの許可を求めます (許可しなくても、画像を貼り付けて使えます)。
+この拡張機能は投稿しません。投稿するかどうか・何を投稿するかは、利用者が X の画面で確かめて決めます。
+
 これらのサービスでの情報の扱いは、それぞれのプライバシーポリシーに従います
-([Google](https://policies.google.com/privacy) / [GitHub](https://docs.github.com/site-policy/privacy-policies/github-general-privacy-statement))。
+([Google](https://policies.google.com/privacy) / [GitHub](https://docs.github.com/site-policy/privacy-policies/github-general-privacy-statement) / [X](https://x.com/ja/privacy))。
 
 ### 第三者への提供
 
@@ -95,8 +99,12 @@ The extension only connects to the following. Each connection fetches what is ne
 When you press "Report on GitHub" under "Report a problem", the extension opens GitHub's new-issue page in a new tab with the error record and your environment (version, browser, OS) filled in.
 The extension itself sends nothing; you review the page on GitHub and decide whether and what to submit.
 
+When you press "𝕏 Post" on the share screen, the extension opens X's (`x.com`) post screen in a new tab and fills in the share image, the name and the import link.
+To add the image, it asks for permission to access `x.com` the first time you press it (without it, you can still paste the image yourself).
+The extension never posts; you review the post on X and decide whether and what to post.
+
 Information on those services is handled under their own privacy policies
-([Google](https://policies.google.com/privacy) / [GitHub](https://docs.github.com/site-policy/privacy-policies/github-general-privacy-statement)).
+([Google](https://policies.google.com/privacy) / [GitHub](https://docs.github.com/site-policy/privacy-policies/github-general-privacy-statement) / [X](https://x.com/en/privacy)).
 
 ### Sharing with third parties
 
