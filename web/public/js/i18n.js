@@ -37,6 +37,7 @@ const STR = {
   navPostLabel: ['投稿', 'Post'],
   footExt: ['Hakomado (Chrome 拡張機能)', 'Hakomado (Chrome extension)'],
   footNote: [' · 個人が作った非公式のツールです', ' · An unofficial tool made by an individual'],
+  footPrivacy: ['プライバシー', 'Privacy'],
   langToggle: ['English', '日本語'],
   count: ['{0} 本', '{0} videos'],
   unnamed: ['名前なし', 'Untitled'],

@@ -8,6 +8,11 @@ Cloudflare Workers (静的アセット付き) と D1 で動く。拡張機能 (`
 
 本番: <https://hakomado.contee.net> (最初に出した `https://hakomado-feed.contee213.workers.dev` でも同じものが開く)
 
+プライバシーポリシーは [docs/privacy-feed.md](../docs/privacy-feed.md) (画面の下からリンク)。拡張機能のもの (`docs/privacy.md`) とは別。
+アクセス解析は Cloudflare Web Analytics (`contee.net` のゾーンの自動挿入。Cookie なし)。読み込めるように `public/_headers` の CSP で
+`static.cloudflareinsights.com` (script-src) と `cloudflareinsights.com` (connect-src) を許している。
+保存するもの・通信する相手を変えたら、`docs/privacy-feed.md` も直す。
+
 ## できること (MVP)
 
 - **一覧** (`/`): 新着・人気 (「Hakomado で開く」を押された回数) の順。カードはレイアウトの形にサムネイルを並べたもの
