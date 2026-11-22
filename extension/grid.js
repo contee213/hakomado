@@ -4285,6 +4285,8 @@ function setupBackup() {
 function setupToolbar() {
   setupLayoutPicker();
 
+  document.getElementById('brandHome').addEventListener('click', backToStart);
+
   document.getElementById('nowPlaying').addEventListener('click', toggleMuteAll);
   document.getElementById('pauseAll').addEventListener('click', (e) => {
     e.currentTarget.blur(); // Space キーでボタンが押し直されないように
@@ -5794,7 +5796,7 @@ function savePlaylistResume() {
     return;
   }
   const r = Sync.resumePoint();
-  if (r) Playlists.setResume(s.id, { ...r, savedAt: Date.now() });
+  if (r) return Playlists.setResume(s.id, { ...r, savedAt: Date.now() });
 }
 setInterval(savePlaylistResume, 15000);
 addEventListener('pagehide', savePlaylistResume);
@@ -7410,6 +7412,48 @@ const sessionChannel = new BroadcastChannel('hakomado-sessions');
 const SESSION_TAB_KEY = 'hakomado.sessionId'; // sessionStorage: このタブで使っていた視聴セッション (再読み込み用)
 
 const SESSION_LOCK_PREFIX = 'hakomado-session:';
+const START_CHOICE_KEY = 'hakomado.startChoice'; // sessionStorage: 開き直したときに始める内容 (ロゴのボタンで選んだもの)
+
+let choosingStart = false;
+
+/**
+ * ロゴのボタン: 起動時と同じ選択画面 (ほかの保存内容で再開 / 新しく / 自動再生で) を出す。
+ * キャンセル (Esc) なら何もしない。選んだら今の内容を保存してから開き直し、選んだ内容で始める
+ * (今の内容は残るので、あとでまた選べる)
+ */
+async function backToStart() {
+  if (choosingStart || !sessionId) return; // 起動の途中 (まだ視聴セッションが決まっていない) は受け付けない
+  choosingStart = true;
+  try {
+    await saveNow(); // 今の内容も「この内容で再開」の候補と同じ形で比べられるように
+    const inUse = await sessionsInUse();
+    const resumable = (await listSessions())
+      .filter((s) => s.id !== sessionId && !inUse.has(s.id) && describeSession(s.data).count > 0)
+      .slice(0, 3);
+    const choices = resumable.map((s) => ({ value: 'resume:' + s.id, label: tr('resumeThis'), note: describeSession(s.data).lines }));
+    choices.push(
+      { value: 'new', label: tr('startNew'), note: tr('startNewNote') },
+      { value: 'auto', label: tr('startAuto'), note: tr('startAutoNote') },
+    );
+    const choice = await askChoice({ title: tr('chooseTitle'), body: [], choices, cancelValue: 'cancel' });
+    if (!choice || choice === 'cancel') return;
+    // 開き直す前に書き終えておく (閉じる直前の保存だけだと、次のページが読むまでに間に合わないことがある)
+    try {
+      await Promise.all([saveNow(), dirtySettings.size ? writeSettings() : null, savePlaylistResume()]);
+    } catch (e) {
+      console.warn('hakomado: 保存に失敗しました', e);
+    }
+    try {
+      sessionStorage.removeItem(SESSION_TAB_KEY);
+      sessionStorage.setItem(START_CHOICE_KEY, choice);
+    } catch {
+      return; // 選んだものを次のページに渡せないなら、開き直さない
+    }
+    location.replace(location.pathname); // 取り込み・追加のリンク (#…) は付けない
+  } finally {
+    choosingStart = false;
+  }
+}
 
 /**
  * この視聴セッションを「このタブで使用中」として押さえる (タブを閉じるまで離さない)。
@@ -7526,7 +7570,8 @@ sessionChannel.addEventListener('message', (e) => {
 });
 
 /** 選択肢を出して、選ばれたものの value を返す (Esc では閉じない) */
-function askChoice({ title, body, choices }) {
+/** cancelValue を渡すと右上に ✕ を出し、✕ と Esc でその値を返して閉じる (渡さなければ Esc でも閉じない) */
+function askChoice({ title, body, choices, cancelValue = null }) {
   const dialog = document.getElementById('startDialog');
   // 押したボタンで答えを返す (画面が隠れていると close イベントが遅れることがあるので、close は予備)
   let done;
@@ -7553,15 +7598,31 @@ function askChoice({ title, body, choices }) {
       return b;
     }),
   );
-  dialog.addEventListener('cancel', (e) => e.preventDefault());
+  const cancelable = cancelValue != null;
+  const cancel = () => {
+    done(cancelValue);
+    dialog.close(cancelValue);
+  };
+  const onCancel = (e) => {
+    e.preventDefault();
+    if (cancelable) cancel();
+  };
+  const closeBtn = document.getElementById('startClose');
+  closeBtn.hidden = !cancelable;
+  closeBtn.onclick = cancelable ? cancel : null;
+  dialog.addEventListener('cancel', onCancel);
   dialog.showModal();
-  wrap.firstElementChild?.focus();
+  // 閉じられるときは ✕ にフォーカス (Enter の押し間違いで新しく始めないように)
+  (cancelable ? closeBtn : wrap.firstElementChild)?.focus();
   // 前の問いの close が遅れて届いても取り違えないよう、閉じている時だけ受け取る
   const onClose = () => {
     if (!dialog.open) done(dialog.returnValue);
   };
   dialog.addEventListener('close', onClose);
-  answered.then(() => dialog.removeEventListener('close', onClose));
+  answered.then(() => {
+    dialog.removeEventListener('close', onClose);
+    dialog.removeEventListener('cancel', onCancel);
+  });
   return answered;
 }
 
@@ -7602,8 +7663,11 @@ async function chooseSession() {
 
   // 同じタブの再読み込みなら、確認なしで続ける
   let remembered = null;
+  let picked = null; // ロゴのボタンで選んで開き直したときの内容
   try {
     remembered = sessionStorage.getItem(SESSION_TAB_KEY);
+    picked = sessionStorage.getItem(START_CHOICE_KEY);
+    sessionStorage.removeItem(START_CHOICE_KEY);
   } catch {
     /* ignore */
   }
@@ -7621,6 +7685,18 @@ async function chooseSession() {
     applySession({ fit: latest?.fit, danmakuAll: latest?.danmakuAll });
   };
 
+  // ロゴのボタンで選んだもの (再開するものが別のタブで使われ始めていたら、いつもの選択画面へ)
+  const pickedSession = picked?.startsWith('resume:') && sessions.find((s) => 'resume:' + s.id === picked);
+  if (pickedSession) {
+    sessionId = pickedSession.id;
+    applySession(pickedSession.data);
+    return false;
+  }
+  if (picked === 'new' || picked === 'auto') {
+    startNew();
+    return picked === 'auto';
+  }
+
   const resumable = sessions.filter((s) => describeSession(s.data).count > 0).slice(0, 3);
   if (resumable.length === 0) {
     startNew();
@@ -7636,10 +7712,7 @@ async function chooseSession() {
     { value: 'auto', label: tr('startAuto'), note: tr('startAutoNote') },
   );
   const body = document.createElement('p');
-  body.textContent =
-    inUse.size > 0
-      ? tr('inUse', inUse.size)
-      : tr('leftover');
+  body.textContent = inUse.size > 0 ? tr('inUse', inUse.size) : tr('leftover');
   const choice = await askChoice({ title: tr('chooseTitle'), body, choices });
   if (choice.startsWith('resume:')) {
     const s = resumable.find((x) => 'resume:' + x.id === choice);

@@ -51,6 +51,9 @@ button:hover, select:hover { border-color: #444450; }
 }
 .toolbar > * { flex: none; }
 .brand { display: inline-flex; align-items: center; gap: 6px; font-weight: 700; letter-spacing: .02em; margin-right: 6px; }
+/* ロゴは起動時の画面を出すボタン。ふだんはボタンの枠を見せず、乗せたときだけ枠を出す */
+.toolbar button.brand { background: none; border-color: transparent; padding: 0 6px 0 2px; }
+.toolbar button.brand:hover { border-color: #444450; }
 .brand-logo { width: 22px; height: 22px; flex: none; }
 .spacer { flex: 1 1 0; min-width: 8px; }
 .toolbar button { display: inline-flex; align-items: center; gap: 5px; height: 26px; }
@@ -511,7 +514,7 @@ dialog.fav-dialog {
   overflow: hidden;
 }
 dialog.fav-dialog[open] { display: flex; flex-direction: column; }
-/* 使い方ツアーで見せるとき: ツアーの暗い幕 (z-index 1000) のすぐ下に、左に寄せて出す (右に吹き出し、下に操作バーが入るように) */
+/* 使い方ツアーで見せるとき: ツアーの暗い幕 (z-index 1000) のすぐ下に、左に寄せて出す (右に吹き出しと、ツアーのパネルが入るように) */
 dialog.fav-dialog.tour-preview {
   position: fixed;
   z-index: 999;
@@ -982,8 +985,12 @@ dialog.settings-dialog::backdrop { background: rgba(0, 0, 0, .15); }
 dialog.start-dialog { width: min(440px, calc(100% - 32px)); }
 .start-form { display: flex; flex-direction: column; gap: 12px; padding: 18px; }
 .start-form h2 { margin: 0; font-size: 16px; }
+.start-form { position: relative; }
+.start-close { position: absolute; top: 12px; right: 12px; }
+.start-close:not([hidden]) ~ h2 { padding-right: 32px; }
 .start-body { color: var(--muted); }
 .start-body p { margin: 0 0 6px; }
+.start-body:empty { display: none; }
 .start-form { overflow-x: hidden; }
 .start-choices { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .start-choices button {
@@ -1045,7 +1052,9 @@ dialog.settings-dialog { width: min(780px, calc(100% - 32px)); overflow: hidden;
 .help-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 14px; }
 
 /* ---------- 使い方ツアー ---------- */
-.tour { position: fixed; inset: 0; z-index: 1000; }
+/* 画面のどこを押しても次へ進む (最後のステップは押すと終わる) */
+.tour { position: fixed; inset: 0; z-index: 1000; cursor: pointer; }
+.tour-dock { cursor: default; }
 /* 明るくする範囲: 周りを大きな影で暗くする。ステップごとに位置と大きさがなめらかに動く */
 .tour-spot {
   position: fixed;
@@ -1089,6 +1098,11 @@ dialog.settings-dialog { width: min(780px, calc(100% - 32px)); overflow: hidden;
   transition: left .35s ease, top .35s ease;
 }
 .tour-tip.enter { animation: tour-in .25s ease; }
+.tour-tip:hover { border-color: #6f7685; }
+/* ようこそだけ: 吹き出しの中にスキップ・次へ */
+.tour-hero-nav { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 24px; }
+.tour-hero-nav[hidden] { display: none; }
+.tour-hero-nav .primary { min-width: 180px; padding: 10px 28px; font-size: 15px; }
 /* 最初のようこそは、さらに大きく */
 .tour-tip.hero { width: min(700px, calc(100vw - 24px)); padding: 30px 30px 26px; text-align: center; }
 .tour-tip.hero .tour-logo { display: block; width: 112px; height: 112px; margin: 0 auto 14px; filter: drop-shadow(0 6px 18px rgba(77, 179, 255, .35)); }
@@ -1123,44 +1137,48 @@ dialog.settings-dialog { width: min(780px, calc(100% - 32px)); overflow: hidden;
   0%, 100% { translate: 0 0; }
   50% { translate: var(--bob); }
 }
-/* 操作のバー: 画面の下寄りの真ん中に固定 (下端に貼り付けると目線から遠いので少し上げる)。
-   上から「使い方ツアー ・ 何番目か」「ステップの一覧」「スキップ … 戻る・次へ」 */
+/* 進み具合と操作のパネル: 右下に縦長で固定 (ようこその間は出さない)。
+   上から「使い方ツアー ・ 何番目か」「ステップの一覧」「戻る・次へ」「スキップ」 */
 .tour-dock {
   position: fixed;
-  left: 50%;
-  bottom: max(20px, 18vh);
-  transform: translateX(-50%);
-  width: min(760px, calc(100vw - 24px));
+  right: 20px;
+  bottom: 20px;
+  width: 250px;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
   gap: 10px;
-  padding: 12px 14px 12px 18px;
+  padding: 12px 14px;
   border: 1px solid #5a606c;
   border-top: 3px solid #1a8cff;
   border-radius: 14px;
   background: #3b404b;
   box-shadow: 0 12px 36px rgba(0, 0, 0, .5);
+  animation: tour-in .25s ease;
 }
+.tour-dock[hidden] { display: none; }
 .tour-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .tour-name { display: inline-flex; align-items: center; gap: 7px; color: #fff; font-size: 13px; font-weight: 700; letter-spacing: .04em; }
 .tour-name img { width: 18px; height: 18px; }
 .tour-count { color: #aab1bd; font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
-/* ステップの一覧: 番号の丸と短い名前を線でつなぐ。済んだところは ✓、今のところは青く強調 */
-.tour-steps { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; row-gap: 4px; margin: 0; padding: 0; list-style: none; }
-.tour-steps li { display: flex; align-items: center; }
-.tour-steps li + li::before { content: ''; width: 14px; height: 1px; margin: 0 2px; background: #5f6672; }
+/* ステップの一覧: 縦に並べ、番号の丸を縦の線でつなぐ。済んだところは ✓、今のところは青く強調 */
+.tour-steps { display: flex; flex-direction: column; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.tour-steps li { position: relative; display: flex; }
+/* 線は 1 つ上の丸の下から、この丸の上まで (丸の真ん中 = ボタンの左の余白 6px + 丸の半分 9px) */
+.tour-steps li + li::before { content: ''; position: absolute; left: 14.5px; top: -9px; width: 1px; height: 14px; background: #5f6672; }
 .tour-steps li.done + li::before, .tour-steps li.on::before { background: #4db3ff; }
 .tour-dock .tour-steps button {
-  display: inline-flex;
+  flex: 1 1 auto;
+  display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 4px 9px 4px 5px;
+  gap: 8px;
+  padding: 5px 10px 5px 6px;
   border: 0;
-  border-radius: 999px;
+  border-radius: 8px;
   background: none;
   color: #9aa2af;
-  font-size: 12.5px;
+  font-size: 13px;
+  text-align: left;
   white-space: nowrap;
 }
 .tour-dock .tour-steps button:hover { background: rgba(255, 255, 255, .08); color: #fff; }
@@ -1180,26 +1198,28 @@ dialog.settings-dialog { width: min(780px, calc(100% - 32px)); overflow: hidden;
 .tour-steps li.done .tour-step-num { border-color: #4db3ff; color: #4db3ff; }
 .tour-dock .tour-steps li.on button { background: rgba(26, 140, 255, .22); color: #fff; font-weight: 700; }
 .tour-steps li.on .tour-step-num { border-color: #1a8cff; background: #1a8cff; color: #fff; }
-.tour-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 10px; border-top: 1px solid #4c525e; }
+.tour-row { display: flex; flex-direction: column; align-items: stretch; gap: 6px; padding-top: 10px; border-top: 1px solid #4c525e; }
 .tour-nav { display: flex; align-items: center; gap: 8px; }
-.tour-dock button { font-size: 14px; padding: 7px 14px; border-radius: 8px; border: 1px solid #5f6672; background: #4a505c; color: #fff; }
-.tour-dock button:hover { background: #555c69; }
-.tour-dock .tour-skip { border: 0; background: none; color: #b7bdc8; padding-left: 0; }
-.tour-dock .tour-skip:hover { background: none; color: #fff; }
-.tour-dock .primary { border-color: #1a8cff; background: #1a8cff; color: #fff; font-weight: 700; }
-.tour-dock .primary:hover { background: #0b78e6; }
+.tour-nav .primary { flex: 1 1 auto; }
+:is(.tour-dock, .tour-hero-nav) button { font-size: 14px; padding: 7px 14px; border-radius: 8px; border: 1px solid #5f6672; background: #4a505c; color: #fff; }
+:is(.tour-dock, .tour-hero-nav) button:hover { background: #555c69; }
+:is(.tour-dock, .tour-hero-nav) .tour-skip { border: 0; background: none; color: #b7bdc8; padding-left: 0; }
+:is(.tour-dock, .tour-hero-nav) .tour-skip:hover { background: none; color: #fff; }
+.tour-dock .tour-skip { align-self: center; padding: 4px 8px; font-size: 13px; }
+.tour-dock .tour-skip .tour-label-stack { justify-items: center; }
+:is(.tour-dock, .tour-hero-nav) .primary { border-color: #1a8cff; background: #1a8cff; color: #fff; font-weight: 700; }
+:is(.tour-dock, .tour-hero-nav) .primary:hover { background: #0b78e6; }
 /* 最後の「自動再生をはじめる」: 明るくしたボタンと同じように光らせて誘う */
-.tour-dock .primary.action { animation: tour-btn 1.2s ease-in-out infinite; }
-/* 最初の「戻る」: 押せないが場所は残す */
-.tour-dock .placeholder { visibility: hidden; }
+:is(.tour-dock, .tour-act-nav) .primary.action { animation: tour-btn 1.2s ease-in-out infinite; }
+/* 最後の吹き出しの「自動再生をはじめる」は右寄せ */
+.tour-act-nav { justify-content: flex-end; margin-top: 16px; }
 /* ボタンの文字: 使う文字を全部重ね、今の 1 つだけ見せる (幅をいちばん長い文字に合わせる) */
 .tour-label-stack { display: inline-grid; justify-items: center; }
 .tour-skip .tour-label-stack { justify-items: start; }
 .tour-label-stack > span { grid-area: 1 / 1; visibility: hidden; }
 .tour-label-stack > span.on { visibility: visible; }
-.tour-dock .placeholder .tour-label-stack > span.on { visibility: hidden; }
 @media (prefers-reduced-motion: reduce) {
-  .tour-spot, .tour-tip, .tour-tail, .tour-dock .primary.action { transition: none; animation: none; }
+  .tour-spot, .tour-tip, .tour-tail, .tour-dock, :is(.tour-dock, .tour-act-nav) .primary.action { transition: none; animation: none; }
 }
 .settings-foot button { font-size: 12px; }
 .settings-panel {
