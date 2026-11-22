@@ -1470,6 +1470,7 @@ code { font-size: 12px; background: #222228; padding: 0 4px; border-radius: 3px;
 .mix-label { color: var(--muted); font-size: 12px; min-width: 3em; }
 .mix-gain { width: 120px; }
 .mix-gain-value { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; min-width: 3.5em; }
+.mix-delay { width: 4.5em; }
 .mix-btn { font-variant-numeric: tabular-nums; }
 .mix-btn.on { color: #8fd3ff; border-color: #8fd3ff; }
 .sync-panel button { padding: 1px 7px; font-size: 12px; }

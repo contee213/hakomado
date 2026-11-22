@@ -320,8 +320,8 @@ const MESSAGES = {
   packLoading: ['読み込んでいます…', 'Loading…'],
   packRemove: ['外す', 'Remove'],
   mixBlocked: [
-    'この枠では左右・音量を変えられませんでした (ブラウザが音の処理を止めています)。枠をクリックしてから、もう一度試してください',
-    "Couldn't change left/right or volume in this tile (the browser is holding back audio processing). Click the tile and try again",
+    'この枠では左右・音量・遅延を変えられませんでした (ブラウザが音の処理を止めています)。枠をクリックしてから、もう一度試してください',
+    "Couldn't change left/right, volume or delay in this tile (the browser is holding back audio processing). Click the tile and try again",
   ],
   mixNeed2: ['音の出ている枠を 2 つにしてから押してください (いま {0} 枠)', 'Make exactly 2 tiles play audio first (now {0})'],
   mixLeft: ['左から聞こえます', 'Heard from the left'],
@@ -869,8 +869,8 @@ const HTML_EN = {
   'helpPage.tiles': `<ul>
 <li>Choose a layout with “▦” on the top bar. The darker tile is the main one, and loaded streams fill tiles from 1 (main) on. “+” / “−” add or remove a tile</li>
 <li>Hover over a tile with a stream to show its control bar. Drag ⠿ at the left to swap tiles</li>
-<li>Tile bar: audio button (play audio from this tile) / 🎚 left/right and volume / 💬 chat / ≋ danmaku / 📌 pickup / 🔖 watch later / 📃 add to a playlist / ⏱ sync offset (for archives) / ⟳ reload / ⛶ fullscreen this tile / ✕ close</li>
-<li>🎚 makes that tile heard from the left, center or right and changes its volume (0–200%). “⇆ Split 2 tiles left/right” sends the 2 tiles playing audio left and right by their position on screen</li>
+<li>Tile bar: audio button (play audio from this tile) / 🎚 left/right, volume and delay / 💬 chat / ≋ danmaku / 📌 pickup / 🔖 watch later / 📃 add to a playlist / ⏱ sync offset (for archives) / ⟳ reload / ⛶ fullscreen this tile / ✕ close</li>
+<li>🎚 makes that tile heard from the left, center or right and changes its volume (0–200%). “⇆ Split 2 tiles left/right” sends the 2 tiles playing audio left and right by their position on screen. On a live stream, “Audio delay” delays only that tile’s audio (the picture stays as it is; for a collab whose voices come earlier than the other tiles)</li>
 <li>“⛶” (<kbd>Shift</kbd> + <kbd>F</kbd>) goes fullscreen with all tiles. Move the mouse to the top edge to show the bar</li>
 <li>“ℹ️” (<kbd>I</kbd>) lists each tile’s type (live, archive, video), stream times, current viewers, views and whether it can be archive-synced</li>
 </ul>`,
@@ -1033,13 +1033,15 @@ const HTML_EN = {
   'tile.pickAny': '🎲 Surprise me',
   'tile.pickAnyTitle': 'Add one stream not shown yet (pickup live streams first)',
   'tile.grip': 'Drag to swap with another tile',
-  'tile.mix': 'Left/right (L / C / R) and volume of this tile',
+  'tile.mix': 'Left/right (L / C / R), volume and delay (live streams) of this tile',
   'mix.pan': 'L/R',
   'mix.left': 'Hear it from the left',
   'mix.center': 'Center (as it is)',
   'mix.right': 'Hear it from the right',
   'mix.gain': 'Volume',
   'mix.gainTitle': 'Volume of this tile (100% = as it is). Use it to even out loud and quiet streams',
+  'mix.delay': 'Audio delay',
+  'mix.delayTitle': 'Delay only the audio of this tile by this many seconds (the picture stays as it is). For a live stream whose voices come earlier than the other tiles. Enter to apply',
   'mix.split': '⇆ Split 2 tiles left/right',
   'mix.splitTitle': 'Of the 2 tiles playing audio, the one on the left of the screen is heard from the left and the other from the right (to tell two views of a collab apart; for headphones)',
   'mix.reset': 'Reset',
