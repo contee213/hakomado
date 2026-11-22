@@ -337,6 +337,12 @@ const MESSAGES = {
   syncDockToSide: ['画面の右の列にする (枠の並びを縮めて、重ねない)', 'Dock it on the right (the tiles shrink to make room)'],
   syncUndoTitle: ['直前のずれの変更 ({0} 枠) を元に戻す', 'Undo the last offset change ({0} tile(s))'],
   syncUndone: ['ずれを元に戻しました', 'Offset restored'],
+  syncResetTitle: ['実際の時刻に戻す (ずれを 0 にする)。手で合わせてうまくいかなかったときに', 'Back to real time (set the offset to 0). For when adjusting by hand went wrong'],
+  syncResetGroupTitle: [
+    'グループ {0} のずれを全部 0 に戻す (配信していた実際の時刻だけでそろえ直す)。「↶ 元に戻す」で戻せます',
+    'Set every offset in group {0} back to 0 (align on the actual stream times only). “↶ Undo” brings them back',
+  ],
+  syncResetDone: ['{0} 枠のずれを 0 に戻しました (実際の時刻でそろえています)', 'Set {0} tile(s) back to offset 0 (aligned on real time)'],
   syncAudioStart: [
     '🎧 音を {0} 秒聞いて、ずれを測ります。そのまま再生しておいてください',
     '🎧 Listening for {0}s to measure the offsets. Keep it playing',
@@ -984,8 +990,8 @@ const HTML_EN = {
   'helpPage.sync': `<ul>
 <li>Press “⏱ Archive sync” on the top bar to play stream archives that overlap in time, aligned to when they were actually streamed. Until 2 such archives are shown it is dimmed, and pressing it tells you why (live now, a regular video, and so on)</li>
 <li>Archives streamed at overlapping times are grouped automatically, so A·B and C·D from different collabs sync separately (up to 4 groups, shown by color and number on the tiles). Change a tile’s group on its row in the sync panel</li>
-<li>The sync panel (☰ on the top bar, or ⏱ on a tile) sits on the right. Per group: what to align on (🕒 real time / 🎬 movie), ⏸, 🎧 match by sound and a slider. Per tile: the reference (◉), the offset and ⏸ pause and wait</li>
-<li>Select a row and use ← → to move the offset by 0.1 s (Shift: 0.01 s / Ctrl: 1 s). The dot shows whether it has caught up. “↶ Undo” restores the last change. Offsets are remembered per video and go into playlists and share codes</li>
+<li>The sync panel (☰ on the top bar, or ⏱ on a tile) floats over the tiles, semi-transparent (drag its header to move it; ⇲ docks it on the right). Per group: what to align on (🕒 real time / 🎬 movie), ⏸, 🎧 match by sound and a slider. Per tile: the reference (◉), the offset and ⏸ pause and wait</li>
+<li>Select a row and use ← → to move the offset by 0.1 s (Shift: 0.01 s / Ctrl: 1 s). The dot shows whether it has caught up. “↶ Undo” restores the last change. If adjusting by hand went wrong, ↺ on the row (↺ in the header for the whole group) goes back to real time. Offsets are remembered per video and go into playlists and share codes</li>
 <li>The slider on the top bar moves the group of the tile playing audio</li>
 </ul>`,
   'helpPage.share': `<p>“🔗 Share” turns the current tiles or a playlist into one of four forms.</p>

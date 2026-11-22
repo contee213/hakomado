@@ -1536,6 +1536,7 @@ body.grid-fs .sync-dock { top: 0; }
 .dr-val { width: 6.5em; text-align: right; }
 .dr-val::placeholder { color: var(--text); opacity: 1; }
 .dr-wait.is-waiting { color: #8fd3ff; border-color: #8fd3ff; }
+.dr-reset[hidden] { display: none; }
 .dr-cand { color: #8fd3ff; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .dr-note { color: var(--muted); }
 .dr-movie-label { display: inline-flex; align-items: center; gap: 4px; }

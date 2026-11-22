@@ -2312,6 +2312,15 @@ const Sync = (() => {
   function applyOffsets(pairs) {
     lastChange = pairs.map(([i, v]) => setOffset(i, v, { record: false }));
   }
+  /** グループの枠のずれを全部 0 に戻す (実際の時刻だけでそろえ直す。まとめて 1 回で元に戻せる) */
+  function resetGroup(G) {
+    const pairs = membersOf(G.g)
+      .filter((i) => movable(i) && off(i) !== 0)
+      .map((i) => [i, 0]);
+    if (!pairs.length) return;
+    applyOffsets(pairs);
+    notify(tr('syncResetDone', pairs.length));
+  }
   /** 直前のずれの変更を元に戻す */
   function undo() {
     if (!lastChange) return;
@@ -2546,10 +2555,12 @@ const Sync = (() => {
         r.val.addEventListener('blur', () => (r.val.value = ''));
         r.wait = mk('button', { type: 'button', class: 'dr-wait sync-wait', title: tr('syncWaitTitle'), onclick: () => toggleWait(i) });
         r.cand = mk('span', { class: 'dr-cand' });
+        // 実際の時刻に戻す (ずれを 0 に。手で合わせてうまくいかなかったとき)。本編モードは ✕ (本編の位置を消す) がその代わり
+        if (!movie) r.reset = mk('button', { type: 'button', class: 'dr-reset', textContent: '↺', title: tr('syncResetTitle'), onclick: () => setOffset(i, 0) });
         const live = liveTile(i);
         const line2 = live
           ? mk('div', { class: 'dr-line dr-sub' }, mk('span', { class: 'dr-note' }, tr(isRef ? 'syncLiveRef' : 'movieLiveRefOnly')))
-          : mk('div', { class: 'dr-line dr-sub' }, r.minus, r.val, r.plus, r.wait, r.cand);
+          : mk('div', { class: 'dr-line dr-sub' }, r.minus, r.val, r.plus, r.wait, r.reset, r.cand);
         parts.push(line2);
         if (movie && !live) {
           const nowIn = mk('input', { type: 'text', class: 'dr-movie-now sync-input', inputMode: 'numeric', placeholder: '0:47:12', title: tr('syncMovieNowTitle') });
@@ -2668,6 +2679,7 @@ const Sync = (() => {
       });
       h.play = mk('button', { type: 'button', class: 'dg-play', onclick: () => togglePauseGroup(G) });
       h.audio = mk('button', { type: 'button', class: 'dg-audio sync-audio', title: tr('syncAudioTitle'), onclick: () => AudioSync.toggle(G.g) });
+      h.reset = mk('button', { type: 'button', class: 'dg-reset', textContent: '↺', title: tr('syncResetGroupTitle', G.g), onclick: () => resetGroup(G) });
       h.now = mk('span', { class: 'sync-time dg-now' });
       h.end = mk('span', { class: 'sync-time dg-end' });
       h.range = mk('input', { type: 'range', class: 'dg-range', min: 0, max: 1, step: 1, value: 0, title: tr('syncSeekGroup', G.g) });
@@ -2675,7 +2687,7 @@ const Sync = (() => {
       h.note = mk('div', { class: 'dg-note' });
       const ok = active(G);
       const kids = [
-        mk('div', { class: 'dg-head' }, mk('span', { class: 'dg-num', title: tr('syncGroupN', G.g) }, String(G.g)), modeSel, ok ? h.play : null, ok && !isMovie(G) ? h.audio : null),
+        mk('div', { class: 'dg-head' }, mk('span', { class: 'dg-num', title: tr('syncGroupN', G.g) }, String(G.g)), modeSel, ok ? h.play : null, ok && !isMovie(G) ? h.audio : null, ok && !isMovie(G) ? h.reset : null),
         ok ? mk('div', { class: 'dg-seek' }, h.now, h.range, h.end) : null,
         h.note,
         ok ? AudioSync.resultEl(G.g) : null,
@@ -2727,6 +2739,7 @@ const Sync = (() => {
         h.audio.textContent = a || '🎧';
         h.audio.classList.toggle('is-measuring', !!a);
         h.audio.disabled = AudioSync.busyOther(g);
+        h.reset.disabled = !membersOf(g).some((i) => movable(i) && off(i) !== 0);
         h.note.textContent = isMovie(G) && anchor(G.ref) == null ? tr('syncGroupNeedAnchor') : '';
       }
       for (const [i, r] of rows) {
@@ -2755,6 +2768,7 @@ const Sync = (() => {
         r.dot.className = 'dr-dot is-' + st;
         r.dot.title = tr('syncDot_' + st);
         if (r.trim) r.trim.disabled = off(i) === -trimmedOf(i);
+        if (r.reset) r.reset.hidden = !movable(i) || off(i) === 0 || !!wait;
       }
       const undoBtn = document.getElementById('syncUndo');
       undoBtn.hidden = !lastChange;
