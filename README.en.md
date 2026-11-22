@@ -31,7 +31,14 @@ This is an unofficial tool made by an individual. Please read the [Disclaimer](#
 
 ## Install
 
-It is not on the Chrome Web Store, so load it in developer mode.
+### From the Chrome Web Store (recommended)
+
+Open [Hakomado on the Chrome Web Store](https://chromewebstore.google.com/detail/bhmbchggpdficakjfllkmfkpbdpddomp) and press "Add to Chrome".
+It is unlisted, so it does not show up in store search (use this link). The browser installs new versions automatically.
+
+### From a zip (developer mode)
+
+New versions come out on the GitHub releases first (the store follows with the same version after review).
 
 1. Download `hakomado-x.y.z.zip` from the [releases page](https://github.com/contee213/hakomado/releases/latest) and extract it
 2. Open `chrome://extensions` in Chrome (`edge://extensions` in Edge)
@@ -42,6 +49,8 @@ It is not on the Chrome Web Store, so load it in developer mode.
 To update, extract the new zip over the same folder, press "⟳" for the extension on the extensions page, then reload the multi-view page.
 The release zip fixes the extension ID to `lhafnnpnfpgogdbapeepkgohemnnifpp`, so even if you extract it to another folder it stays the same extension
 and your settings and channels are carried over.
+
+The store version and the zip version are separate extensions with different IDs. To switch, export with ⚙ Settings → "Backup", import it in the other one, then remove the old one.
 
 > **Upgrading from v0.2.0 or earlier**: zips up to v0.2.0 did not fix the ID, so switching to a version with the fixed ID treats it as a different
 > extension once. Before switching, export your data with ⚙ Settings → "Backup" → "⬇ Export to a file", then import it in the new version with
@@ -136,7 +145,7 @@ A pack is a JSON file like the one below. Besides submitting it to `packs/`, you
 - Extension ID: `release.yml` adds `"key"` (the public key in `tools/release-key.pub`) to `manifest.json` in the release zip only, which fixes the ID
   (`node tools/release-key.js id` prints it). It is not in the repository's `extension/`, so a development folder gets its own path-based ID and
   you can load the development and release versions side by side in one Chrome profile (with separate saved data). The matching private key is not
-  in the repository (it is only needed to build a CRX). When publishing to the store, swap in the store's public key to share the store version's ID
+  in the repository (it is only needed to build a CRX). The store version has a different ID (`bhmbchggpdficakjfllkmfkpbdpddomp`) and is not aligned with the zip version (see `CHROMEWEBSTORE.md`)
 - Tests: `npm test` (Node.js 22 or later; there are no dependencies, so no `npm install`). They live in `tests/` and also run on every push and PR
   in GitHub Actions (`.github/workflows/test.yml`). The release zip is only built after the tests pass.
   E2E tests: after `npm ci` and `npx playwright install chromium`, run `npm run test:e2e`. They live in `e2e/`, start Chromium with `extension/`
