@@ -1,7 +1,9 @@
 // hakomado: 初めて使うときのツアー (画面の各部分を順に明るく切り抜き、吹き出しで説明する)。
 // インストール直後だけ自動で始まり (background.js が tourPending を立てる)、バージョンアップでは出ない。
 // 使い方 (?) の画面から、いつでももう一度見られる。
-// 吹き出し (説明) は対象の近くに出して矢印で指し、押すと次へ進む。
+// 吹き出し (説明) は対象の近くに出して矢印で指す。吹き出しでも暗い画面でも、どこを押しても次へ進む。
+// 最後 (自動再生) だけは吹き出しの中にも「自動再生をはじめる」を置き、それと明るくしたボタン以外を押すと
+// 「あとで」と同じく押さずに終わる。
 // 最初のようこそだけは画面の真ん中に大きく出し、スキップ・次へも吹き出しの中に置く。
 // 2 つめからは、進み具合と操作のボタン (戻る・次へ・スキップ) を右下の縦長のパネルに固定する。
 // マウスを動かさずに「次へ」を押し続けられるように。
@@ -53,6 +55,8 @@ const Tour = (() => {
   let countEl = null;
   let heroNav = null;
   let heroNext = null;
+  let actNav = null;
+  let actBtn = null;
   let index = 0;
   let onDone = null;
   let mockBar = null;
@@ -138,25 +142,23 @@ const Tour = (() => {
   function build() {
     root = document.createElement('div');
     root.className = 'tour';
-    // 背景のクリックはツアー中は止める (誤って枠を操作しないように)
-    root.addEventListener('click', (e) => e.stopPropagation());
+    // 画面 (暗い幕・吹き出し) のどこを押しても次へ。下の枠には届かせない (誤って枠を操作しないように)。
+    // 押してもらう最後のステップでは、明るくしたボタンなら押す、それ以外なら「あとで」と同じく押さずに終わる
+    root.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (e.target.closest('button, .tour-dock')) return;
+      if (!STEPS[index].action) next();
+      else if (e.target === spot) act();
+      else finish();
+    });
     spot = document.createElement('div');
     spot.className = 'tour-spot';
-    // 押してもらうステップでは、明るくしたボタンだけ押せる
-    spot.addEventListener('click', () => {
-      if (STEPS[index]?.action) act();
-    });
 
     // 吹き出し: 説明だけを入れ、対象の近くに出して矢印 (tail) で指す
     tip = document.createElement('div');
     tip.className = 'tour-tip';
     tip.setAttribute('role', 'dialog');
     tip.setAttribute('aria-live', 'polite');
-    // 吹き出しのどこを押しても次へ (押してもらうステップは、明るくしたボタンを押してもらうので進まない)
-    tip.addEventListener('click', (e) => {
-      if (e.target.closest('button') || STEPS[index].action) return;
-      next();
-    });
     const tail = document.createElement('div');
     tail.className = 'tour-tail';
     tipBody = document.createElement('div');
@@ -168,7 +170,13 @@ const Tour = (() => {
     heroNext = stackButton(['tourNext'], 'primary', next);
     setLabel(heroNext, 'tourNext');
     heroNav.append(heroSkip, heroNext);
-    tip.append(tail, tipBody, heroNav);
+    // 最後 (押してもらうステップ) だけ: 吹き出しの中にも「自動再生をはじめる」を置く (吹き出ししか見ない人でも押せるように)
+    actNav = document.createElement('div');
+    actNav.className = 'tour-hero-nav tour-act-nav';
+    actBtn = stackButton(['tourStart'], 'primary action', act);
+    setLabel(actBtn, 'tourStart');
+    actNav.appendChild(actBtn);
+    tip.append(tail, tipBody, heroNav, actNav);
 
     // 進み具合と操作のパネル: 右下に縦長で固定し、どのステップでもボタンの位置を変えない (ようこその間は出さない)。
     // 上から「使い方ツアー ・ 何番目か」「ステップの一覧 (今のところを強調、押すとそこへ移る)」「戻る・次へ」「スキップ」
@@ -245,8 +253,8 @@ const Tour = (() => {
     // 最初のようこそは大きなアイコン付きで大きく出し、代表的な使い方を並べる
     const hero = !step.target;
     tip.classList.toggle('hero', hero);
-    tip.classList.toggle('clickable', !step.action);
     heroNav.hidden = !hero;
+    actNav.hidden = !step.action;
     dock.hidden = hero;
     if (hero) {
       const logo = document.createElement('img');
@@ -292,7 +300,7 @@ const Tour = (() => {
     countEl.textContent = `${index + 1} / ${STEPS.length}`;
 
     place();
-    (hero ? heroNext : nextBtn).focus({ preventScroll: true });
+    (hero ? heroNext : step.action ? actBtn : nextBtn).focus({ preventScroll: true });
   }
 
   /** 明るくする範囲と吹き出しの位置を、今の画面に合わせて決める */
@@ -411,7 +419,7 @@ const Tour = (() => {
     entered = null;
     root.remove();
     root = spot = tip = tipBody = dock = null;
-    skipBtn = backBtn = nextBtn = stepsEl = countEl = heroNav = heroNext = null;
+    skipBtn = backBtn = nextBtn = stepsEl = countEl = heroNav = heroNext = actNav = actBtn = null;
     window.removeEventListener('keydown', onKey, true);
     window.removeEventListener('resize', place);
     onDone?.();

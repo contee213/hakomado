@@ -1052,7 +1052,9 @@ dialog.settings-dialog { width: min(780px, calc(100% - 32px)); overflow: hidden;
 .help-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 14px; }
 
 /* ---------- 使い方ツアー ---------- */
-.tour { position: fixed; inset: 0; z-index: 1000; }
+/* 画面のどこを押しても次へ進む (最後のステップは押すと終わる) */
+.tour { position: fixed; inset: 0; z-index: 1000; cursor: pointer; }
+.tour-dock { cursor: default; }
 /* 明るくする範囲: 周りを大きな影で暗くする。ステップごとに位置と大きさがなめらかに動く */
 .tour-spot {
   position: fixed;
@@ -1096,9 +1098,7 @@ dialog.settings-dialog { width: min(780px, calc(100% - 32px)); overflow: hidden;
   transition: left .35s ease, top .35s ease;
 }
 .tour-tip.enter { animation: tour-in .25s ease; }
-/* 吹き出しを押しても次へ進む */
-.tour-tip.clickable { cursor: pointer; }
-.tour-tip.clickable:hover { border-color: #6f7685; }
+.tour-tip:hover { border-color: #6f7685; }
 /* ようこそだけ: 吹き出しの中にスキップ・次へ */
 .tour-hero-nav { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 24px; }
 .tour-hero-nav[hidden] { display: none; }
@@ -1210,14 +1210,16 @@ dialog.settings-dialog { width: min(780px, calc(100% - 32px)); overflow: hidden;
 :is(.tour-dock, .tour-hero-nav) .primary { border-color: #1a8cff; background: #1a8cff; color: #fff; font-weight: 700; }
 :is(.tour-dock, .tour-hero-nav) .primary:hover { background: #0b78e6; }
 /* 最後の「自動再生をはじめる」: 明るくしたボタンと同じように光らせて誘う */
-.tour-dock .primary.action { animation: tour-btn 1.2s ease-in-out infinite; }
+:is(.tour-dock, .tour-act-nav) .primary.action { animation: tour-btn 1.2s ease-in-out infinite; }
+/* 最後の吹き出しの「自動再生をはじめる」は右寄せ */
+.tour-act-nav { justify-content: flex-end; margin-top: 16px; }
 /* ボタンの文字: 使う文字を全部重ね、今の 1 つだけ見せる (幅をいちばん長い文字に合わせる) */
 .tour-label-stack { display: inline-grid; justify-items: center; }
 .tour-skip .tour-label-stack { justify-items: start; }
 .tour-label-stack > span { grid-area: 1 / 1; visibility: hidden; }
 .tour-label-stack > span.on { visibility: visible; }
 @media (prefers-reduced-motion: reduce) {
-  .tour-spot, .tour-tip, .tour-tail, .tour-dock, .tour-dock .primary.action { transition: none; animation: none; }
+  .tour-spot, .tour-tip, .tour-tail, .tour-dock, :is(.tour-dock, .tour-act-nav) .primary.action { transition: none; animation: none; }
 }
 .settings-foot button { font-size: 12px; }
 .settings-panel {

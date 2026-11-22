@@ -383,7 +383,7 @@ const MESSAGES = {
     'This opens from “📚 Library” at the top right. Recent streams, watch history, Watch later and playlists are here. “⏱ All at once, in sync” on a playlist lines up collab archives to the same moment.',
   ],
   tourAutoT: ['自動再生ではじめましょう', 'Start with auto play'],
-  tourAuto: ['押すと、配信中のチャンネルが並びます。このツアーは、右上の ? (使い方) からいつでも見直せます。', 'Press it to lay out the channels that are live. You can replay this tour any time from ? (Help) at the top right.'],
+  tourAuto: ['押すと、配信中のチャンネルが並びます。ほかの場所を押すと、押さずにツアーを終えます。このツアーは、右上の ? (使い方) からいつでも見直せます。', 'Press it to lay out the channels that are live. Click anywhere else to finish the tour without it. You can replay this tour any time from ? (Help) at the top right.'],
   resumeAll: ['再開', 'Resume'],
   pauseLabel: ['一時停止', 'Pause'],
   archiveBtn: ['最近 ⌄', 'Recent ⌄'],
