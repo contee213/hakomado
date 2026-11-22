@@ -142,3 +142,46 @@ test.describe('視聴セッション', () => {
     await expect(second.locator('#startDialog')).toBeHidden();
   });
 });
+
+test.describe('共有', () => {
+  test('画像の各枠の名前は既定で入れず、切り替えると作り直して、次に開いたときも覚えている', async ({ openGrid }) => {
+    const page = await openGrid();
+    await skipTour(page);
+    const input = visibleTiles(page).first().locator('.url-input');
+    await input.fill('dQw4w9WgXcQ');
+    await input.press('Enter');
+    await page.locator('#openShare').click();
+    await page.locator('#shareDialog [data-stab="image"]').click();
+    const labels = page.locator('#shareImgLabels');
+    const img = page.locator('#shareImg');
+    await expect(labels).not.toBeChecked();
+    await expect(img).toHaveAttribute('src', /^blob:/);
+    const before = await img.getAttribute('src');
+    await labels.check();
+    await expect(img).not.toHaveAttribute('src', before);
+    await expect(img).toHaveAttribute('src', /^blob:/);
+    // 別のタブで開いても覚えている (ツアーは最初の 1 回だけ)
+    const second = await openGrid();
+    await second.locator('#openShare').click();
+    await expect(second.locator('#shareImgLabels')).toBeChecked();
+  });
+
+  test('作者名を入れると画像を作り直し、次に開いたときも残っている', async ({ openGrid }) => {
+    const page = await openGrid();
+    await skipTour(page);
+    const input = visibleTiles(page).first().locator('.url-input');
+    await input.fill('dQw4w9WgXcQ');
+    await input.press('Enter');
+    await page.locator('#openShare').click();
+    await page.locator('#shareDialog [data-stab="image"]').click();
+    const img = page.locator('#shareImg');
+    await expect(img).toHaveAttribute('src', /^blob:/);
+    const before = await img.getAttribute('src');
+    await page.locator('#shareAuthor').fill('@someone');
+    await expect(img).not.toHaveAttribute('src', before);
+    await expect(img).toHaveAttribute('src', /^blob:/);
+    const second = await openGrid();
+    await second.locator('#openShare').click();
+    await expect(second.locator('#shareAuthor')).toHaveValue('@someone');
+  });
+});

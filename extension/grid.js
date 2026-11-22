@@ -2862,7 +2862,7 @@ function setupErrLog() {
 
 // ---------------------------------------------------------------- 🔗 共有 / 📥 読み込み
 // 共有するもの (今の枠 = 視聴セット、または再生リスト) を「共有セット」という 1 つの形にそろえ、そこから 4 つの形式を作る:
-// - 画像: レイアウトの形にサムネイルとチャンネル名を並べ、コードを入れた QR を添えたもの (X は画像を文字数に数えない)
+// - 画像: レイアウトの形にサムネイルを並べ (切り替えで各枠に枠の名前も)、コードを入れた QR を添えたもの (X は画像を文字数に数えない)
 // - コード: 「#Hakomado <レイアウト>.<動画 ID をつなげたもの>~<ずれ> "名前"」の 1 行。動画 ID は必ず 11 文字なので区切らない。
 //   16 本でも X に貼れる長さ (拡張機能の画面の URL は入れた環境ごとに ID が違うので、共有には使えない)
 // - テキスト: 1 行に 1 本 (playlistText)。名前・同期再生・レイアウト・ずれ・枠の名前まで全部入る
@@ -2900,7 +2900,7 @@ const IMPORT_LINK_MAX = 50;
  * @returns {Promise<ShareSet & {bad: number, tooMany: boolean}>}
  */
 async function parseIncoming(text, onProgress) {
-  const code = parseShareCode(text);
+  const code = parseShareCode(text) || parseShareLink(text);
   if (code) {
     const sync = !!code.offsets;
     const items = code.ids.map((videoId, k) => (sync ? { videoId, offset: code.offsets[k] } : { videoId }));
@@ -2939,7 +2939,9 @@ function playlistText(pl) {
 /** 取り込み用リンク (先頭から 50 本。ずれは入らない) */
 function playlistImportLink(pl) {
   const ids = pl.items.slice(0, IMPORT_LINK_MAX).map((h) => h.videoId);
-  return `${YT}/watch_videos?video_ids=${ids.join(',')}&hakomado=${encodeURIComponent(pl.name)}`;
+  // title= は YouTube のリストの名前 (無いと「Untitled List」)。以前の版は hakomado= から名前を読むので両方に入れる
+  const name = encodeURIComponent(pl.name);
+  return `${YT}/watch_videos?video_ids=${ids.join(',')}${pl.name ? `&title=${name}` : ''}&hakomado=${name}`;
 }
 
 /** 同期再生で一度に並べる分 (同期再生の再生リストは 16 本までなので全部。順に再生の再生リストをコードにするときは先頭から 16 本) */
@@ -2951,12 +2953,12 @@ function playlistLayoutId(pl) {
   return LAYOUTS.find((l) => l.id === pl.layoutId && l.slots.length >= n)?.id || chooseLayoutFor(n).id;
 }
 
-/** 共有セットをコードにする (先頭から 16 本。同期再生ならずれと基準も入れる。名前も入れる) */
-function shareSetCode(pl) {
+/** 共有セットをコードにする (先頭から 16 本。同期再生ならずれと基準も入れる。名前も入れる)。format = formatShareLink なら QR 用のリンクにする */
+function shareSetCode(pl, format = formatShareCode) {
   const items = syncItems(pl);
   if (!items.length) return '';
   const ids = items.map((h) => h.videoId);
-  return formatShareCode(
+  return format(
     playlistLayoutId(pl),
     ids,
     pl.sync ? items.map((h) => h.offset ?? SyncOffsets.get(h.videoId)) : [],
@@ -3058,6 +3060,17 @@ async function applyViewingSet(ids, layoutId, { offsets = null, ref = 0, labels 
 const SHARE_W = 1600;
 const SHARE_H = 900;
 const SHARE_FONT = '"Segoe UI", "Yu Gothic UI", "Hiragino Sans", "Noto Sans JP", sans-serif';
+// 共有画像のタイトルは、同梱のフォント (M PLUS Rounded 1c の ExtraBold。fonts/OFL.txt) で描く (どの PC でも同じ見た目に)。
+// 読み込めなければ SHARE_FONT
+const SHARE_TITLE_FONT = `"Hakomado Title", ${SHARE_FONT}`;
+let shareTitleFont = null;
+function loadShareTitleFont() {
+  shareTitleFont ||= new FontFace('Hakomado Title', 'url(fonts/MPLUSRounded1c-ExtraBold.ttf)', { weight: '800' })
+    .load()
+    .then((f) => document.fonts.add(f))
+    .catch(() => null);
+  return shareTitleFont;
+}
 
 const thumbCache = new Map(); // videoId -> Promise (名前を変えて画像を作り直すたびに読み込み直さない)
 
@@ -3108,20 +3121,31 @@ function fillTextFit(ctx, text, x, y, maxW) {
 }
 
 // QR の周りの余白 (マス)。1 マスは整数の画素にする (端数があると、X で縮められたときに読めなくなりやすい)。
-// 誤り訂正は L (データが少ないほど QR が小さくなる)。1 マスは 4〜8 画素で、QR が maxSize 前後になるまで大きくする。
-// 最大のコード (16 本 + ずれ + 名前) でも 4 画素で 300px 角で、X のタイムラインの大きさ (幅 680px) に縮めて JPEG にしても読める
+// 誤り訂正は L (データが少ないほど QR が小さくなる)。1 マスは 4 画素。
+// 中身はリンク (formatShareLink)。大きさをそろえるため、型は 14 (73 マス。4 画素で 316px 角) に決めておく
+// (16 本 + ずれ + 日本語 40 文字の名前でも、ふつうは入る。大きなずれが多くて入らないときだけ、入る大きさにする)
 const SHARE_QR_QUIET = 3;
+const SHARE_QR_TYPE = 14;
 const SHARE_ACCENT = '#29a9ff'; // ロゴと同じ青 (差し色)
 
-/** QR を作る。cell = 1 マスの画素数、size = 余白を含めた 1 辺の画素数 */
-function makeShareQr(text, maxSize = 220) {
+/** QR を作る。cell = 1 マスの画素数 (4)、size = 余白を含めた 1 辺の画素数 */
+function makeShareQr(text) {
   // 名前に日本語などが入るので UTF-8 で入れる (jsQR は UTF-8 として読む。ASCII だけなら以前と同じ中身)
   qrcode.stringToBytes = qrcode.stringToBytesFuncs['UTF-8'];
-  const qr = qrcode(0, 'L');
-  qr.addData(text);
-  qr.make();
+  const build = (type) => {
+    const q = qrcode(type, 'L');
+    q.addData(text);
+    q.make();
+    return q;
+  };
+  let qr;
+  try {
+    qr = build(SHARE_QR_TYPE);
+  } catch {
+    qr = build(0); // 入りきらない (code length overflow)
+  }
   const n = qr.getModuleCount();
-  const cell = Math.max(4, Math.min(8, Math.floor(maxSize / (n + SHARE_QR_QUIET * 2))));
+  const cell = 4;
   return { qr, n, cell, size: (n + SHARE_QR_QUIET * 2) * cell };
 }
 
@@ -3160,21 +3184,27 @@ function loadShareLogo() {
   return shareLogo;
 }
 
+/** 共有画像に描く作者名 (改行などは入れない) */
+const SHARE_AUTHOR_MAX = 30;
+const shareAuthor = (s) => String(s || '').replace(/\s+/g, ' ').trim().slice(0, SHARE_AUTHOR_MAX);
+
 /**
  * 共有セットの画像 (PNG の Blob) を作る (先頭から 16 本)。サムネイルの並びを画像いっぱいに敷いて背景にし、
- * その上に、左下に名前 (大きく。左に青い線) と本数・レイアウト (小さく)、QR と、その下にロゴと「Hakomado」を重ねる。
- * QR は、配信の入っていない枠があればその中に (サムネイルを隠さない)、無ければ右下の角に重ねる:
+ * その上に、左下に名前 (大きく。左に青い線) と本数・レイアウト・作者名 (小さく)、QR と、その上に付けたタブ (ロゴと「Hakomado」) を重ねる。
+ * QR はいつも右下の角に、同じ大きさで重ねる:
  *   ┌──────────────────────────┐
- *   │ サムネイルの並び (画像いっぱい。チャンネル名は各枠の左上)  │
+ *   │ サムネイルの並び (画像いっぱい。labels なら枠の名前を各枠の左上に) │
+ *   │                                         [ロゴ Hakomado] │
  *   │                                                   QR  │
  *   │ ░░░░░░░░ 左下だけ暗くぼかす ░░░░░                QR  │
- *   │ ▌名前 (大きく) / 本数 · レイアウト (小さく)  [ロゴ] Hakomado │
+ *   │ ▌名前 (大きく) / 本数 · レイアウト · 作者 (小さく)       QR  │
  *   └──────────────────────────┘
  */
-async function renderShareImage(set) {
+async function renderShareImage(set, { labels = false, author = '' } = {}) {
   const filled = syncItems(set);
   const title = shareName(set.name) || `${SHARE_TAG} ${tr('shareImageTitle')}`;
-  const code = shareSetCode(set);
+  // QR にはコードと同じ中身のリンクを入れる (スマホのカメラで読むと YouTube で開ける)
+  const code = shareSetCode(set, (...a) => formatShareLink(...a, title));
   const canvas = document.createElement('canvas');
   canvas.width = SHARE_W;
   canvas.height = SHARE_H;
@@ -3184,9 +3214,6 @@ async function renderShareImage(set) {
   ctx.textBaseline = 'alphabetic';
   const M = 28; // 重ねる文字・QR の、画像の端からの余白
   const SP = 24;
-  const LOGO = 40; // QR の下のロゴの大きさ
-  const LOGO_GAP = 12; // QR とロゴの間
-  const BAND = 120; // 左下の名前と説明の高さ
 
   // サムネイルの並び: レイアウトの形 (枠は 16:9) で画像いっぱいに (16:9 のレイアウトならちょうど全体。違う形なら真ん中に)
   const l = LAYOUTS.find((x) => x.id === playlistLayoutId(set));
@@ -3209,7 +3236,8 @@ async function renderShareImage(set) {
     if (k >= filled.length) return;
     const item = filled[k];
     if (thumbs[k]) drawCover(ctx, thumbs[k], x, y, w, h);
-    // チャンネル名は枠の左上 (下は名前と QR を重ねるので)。上に暗いぼかしを敷いて読めるように
+    if (!labels) return;
+    // 枠の名前は枠の左上 (下は名前と QR を重ねるので)。上に暗いぼかしを敷いて読めるように
     const fs = Math.max(14, Math.min(26, Math.round(h / 10)));
     const grad = ctx.createLinearGradient(0, y, 0, y + fs * 2.4);
     grad.addColorStop(0, 'rgba(0,0,0,.75)');
@@ -3221,46 +3249,27 @@ async function renderShareImage(set) {
     fillTextFit(ctx, item.label || item.channel || item.videoId, x + fs * 0.5, y + fs * 1.3, w - fs);
   });
 
-  // QR の置き場所: 空き枠のうち、いちばん下・右のものに収まればその真ん中 (枠に合わせて少し大きくしてよい)。
-  // 収まらなければ右下の角に重ねる
-  ctx.font = `700 26px ${SHARE_FONT}`;
-  const labelW = LOGO + 8 + ctx.measureText(SHARE_TAG).width;
-  const PAD = 20;
-  let qr = makeShareQr(code);
-  let qx;
-  let qy;
-  let lx;
-  const empty = rects.slice(filled.length).sort((a, b) => b.y + b.h - (a.y + a.h) || b.x + b.w - (a.x + a.w))[0];
-  const fits = (s) => empty && Math.max(s, labelW) <= empty.w - PAD * 2 && s + LOGO_GAP + LOGO <= empty.h - PAD * 2;
-  // (空き枠に収めるために QR を小さくはしない。縮めると、X で縮められたときに読めなくなりやすい)
-  if (fits(qr.size)) {
-    const big = makeShareQr(code, Math.min(empty.w - PAD * 2, empty.h - PAD * 2 - LOGO_GAP - LOGO) * 0.8);
-    if (big.size > qr.size && fits(big.size)) qr = big;
-    qx = Math.round(empty.x + (empty.w - qr.size) / 2);
-    qy = Math.round(empty.y + (empty.h - qr.size - LOGO_GAP - LOGO) / 2);
-    lx = qx + (qr.size - labelW) / 2;
-  } else {
-    qx = SHARE_W - M - qr.size;
-    qy = SHARE_H - M - LOGO - LOGO_GAP - qr.size;
-    lx = SHARE_W - M - labelW;
-  }
-  const ly = qy + qr.size + LOGO_GAP;
-  // 名前と説明は、QR (とロゴ) が左下の帯にかかるならその左まで、かからなければ横いっぱいまで
-  const qrLeft = Math.min(qx, lx) - 5;
-  const textW = ly + LOGO > SHARE_H - M - BAND ? qrLeft - SP - M : SHARE_W - M * 2;
+  // QR はいつも右下の角に、同じ大きさで (空き枠があっても合わせない)
+  const qr = makeShareQr(code);
+  const qx = SHARE_W - M - qr.size;
+  const qy = SHARE_H - M - qr.size;
+  // 名前と説明は QR の左まで
+  const textW = qx - 5 - SP - M;
 
   // 左下の名前 (大きく。長ければ 40px まで縮め、それでも入らなければ切る) と、本数・レイアウト (小さく)。左に青い線
   const BAR = 6;
   const tx = M + BAR + 16;
   const tw = textW - BAR - 16;
+  await loadShareTitleFont();
   let fs = 64;
   for (; fs > 40; fs -= 4) {
-    ctx.font = `700 ${fs}px ${SHARE_FONT}`;
+    ctx.font = `800 ${fs}px ${SHARE_TITLE_FONT}`;
     if (ctx.measureText(title).width <= tw) break;
   }
-  ctx.font = `700 ${fs}px ${SHARE_FONT}`;
+  ctx.font = `800 ${fs}px ${SHARE_TITLE_FONT}`;
   const titleW = Math.min(tw, ctx.measureText(title).width);
-  const info = tr('shareImageCount', filled.length, l.name);
+  const by = shareAuthor(author);
+  const info = tr('shareImageCount', filled.length, l.name) + (by ? ` · ${tr('shareImageBy', by)}` : '');
   ctx.font = `400 22px ${SHARE_FONT}`;
   const infoW = Math.min(tw, ctx.measureText(info).width);
   // 文字の下だけ暗くぼかす (下へ濃く、文字の右から先は薄くして、下の段のサムネイルをくすませない)
@@ -3290,7 +3299,7 @@ async function renderShareImage(set) {
   ctx.fillRect(M, titleY - fs * 0.78, BAR, SHARE_H - M + 4 - (titleY - fs * 0.78));
   ctx.shadowColor = 'rgba(0,0,0,.8)';
   ctx.shadowBlur = 10;
-  ctx.font = `700 ${fs}px ${SHARE_FONT}`;
+  ctx.font = `800 ${fs}px ${SHARE_TITLE_FONT}`;
   ctx.fillStyle = '#fff';
   fillTextFit(ctx, title, tx, titleY, tw);
   ctx.font = `400 22px ${SHARE_FONT}`;
@@ -3298,15 +3307,23 @@ async function renderShareImage(set) {
   fillTextFit(ctx, info, tx, SHARE_H - M, tw);
   ctx.shadowBlur = 0;
 
-  // QR (コード入り) と、その下にロゴと「Hakomado」
   drawQr(ctx, qr, qx, qy);
+
+  // QR の上に、青い縁につなげたタブ (ロゴと「Hakomado」。右寄せ)
   const logo = await loadShareLogo();
-  ctx.shadowBlur = 8;
-  if (logo) ctx.drawImage(logo, lx, ly, LOGO, LOGO);
-  ctx.font = `700 26px ${SHARE_FONT}`;
+  const TAB_H = 42;
+  const LOGO = 30;
+  ctx.font = `700 24px ${SHARE_FONT}`;
+  const tabW = 12 + (logo ? LOGO + 8 : 0) + ctx.measureText(SHARE_TAG).width + 14;
+  const tabX = qx + qr.size + 5 - tabW;
+  const tabY = qy - 5 - TAB_H + 6; // 下の 6px は縁の角の丸みに重ねて、すき間を作らない
+  ctx.fillStyle = SHARE_ACCENT;
+  ctx.beginPath();
+  ctx.roundRect(tabX, tabY, tabW, TAB_H, [12, 12, 0, 0]);
+  ctx.fill();
+  if (logo) ctx.drawImage(logo, tabX + 12, tabY + 6, LOGO, LOGO);
   ctx.fillStyle = '#fff';
-  ctx.fillText(SHARE_TAG, lx + LOGO + 8, ly + LOGO / 2 + 9);
-  ctx.shadowBlur = 0;
+  ctx.fillText(SHARE_TAG, tabX + 12 + (logo ? LOGO + 8 : 0), tabY + 30);
 
   return new Promise((resolve, reject) => canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('toBlob'))), 'image/png'));
 }
@@ -3324,7 +3341,7 @@ async function readQrFromImage(blob) {
       [[0, 0, 1, 1], fit],
       [[0, 0, 1, 1], 1],
       [[0.5, 0, 0.5, 1], Math.min(2, 1600 / Math.max(W / 2, H))],
-      [[0, 0, 1, 1], Math.min(2, 2400 / Math.max(W, H))], // 小さい画像は全体を拡大して (QR が空き枠にあって真ん中寄りのとき)
+      [[0, 0, 1, 1], Math.min(2, 2400 / Math.max(W, H))], // 小さい画像は全体を拡大して (以前の版の画像は、QR が空き枠の真ん中寄りにあることがある)
       [[0, 0, 1, 1], fit * 0.75],
     ];
     const seen = new Set();
@@ -3382,6 +3399,11 @@ function setupShare() {
   const imgBtns = ['shareImgCopy', 'shareImgSave'].map((id) => document.getElementById(id));
   const outBtns = [...imgBtns, ...['shareAltCopy', 'shareCopyCode', 'shareCopyText', 'shareCopyLink'].map((id) => document.getElementById(id))];
   const TAB_KEY = 'hakomado.shareTab';
+  const LABELS_KEY = 'hakomado.shareImgLabels'; // 画像の各枠に枠の名前を入れるか (既定は入れない)
+  const labelsEl = document.getElementById('shareImgLabels');
+  const AUTHOR_KEY = 'hakomado.shareAuthor'; // 画像に描く作者名 (次に開いたときも同じ)
+  const authorEl = document.getElementById('shareAuthor');
+  let authorTimer = 0;
   let source = 'tiles';
   let set = null; // 今の共有セット (共有するものが無ければ null)
   let tab = 'image';
@@ -3467,7 +3489,7 @@ function setupShare() {
     setStatus(tr('shareImageMaking'));
     for (const b of imgBtns) b.disabled = true;
     try {
-      const blob = await renderShareImage(set);
+      const blob = await renderShareImage(set, { labels: labelsEl.checked, author: authorEl.value });
       if (seq !== renderSeq) return;
       imageBlob = blob;
       if (imageUrl) URL.revokeObjectURL(imageUrl);
@@ -3498,10 +3520,32 @@ function setupShare() {
   for (const t of tabs) t.addEventListener('click', () => showTab(t.dataset.stab));
   try {
     tab = localStorage.getItem(TAB_KEY) || tab;
+    labelsEl.checked = localStorage.getItem(LABELS_KEY) === '1';
+    authorEl.value = localStorage.getItem(AUTHOR_KEY) || '';
   } catch {
     /* ignore */
   }
   showTab(tab);
+  labelsEl.addEventListener('change', () => {
+    try {
+      localStorage.setItem(LABELS_KEY, labelsEl.checked ? '1' : '0');
+    } catch {
+      /* ignore */
+    }
+    if (set) makeImage();
+  });
+  authorEl.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') e.preventDefault();
+  });
+  authorEl.addEventListener('input', () => {
+    try {
+      localStorage.setItem(AUTHOR_KEY, shareAuthor(authorEl.value));
+    } catch {
+      /* ignore */
+    }
+    clearTimeout(authorTimer);
+    authorTimer = setTimeout(() => set && makeImage(), 300);
+  });
 
   openShareDialog = async ({ source: src = 'tiles' } = {}) => {
     source = src;
@@ -3691,7 +3735,7 @@ function setupRead() {
       /* 画像として読めない */
     }
     if (seq !== parseSeq) return;
-    if (!text || !SHARE_CODE_RE.test(text)) {
+    if (!text || !(SHARE_CODE_RE.test(text) || parseShareLink(text))) {
       setSummary(tr('shareImageNoQr'), true);
       return;
     }
@@ -4001,14 +4045,21 @@ function handleImportLink() {
   const raw = location.hash.slice(PREFIX.length);
   // 再読み込みでもう一度出さないよう、先に URL から外す
   history.replaceState(null, '', location.pathname + location.search);
+  let url = '';
   let link = null;
   try {
-    link = parseWatchVideosLink(`${YT}/watch_videos?${decodeURIComponent(raw)}`);
+    url = `${YT}/watch_videos?${decodeURIComponent(raw)}`;
+    link = parseWatchVideosLink(url);
   } catch {
     /* 壊れたリンク */
   }
   if (!link?.ids.length) {
     notify(tr('importNothing'));
+    return;
+  }
+  // 共有画像の QR のリンク (レイアウト・ずれ入り) は、リンクのまま入れる (コードと同じに読める)
+  if (parseShareLink(url)) {
+    openReadDialog({ primary: 'apply', text: url, lead: tr('importReceived', link.ids.length) });
     return;
   }
   // 名前は「# playlist=」の行にして入れる (読み取った内容と名前欄にそのまま出る)

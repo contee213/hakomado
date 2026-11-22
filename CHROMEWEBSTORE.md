@@ -239,7 +239,7 @@ YouTube の複数の配信・動画を 1 つの画面に並べて同時に視聴
 
 ## リモートコード
 
-使っていない。読み込むスクリプトはすべてパッケージ内 (`extension/vendor/` の jsQR・qrcode-generator も同梱)。
+使っていない。読み込むスクリプトはすべてパッケージ内 (`extension/vendor/` の jsQR・qrcode-generator も同梱)。共有画像のタイトルのフォント (M PLUS Rounded 1c。SIL Open Font License 1.1) も `extension/fonts/` に同梱し、外からは読み込まない。
 
 ## 外部への通信
 
