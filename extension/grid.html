@@ -30,6 +30,8 @@
       <span id="syncNow" class="sync-time"></span>
       <input type="range" id="syncSeek" min="0" max="1" step="1" value="0" data-i18n-title="sync.seekTitle" title="同期している全部のアーカイブを、この時刻に動かす">
       <span id="syncEnd" class="sync-time"></span>
+      <button id="syncAudio" type="button" class="sync-audio" data-i18n-title="sync.audioTitle" title="🎧 音で合わせる: 同期している枠の音 (コラボの通話の声) を 90 秒聞いて、ずれを測ります。今の位置から再生したまま測り、結果を確かめてから反映できます。もう一度押すとやめます">🎧</button>
+      <div id="syncAudioPanel" class="sync-audio-panel" role="dialog" hidden></div>
     </div>
 
     <span class="spacer"></span>
@@ -783,6 +785,7 @@
   <script src="history.js"></script>
   <script src="playlists.js"></script>
   <script src="sync-offsets.js"></script>
+  <script src="audio-align.js"></script>
   <script src="tour.js"></script>
   <script src="vendor/qrcode-generator.js"></script>
   <script src="vendor/jsQR.js"></script>

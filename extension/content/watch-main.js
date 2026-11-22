@@ -2,7 +2,8 @@
 // YouTube プレイヤー自身の API (mute / unMute / onVolumeChange) を使ってミュートを操作する。
 // 動画要素を直接ミュートするとプレイヤーのスピーカー表示と食い違うため、必ずプレイヤー経由で切り替える。
 // 拡張機能側 (watch.js) とは document 上の CustomEvent でやりとりする:
-//   watch.js → ここ : 'hakomado:set-muted'  detail '1' | '0'
+//   watch.js → ここ : 'hakomado:set-muted'  detail '1' | '0' | '0q' ('0q' = 消音を外すだけで、止まっていても再生し直さない。
+//                     🎧 音で合わせるで、同期が止めている枠の消音を外すため)
 //   ここ → watch.js : 'hakomado:user-audio' detail JSON {muted}  (枠内のプレイヤーで直接操作されたとき)
 (() => {
   'use strict';
@@ -88,7 +89,7 @@
 
   document.addEventListener('hakomado:set-muted', (e) => {
     desired = e.detail === '1';
-    apply();
+    apply({ resume: e.detail !== '0q' });
   });
 
   // ---- まとめて一時停止 / 再開 (親の上部バーのボタン・Space キー)

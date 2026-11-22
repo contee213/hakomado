@@ -15,6 +15,8 @@
   // (プレイヤーのスピーカー表示と実際の状態をそろえるため)。ここは親との中継だけ。
   const setMuted = (muted) =>
     document.dispatchEvent(new CustomEvent('hakomado:set-muted', { detail: muted ? '1' : '0' }));
+  // 消音を外すだけ (止まっていても再生し直さない)
+  const unmuteQuietly = () => document.dispatchEvent(new CustomEvent('hakomado:set-muted', { detail: '0q' }));
 
   // 枠内のプレイヤーで直接ミュートを切り替えた → 親に知らせる (親が「音は 1 枠だけ」にそろえる)
   document.addEventListener('hakomado:user-audio', (e) => {
@@ -165,10 +167,12 @@
   //   つなげなかったら親に知らせる
   // - 消音・音量・再生速度はプレイヤー (video 要素) 側の操作のまま効く (経路は video の出力のあとにつなぐ)
   // - YouTube は video 要素を差し替えることがあるので、つないでいる間は見張って、差し替わったらつなぎ直す
+  // - 🎧 音で合わせる (親の同期再生) で測っている間は、音の大きさ (包絡) を記録して親に送る (下の measure)
   const Mix = (() => {
     let ctx = null;
     let panner = null;
     let gainNode = null;
+    let outGain = null; // 測っている間の消音用 (ふだんは 1)
     let connected = null; // 今つないでいる video
     let timer = 0;
     const sources = new WeakMap(); // video → MediaElementAudioSourceNode
@@ -180,7 +184,8 @@
         ctx = new AudioContext();
         panner = new StereoPannerNode(ctx);
         gainNode = new GainNode(ctx);
-        panner.connect(gainNode).connect(ctx.destination);
+        outGain = new GainNode(ctx);
+        panner.connect(gainNode).connect(outGain).connect(ctx.destination);
         // 途中で止められたら (タブを長く隠したなど) 動かし直す。動かなければ親に知らせる
         ctx.addEventListener('statechange', () => {
           if (ctx.state === 'suspended') ctx.resume().catch(() => {}).finally(() => ctx.state !== 'running' && report(false));
@@ -200,6 +205,7 @@
       }
       if (connected) sources.get(connected)?.disconnect();
       src.connect(panner);
+      if (tap && measuring) src.connect(tap);
       connected = v;
     }
 
@@ -218,19 +224,124 @@
       report(true);
     }
 
+    // ---- 🎧 音で合わせる: 測っている間、音の大きさ (1 ミリ秒ごとの |x| の平均) を記録して、1 秒ごとに親へ送る
+    // - 消音中のプレイヤーからは無音しか取れないので、測っている間はプレイヤーの消音を外し、消音は Web Audio 側 (outGain = 0) で行う。
+    //   YouTube は再生・シークのあとに消音を戻すことがあるので、測っている間は見張って外し続ける。終わったらプレイヤーの消音に戻す
+    // - 記録するのは「再生中で、シーク中でも広告中でもない」間だけ。バッファごとに [累計サンプル数, 再生位置, 速度] も送る
+    //   (サンプルが抜けることがあるので、親はこれでビンの再生位置を求める。audio-align.js の toReal)
+    // - ScriptProcessor を使う (AudioWorklet はモジュールの読み込みがページの CSP に左右されるため)
+    let tap = null;
+    let measuring = false;
+    let wantMuted = false; // 測っている間に親が求めている消音
+    let guard = 0;
+    let flushTimer = 0;
+    let bins = [];
+    let marks = [];
+    let total = 0;
+    let acc = 0;
+    let cnt = 0;
+    let per = 48;
+    const adShowing = () => !!document.querySelector('#movie_player.ad-showing, #movie_player.ad-interrupting');
+
+    function onAudio(e) {
+      const v = connected;
+      if (!measuring || !v || v.paused || v.seeking || adShowing()) return;
+      const buf = e.inputBuffer;
+      const a = buf.getChannelData(0);
+      const b = buf.numberOfChannels > 1 ? buf.getChannelData(1) : a;
+      for (let k = 0; k < a.length; k++) {
+        acc += Math.abs(a[k]) + Math.abs(b[k]);
+        if (++cnt === per) {
+          bins.push(acc / (2 * per));
+          acc = 0;
+          cnt = 0;
+        }
+      }
+      total += a.length;
+      marks.push([total, v.currentTime, v.playbackRate || 1]);
+    }
+    function flush() {
+      if (!bins.length) return;
+      const out = Float32Array.from(bins);
+      window.parent.postMessage({ hakomado: 'envChunk', sr: ctx.sampleRate, per, bins: out, marks }, PARENT_ORIGIN, [out.buffer]);
+      bins = [];
+      marks = [];
+    }
+    function applyMute() {
+      outGain.gain.cancelScheduledValues(ctx.currentTime);
+      outGain.gain.setValueAtTime(measuring && wantMuted ? 0 : 1, ctx.currentTime);
+    }
+    async function startMeasure(muted) {
+      wantMuted = !!muted;
+      if (!(await running())) {
+        window.parent.postMessage({ hakomado: 'measure', ok: false }, PARENT_ORIGIN);
+        return;
+      }
+      connectVideo();
+      if (!timer) timer = setInterval(connectVideo, 2000);
+      if (!tap) {
+        tap = ctx.createScriptProcessor(4096, 2, 1);
+        tap.connect(new GainNode(ctx, { gain: 0 })).connect(ctx.destination); // 音は出さない (つながっていないと動かない)
+      }
+      per = Math.round(ctx.sampleRate / 1000);
+      bins = [];
+      marks = [];
+      total = 0;
+      acc = 0;
+      cnt = 0;
+      measuring = true;
+      applyMute(); // 先に Web Audio 側で消音してから、プレイヤーの消音を外す
+      if (connected) sources.get(connected)?.connect(tap);
+      tap.onaudioprocess = onAudio;
+      unmuteQuietly();
+      clearInterval(guard);
+      guard = setInterval(() => {
+        if (connected?.muted) unmuteQuietly();
+      }, 250);
+      clearInterval(flushTimer);
+      flushTimer = setInterval(flush, 1000);
+      window.parent.postMessage({ hakomado: 'measure', ok: true }, PARENT_ORIGIN);
+    }
+    function stopMeasure() {
+      if (!measuring) return;
+      flush();
+      measuring = false;
+      clearInterval(guard);
+      clearInterval(flushTimer);
+      tap.onaudioprocess = null;
+      try {
+        sources.get(connected)?.disconnect(tap);
+      } catch {
+        /* つないでいなかった */
+      }
+      setMuted(wantMuted); // プレイヤーの消音に戻してから、Web Audio 側の消音を外す
+      applyMute();
+    }
+    /** 親からの消音の指示。測っている間は Web Audio 側で行う (true を返す) */
+    function audio(muted) {
+      if (!measuring) return false;
+      wantMuted = !!muted;
+      applyMute();
+      return true;
+    }
+
     // 枠を読み直す・閉じるときは片付ける (「戻る」で元に戻せるように残すとき (persisted) は閉じない)
     window.addEventListener('pagehide', (e) => {
       if (e.persisted) return;
       clearInterval(timer);
+      clearInterval(guard);
+      clearInterval(flushTimer);
       ctx?.close().catch(() => {});
     });
-    return { set };
+    return { set, measure: (on, muted) => (on ? startMeasure(muted) : stopMeasure()), audio };
   })();
 
   window.addEventListener('message', (e) => {
     if (e.origin !== PARENT_ORIGIN || e.source !== window.parent) return;
     if (e.data?.hakomado === 'audio') {
-      setMuted(!!e.data.muted);
+      if (!Mix.audio(!!e.data.muted)) setMuted(!!e.data.muted);
+    } else if (e.data?.hakomado === 'measure') {
+      Mix.measure(!!e.data.on, !!e.data.muted);
     } else if (e.data?.hakomado === 'mix') {
       Mix.set(e.data.pan, e.data.gain);
     } else if (e.data?.hakomado === 'fill') {

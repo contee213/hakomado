@@ -1367,6 +1367,33 @@ code { font-size: 12px; background: #222228; padding: 0 4px; border-radius: 3px;
 .sync-bar { flex: 6 1 160px; min-width: 140px; max-width: 520px; display: flex; align-items: center; gap: 6px; }
 .sync-bar[hidden] { display: none; }
 .sync-bar input[type="range"] { flex: 1 1 auto; min-width: 60px; margin: 0; }
+/* 🎧 音で合わせる: ボタン (測っている間は進み具合) と、結果の候補 */
+.sync-audio { flex: none; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.sync-audio.is-measuring { color: #8fd3ff; border-color: #8fd3ff; }
+.sync-audio-panel {
+  position: fixed;
+  top: 52px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 50;
+  width: min(440px, calc(100vw - 32px));
+  padding: 12px 14px;
+  border: 1px solid #444;
+  border-radius: 8px;
+  background: #1d1d1f;
+  color: var(--text);
+  font-size: 13px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, .5);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.sync-audio-panel[hidden] { display: none; }
+.sync-audio-title { font-weight: 700; }
+.sync-audio-choice { display: flex; flex-direction: column; gap: 4px; }
+.sync-audio-row { font-variant-numeric: tabular-nums; }
+.sync-audio-row.is-none { color: #f0c36d; }
+.sync-audio-buttons { display: flex; gap: 8px; justify-content: flex-end; }
 .sync-time { color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 #syncNow { color: var(--text); }
 /* 枠の配信がまだ始まっていない / もう終わっている時刻 */
