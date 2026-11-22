@@ -1,0 +1,46 @@
+// Hakomado Feed (画面の名前は Hakomado) (Cloudflare Workers + 静的アセット + D1)。使い方は README.md
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "hakomado-feed",
+  "main": "src/worker.mjs",
+  "compatibility_date": "2026-11-01",
+  // 拡張機能のスクリプト (share-code.js・layouts.js) を src/gen/ と public/js/ext/ に置く
+  "build": {
+    "command": "node tools/build.js",
+    "watch_dir": ["src", "../extension"]
+  },
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    "not_found_handling": "404-page",
+    // API・MCP・セットの画面 (OGP を入れる)・投稿の画面 (1 枚の画面 index.html を返す) だけ Worker を通す。ほかは静的アセットをそのまま返す
+    "run_worker_first": ["/api/*", "/s/*", "/post", "/post/", "/mcp", "/config.js"]
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "hakomado-feed",
+      // npx wrangler d1 create hakomado-feed で作ったものの ID に置き換える (ローカルの開発はこのままで動く)
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "vars": {
+    // Turnstile のサイトキー (空なら投稿フォームに確認を出さない)。シークレットは wrangler secret put TURNSTILE_SECRET
+    "TURNSTILE_SITE_KEY": "",
+    // 短縮リンク (extShare) を受け付ける拡張機能の ID (カンマ区切り): ストア版・GitHub のリリースの ZIP 版
+    "EXT_IDS": "bhmbchggpdficakjfllkmfkpbdpddomp,lhafnnpnfpgogdbapeepkgohemnnifpp",
+    // 機能フラグ (true でオン。書いていないものはオフ。中身は src/features.mjs)
+    "FEATURES": {
+      "unlisted": true, // 公開範囲 (リンクを知っている人だけ) を選べる
+      "extShare": true, // 拡張機能の短縮リンクを受け付ける (unlisted も要る。拡張機能側のフラグは extension/sets-link.js)
+      "tags": true, // タグ
+      "search": true, // 検索
+      "videoCheck": true, // 消えた動画の見直し (下の triggers の Cron で動く)
+      "en": true // 英語の画面
+    }
+  },
+  // 消えた動画の見直し (1 時間ごとに、長く見直していないセットから動画 40 本分まで)
+  "triggers": { "crons": ["23 * * * *"] },
+  "observability": { "enabled": true }
+}

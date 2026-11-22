@@ -31,7 +31,14 @@ YouTube の配信を 1 画面で最大 16 枠並べて同時視聴する Chrome 
 
 ## インストール
 
-ストアには公開していないので、開発者モードで読み込みます。
+### Chrome ウェブストアから (おすすめ)
+
+[Chrome ウェブストアの Hakomado](https://chromewebstore.google.com/detail/bhmbchggpdficakjfllkmfkpbdpddomp) を開いて「Chrome に追加」を押します。
+限定公開なので、ストアの検索には出ません (このリンクから開いてください)。新しい版はブラウザが自動で入れます。
+
+### ZIP から (開発者モード)
+
+GitHub のリリースには、ストアより先に新しい版が出ます (ストアは審査のあとで同じ版を追いかけます)。
 
 1. [リリースのページ](https://github.com/contee213/hakomado/releases/latest) から `hakomado-x.y.z.zip` をダウンロードして展開
 2. Chrome で `chrome://extensions` (Edge なら `edge://extensions`) を開く
@@ -42,6 +49,8 @@ YouTube の配信を 1 画面で最大 16 枠並べて同時視聴する Chrome 
 新しい版にするときは、新しい ZIP を同じフォルダに上書きで展開し、拡張機能ページの「⟳」を押してから、マルチビュー画面を再読み込みしてください。
 リリースの ZIP は拡張機能の ID を `lhafnnpnfpgogdbapeepkgohemnnifpp` に固定しているので、別のフォルダに展開し直しても同じ拡張機能のままで、
 設定やチャンネルは引き継がれます。
+
+ストア版と ZIP 版は ID の違う別の拡張機能です。乗り換えるときは、⚙ 設定 →「バックアップ」で書き出して新しいほうで読み込み、古いほうを削除してください。
 
 > **v0.2.0 以前から入れ替えるとき**: v0.2.0 までの ZIP は ID を固定していなかったので、ID を固定した版に入れ替えるときだけ、
 > 一度別の拡張機能として扱われます。入れ替える前に ⚙ 設定 →「バックアップ」→「⬇ ファイルに書き出す」で書き出し、
@@ -137,7 +146,7 @@ Hakomado の初期データはホロライブのチャンネルだけです。�
 - 拡張機能の ID: リリースの ZIP にだけ、`release.yml` が `manifest.json` の `"key"` (公開鍵 `tools/release-key.pub`) を差し込み、ID を固定します
   (`node tools/release-key.js id` で表示)。リポジトリの `extension/` には入れないので、開発用のフォルダはフォルダの場所で決まる別の ID になり、
   同じ Chrome のプロファイルに開発版と配布版を並べて入れられます (保存したデータも別々)。対になる秘密鍵はリポジトリに入れていません
-  (CRX を作るときだけ要ります)。ストアに公開するときは、ストアが出す公開鍵に差し替えればストア版と同じ ID にできます
+  (CRX を作るときだけ要ります)。ストア版は別の ID (`bhmbchggpdficakjfllkmfkpbdpddomp`) で、ZIP 版とは揃えません (`CHROMEWEBSTORE.md`)
 - テスト: `npm test` (Node.js 22 以上。依存パッケージは無いので `npm install` は要りません)。`tests/` にあり、push と PR のたびに
   GitHub Actions (`.github/workflows/test.yml`) でも回ります。リリースの ZIP もテストが通ってから作ります。
   E2E テスト: `npm ci` と `npx playwright install chromium` のあと `npm run test:e2e`。`e2e/` にあり、`extension/` を読み込んだ
