@@ -41,7 +41,8 @@
     // /authorize を守る Cloudflare Access のチームのドメインと、そのアプリの AUD (README の「MCP」)。
     // 通してよい人のメールアドレスはシークレット OWNER_EMAIL
     "ACCESS_TEAM_DOMAIN": "orange-scene-fc8e.cloudflareaccess.com",
-    "ACCESS_AUD": "",
+    // Access のアプリ「hakomado-feed /authorize (MCP OAuth)」(hakomado.contee.net/authorize だけを守る) の AUD
+    "ACCESS_AUD": "6637edbe7875f794729d161e396a19b362340aabfaca0526f4d46f4ae2863cd7",
     // Turnstile のサイトキー (空なら投稿フォームに確認を出さない)。シークレットは wrangler secret put TURNSTILE_SECRET
     "TURNSTILE_SITE_KEY": "",
     // 短縮リンク (extShare) を受け付ける拡張機能の ID (カンマ区切り): ストア版・GitHub のリリースの ZIP 版
