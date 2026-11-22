@@ -1,4 +1,4 @@
-/* global Danmaku, LAYOUTS, ANCHORS, DEFAULT_LAYOUT_ID, MAX_SLOTS, getLayout, layoutFor, solveTracks, LANG, LANG_PREF, tr, setLangPref, Backup, UpdateCheck, qrcode, jsQR, ChannelPack, SyncOffsets, MovieAnchors */
+/* global Danmaku, LAYOUTS, ANCHORS, DEFAULT_LAYOUT_ID, MAX_SLOTS, getLayout, layoutFor, solveTracks, LANG, LANG_PREF, tr, setLangPref, Backup, UpdateCheck, qrcode, jsQR, ChannelPack, SyncOffsets, MovieAnchors, AudioAlign */
 'use strict';
 
 const MAX_TILES = MAX_SLOTS;
@@ -1785,6 +1785,7 @@ const Sync = (() => {
     }
     document.getElementById('syncEnd').textContent = text(hi);
     document.getElementById('syncMode').value = mode;
+    document.getElementById('syncAudio').hidden = movie(); // 🎧 は実際の時刻のときだけ (本編モードは共通の音が無い前提)
   }
 
   /** m = 'time' | 'movie'。省略したら、実際の時刻で同期できればそれ、できなければ本編 */
@@ -2277,7 +2278,245 @@ const Sync = (() => {
     resumePoint,
     isWaiting: (i) => on && waiting.has(i),
     refIfOn: () => (on ? reference() : null),
+    memberList: () => (on && reference() != null ? members(reference()) : []),
+    offOf: off,
+    setOffset,
   };
+})();
+
+// ---------------------------------------------------------------- 🎧 音で合わせる (アーカイブの同期再生のずれを、音で測って直す)
+// コラボの各視点には通話の声が共通して入っているので、同期している枠の音を 90 秒聞いて突き合わせ、ずれを求める。
+// - 上部バーの 🎧 で始める。今の位置からそのまま再生しながら測る (基準の枠が再生している間だけ数える)。もう一度押すとやめる
+// - 測っている間は、各枠の中 (content/watch.js の Mix) が音の大きさを記録して送ってくる。消音中の枠もプレイヤーの消音を外して
+//   Web Audio 側で消音するので、聞こえ方は変わらない。終わったら元の消音に戻す
+// - 計算は audio-align.js。結果は候補として出し、「反映」で各枠のずれ (SyncOffsets) に書き込む。基準の枠のずれはそのまま
+// - 2 枠のときは「中間 (映像がそろう)」が既定。それぞれの人の声に合わせる値も選べる (通話の遅れのぶん、もう一人の声はずれる)
+// - 声が少ない区間などで決められなければ、そう知らせて、別の場面で測り直してもらう
+// - 🎬 本編モードでは使わない (ボタンを隠す。共通の音が無い前提のため)
+const AudioSync = (() => {
+  const MEASURE_SEC = 90;
+  let run = null; // 測っている間: {tiles, ref, offs, ids, tracks, blocked, played, last, timer, closed}
+  let result = null; // 結果の候補: {tiles, ref, offs, ids, res, choice}
+  const btn = () => document.getElementById('syncAudio');
+  const panel = () => document.getElementById('syncAudioPanel');
+
+  function update() {
+    const b = btn();
+    if (!b) return;
+    b.classList.toggle('is-measuring', !!run);
+    b.textContent = !run ? '🎧' : run.closed ? tr('syncAudioAnalyzing') : tr('syncAudioMeasuring', Math.floor(run.played), MEASURE_SEC);
+  }
+
+  function start() {
+    if (!Sync.isOn() || Sync.isMovie()) return;
+    const ref = Sync.refIfOn();
+    const tiles = Sync.memberList();
+    if (ref == null || tiles.length < 2) return;
+    if (pausedAll || views[ref].ss?.ps === 2) {
+      notify(tr('syncAudioNeedPlay'));
+      return;
+    }
+    hidePanel();
+    run = {
+      tiles,
+      ref,
+      offs: new Map(tiles.map((i) => [i, Sync.offOf(i)])),
+      ids: new Map(tiles.map((i) => [i, state.tiles[i].videoId])),
+      tracks: new Map(),
+      blocked: new Set(),
+      played: 0,
+      last: performance.now(),
+      closed: false,
+    };
+    for (const i of tiles) postToFrame(views[i].player, { hakomado: 'measure', on: true, muted: !!state.tiles[i].muted });
+    run.timer = setInterval(progress, 500);
+    notify(tr('syncAudioStart', MEASURE_SEC));
+    update();
+  }
+
+  function progress() {
+    const t = performance.now();
+    const dt = (t - run.last) / 1000;
+    run.last = t;
+    // 同期が止まった・本編モードにした・枠の動画が変わった → やめる
+    if (!Sync.isOn() || Sync.isMovie() || run.tiles.some((i) => state.tiles[i].videoId !== run.ids.get(i))) {
+      cancel();
+      return;
+    }
+    // 基準の枠が再生している (広告でない) 間だけ数える
+    const ss = views[run.ref]?.ss;
+    if (ss && ss.ps === 1 && !ss.ad && !pausedAll) run.played += dt;
+    if (run.played >= MEASURE_SEC) finish();
+    else update();
+  }
+
+  const stopFrames = (tiles) => {
+    for (const i of tiles) postToFrame(views[i]?.player, { hakomado: 'measure', on: false });
+  };
+
+  function cancel(msg = tr('syncAudioCancelled')) {
+    if (!run) return;
+    clearInterval(run.timer);
+    stopFrames(run.tiles);
+    run = null;
+    update();
+    notify(msg);
+  }
+
+  async function finish() {
+    const r = run;
+    clearInterval(r.timer);
+    stopFrames(r.tiles);
+    r.closed = true;
+    update();
+    await new Promise((res) => setTimeout(res, 1500)); // 止めたときに枠が送る最後の記録を待つ
+    if (run !== r) return;
+    const tiles = r.tiles.filter((i) => !r.blocked.has(i) && r.tracks.has(i) && views[i].archive);
+    const refK = tiles.indexOf(r.ref);
+    let res = null;
+    if (refK >= 0 && tiles.length >= 2) {
+      const items = tiles.map((i) => ({ track: r.tracks.get(i), startMs: views[i].archive.start, off: r.offs.get(i) }));
+      try {
+        res = await AudioAlign.analyze(items, refK);
+      } catch (e) {
+        console.warn('hakomado: 音で合わせる計算に失敗しました', e);
+      }
+    }
+    if (run !== r) return;
+    run = null;
+    update();
+    if (!res?.ok) {
+      notify(tr(res?.reason === 'short' || refK < 0 ? 'syncAudioShort' : 'syncAudioWeak'));
+      return;
+    }
+    result = { tiles, ref: r.ref, offs: r.offs, ids: r.ids, res, choice: 'mid' };
+    showPanel();
+  }
+
+  /** 枠から届いた記録 (形を確かめてから貯める) */
+  function chunk(i, d) {
+    if (!run || !run.tiles.includes(i)) return;
+    const sr = Number(d.sr);
+    const per = Number(d.per);
+    if (!(sr >= 8000 && sr <= 192000) || !Number.isInteger(per) || per < 1 || per > 1000) return;
+    if (!(d.bins instanceof Float32Array) || !Array.isArray(d.marks) || d.bins.length > 200000) return;
+    const marks = d.marks.filter((m) => Array.isArray(m) && m.slice(0, 3).every(Number.isFinite)).map((m) => [m[0], m[1], m[2] || 1]);
+    let tk = run.tracks.get(i);
+    if (!tk || tk.sr !== sr || tk.per !== per) run.tracks.set(i, (tk = { sr, per, bins: [], marks: [] }));
+    if (tk.bins.length > 600000) return; // 長くなりすぎない (10 分)
+    for (const v of d.bins) tk.bins.push(v);
+    tk.marks.push(...marks);
+  }
+
+  /** 枠の中で音を処理できなかった (AudioContext が動かない) */
+  function blocked(i) {
+    if (!run || !run.tiles.includes(i)) return;
+    run.blocked.add(i);
+    showToast(i, tr('mixBlocked'));
+    if (i === run.ref || run.tiles.length - run.blocked.size < 2) cancel(tr('syncAudioBlocked'));
+  }
+
+  // ---- 結果の候補
+  /** 枠 i に入れる新しいずれ (秒)。決められなければ null */
+  function proposed(i) {
+    const { tiles, ref, offs, res, choice } = result;
+    const k = tiles.indexOf(i);
+    if (k < 0 || i === ref) return null;
+    const d = res.two && choice !== 'mid' ? res.two[choice] : res.deltas[k];
+    return d == null ? null : Math.round((offs.get(i) + d) * 100) / 100;
+  }
+  const signed = (v) => (v > 0 ? '+' : '') + v.toFixed(2);
+  const mk = (tag, props = {}, kids = []) => {
+    const e = document.createElement(tag);
+    Object.assign(e, props);
+    e.append(...kids);
+    return e;
+  };
+
+  function showPanel() {
+    const el = panel();
+    const { tiles, ref, res } = result;
+    const name = (i) => (visibleIndexes().indexOf(i) + 1 + ' ' + (tileName(i) || '')).trim();
+    const rows = mk('div', { className: 'sync-audio-rows' });
+    const fill = () => {
+      rows.replaceChildren(
+        ...tiles
+          .filter((i) => i !== ref)
+          .map((i) => {
+            const v = proposed(i);
+            const z = res.z[tiles.indexOf(i)];
+            const text =
+              v == null
+                ? tr('syncAudioRowNone', name(i))
+                : tr('syncAudioRow', name(i), signed(result.offs.get(i)), signed(v), z == null ? '-' : z.toFixed(1));
+            return mk('div', { className: 'sync-audio-row' + (v == null ? ' is-none' : ''), textContent: text });
+          }),
+      );
+    };
+    const kids = [mk('div', { className: 'sync-audio-title', textContent: tr('syncAudioResultTitle', name(ref)) })];
+    if (res.two) {
+      const other = tiles.find((i) => i !== ref);
+      const opts = [
+        ['mid', tr('syncAudioMid')],
+        ['refVoice', tr('syncAudioVoice', tileName(ref) || name(ref))],
+        ['otherVoice', tr('syncAudioVoice', tileName(other) || name(other))],
+      ];
+      kids.push(
+        mk(
+          'div',
+          { className: 'sync-audio-choice' },
+          opts.map(([key, label]) => {
+            const input = mk('input', { type: 'radio', name: 'syncAudioChoice', value: key, checked: result.choice === key });
+            input.addEventListener('change', () => {
+              result.choice = key;
+              fill();
+            });
+            return mk('label', {}, [input, ' ' + label]);
+          }),
+        ),
+      );
+    }
+    fill();
+    kids.push(rows);
+    const apply = mk('button', { type: 'button', className: 'primary', textContent: tr('syncAudioApply') });
+    apply.addEventListener('click', applyResult);
+    const close = mk('button', { type: 'button', textContent: tr('syncAudioClose') });
+    close.addEventListener('click', hidePanel);
+    kids.push(mk('div', { className: 'sync-audio-buttons' }, [apply, close]));
+    el.replaceChildren(...kids);
+    el.hidden = false;
+  }
+
+  function hidePanel() {
+    result = null;
+    const el = panel();
+    if (el) el.hidden = true;
+  }
+
+  function applyResult() {
+    if (!result) return;
+    let n = 0;
+    for (const i of result.tiles) {
+      const v = proposed(i);
+      // 測ったあとで別の動画にした枠は直さない
+      if (v == null || state.tiles[i].videoId !== result.ids.get(i)) continue;
+      Sync.setOffset(i, v);
+      n++;
+    }
+    hidePanel();
+    notify(tr('syncAudioApplied', n));
+  }
+
+  function setup() {
+    btn().addEventListener('click', (e) => {
+      e.currentTarget.blur();
+      if (run) cancel();
+      else start();
+    });
+    update();
+  }
+
+  return { setup, chunk, blocked, isMeasuring: () => !!run };
 })();
 
 // ---------------------------------------------------------------- ℹ 枠の情報
@@ -2552,6 +2791,10 @@ window.addEventListener('message', (e) => {
   } else if (data.hakomado === 'mix') {
     // 枠の中で左右・音量の経路を作れなかった (AudioContext が動かない)
     if (data.ok === false) showToast(i, tr('mixBlocked'));
+  } else if (data.hakomado === 'envChunk') {
+    AudioSync.chunk(i, data); // 🎧 音で合わせる: 枠の音の大きさの記録
+  } else if (data.hakomado === 'measure') {
+    if (data.ok === false) AudioSync.blocked(i);
   } else if (data.hakomado === 'live') {
     views[i].el.classList.toggle('is-live', !!data.on);
     renderMix(i);
@@ -4696,6 +4939,7 @@ function setupToolbar() {
   setupPlaylistPicker();
   setupPacks();
   Sync.setup();
+  AudioSync.setup();
   showAppVersion();
   document.getElementById('openHelp').addEventListener('click', () => openHelp());
   document.getElementById('tourReplay').addEventListener('click', () => {

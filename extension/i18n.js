@@ -279,6 +279,31 @@ const MESSAGES = {
     'Only this tile is paused. Play it when the others catch up, and the offset is set there',
   ],
   syncOffsetSet: ['ずれを {0} 秒にしました', 'Offset set to {0}s'],
+  syncAudioStart: [
+    '🎧 音を {0} 秒聞いて、ずれを測ります。そのまま再生しておいてください',
+    '🎧 Listening for {0}s to measure the offsets. Keep it playing',
+  ],
+  syncAudioMeasuring: ['🎧 {0}/{1}秒', '🎧 {0}/{1}s'],
+  syncAudioAnalyzing: ['🎧 計算中…', '🎧 Working…'],
+  syncAudioNeedPlay: ['🎧 再生しながら測ります。再生してから押してください', '🎧 It measures while playing. Start playback first'],
+  syncAudioCancelled: ['🎧 音で合わせるのをやめました', '🎧 Stopped measuring by sound'],
+  syncAudioBlocked: [
+    '🎧 枠の音を処理できなかったので、やめました (ブラウザが音の処理を止めています)。枠をクリックしてから、もう一度試してください',
+    "🎧 Stopped: couldn't process the tiles' sound (the browser is holding back audio processing). Click a tile and try again",
+  ],
+  syncAudioShort: ['🎧 測れた時間が短すぎました。もう一度試してください', '🎧 Not enough was recorded. Try again'],
+  syncAudioWeak: [
+    '🎧 ずれを決められませんでした。声が少ない区間かもしれません。話している場面で、もう一度測ってください',
+    "🎧 Couldn't determine the offsets. There may be too little talking here. Try again where people are talking",
+  ],
+  syncAudioResultTitle: ['🎧 音で測ったずれ (基準: {0})', '🎧 Offsets measured by sound (reference: {0})'],
+  syncAudioRow: ['{0}: {1} 秒 → {2} 秒 (確かさ {3})', '{0}: {1}s → {2}s (confidence {3})'],
+  syncAudioRowNone: ['{0}: 決められませんでした', "{0}: couldn't determine"],
+  syncAudioMid: ['中間 (映像がそろう)', 'Midpoint (video lines up)'],
+  syncAudioVoice: ['{0} の声に合わせる', "Match {0}'s voice"],
+  syncAudioApply: ['反映', 'Apply'],
+  syncAudioClose: ['閉じる', 'Close'],
+  syncAudioApplied: ['🎧 音で測ったずれを {0} 枠に反映しました', '🎧 Applied the measured offsets to {0} tile(s)'],
   syncReset: ['0 に戻す', 'Reset to 0'],
   movieOn: [
     '🎬 本編でそろえます ({0} 枠)。各枠の ⏱ で、本編 0:00 の位置を決めてください',
@@ -792,6 +817,8 @@ const HTML_EN = {
   'sync.seekTitle': 'Move all synced archives to this time',
   'sync.reset': 'Reset to 0',
   'sync.refTitle': 'The reference tile for sync (other tiles follow it). It does not change when you switch the sound',
+  'sync.audioTitle':
+    '🎧 Match by sound: listens to the synced tiles (the shared call voices in a collab) for 90 seconds and measures the offsets. It measures from the current position while playing, and you can check the result before applying it. Press again to stop',
   'sync.modeTitle':
     'What to align on: 🕒 real time (viewpoints of a collab streamed at the same time) / 🎬 the movie (watch-alongs streamed at different times, aligned on the same scene of what they watched)',
   'sync.modeTime': '🕒 Real time',
