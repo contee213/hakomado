@@ -144,6 +144,17 @@ test.describe('視聴セッション', () => {
 });
 
 test.describe('共有', () => {
+  test('短縮リンク (sets-link.js の機能フラグ) は既定でオフで、画面に出ない', async ({ openGrid }) => {
+    const page = await openGrid();
+    await skipTour(page);
+    expect(await page.evaluate(() => SetsLink.enabled)).toBe(false);
+    await page.locator('#openShare').click();
+    await page.locator('#shareDialog [data-stab="link"]').click();
+    await expect(page.locator('#shareShortMake')).toBeHidden();
+    await page.locator('#shareDialog [data-stab="image"]').click();
+    await expect(page.locator('#shareImgShort')).toBeHidden();
+  });
+
   test('画像の各枠の名前は既定で入れず、切り替えると作り直して、次に開いたときも覚えている', async ({ openGrid }) => {
     const page = await openGrid();
     await skipTour(page);

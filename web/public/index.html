@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title data-i18n="titleIndex">Hakomado セット集</title>
+  <meta name="description" content="Hakomado で共有された視聴セット (同時視聴の組み合わせ) を集めたページ。気に入ったセットをそのまま Hakomado で開けます">
+  <meta property="og:title" content="Hakomado セット集">
+  <meta property="og:description" content="Hakomado で共有された視聴セットを集めたページ">
+  <meta property="og:type" content="website">
+  <link rel="icon" href="/js/ext/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+  <header class="top">
+    <a class="brand" href="/"><img src="/js/ext/icon.svg" alt="" width="28" height="28">Hakomado <span data-i18n="brandSub">セット集</span></a>
+    <a class="btn primary" href="/post" data-i18n="navPost">＋ 投稿</a>
+  </header>
+  <main class="wrap">
+    <p class="lead" data-i18n="leadIndex">Hakomado で共有された視聴セットの一覧です。セットを開いて「Hakomado で開く」を押すと、同じ並びで同時視聴できます。</p>
+    <form id="search" class="search" role="search" data-feature="search">
+      <input type="search" id="q" maxlength="100" data-i18n-placeholder="searchPlaceholder" placeholder="名前・チャンネル・タグで探す" data-i18n-aria-label="searchLabel" aria-label="探す">
+      <button class="btn" data-i18n="searchBtn">検索</button>
+    </form>
+    <div class="tabs" role="tablist" data-i18n-aria-label="sortLabel" aria-label="並び順">
+      <button type="button" role="tab" data-sort="new" aria-selected="true" data-i18n="sortNew">新着</button>
+      <button type="button" role="tab" data-sort="popular" aria-selected="false" data-i18n="sortPopular">人気</button>
+    </div>
+    <p id="filter" class="filter" hidden><span id="filterText"></span> <a href="/" id="filterClear" data-i18n="filterClear">✕ 解除</a></p>
+    <nav id="tags" class="tags" data-feature="tags" data-i18n-aria-label="tagsLabel" aria-label="タグ"></nav>
+    <div id="grid" class="grid" aria-live="polite"></div>
+    <p id="status" class="status"></p>
+    <div class="center"><button type="button" id="more" class="btn" hidden data-i18n="more">もっと見る</button></div>
+  </main>
+  <footer class="foot">
+    <a href="https://github.com/contee213/hakomado" data-i18n="footExt">Hakomado (Chrome 拡張機能)</a><span data-i18n="footNote"> · 個人が作った非公式のツールです</span>
+    <button type="button" id="langToggle" class="link" data-feature="en" data-i18n="langToggle">English</button>
+  </footer>
+  <script src="/config.js"></script>
+  <script src="/js/i18n.js"></script>
+  <script src="/js/ext/layouts-generated.js"></script>
+  <script src="/js/ext/layouts.js"></script>
+  <script src="/js/common.js"></script>
+  <script src="/js/list.js"></script>
+</body>
+</html>

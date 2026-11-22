@@ -2900,6 +2900,15 @@ const IMPORT_LINK_MAX = 50;
  * @returns {Promise<ShareSet & {bad: number, tooMany: boolean}>}
  */
 async function parseIncoming(text, onProgress) {
+  // Hakomado セット集の短縮リンク (sets-link.js。機能フラグがオフなら読まない) は、セット集からコードを取ってきて読む
+  if (SetsLink.isLink(text) && !parseShareCode(text) && !parseShareLink(text)) {
+    onProgress?.(0, 0, 'short');
+    try {
+      text = await SetsLink.resolve(text);
+    } catch (e) {
+      throw new Error(tr('shortResolveFail', e.message || e));
+    }
+  }
   const code = parseShareCode(text) || parseShareLink(text);
   if (code) {
     const sync = !!code.offsets;
@@ -3128,8 +3137,8 @@ const SHARE_QR_QUIET = 3;
 const SHARE_QR_TYPE = 14;
 const SHARE_ACCENT = '#29a9ff'; // ロゴと同じ青 (差し色)
 
-/** QR を作る。cell = 1 マスの画素数 (4)、size = 余白を含めた 1 辺の画素数 */
-function makeShareQr(text) {
+/** QR を作る。cell = 1 マスの画素数 (4。短縮リンクのように中身が短く、型が小さいときは、型 14 と同じくらいの大きさになるまで大きくする)、size = 余白を含めた 1 辺の画素数 */
+function makeShareQr(text, { auto = false } = {}) {
   // 名前に日本語などが入るので UTF-8 で入れる (jsQR は UTF-8 として読む。ASCII だけなら以前と同じ中身)
   qrcode.stringToBytes = qrcode.stringToBytesFuncs['UTF-8'];
   const build = (type) => {
@@ -3140,12 +3149,12 @@ function makeShareQr(text) {
   };
   let qr;
   try {
-    qr = build(SHARE_QR_TYPE);
+    qr = build(auto ? 0 : SHARE_QR_TYPE); // auto = 中身に合う一番小さい型 (短縮リンク)
   } catch {
     qr = build(0); // 入りきらない (code length overflow)
   }
   const n = qr.getModuleCount();
-  const cell = 4;
+  const cell = Math.max(4, Math.floor(((SHARE_QR_TYPE * 4 + 17 + SHARE_QR_QUIET * 2) * 4) / (n + SHARE_QR_QUIET * 2)));
   return { qr, n, cell, size: (n + SHARE_QR_QUIET * 2) * cell };
 }
 
@@ -3200,11 +3209,12 @@ const shareAuthor = (s) => String(s || '').replace(/\s+/g, ' ').trim().slice(0, 
  *   │ ▌名前 (大きく) / 本数 · レイアウト · 作者 (小さく)       QR  │
  *   └──────────────────────────┘
  */
-async function renderShareImage(set, { labels = false, author = '' } = {}) {
+async function renderShareImage(set, { labels = false, author = '', qrText = '' } = {}) {
   const filled = syncItems(set);
   const title = shareName(set.name) || `${SHARE_TAG} ${tr('shareImageTitle')}`;
-  // QR にはコードと同じ中身のリンクを入れる (スマホのカメラで読むと YouTube で開ける)
-  const code = shareSetCode(set, (...a) => formatShareLink(...a, title));
+  // QR にはコードと同じ中身のリンクを入れる (スマホのカメラで読むと YouTube で開ける)。
+  // qrText (Hakomado セット集の短縮リンク) を渡したときはそれを入れる (読むとセット集のページが開く)
+  const code = qrText || shareSetCode(set, (...a) => formatShareLink(...a, title));
   const canvas = document.createElement('canvas');
   canvas.width = SHARE_W;
   canvas.height = SHARE_H;
@@ -3250,7 +3260,7 @@ async function renderShareImage(set, { labels = false, author = '' } = {}) {
   });
 
   // QR はいつも右下の角に、同じ大きさで (空き枠があっても合わせない)
-  const qr = makeShareQr(code);
+  const qr = makeShareQr(code, { auto: !!qrText });
   const qx = SHARE_W - M - qr.size;
   const qy = SHARE_H - M - qr.size;
   // 名前と説明は QR の左まで
@@ -3413,6 +3423,22 @@ function setupShare() {
   let renderSeq = 0;
   let refreshSeq = 0;
   let nameTimer = 0;
+  // Hakomado セット集の短縮リンク (sets-link.js の機能フラグがオンのときだけ)。作ったときのコードと同じ間だけ使う
+  // (名前や中身を変えたら作り直してもらう。押したときだけ送る)
+  let short = null; // { code, url }
+  const shortEl = document.getElementById('shareShort');
+  const shortCopyBtn = document.getElementById('shareShortCopy');
+  const shortState = document.getElementById('shareImgShortState');
+  const shortBtns = ['shareShortMake', 'shareImgShort'].map((id) => document.getElementById(id));
+  for (const el of dialog.querySelectorAll('[data-sets-link]')) el.hidden = !SetsLink.enabled;
+  const shortUrl = () => (short && set && short.code === shareSetCode(set) ? short.url : '');
+  const showShort = () => {
+    const url = shortUrl();
+    shortEl.value = url;
+    shortEl.hidden = shortCopyBtn.hidden = !url;
+    shortState.textContent = url ? tr('shortQrOn') : '';
+    for (const b of shortBtns) b.disabled = !set || !!url;
+  };
   closeOnBackdrop(dialog);
 
   const setStatus = (text, isError = false) => {
@@ -3475,6 +3501,7 @@ function setupShare() {
     document.getElementById('shareNoteText').textContent = tr('shareNoteText', count(Infinity));
     document.getElementById('shareNoteLink').textContent = tr('shareNoteLink', count(IMPORT_LINK_MAX));
     for (const b of outBtns) b.disabled = !set;
+    showShort();
     setStatus(set ? '' : tr(source === 'tiles' ? 'shareEmpty' : 'shareEmptyPl'));
     imageStale = true;
     if (!set) clearImage();
@@ -3489,7 +3516,7 @@ function setupShare() {
     setStatus(tr('shareImageMaking'));
     for (const b of imgBtns) b.disabled = true;
     try {
-      const blob = await renderShareImage(set, { labels: labelsEl.checked, author: authorEl.value });
+      const blob = await renderShareImage(set, { labels: labelsEl.checked, author: authorEl.value, qrText: shortUrl() });
       if (seq !== renderSeq) return;
       imageBlob = blob;
       if (imageUrl) URL.revokeObjectURL(imageUrl);
@@ -3578,6 +3605,28 @@ function setupShare() {
     await copyField(el);
     setStatus(tr(msg));
   };
+  // 短縮リンクを作る (リンクのタブ・画像のタブのどちらからでも。作ったら画像の QR もそれにする)
+  const makeShort = async () => {
+    if (!set || !SetsLink.enabled) return;
+    const code = shareSetCode(set);
+    for (const b of shortBtns) b.disabled = true;
+    setStatus(tr('shortMaking'));
+    try {
+      const url = await SetsLink.create(code);
+      if (!set || shareSetCode(set) !== code) return; // 作っている間に中身が変わった
+      short = { code, url };
+      showShort();
+      setStatus(tr('shortMade'));
+      if (tab === 'image') makeImage();
+      else imageStale = true;
+    } catch (e) {
+      setStatus(tr('shortFail', e.message || e), true);
+      showShort();
+    }
+  };
+  for (const b of shortBtns) b.addEventListener('click', makeShort);
+  shortCopyBtn.addEventListener('click', () => copy(shortEl, 'shortCopied'));
+
   document.getElementById('shareCopyCode').addEventListener('click', () => copy(codeEl, 'shareCopied'));
   document.getElementById('shareCopyText').addEventListener('click', () => copy(textEl, 'plShareCopiedText'));
   document.getElementById('shareCopyLink').addEventListener('click', () => copy(linkEl, 'plShareCopiedLink'));
@@ -3695,8 +3744,8 @@ function setupRead() {
       return;
     }
     try {
-      const set = await parseIncoming(text, (done, total) => {
-        if (seq === parseSeq) setSummary(tr('shareLoading', done, total));
+      const set = await parseIncoming(text, (done, total, what) => {
+        if (seq === parseSeq) setSummary(what === 'short' ? tr('shortResolving') : tr('shareLoading', done, total));
       });
       if (seq !== parseSeq) return;
       if (!set.items.length) {
@@ -3735,7 +3784,7 @@ function setupRead() {
       /* 画像として読めない */
     }
     if (seq !== parseSeq) return;
-    if (!text || !(SHARE_CODE_RE.test(text) || parseShareLink(text))) {
+    if (!text || !(SHARE_CODE_RE.test(text) || parseShareLink(text) || SetsLink.isLink(text))) {
       setSummary(tr('shareImageNoQr'), true);
       return;
     }
