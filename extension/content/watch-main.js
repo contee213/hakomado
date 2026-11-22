@@ -383,7 +383,10 @@
     true,
   );
   setInterval(() => {
-    if (!alreadyEnded()) return;
+    if (!alreadyEnded()) {
+      sendLivePos();
+      return;
+    }
     const p = player();
     if (!p) return;
     let t;
@@ -411,6 +414,29 @@
     const detail = JSON.stringify({ t, ps, ad: adShowing(), r: video()?.playbackRate || 1, up: ps === 2 && userPaused, sk: userSeeks, ts });
     document.dispatchEvent(new CustomEvent('hakomado:sync-state', { detail }));
   }, 500);
+  // ライブ配信中: 画面に出ている瞬間の、配信開始からの経過 (秒) を知らせる (🎬 本編モードでライブを基準にするため)。
+  //   ここ → watch.js : 'hakomado:live-pos' detail JSON {pos, ps}
+  // getMediaReferenceTime () = 今出ている映像が配信された実際の時刻 (秒)。見ている人の遅れ (数秒〜) によらないので、
+  // 共有した本編の位置がほかの人の環境でもずれない。配信がアーカイブになったときの再生位置と同じ物差しになる
+  function sendLivePos() {
+    const p = player();
+    if (!p || !p.getVideoData?.()?.isLive) return;
+    let ref;
+    let ps;
+    try {
+      ref = Number(p.getMediaReferenceTime?.());
+      ps = Number(p.getPlayerState?.());
+    } catch {
+      return;
+    }
+    const lbd = window.ytInitialPlayerResponse?.microformat?.playerMicroformatRenderer?.liveBroadcastDetails;
+    const start = Date.parse(lbd?.startTimestamp || '');
+    if (!(ref > 1e9) || !Number.isFinite(start)) return;
+    const pos = ref - start / 1000;
+    if (pos < 0) return;
+    document.dispatchEvent(new CustomEvent('hakomado:live-pos', { detail: JSON.stringify({ pos, ps }) }));
+  }
+
   document.addEventListener('hakomado:sync', (e) => {
     let c;
     try {

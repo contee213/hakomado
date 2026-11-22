@@ -57,7 +57,7 @@ test('作ったコードを読み戻せる', () => {
 test('投稿の本文の中からコードだけを拾う', () => {
   const parse = setup()('parseShareCode');
   const r = plain(parse(`今日のコラボ!\nhakomado u2x2.${A}${B} ← これを貼ってね #Vtuber`));
-  assert.deepEqual(r, { ids: [A, B], layoutId: 'u2x2', offsets: null, ref: 0, name: '' });
+  assert.deepEqual(r, { ids: [A, B], layoutId: 'u2x2', offsets: null, ref: 0, name: '', movie: null });
 });
 
 test('コードに名前を入れて読み戻せる (「"」と改行は除き、40 文字まで)', () => {
@@ -82,6 +82,32 @@ test('名前入りのコードも、以前の版の読み方 (名前の前で止
   assert.equal(m[1], 'u2x2');
   assert.equal(m[2], A + B);
   assert.equal(m[3], '0,*1.5');
+});
+
+test('🎬 本編モード: 本編の位置 (決めていない動画は空) と基準をコードに入れて読み戻せる', () => {
+  const get = setup();
+  const code = get('formatShareCode')('u2x2', [A, B, C], [9, 9, 9], 1, 'コマンドー', [754.23, null, -3]);
+  assert.equal(code, `#Hakomado u2x2.${A}${B}${C} "コマンドー" ~!754.2,*,-3`, 'ずれ (~…) は入れず、名前の後ろに ~!…');
+  assert.deepEqual(plain(get('parseShareCode')(code)), { ids: [A, B, C], layoutId: 'u2x2', offsets: null, ref: 1, name: 'コマンドー', movie: [754.2, null, -3] });
+  const noName = get('formatShareCode')('u2x2', [A, B], [], 0, '', [0, 12.5]);
+  assert.equal(noName, `#Hakomado u2x2.${A}${B} ~!0,12.5`);
+  assert.deepEqual(plain(get('parseShareCode')(noName)).movie, [0, 12.5]);
+  assert.equal(get('formatShareCode')('u2x2', [A, B], [], 0, '', [null, null]), `#Hakomado u2x2.${A}${B}`, '1 つも決めていなければ付けない');
+});
+
+test('🎬 本編モードのコードも、以前の版の読み方で並び・レイアウト・名前が読める (本編の位置は無視)', () => {
+  const OLD = /#?Hakomado\s+([a-z0-9-]{1,24})\.((?:[A-Za-z0-9_-]{11}){1,16})(?:~([-+*\d.,]{1,240}))?(?![A-Za-z0-9_-])(?: "([^"\r\n]{1,40})")?/i;
+  const m = setup()('formatShareCode')('u2x2', [A, B], [], 1, 'コマンドー', [754.2, 3]).match(OLD);
+  assert.deepEqual([m[1], m[2], m[3], m[4]], ['u2x2', A + B, undefined, 'コマンドー']);
+});
+
+test('🎬 本編モードのリンク: hkm= に入れて読み戻せる。以前の版は hkm= を知らないので無視する', () => {
+  const get = setup();
+  const link = get('formatShareLink')('u2x2', [A, B], [], 1, '名前', '', false, [754.2, null]);
+  assert.match(link, /&hkm=754\.2,\*&/);
+  assert.doesNotMatch(link, /hks=/);
+  assert.deepEqual(plain(get('parseShareLink')(link)), { ids: [A, B], layoutId: 'u2x2', offsets: null, ref: 1, name: '名前', movie: [754.2, null] });
+  assert.equal(get('parseShareLink')(link.replace('hkm=754.2', 'hkm=x')), null, '壊れた hkm= は読まない');
 });
 
 test('同じ動画が 2 回あれば 1 回目だけ (ずれも 1 回目のもの)', () => {

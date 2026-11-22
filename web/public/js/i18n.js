@@ -105,6 +105,8 @@ const STR = {
   syncPlay: ['同期再生', 'Synced'],
   syncRef: ['同期の基準', 'Sync reference'],
   syncOffset: ['ずれ {0} 秒', 'offset {0}s'],
+  moviePlay: ['🎬 本編でそろえる', '🎬 Aligned on the movie'],
+  movieAt: ['本編 0:00 = {0}', 'Movie 0:00 at {0}'],
   goneVideo: ['見つからない動画 (削除・非公開)', 'Unavailable (removed or private)'],
   deadNote: ['{0} 本の動画が見つからなくなっています (削除・非公開)', '{0} video(s) are no longer available (removed or private)'],
   unlistedNote: ['このセットは一覧・検索に載っていません。リンクを知っている人だけが見られます。', 'This set is not shown in the list or search. Only people with the link can see it.'],

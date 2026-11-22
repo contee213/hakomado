@@ -26,6 +26,10 @@
     <button id="nowPlaying" class="now-playing" type="button" data-i18n="nowPlaying">🔇 ミュート中</button>
     <button id="syncToggle" class="toggle unavailable" type="button" aria-pressed="false" aria-disabled="true" data-i18n-title="sync.title" title="アーカイブ同期: 配信のアーカイブを、配信していた実際の時刻でそろえて再生する"><span class="tb-icon">⏱</span><span class="tb-label" data-i18n="sync.label">アーカイブ同期</span></button>
     <div id="syncBar" class="sync-bar" hidden>
+      <select id="syncMode" class="sync-mode" data-i18n-title="sync.modeTitle" title="何でそろえるか: 🕒 実際の時刻 (同じ時間に配信していたコラボの各視点) / 🎬 本編 (時間のずれた同時視聴を、見ている作品の同じ場面で)">
+        <option value="time" data-i18n="sync.modeTime">🕒 実際の時刻</option>
+        <option value="movie" data-i18n="sync.modeMovie">🎬 本編</option>
+      </select>
       <select id="syncRef" class="sync-ref" data-i18n-title="sync.refTitle" title="同期の基準の枠 (ほかの枠がこの枠に合わせる)。音を切り替えても変わりません"></select>
       <span id="syncNow" class="sync-time"></span>
       <input type="range" id="syncSeek" min="0" max="1" step="1" value="0" data-i18n-title="sync.seekTitle" title="同期している全部のアーカイブを、この時刻に動かす">
@@ -684,8 +688,13 @@
             <span class="sync-panel-label"></span>
             <input type="number" class="sync-input" step="0.01" data-i18n-title="sync.inputTitle" title="ずらす秒数を直接入れる (+ = 先へ進める、− = 戻す)。Enter で決定" />
             <button type="button" data-sync="wait" class="sync-wait" data-i18n-title="sync.waitTitle" title="この枠だけ止めて、ほかが追いつくのを待つ。合ったところで再生すると、そこでずれが決まります (基準でない枠は、枠の中のプレイヤーで一時停止してもできます)"></button>
-            <button type="button" data-sync="0" data-i18n="sync.reset">0 に戻す</button>
+            <button type="button" data-sync="0" class="sync-reset" data-i18n="sync.reset">0 に戻す</button>
             <button type="button" data-sync="ref" class="sync-set-ref" data-i18n="sync.setRef">この枠を基準にする</button>
+          </div>
+          <!-- 🎬 本編モード: 本編の位置 (本編 0:00 に当たる、この動画の再生位置) を決める -->
+          <div class="sync-row sync-movie" hidden>
+            <button type="button" data-sync="here" data-i18n="sync.movieHere" data-i18n-title="sync.movieHereTitle" title="今、この枠で本編 (映画など) が 0:00 のところ。押した瞬間の再生位置を、この動画の本編の位置にします">▶ ここが本編 0:00</button>
+            <label class="movie-now"><span data-i18n="sync.movieNow">今は本編の</span> <input type="text" class="movie-now-input" inputmode="numeric" placeholder="0:47:12" size="8" data-i18n-title="sync.movieNowTitle" title="今この枠で、本編が何分何秒のところか (h:mm:ss / m:ss / 秒)。Enter で決定。始まりを見逃したとき用"></label>
           </div>
           <div class="sync-row">
             <button type="button" data-sync="-1">−1s</button>
@@ -795,6 +804,7 @@
   <script src="history.js"></script>
   <script src="playlists.js"></script>
   <script src="sync-offsets.js"></script>
+  <script src="movie-anchors.js"></script>
   <script src="tour.js"></script>
   <script src="vendor/qrcode-generator.js"></script>
   <script src="vendor/jsQR.js"></script>
