@@ -2340,9 +2340,12 @@ const Sync = (() => {
     if (movable(i)) setOffset(i, Math.round((off(i) + d) * 100) / 100);
   }
 
-  // ---------------------------------------------------------------- 同期の調整パネル (画面の右の列)
+  // ---------------------------------------------------------------- 同期の調整パネル (浮かぶ小窓 / 画面の右の列)
   // グループごとに見出し (番号と色・そろえ方・⏸・🎧・つまみ) と、枠の行 (基準・ずれ・止めて待つ・🎧 の候補・追いつき具合・グループ) を並べる。
-  // 枠の並びを横に縮めて置く (枠に重ねない)。たたむと番号とずれだけの細い列になる。
+  // 置き方は 2 通り (見出しのボタンで切り替え。この画面を開いたブラウザで覚える):
+  // - 浮かぶ小窓: 枠の上に半透明で重ねる (枠の大きさは変わらない)。見出しをつかんで動かせる。左上の位置は固定で、中身が増えると下へ伸びる
+  // - 右の列: 枠の並びを横に縮めて置く (枠に重ねない)
+  // どちらも、たたむと番号とずれだけの細い形になる。
   // 行を選んで ← → (Shift で 0.01 秒・Ctrl で 1 秒) でずれを動かし、↑ ↓ で行を移る
   const Dock = (() => {
     const el = () => document.getElementById('syncDock');
@@ -2350,6 +2353,25 @@ const Sync = (() => {
     let shown = false;
     let wanted = true; // ✕ で閉じたら、次に同期を始めたときも出さない (上部バーの ☰ で出す)
     let mini = false;
+    const PREF_KEY = 'hakomado.syncDock'; // 置き方と小窓の位置 (この画面のブラウザだけで覚える。消えても既定に戻るだけ)
+    let floating = true;
+    let pos = null; // 小窓の左上 {x, y} (null = 右上の既定の位置)
+    try {
+      const p = JSON.parse(localStorage.getItem(PREF_KEY) || 'null');
+      if (p && typeof p === 'object') {
+        floating = p.floating !== false;
+        if (Number.isFinite(p.x) && Number.isFinite(p.y)) pos = { x: p.x, y: p.y };
+      }
+    } catch {
+      /* 読めなければ既定のまま */
+    }
+    const savePref = () => {
+      try {
+        localStorage.setItem(PREF_KEY, JSON.stringify({ floating, ...(pos || {}) }));
+      } catch {
+        /* 覚えられなくても動く */
+      }
+    };
     let sel = null; // 選んでいる枠
     let hl = null; // 枠の並びで光らせている枠 (行にマウスを乗せた・行を選んだ)
     let structKey = '';
@@ -2363,6 +2385,7 @@ const Sync = (() => {
       document.body.classList.add('sync-dock-open');
       document.body.classList.toggle('sync-dock-mini', mini);
       document.getElementById('syncDockToggle').classList.add('on');
+      place();
       if (i != null) sel = i;
       structKey = '';
       update();
@@ -2382,6 +2405,74 @@ const Sync = (() => {
       const b = document.getElementById('syncDockMini');
       b.textContent = mini ? '⇤' : '⇥';
       b.title = tr(mini ? 'syncDockExpand' : 'syncDockCollapse');
+      place();
+    }
+    /** 浮かぶ小窓 / 右の列を切り替える */
+    function setFloating(v) {
+      floating = v;
+      document.body.classList.toggle('sync-dock-float', floating);
+      el().classList.toggle('floating', floating);
+      const b = document.getElementById('syncDockFloat');
+      b.textContent = floating ? '⇲' : '⧉';
+      b.title = tr(floating ? 'syncDockToSide' : 'syncDockToFloat');
+      place();
+      savePref();
+    }
+    /** 小窓の位置を画面の中に収めて置く (右の列のときは位置を外す) */
+    function place() {
+      const d = el();
+      if (!floating) {
+        d.style.removeProperty('left');
+        d.style.removeProperty('top');
+        d.style.removeProperty('max-height');
+        return;
+      }
+      const w = d.offsetWidth || 290;
+      const top = document.body.classList.contains('grid-fs') ? 0 : 36;
+      const x = pos ? pos.x : innerWidth - w - 16;
+      const y = pos ? pos.y : top + 12;
+      d.style.left = Math.round(Math.max(0, Math.min(innerWidth - w, x))) + 'px';
+      const t = Math.round(Math.max(top, Math.min(innerHeight - 120, y))); // 上部バーには重ねない
+      d.style.top = t + 'px';
+      d.style.maxHeight = innerHeight - t - 12 + 'px'; // 下へ伸びて画面からはみ出す分は、中をスクロールさせる
+    }
+    /** 見出しをつかんで小窓を動かす (ボタンの上では始めない。動かしている間は枠の iframe にマウスを取られないように) */
+    function setupDrag() {
+      const head = el().querySelector('.dock-head');
+      let start = null;
+      head.addEventListener('pointerdown', (e) => {
+        if (!floating || e.button !== 0 || e.target.closest('button')) return;
+        const r = el().getBoundingClientRect();
+        start = { px: e.clientX, py: e.clientY, x: r.left, y: r.top };
+        try {
+          head.setPointerCapture(e.pointerId);
+        } catch {
+          /* つかめなくても、ページの上で動かす分には動く */
+        }
+        document.body.classList.add('dragging');
+        e.preventDefault();
+      });
+      const end = () => {
+        if (!start) return;
+        start = null;
+        document.body.classList.remove('dragging');
+        const r = el().getBoundingClientRect();
+        pos = { x: Math.round(r.left), y: Math.round(r.top) };
+        savePref();
+      };
+      addEventListener('pointermove', (e) => {
+        if (!start) return;
+        if (!(e.buttons & 1)) return end(); // 放したのを取りこぼしていた
+        pos = { x: start.x + e.clientX - start.px, y: start.y + e.clientY - start.py };
+        place();
+      });
+      // どこで放しても・つかみが外れても終える (終わらないと、枠の iframe がマウスを受け付けないままになる)
+      head.addEventListener('pointerup', end);
+      head.addEventListener('pointercancel', end);
+      head.addEventListener('lostpointercapture', end);
+      addEventListener('pointerup', end);
+      addEventListener('blur', end);
+      addEventListener('resize', () => shown && place());
     }
     function setHl(i) {
       if (hl === i) return;
@@ -2687,7 +2778,10 @@ const Sync = (() => {
         update();
       });
       document.getElementById('syncUndo').addEventListener('click', undo);
+      document.getElementById('syncDockFloat').addEventListener('click', () => setFloating(!floating));
+      setupDrag();
       setMini(false);
+      setFloating(floating);
     }
 
     /** 自分で出した (枠の ⏱ など): 次に同期を始めたときも出す */

@@ -1457,8 +1457,8 @@ code { font-size: 12px; background: #222228; padding: 0 4px; border-radius: 3px;
 
 /* ---------- 同期の調整パネル (画面の右の列。枠の並びはこの分だけ横に縮む) ---------- */
 :root { --dock-w: 290px; --dock-mini-w: 128px; }
-body.sync-dock-open .grid { margin-right: var(--dock-w); }
-body.sync-dock-open.sync-dock-mini .grid { margin-right: var(--dock-mini-w); }
+body.sync-dock-open:not(.sync-dock-float) .grid { margin-right: var(--dock-w); }
+body.sync-dock-open.sync-dock-mini:not(.sync-dock-float) .grid { margin-right: var(--dock-mini-w); }
 .sync-dock {
   position: fixed;
   top: 36px;
@@ -1475,6 +1475,21 @@ body.sync-dock-open.sync-dock-mini .grid { margin-right: var(--dock-mini-w); }
 .sync-dock[hidden] { display: none; }
 .sync-dock.mini { width: var(--dock-mini-w); }
 body.grid-fs .sync-dock { top: 0; }
+/* 浮かぶ小窓: 枠の上に半透明で重ねる。マウスを乗せている・中を操作している間は濃くする。左上は固定で、下へ伸びる */
+.sync-dock.floating {
+  right: auto;
+  bottom: auto;
+  border: 1px solid #ffffff22;
+  border-radius: 8px;
+  background: rgba(20, 20, 24, .62);
+  backdrop-filter: blur(6px);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, .45);
+  transition: background .15s;
+  overflow: hidden;
+}
+.sync-dock.floating:hover, .sync-dock.floating:focus-within { background: rgba(20, 20, 24, .93); }
+.sync-dock.floating .dock-head { cursor: move; user-select: none; touch-action: none; }
+.sync-dock.floating .dock-group { border-color: #ffffff1f; }
 .dock-head { flex: none; display: flex; align-items: center; gap: 4px; padding: 6px 8px; border-bottom: 1px solid var(--line); }
 .dock-title { flex: 1; min-width: 0; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .dock-head button { padding: 0 6px; }

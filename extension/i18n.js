@@ -333,6 +333,8 @@ const MESSAGES = {
   syncDockEmpty: ['同期できる枠がありません', 'No tile can be synced'],
   syncDockCollapse: ['たたむ (番号とずれだけにする)', 'Collapse (show only numbers and offsets)'],
   syncDockExpand: ['広げる', 'Expand'],
+  syncDockToFloat: ['浮かぶ小窓にする (枠の上に半透明で重ねる。見出しをつかんで動かせる)', 'Float it over the tiles (semi-transparent; drag the header to move it)'],
+  syncDockToSide: ['画面の右の列にする (枠の並びを縮めて、重ねない)', 'Dock it on the right (the tiles shrink to make room)'],
   syncUndoTitle: ['直前のずれの変更 ({0} 枠) を元に戻す', 'Undo the last offset change ({0} tile(s))'],
   syncUndone: ['ずれを元に戻しました', 'Offset restored'],
   syncAudioStart: [

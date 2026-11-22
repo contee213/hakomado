@@ -48,10 +48,11 @@
   </header>
 
   <main id="grid" class="grid"></main>
-  <!-- 同期の調整パネル (アーカイブ同期中、画面の右の列。枠の並びはこの分だけ横に縮む)。中身は grid.js (Sync の Dock) が作る -->
+  <!-- 同期の調整パネル (アーカイブ同期中。枠の上に浮かぶ半透明の小窓か、画面の右の列 (枠の並びはこの分だけ横に縮む))。中身は grid.js (Sync の Dock) が作る -->
   <aside id="syncDock" class="sync-dock" hidden>
     <div class="dock-head">
       <span class="dock-title" data-i18n="sync.dockHead">⏱ 同期の調整</span>
+      <button type="button" id="syncDockFloat" class="dock-float">⇲</button>
       <button type="button" id="syncDockMini" class="dock-mini">⇥</button>
       <button type="button" id="syncDockClose" class="dock-close" data-i18n-title="close" title="閉じる">✕</button>
     </div>
