@@ -6,6 +6,8 @@ Hakomado で共有された視聴セット (コード `#Hakomado …` / 取り�
 Cloudflare Workers (静的アセット付き) と D1 で動く。拡張機能 (`extension/`) とは別に配信する
 (拡張機能からの短縮リンクは `extension/sets-link.js` の機能フラグで、今はオフ)。
 
+本番: <https://hakomado.contee.net> (最初に出した `https://hakomado-feed.contee213.workers.dev` でも同じものが開く)
+
 ## できること (MVP)
 
 - **一覧** (`/`): 新着・人気 (「Hakomado で開く」を押された回数) の順。カードはレイアウトの形にサムネイルを並べたもの
@@ -105,7 +107,7 @@ Claude Code から使うとき (`.mcp.json` か `claude mcp add`):
   "mcpServers": {
     "hakomado-feed": {
       "type": "http",
-      "url": "https://<デプロイ先>/mcp",
+      "url": "https://hakomado.contee.net/mcp",
       "headers": { "Authorization": "Bearer ${HAKOMADO_SETS_TOKEN}" }
     }
   }
@@ -145,17 +147,42 @@ Cron (消えた動画の見直し) を試すときは `npx wrangler dev --test-s
 拡張機能の側の短縮リンクは、拡張機能に入っている `extension/sets-link.js` の `ENABLED` で別にオンオフする
 (オンにする手順はルートの `CHROMEWEBSTORE.md` の「短縮リンク」)。
 
-## Cloudflare に出す (初回)
+## Cloudflare に出す
+
+本番は出してある (D1 の ID とドメインは `wrangler.jsonc` に書いてある)。直したものを出すときは、
+`web/` のあるフォルダ (リポジトリ全体。ビルドで `../extension` を読む) で次を動かす:
+
+```sh
+cd web
+npm install
+npm run db:migrate:remote   # migrations/ に足したものがあるときだけ
+npm run deploy
+```
+
+ドメイン (`hakomado.contee.net`) は `wrangler.jsonc` の `routes` (`custom_domain`)。`contee.net` は同じアカウントの
+Cloudflare のゾーンなので、DNS レコードと証明書はデプロイのときに自動で作られる (同じ名前のレコードを手で作らない)。
+
+最初に出したときの手順 (別のアカウントに出し直すとき):
 
 ```sh
 cd web
 npx wrangler login
-npx wrangler d1 create hakomado-feed      # 出てきた database_id を wrangler.jsonc に書く
-npm run db:migrate:remote              # 0003_features.sql (公開範囲・タグ・検索・見直し) もここで入る
+npx wrangler d1 create hakomado-feed      # 出てきた database_id を wrangler.jsonc の DB の欄に書く。
+                                          # wrangler が d1_databases に 2 つ目の欄を足して書式も変えるので、それは戻す
+npm run db:migrate:remote
 npx wrangler secret put IP_SALT           # 接続元のハッシュに混ぜる値 (長いランダムな文字列)
 npx wrangler secret put API_TOKEN         # API・MCP のトークン (長いランダムな文字列。設定しなければ /mcp は閉じたまま)
 npm run deploy
 ```
+
+シークレットは暗号用の乱数で作る (PowerShell の例。`IP_SALT` は値を控えなくていいので、そのまま流し込む):
+
+```powershell
+$b = New-Object byte[] 32; [Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($b); [Convert]::ToBase64String($b) | npx wrangler secret put IP_SALT
+```
+
+同じ名前でもう一度 `secret put` すると上書きされ、すぐに本番に効く (デプロイし直さなくていい)。
+`API_TOKEN` は Cloudflare からは読み出せないので、パスワード管理アプリなどに控えておく。
 
 Turnstile を使うときは、Cloudflare のダッシュボードでウィジェットを作り、サイトキーを `wrangler.jsonc` の
 `TURNSTILE_SITE_KEY` に、シークレットを `npx wrangler secret put TURNSTILE_SECRET` で入れる。
