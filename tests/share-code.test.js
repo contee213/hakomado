@@ -119,6 +119,55 @@ test('取り込み用リンクを読む', () => {
   assert.deepEqual(plain(link('https://youtube.com/watch_videos')), { ids: [], name: '' });
 });
 
+test('取り込み用リンクの名前: hakomado= が無ければ title= (YouTube のリストの名前)', () => {
+  const link = setup()('parseWatchVideosLink');
+  assert.deepEqual(plain(link(`https://www.youtube.com/watch_videos?video_ids=${A}&title=%E3%82%B3%E3%83%A9%E3%83%9C&hakomado=`)), { ids: [A], name: 'コラボ' });
+  assert.deepEqual(plain(link(`https://www.youtube.com/watch_videos?video_ids=${A}&title=x&hakomado=y`)), { ids: [A], name: 'y' });
+});
+
+test('QR 用のリンク: コードと同じ中身を読み戻せる (名前は title=、hakomado= は空でも付ける)', () => {
+  const get = setup();
+  const fmt = get('formatShareLink');
+  const parse = get('parseShareLink');
+  for (const [layout, ids, offs, ref] of [
+    ['u1x1', [A], [], 0],
+    ['u2x2', [A, B, C], [0, 2.25, -1], 0],
+    ['br-pip2', [A, B, C], [3, 0, 0], 2],
+  ]) {
+    const url = fmt(layout, ids, offs, ref, 'コラボ "A"');
+    assert.match(url, /^https:\/\/www\.youtube\.com\/watch_videos\?video_ids=[^&]+&hkl=.*&title=[^&]+&hakomado=$/);
+    const r = plain(parse(`見てね ${url} #Hakomado`));
+    assert.equal(r.layoutId, layout);
+    assert.deepEqual(r.ids, ids);
+    assert.equal(r.ref, ref);
+    assert.equal(r.name, 'コラボ A');
+    if (offs.some(Boolean) || ref > 0) assert.deepEqual(r.offsets, ids.map((_, k) => offs[k] || 0));
+    else assert.equal(r.offsets, null);
+  }
+  // 名前が無ければ title は代わりの名前 (無ければ付けない)
+  assert.match(fmt('u1x1', [A], [], 0, '', 'Hakomado 視聴セット'), /&title=Hakomado%20視聴セット&/);
+  // 日本語はそのまま、区切りになる文字だけ % にする (読み戻すと元の名前)
+  const url = fmt('u1x1', [A], [], 0, "A&B #1 100% <x>+y'");
+  assert.match(url, /&title=A%26B%20%231%20100%25%20%3Cx%3E%2By%27&hakomado=$/);
+  assert.equal(parse(`${url} の続き`).name, "A&B #1 100% <x>+y'");
+  assert.doesNotMatch(fmt('u1x1', [A], [], 0, ''), /title=/);
+});
+
+test('QR 用のリンクではないもの (hkl= が無い・壊れている・17 本以上) は null', () => {
+  const parse = setup()('parseShareLink');
+  const ids17 = Array.from({ length: 17 }, (_, k) => `AAAAAAAAA${String(k).padStart(2, '0')}`).join(',');
+  for (const raw of [
+    `https://www.youtube.com/watch_videos?video_ids=${A}&hakomado=x`,
+    `https://www.youtube.com/watch_videos?video_ids=${A}&hkl=u1x1!`,
+    `https://www.youtube.com/watch_videos?video_ids=${A}&hkl=u1x1&hks=1;2`,
+    `https://www.youtube.com/watch_videos?video_ids=${A},bad&hkl=u1x1`,
+    `https://www.youtube.com/watch_videos?video_ids=${ids17}&hkl=u4x4`,
+    `https://evil.example/watch_videos?video_ids=${A}&hkl=u1x1`,
+  ]) {
+    assert.equal(parse(raw), null, raw);
+  }
+});
+
 test('取り込み用リンクではないものは null', () => {
   const link = setup()('parseWatchVideosLink');
   for (const raw of [

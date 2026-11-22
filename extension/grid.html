@@ -436,6 +436,10 @@
       <div class="share-panels">
         <section class="share-panel" data-spanel="image" role="tabpanel">
           <div class="share-preview"><img id="shareImg" alt=""></div>
+          <label class="share-name"><span data-i18n="share.authorLabel">作者名</span>
+            <input type="text" id="shareAuthor" maxlength="30" spellcheck="false" data-i18n-placeholder="share.authorPlaceholder" placeholder="なくてもよい (画像の本数の後ろに「作: …」と出ます)">
+          </label>
+          <label class="share-check"><input type="checkbox" id="shareImgLabels"> <span data-i18n="share.imgLabels">各枠にチャンネル名・タイトルを描く</span></label>
           <p class="settings-note" id="shareNoteImage"></p>
           <div class="share-buttons">
             <button type="button" id="shareImgCopy" data-i18n="share.imgCopy">🖼 画像をコピー</button>

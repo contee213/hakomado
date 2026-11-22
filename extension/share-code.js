@@ -2,7 +2,7 @@
 // 画面 (DOM) に触らない関数だけをここに置く (grid.js から切り出し。tests/ から読み込んで試せるように)。
 // 読み込む順: grid.html で grid.js より前。background.js も importScripts で読む (右クリックのメニューで videoIdFromUrl を使う)。
 // parseVideoLines は呼ばれたときに grid.js の resolveVideoId と favorites.js の Favorites を使う
-/* exported SHARE_TAG, SHARE_CODE_RE, shareName, videoIdFromUrl, formatShareCode, parseShareCode, parseWatchVideosLink, youtubePlaylistId, parseVideoLines, metaOn */
+/* exported SHARE_TAG, SHARE_CODE_RE, shareName, videoIdFromUrl, formatShareCode, parseShareCode, formatShareLink, parseShareLink, parseWatchVideosLink, youtubePlaylistId, parseVideoLines, metaOn */
 /* global resolveVideoId, Favorites */
 'use strict';
 
@@ -49,10 +49,31 @@ const shareName = (s) => String(s || '').replace(/["\r\n]/g, ' ').replace(/\s+/g
  * ずれのある動画があるか、同期の基準が先頭以外のときだけ「~…」を付ける (先頭が基準なら印は省く)
  */
 function formatShareCode(layoutId, ids, offs = [], refK = 0, name = '') {
-  const o = ids.map((_, k) => offs[k] || 0);
-  const tail = o.some(Boolean) || refK > 0 ? '~' + o.map((v, k) => (k === refK && k > 0 ? '*' : '') + String(v)).join(',') : '';
+  const tail = shareTail(ids, offs, refK);
   const n = shareName(name);
-  return `#${SHARE_TAG} ${layoutId}.${ids.join('')}${tail}${n ? ` "${n}"` : ''}`;
+  return `#${SHARE_TAG} ${layoutId}.${ids.join('')}${tail ? `~${tail}` : ''}${n ? ` "${n}"` : ''}`;
+}
+
+/** 同期のずれ (コードの「~」の後ろ・リンクの hks=)。ずれのある動画があるか、基準が先頭以外のときだけ。無ければ '' */
+function shareTail(ids, offs = [], refK = 0) {
+  const o = ids.map((_, k) => offs[k] || 0);
+  return o.some(Boolean) || refK > 0 ? o.map((v, k) => (k === refK && k > 0 ? '*' : '') + String(v)).join(',') : '';
+}
+
+/**
+ * コードと同じ中身を取り込み用リンクの形にする (共有画像の QR 用)。スマホのカメラで読むと YouTube の一時的な
+ * 再生リストとして開け、Hakomado ではコードと同じように (レイアウト・ずれごと) 読める:
+ *   https://www.youtube.com/watch_videos?video_ids=ID,ID,…&hkl=<レイアウト>&hks=<ずれ>&title=<名前>&hakomado=
+ * - title= は YouTube のリストの名前になる (無いと「Untitled List」)。Hakomado でも名前として読む
+ *   (QR を小さくするため、名前は hakomado= には入れない。name が空なら title = fallback)。
+ *   日本語などは %E3… にせずそのまま入れる (3 倍の長さになって QR が大きくなるため。開くときにブラウザが直す)。
+ *   URL の区切りになる文字・空白だけ % にする
+ * - hkl・hks・hakomado は YouTube には無視される。hakomado= は空でも付ける: 取り込みのルールの目印
+ */
+function formatShareLink(layoutId, ids, offs = [], refK = 0, name = '', fallback = '') {
+  const tail = shareTail(ids, offs, refK);
+  const title = shareName(name) || fallback;
+  return `https://www.youtube.com/watch_videos?video_ids=${ids.join(',')}&hkl=${layoutId}${tail ? `&hks=${tail}` : ''}${title ? `&title=${title.replace(/[\s%&#+'<>"]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase().padStart(2, '0')}`)}` : ''}&hakomado=`;
 }
 
 // ---- 貼られたテキストの読み取り
@@ -66,22 +87,52 @@ function formatShareCode(layoutId, ids, offs = [], refK = 0, name = '') {
 function parseShareCode(text) {
   const code = text.match(SHARE_CODE_RE);
   if (!code) return null;
-  const tail = code[3] ? code[3].split(',') : null;
+  return { ...shareIds(code[2].match(/.{11}/g), code[3]), layoutId: code[1], name: (code[4] || '').trim() };
+}
+
+/** 動画の並びとずれ (「,」区切り) を読む。同じ動画が 2 回あれば 1 回目だけ (ずれも 1 回目のもの) */
+function shareIds(list, tailText) {
+  const tail = tailText ? tailText.split(',') : null;
   const ids = [];
   const offsets = [];
   let ref = 0;
-  code[2].match(/.{11}/g).forEach((id, k) => {
+  list.forEach((id, k) => {
     if (ids.includes(id)) return;
     const t = tail?.[k] ?? '';
     if (t.startsWith('*')) ref = ids.length;
     ids.push(id);
     offsets.push(Number(t.replace('*', '')) || 0);
   });
-  return { ids, layoutId: code[1], offsets: tail ? offsets : null, ref, name: (code[4] || '').trim() };
+  return { ids, offsets: tail ? offsets : null, ref };
+}
+
+const SHARE_LINK_RE = /https:\/\/(?:www\.|m\.)?youtube\.com\/watch_videos\?[^\s"'<>]+/i;
+
+/**
+ * テキストの中の、コードと同じ中身の取り込み用リンク (formatShareLink。hkl= の付いたもの) を読む。無ければ null。
+ * 戻り値は parseShareCode と同じ形
+ */
+function parseShareLink(text) {
+  const m = String(text).match(SHARE_LINK_RE);
+  if (!m) return null;
+  let url;
+  try {
+    url = new URL(m[0]);
+  } catch {
+    return null;
+  }
+  const p = url.searchParams;
+  const layoutId = p.get('hkl') || '';
+  const tail = p.get('hks');
+  const list = (p.get('video_ids') || '').split(',');
+  if (!/^[a-z0-9-]{1,24}$/i.test(layoutId) || (tail != null && !/^[-+*\d.,]{1,240}$/.test(tail))) return null;
+  if (list.length > 16 || !list.every((id) => SHARE_ID_RE.test(id))) return null;
+  return { ...shareIds(list, tail), layoutId, name: shareName(p.get('hakomado') || p.get('title')) };
 }
 
 /**
- * 取り込み用リンク (YouTube の https://www.youtube.com/watch_videos?video_ids=ID,ID,…&hakomado=名前) を読む。
+ * 取り込み用リンク (YouTube の https://www.youtube.com/watch_videos?video_ids=ID,ID,…&title=名前&hakomado=名前) を読む。
+ * 名前は hakomado= が優先、空なら title= (YouTube のリストの名前)。
  * YouTube はこの URL を名前の無い一時的な再生リストとして開くので、Hakomado を入れていない人にもそのまま見られる
  * (hakomado= は YouTube には無視される)。違う URL なら null
  * @returns {{ids: string[], name: string}|null}
@@ -95,7 +146,7 @@ function parseWatchVideosLink(raw) {
   }
   if (!/^((www|m)\.)?youtube\.com$/.test(url.hostname) || url.pathname !== '/watch_videos') return null;
   const ids = (url.searchParams.get('video_ids') || '').split(',').map((s) => s.trim()).filter((id) => SHARE_ID_RE.test(id));
-  return { ids: [...new Set(ids)], name: (url.searchParams.get('hakomado') || '').trim() };
+  return { ids: [...new Set(ids)], name: (url.searchParams.get('hakomado') || url.searchParams.get('title') || '').trim() };
 }
 
 
