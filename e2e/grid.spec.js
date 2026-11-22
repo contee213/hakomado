@@ -32,6 +32,15 @@ test.describe('インストール直後', () => {
     await expect(tiles.locator('.url-input').first()).toBeVisible();
     await expect(page.locator('#layoutName')).not.toBeEmpty();
   });
+
+  test('使い方・設定の下の版にビルド番号が出る (拡張機能の版はリリースの version だけ)', async ({ openGrid, serviceWorker }) => {
+    const page = await openGrid();
+    await skipTour(page);
+    const manifest = await serviceWorker.evaluate(() => chrome.runtime.getManifest());
+    expect(manifest.version_name).toBeUndefined();
+    const text = await page.locator('.app-version').first().textContent();
+    expect(text).toMatch(new RegExp(`^Hakomado ${manifest.version.replace(/\./g, '\\.')} · build \\d+ \\(\\d{4}-\\d{2}-\\d{2}\\)$`));
+  });
 });
 
 test.describe('ツールバー', () => {
