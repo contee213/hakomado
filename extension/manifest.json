@@ -3,7 +3,7 @@
   "name": "__MSG_extName__",
   "short_name": "Hakomado",
   "version": "0.2.0",
-  "version_name": "0.2.0 (build 108 / 2026-11-22)",
+  "version_name": "0.2.0 (build 112 / 2026-11-22)",
   "description": "__MSG_extDescription__",
   "default_locale": "en",
   "minimum_chrome_version": "128",
