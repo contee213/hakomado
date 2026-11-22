@@ -17,7 +17,7 @@ disable-model-invocation: true
    - `extension/` の権限・ホスト権限・content scripts・外部への通信を変えたのに `CHROMEWEBSTORE.md` が直っていなければ、先に直す (CLAUDE.md の決まり)。
 2. **コミットする**
    - 変更が残っていれば、内容と理由が分かるメッセージでコミットする。最近のコミットに合わせて英語の 1 行の見出しと箇条書きにする。
-   - pre-commit フック (`.githooks/pre-commit`) が `version_name` の build 番号を上げるので、手で触らない。
+   - pre-commit フック (`.githooks/pre-commit`) が、`extension/` を変えたコミットで `extension/build.js` の build 番号を上げるので、手で触らない。
    - コミットするものが無く、main より先のコミットも無ければ、何もせずに知らせて終わる。
 3. **push して PR を作る**
    - `git push -u origin HEAD`
@@ -32,7 +32,7 @@ disable-model-invocation: true
    - `C:\Users\ktets\project\hakomado` で `git pull --ff-only` する。
    - そのフォルダに変更中のファイルがある、`main` 以外のブランチになっている、fast-forward できない、のどれかなら、何もせずに知らせる。
 7. **報告する**
-   - PR の URL、マージしたこと、pull した版 (`extension/manifest.json` の `version_name`) を伝える。
+   - PR の URL、マージしたこと、pull した版 (`extension/manifest.json` の `version` と `extension/build.js` の build 番号) を伝える。
    - Chrome は元のフォルダの `extension` を読み込んでいるので、「`chrome://extensions` で再読み込みしてください」と添える。
 
 ## 止めるとき

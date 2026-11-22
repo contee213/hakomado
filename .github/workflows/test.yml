@@ -1,6 +1,8 @@
 # push と PR のたびに自動テストを回す
 # - test: 単体テスト (tests/)。依存パッケージは無いので npm install は要らない
 # - e2e: extension/ を読み込んだ Chromium で、マルチビュー画面と service worker を動かして確かめる (e2e/)
+#   拡張機能まわり (extension/, e2e/, Playwright の設定, package*.json, このファイル) が変わったときだけ回す。
+#   web/ や README だけの変更ではジョブごと飛ばす (飛ばしたジョブは成功扱いなので、必須チェックにしても PR は止まらない)
 name: Test
 
 on:
@@ -10,6 +12,7 @@ on:
 
 permissions:
   contents: read
+  pull-requests: read # changes: PR で変わったファイルを API で調べる
 
 jobs:
   test:
@@ -21,7 +24,28 @@ jobs:
           node-version: 22
       - run: npm test
 
+  # e2e を回すかを、変わったファイルで決める
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      extension: ${{ steps.filter.outputs.extension }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            extension:
+              - 'extension/**'
+              - 'e2e/**'
+              - 'playwright.config.*'
+              - 'package.json'
+              - 'package-lock.json'
+              - '.github/workflows/test.yml'
+
   e2e:
+    needs: changes
+    if: needs.changes.outputs.extension == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

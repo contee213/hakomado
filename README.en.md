@@ -136,8 +136,10 @@ A pack is a JSON file like the one below. Besides submitting it to `packs/`, you
   `layouts.js` (layouts), `content/` (scripts that run in the YouTube pages inside tiles)
 - Main + sub layouts are computed by `tools/gen-layouts.js` and written to `extension/layouts-generated.js`.
   After changing the rules, regenerate them with `node tools/gen-layouts.js`
-- Versions: `version` in `manifest.json` is the release version. `version_name` adds a build number (the commit count) and the date,
-  and is shown at the bottom of the help (?) and settings (⚙) windows. A hook (`.githooks/pre-commit` → `tools/stamp-version.js`) writes `version_name` on every commit.
+- Versions: `version` in `manifest.json` is the release version (the only version shown in `chrome://extensions` and the store).
+  The build number (the commit count) and the date live in `extension/build.js` and are shown at the bottom of the help (?) and settings (⚙) windows,
+  like "0.2.0 · build 120 (2026-11-22)". A hook (`.githooks/pre-commit` → `tools/stamp-version.js`) writes `build.js` only on commits that change files in `extension/`
+  (not on commits that only touch `web/` or the README). If `build.js` conflicts in a merge, either side is fine
   After cloning, run `git config core.hooksPath .githooks` once (Node.js is required)
 - Releases: bump `version` in `manifest.json`, commit, and push a tag with the same number (e.g. `v0.2.0`).
   GitHub Actions (`.github/workflows/release.yml`) zips the contents of `extension` and creates the release. It stops if the tag and `version` differ

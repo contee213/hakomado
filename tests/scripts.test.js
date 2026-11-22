@@ -50,3 +50,13 @@ test('どのスクリプトも文法の誤りが無い', () => {
     assert.doesNotThrow(() => new vm.Script(fs.readFileSync(p, 'utf8'), { filename: p }), path.relative(EXT, p));
   }
 });
+
+test('ビルド番号は build.js にあり、manifest.json の版には入れない', () => {
+  // chrome://extensions やストアに出る版はリリースの version だけ。ビルド番号は画面の版の表示 (grid.js の appVersionText) でだけ見せる
+  assert.match(manifest.version, /^\d+\.\d+\.\d+$/);
+  assert.equal(manifest.version_name, undefined, 'version_name にビルド番号を入れない');
+  assert.ok(gridScripts.indexOf('build.js') >= 0 && gridScripts.indexOf('build.js') < gridScripts.indexOf('grid.js'), 'build.js は grid.js より前');
+  const { BUILD } = new vm.Script(`${readExt('build.js')}\n;({ BUILD })`).runInNewContext({});
+  assert.ok(Number.isInteger(BUILD.n) && BUILD.n > 0);
+  assert.match(BUILD.date, /^\d{4}-\d{2}-\d{2}$/);
+});
