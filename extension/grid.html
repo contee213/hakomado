@@ -351,7 +351,7 @@
           <section class="help-page" data-help-page="share" role="tabpanel" data-i18n-html="helpPage.share" hidden>
             <p>「🔗 共有」で、今の枠か再生リストを選んで、4 つの形式にできます。</p>
             <ul>
-              <li><b>画像</b>: X などに添えて投稿します。QR にコードが入っています。画像に付ける説明 (ALT) の文もコピーできます</li>
+              <li><b>画像</b>: X などに添えて投稿します。QR を読むと YouTube で開け、Hakomado では同じ並びで開けます。画像に付ける説明 (ALT) の文もコピーできます。「𝕏 に投稿」で、画像・名前・リンクを入れた X の投稿画面を開きます (投稿ボタンは自分で押します。初めてのときは x.com へのアクセスの許可を聞きます)</li>
               <li><b>コード</b>: <code>#Hakomado …</code> の 1 行 (16 本まで)。X での文字数も出します</li>
               <li><b>テキスト</b>: 1 行に 1 本。名前・同期・レイアウト・ずれ・枠の名前まで全部入ります。AI チャットに渡して直してもらうこともできます</li>
               <li><b>取り込み用リンク</b>: Hakomado が無い人も YouTube の再生リストとして見られます (50 本まで)</li>
@@ -449,6 +449,7 @@
             <span id="shareImgShortState" class="share-status"></span>
           </div>
           <div class="share-buttons">
+            <button type="button" id="shareToX" data-i18n="share.toX" data-i18n-title="share.toXTitle" title="X の投稿画面を開いて、画像・名前・リンクを入れます (投稿ボタンは自分で押します)">𝕏 に投稿</button>
             <button type="button" id="shareImgCopy" data-i18n="share.imgCopy">🖼 画像をコピー</button>
             <button type="button" id="shareImgSave" data-i18n="share.imgSave">⬇ 画像を保存</button>
             <button type="button" id="shareAltCopy" data-i18n="share.altCopy" data-i18n-title="share.altCopyTitle" title="X などで画像に付ける説明 (ALT) の文をコピーする (読み込み用のコード入り)">📋 ALT 用の文をコピー</button>

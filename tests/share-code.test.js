@@ -150,6 +150,11 @@ test('QR 用のリンク: コードと同じ中身を読み戻せる (名前は 
   const url = fmt('u1x1', [A], [], 0, "A&B #1 100% <x>+y'");
   assert.match(url, /&title=A%26B%20%231%20100%25%20%3Cx%3E%2By%27&hakomado=$/);
   assert.equal(parse(`${url} の続き`).name, "A&B #1 100% <x>+y'");
+  // ascii = true (X の本文用) なら名前を全部 % にし、URL は ASCII だけ (読み戻すと同じ名前)
+  const ascii = fmt('u1x1', [A], [], 0, "テスト (A&B) 100%'", '', true);
+  assert.match(ascii, /^[!-~]+$/);
+  assert.doesNotMatch(ascii, /[()'!*]/);
+  assert.equal(parse(ascii).name, "テスト (A&B) 100%'");
   assert.doesNotMatch(fmt('u1x1', [A], [], 0, ''), /title=/);
 });
 
@@ -166,6 +171,15 @@ test('QR 用のリンクではないもの (hkl= が無い・壊れている・1
   ]) {
     assert.equal(parse(raw), null, raw);
   }
+});
+
+test('X の投稿画面の URL: 文章と URL を入れる', () => {
+  const fmt = setup()('formatXPostUrl');
+  const url = new URL(fmt('11/21 話題の配信 #Hakomado', 'https://www.youtube.com/watch_videos?video_ids=A&hkl=u1x1&hakomado='));
+  assert.equal(url.origin + url.pathname, 'https://x.com/intent/post');
+  assert.equal(url.searchParams.get('text'), '11/21 話題の配信 #Hakomado');
+  assert.equal(url.searchParams.get('url'), 'https://www.youtube.com/watch_videos?video_ids=A&hkl=u1x1&hakomado=');
+  assert.equal(new URL(fmt('x')).searchParams.has('url'), false);
 });
 
 test('取り込み用リンクではないものは null', () => {

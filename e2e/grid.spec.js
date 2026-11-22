@@ -167,6 +167,7 @@ test.describe('共有', () => {
     const img = page.locator('#shareImg');
     await expect(labels).not.toBeChecked();
     await expect(img).toHaveAttribute('src', /^blob:/);
+    await expect(page.locator('#shareToX')).toBeEnabled();
     const before = await img.getAttribute('src');
     await labels.check();
     await expect(img).not.toHaveAttribute('src', before);

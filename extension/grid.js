@@ -3379,6 +3379,76 @@ async function readQrFromImage(blob) {
   }
 }
 
+// ---- 𝕏 に投稿: 文章と URL を入れた投稿画面を開き、画像も添付する (投稿ボタンは利用者が押す)
+// 画像は URL では渡せないので、開いたタブに chrome.scripting でスクリプトを入れ、投稿欄の画像の入力欄に入れる
+// (人が画像を選んだときと同じ)。x.com の権限は任意の権限で、初めて押したときに聞く。
+// 許可されなかったとき・X の画面が変わって入れられなかったときは、クリップボードの画像を Ctrl+V で貼ってもらう
+const X_ORIGIN = 'https://x.com/*';
+
+/** タブの読み込みが終わるのを待つ (最大 ms。終わらなくても進む) */
+function waitTabComplete(tabId, ms) {
+  return new Promise((resolve) => {
+    let timer = 0;
+    const done = () => {
+      clearTimeout(timer);
+      chrome.tabs.onUpdated.removeListener(onUpdated);
+      resolve();
+    };
+    const onUpdated = (id, info) => {
+      if (id === tabId && info.status === 'complete') done();
+    };
+    timer = setTimeout(done, ms);
+    chrome.tabs.onUpdated.addListener(onUpdated);
+    chrome.tabs.get(tabId).then((t) => t.status === 'complete' && done(), done);
+  });
+}
+
+/**
+ * X の投稿画面 (タブの中) で動かす: 投稿欄のある画面の画像の入力欄に画像を入れ、添付されたら true。
+ * 投稿欄が出るまで待つ (ログインしていない・画面の作りが変わったときは見つからずに false)。
+ * chrome.scripting で入れるので、この関数の外のものは使えない
+ */
+async function xAttachImage(base64, name) {
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const find = () => {
+    const box = document.querySelector('[data-testid="tweetTextarea_0"]');
+    return box && (box.closest('[role="dialog"]') || document).querySelector('input[type="file"][data-testid="fileInput"]');
+  };
+  let input = null;
+  for (let i = 0; i < 40 && !(input = find()); i++) await sleep(500);
+  if (!input) return false;
+  const bin = atob(base64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  const dt = new DataTransfer();
+  dt.items.add(new File([bytes], name, { type: 'image/png' }));
+  input.files = dt.files;
+  input.dispatchEvent(new Event('change', { bubbles: true }));
+  for (let i = 0; i < 40; i++) {
+    if (document.querySelector('[data-testid="attachments"]')) return true;
+    await sleep(250);
+  }
+  return false;
+}
+
+/** 開いた X の投稿画面のタブに画像を入れる。入れられたら true */
+async function attachImageToX(tabId, blob) {
+  await waitTabComplete(tabId, 20000);
+  const base64 = await new Promise((resolve) => {
+    const r = new FileReader();
+    r.onload = () => resolve(String(r.result).split(',')[1] || '');
+    r.onerror = () => resolve('');
+    r.readAsDataURL(blob);
+  });
+  if (!base64) return false;
+  try {
+    const [res] = await chrome.scripting.executeScript({ target: { tabId }, func: xAttachImage, args: [base64, 'hakomado.png'] });
+    return res?.result === true;
+  } catch {
+    return false; // ログインの画面に移った・タブが閉じられた など
+  }
+}
+
 /** 入力欄の文字をクリップボードへ (使えないときは選んでコピー) */
 async function copyField(el) {
   try {
@@ -3406,7 +3476,7 @@ function setupShare() {
   const linkEl = document.getElementById('shareLink');
   const xCountEl = document.getElementById('shareXCount');
   const tabs = dialog.querySelectorAll('[data-stab]');
-  const imgBtns = ['shareImgCopy', 'shareImgSave'].map((id) => document.getElementById(id));
+  const imgBtns = ['shareToX', 'shareImgCopy', 'shareImgSave'].map((id) => document.getElementById(id));
   const outBtns = [...imgBtns, ...['shareAltCopy', 'shareCopyCode', 'shareCopyText', 'shareCopyLink'].map((id) => document.getElementById(id))];
   const TAB_KEY = 'hakomado.shareTab';
   const LABELS_KEY = 'hakomado.shareImgLabels'; // 画像の各枠に枠の名前を入れるか (既定は入れない)
@@ -3638,6 +3708,36 @@ function setupShare() {
     } catch (e) {
       setStatus(tr('shareImageFail', e.message || e), true);
     }
+  });
+  document.getElementById('shareToX').addEventListener('click', async () => {
+    if (!imageBlob || !set) return;
+    // x.com の権限は、押した操作の中で最初に聞く (await の後では聞けない)。許可済みなら聞かずに true
+    const asked = chrome.permissions.request({ origins: [X_ORIGIN] }).catch(() => false);
+    const blob = imageBlob;
+    const title = shareName(set.name) || `${SHARE_TAG} ${tr('shareImageTitle')}`;
+    // X の本文に入れるリンクは名前も % にする (X は URL の途中の日本語でリンクを切る)
+    const url = formatXPostUrl(`${title} #${SHARE_TAG}`, shareSetCode(set, (...a) => formatShareLink(...a, title, true)));
+    const allowed = await asked;
+    // 入れられなかったときのために、画像はいつもクリップボードにも入れておく
+    let copied = false;
+    try {
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+      copied = true;
+    } catch {
+      /* 画面がフォーカスを失った など */
+    }
+    let tab;
+    try {
+      tab = await chrome.tabs.create({ url });
+    } catch (e) {
+      setStatus(tr('shareImageFail', e.message || e), true);
+      return;
+    }
+    const fallback = () => setStatus(tr(copied ? 'shareXPaste' : 'shareXNoImage'), !copied);
+    if (!allowed) return fallback();
+    setStatus(tr('shareXAttaching'));
+    if (await attachImageToX(tab.id, blob)) setStatus(tr('shareXAttached'));
+    else fallback();
   });
   document.getElementById('shareAltCopy').addEventListener('click', async () => {
     if (!set) return;

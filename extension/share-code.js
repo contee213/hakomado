@@ -2,7 +2,7 @@
 // 画面 (DOM) に触らない関数だけをここに置く (grid.js から切り出し。tests/ から読み込んで試せるように)。
 // 読み込む順: grid.html で grid.js より前。background.js も importScripts で読む (右クリックのメニューで videoIdFromUrl を使う)。
 // parseVideoLines は呼ばれたときに grid.js の resolveVideoId と favorites.js の Favorites を使う
-/* exported SHARE_TAG, SHARE_CODE_RE, shareName, videoIdFromUrl, formatShareCode, parseShareCode, formatShareLink, parseShareLink, parseWatchVideosLink, youtubePlaylistId, parseVideoLines, metaOn */
+/* exported SHARE_TAG, SHARE_CODE_RE, shareName, videoIdFromUrl, formatShareCode, parseShareCode, formatShareLink, parseShareLink, formatXPostUrl, parseWatchVideosLink, youtubePlaylistId, parseVideoLines, metaOn */
 /* global resolveVideoId, Favorites */
 'use strict';
 
@@ -67,13 +67,28 @@ function shareTail(ids, offs = [], refK = 0) {
  * - title= は YouTube のリストの名前になる (無いと「Untitled List」)。Hakomado でも名前として読む
  *   (QR を小さくするため、名前は hakomado= には入れない。name が空なら title = fallback)。
  *   日本語などは %E3… にせずそのまま入れる (3 倍の長さになって QR が大きくなるため。開くときにブラウザが直す)。
- *   URL の区切りになる文字・空白だけ % にする
+ *   URL の区切りになる文字・空白だけ % にする。ascii = true なら名前を全部 % にする (X の本文に入れるとき。
+ *   X は URL の途中の日本語でリンクを切るため。X は URL を長さに関係なく 23 文字に数えるので、長くなってもよい)
  * - hkl・hks・hakomado は YouTube には無視される。hakomado= は空でも付ける: 取り込みのルールの目印
  */
-function formatShareLink(layoutId, ids, offs = [], refK = 0, name = '', fallback = '') {
+function formatShareLink(layoutId, ids, offs = [], refK = 0, name = '', fallback = '', ascii = false) {
   const tail = shareTail(ids, offs, refK);
   const title = shareName(name) || fallback;
-  return `https://www.youtube.com/watch_videos?video_ids=${ids.join(',')}&hkl=${layoutId}${tail ? `&hks=${tail}` : ''}${title ? `&title=${title.replace(/[\s%&#+'<>"]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase().padStart(2, '0')}`)}` : ''}&hakomado=`;
+  const pct = (c) => `%${c.charCodeAt(0).toString(16).toUpperCase().padStart(2, '0')}`;
+  const enc = ascii
+    ? encodeURIComponent(title).replace(/[!'()*]/g, pct)
+    : title.replace(/[\s%&#+'<>"]/g, pct);
+  return `https://www.youtube.com/watch_videos?video_ids=${ids.join(',')}&hkl=${layoutId}${tail ? `&hks=${tail}` : ''}${title ? `&title=${enc}` : ''}&hakomado=`;
+}
+
+/**
+ * X の投稿画面を開く URL (文章と URL を入れた状態で開く。画像は渡せない。投稿するかは利用者が決める)。
+ * X は URL を長さに関係なく 23 文字に数える
+ */
+function formatXPostUrl(text, url) {
+  const q = new URLSearchParams({ text });
+  if (url) q.set('url', url);
+  return `https://x.com/intent/post?${q}`;
 }
 
 // ---- 貼られたテキストの読み取り

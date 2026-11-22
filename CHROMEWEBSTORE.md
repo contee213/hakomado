@@ -108,6 +108,7 @@ YouTube の配信・動画を 1 つの画面に最大 16 枠並べて、同時�
 ■ 権限について
 「www.youtube.com のデータの読み取りと変更」は、YouTube のプレイヤーとライブチャットをマルチビュー画面の枠の中に表示し、再生・音量・同期を操作するためと、配信の一覧を取得するために使います。マルチビュー画面を開いているタブの中でだけ働きます。
 「schedule.hololive.tv のデータの読み取りと変更」は、初期データのチャンネルの配信予定をまとめて取得するために使います。
+「x.com のデータの読み取りと変更」は、共有画面の「𝕏 に投稿」を初めて押したときだけ求めます。開いた X の投稿画面に共有画像を入れるために使い、投稿はしません。
 
 ■ ご注意
 個人が作った非公式のツールです。YouTube / Google や、初期データとして入っているチャンネルの運営元とは関係ありません。YouTube のページの構成が変わると、一部の機能が動かなくなることがあります。
@@ -227,6 +228,8 @@ YouTube の複数の配信・動画を 1 つの画面に並べて同時に視聴
 | `contextMenus` | 右クリックのメニュー「Hakomado の空き枠に追加」を出す。YouTube の動画・配信へのリンク (`targetUrlPatterns` で watch / live / shorts / youtu.be に限定) と、YouTube の視聴ページ (`documentUrlPatterns`) でだけ表示する。押したときにリンクの URL から動画 ID を取り出し、開いているマルチビュー画面に渡す (画面が無ければ新しいタブで開く)。`tabs` 権限は使わず、タブの URL・タイトルは読まない |
 | ホスト権限 `https://www.youtube.com/*` | 上の declarativeNetRequest ルールの適用先。視聴ページ / ライブチャットに content script を入れて、プレイヤーの操作・弾幕用のチャット取得・同期再生を行う。ログイン中のアカウントで配信中 / 予定 / アーカイブの一覧、動画・再生リストの情報を取得する (メンバー限定配信も見られるようにするため Cookie 付き) |
 | ホスト権限 `https://schedule.hololive.tv/*` | 初期データのホロライブのチャンネルについて、配信予定 (ホロジュール) をまとめて 1 回で取得し、YouTube への問い合わせ回数を減らす |
+| `scripting` | 共有画面の「𝕏 に投稿」を押したときだけ、そのボタンが開いた X の投稿画面のタブ 1 つにスクリプトを入れ、投稿欄の画像の入力欄に共有画像を入れる (人が画像を選んだのと同じ)。投稿ボタンは押さない。ほかのタブ・ページには入れない |
+| 任意のホスト権限 `https://x.com/*` (`optional_host_permissions`) | 上の `scripting` で X の投稿画面に画像を入れるため。インストール時には求めず、利用者が初めて「𝕏 に投稿」を押したときに `chrome.permissions.request` で聞く。許可しなくても、投稿画面を開いて画像をクリップボードに入れるところまでは動く (利用者が Ctrl+V で貼る) |
 
 ### content scripts
 
@@ -249,6 +252,7 @@ YouTube の複数の配信・動画を 1 つの画面に並べて同時に視聴
 | `schedule.hololive.tv` | ホロライブの配信予定 |
 | `api.github.com` | 新しい版が出ていないかの確認 (1 日 1 回まで。ストア版 = `update_url` がある場合は行わない)。Cookie は送らない |
 | `raw.githubusercontent.com` | 「パックを探す」を押したときだけ、リポジトリの `packs/index.json` (パックの一覧) と、選んだパックを取得する。CORS で読めるので host 権限は使わない。Cookie は送らない |
+| `x.com` | 共有画面で利用者が「𝕏 に投稿」を押したときだけ、名前と取り込み用リンクを入れた投稿画面 (`https://x.com/intent/post?…`) を新しいタブで開き、許可があれば共有画像をその投稿欄に入れる。拡張機能からは投稿しない (投稿するかどうか・何を投稿するかは、利用者が X の画面で確かめて決める) |
 | `github.com` | 「不具合の報告」で利用者が「GitHub で報告」を押したときだけ、エラーの記録と環境 (版・ブラウザ・OS) を書き込んだ Issue の作成画面を新しいタブで開く。拡張機能からは送信しない (送るかどうか・何を送るかは、利用者が GitHub の画面で確かめて決める) |
 | 利用者が指定した https の URL | チャンネルパックの読み込み、ドラッグした画像 (QR コード読み取り) の取得。Cookie は送らない |
 
@@ -314,6 +318,8 @@ Lets the user watch several YouTube streams and videos side by side on one scree
 | `contextMenus` | Adds "Add to an empty Hakomado tile" to the right-click menu, shown only on links to YouTube videos/streams and on YouTube watch pages. It takes the video ID from the clicked link and passes it to the open multiview screen. The extension does not use the tabs permission and does not read tab URLs or titles. |
 | `https://www.youtube.com/*` | Target of the rules above. Content scripts in the embedded watch and live chat frames control playback, volume, audio panning and archive sync, and read chat messages to show them as scrolling comments. Loads live / upcoming / archived stream lists and video and playlist details with the user's signed-in session, so members-only streams the user can access also work. |
 | `https://schedule.hololive.tv/*` | Loads the stream schedule for the bundled default channels in a single request, which reduces the number of requests made to YouTube. |
+| `scripting` | Only when the user presses "𝕏 Post" on the share screen: injects a script into the single X post tab that button just opened, and puts the share image into the post box's image input (the same as choosing the image by hand). It never presses Post and is not injected into any other tab or page. |
+| `https://x.com/*` (optional host permission) | Needed for the `scripting` use above. Not requested at install; asked with chrome.permissions.request the first time the user presses "𝕏 Post". Without it, the extension still opens the post screen and copies the image to the clipboard for the user to paste. |
 
 ## 版の履歴 (ストアに出したもの)
 
