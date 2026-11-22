@@ -7,8 +7,8 @@
 'use strict';
 
 const SetsLink = (() => {
-  const ENABLED = false; // 機能フラグ。オンにするときは CHROMEWEBSTORE.md の「短縮リンク」の節の手順も
-  const ORIGIN = 'https://hakomado-feed.example.workers.dev'; // Feed のデプロイ先 (オンにするときに置き換える)
+  const ENABLED = true; // 機能フラグ。オンオフを変えるときは CHROMEWEBSTORE.md の「短縮リンク」の節の手順も
+  const ORIGIN = 'https://hakomado.contee.net'; // Feed の本番 (web/wrangler.jsonc の PUBLIC_ORIGIN)
   const TIMEOUT = 15000;
 
   const esc = (s) => s.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
