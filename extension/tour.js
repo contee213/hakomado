@@ -1,8 +1,10 @@
 // hakomado: 初めて使うときのツアー (画面の各部分を順に明るく切り抜き、吹き出しで説明する)。
 // インストール直後だけ自動で始まり (background.js が tourPending を立てる)、バージョンアップでは出ない。
 // 使い方 (?) の画面から、いつでももう一度見られる。
-// 吹き出し (説明) は対象の近くに出して矢印で指し、操作のボタン (スキップ・戻る・次へ) は
-// 画面の下の真ん中に固定する。マウスを動かさずに「次へ」を押し続けられるように。
+// 吹き出し (説明) は対象の近くに出して矢印で指し、押すと次へ進む。
+// 最初のようこそだけは画面の真ん中に大きく出し、スキップ・次へも吹き出しの中に置く。
+// 2 つめからは、進み具合と操作のボタン (戻る・次へ・スキップ) を右下の縦長のパネルに固定する。
+// マウスを動かさずに「次へ」を押し続けられるように。
 /* global tr, openFavorites */
 /* exported Tour */
 const Tour = (() => {
@@ -49,6 +51,8 @@ const Tour = (() => {
   let nextBtn = null;
   let stepsEl = null;
   let countEl = null;
+  let heroNav = null;
+  let heroNext = null;
   let index = 0;
   let onDone = null;
   let mockBar = null;
@@ -98,12 +102,12 @@ const Tour = (() => {
     if (d.open) d.close();
   }
 
-  /** 見せている画面の高さを、下の操作バーの上までに収める (吹き出しは右に出す) */
+  /** 見せている画面の高さを、画面の下端の少し上までに収める (吹き出しは右に出す) */
   function fitScreen() {
     const d = screenEl();
     if (!d?.classList.contains('tour-preview')) return;
     const top = d.getBoundingClientRect().top;
-    d.style.setProperty('--tour-screen-h', `${Math.max(240, Math.round(dock.getBoundingClientRect().top - top - 24))}px`);
+    d.style.setProperty('--tour-screen-h', `${Math.max(240, Math.round(window.innerHeight - top - 24))}px`);
   }
 
   /**
@@ -148,13 +152,26 @@ const Tour = (() => {
     tip.className = 'tour-tip';
     tip.setAttribute('role', 'dialog');
     tip.setAttribute('aria-live', 'polite');
+    // 吹き出しのどこを押しても次へ (押してもらうステップは、明るくしたボタンを押してもらうので進まない)
+    tip.addEventListener('click', (e) => {
+      if (e.target.closest('button') || STEPS[index].action) return;
+      next();
+    });
     const tail = document.createElement('div');
     tail.className = 'tour-tail';
     tipBody = document.createElement('div');
-    tip.append(tail, tipBody);
+    // ようこそだけ: 吹き出しの中にスキップ・次へを置く
+    heroNav = document.createElement('div');
+    heroNav.className = 'tour-hero-nav';
+    const heroSkip = stackButton(['tourSkip'], 'tour-skip', finish);
+    setLabel(heroSkip, 'tourSkip');
+    heroNext = stackButton(['tourNext'], 'primary', next);
+    setLabel(heroNext, 'tourNext');
+    heroNav.append(heroSkip, heroNext);
+    tip.append(tail, tipBody, heroNav);
 
-    // 操作のバー: 画面の下寄りの真ん中に固定し、どのステップでもボタンの位置を変えない。
-    // 上から「使い方ツアー ・ 何番目か」「ステップの一覧 (今のところを強調、押すとそこへ移る)」「スキップ … 戻る・次へ」
+    // 進み具合と操作のパネル: 右下に縦長で固定し、どのステップでもボタンの位置を変えない (ようこその間は出さない)。
+    // 上から「使い方ツアー ・ 何番目か」「ステップの一覧 (今のところを強調、押すとそこへ移る)」「戻る・次へ」「スキップ」
     dock = document.createElement('div');
     dock.className = 'tour-dock';
     dock.setAttribute('role', 'navigation');
@@ -194,15 +211,20 @@ const Tour = (() => {
     backBtn = stackButton(['tourBack'], '', () => go(index - 1));
     nextBtn = stackButton(['tourNext', 'tourDone', 'tourStart'], 'primary', () => {
       if (STEPS[index].action) act();
-      else if (index === STEPS.length - 1) finish();
-      else go(index + 1);
+      else next();
     });
     nav.append(backBtn, nextBtn);
-    row.append(skipBtn, nav);
+    row.append(nav, skipBtn);
     dock.append(head, stepsEl, row);
 
     root.append(spot, tip, dock);
     document.body.appendChild(root);
+  }
+
+  /** 次のステップへ (最後なら終わる) */
+  function next() {
+    if (index === STEPS.length - 1) finish();
+    else go(index + 1);
   }
 
   function render() {
@@ -221,8 +243,12 @@ const Tour = (() => {
     body.textContent = tr(step.key);
     const parts = [title, body];
     // 最初のようこそは大きなアイコン付きで大きく出し、代表的な使い方を並べる
-    tip.classList.toggle('hero', !step.target);
-    if (!step.target) {
+    const hero = !step.target;
+    tip.classList.toggle('hero', hero);
+    tip.classList.toggle('clickable', !step.action);
+    heroNav.hidden = !hero;
+    dock.hidden = hero;
+    if (hero) {
       const logo = document.createElement('img');
       logo.className = 'tour-logo';
       logo.src = 'icons/icon-128.png';
@@ -253,9 +279,6 @@ const Tour = (() => {
     setLabel(skipBtn, step.action ? 'tourLater' : 'tourSkip');
     setLabel(backBtn, 'tourBack');
     setLabel(nextBtn, step.action ? 'tourStart' : last ? 'tourDone' : 'tourNext');
-    // 最初は戻れないが、場所は残す (次へ の位置を動かさない)
-    backBtn.classList.toggle('placeholder', index === 0);
-    backBtn.disabled = index === 0;
     nextBtn.classList.toggle('action', !!step.action);
     // ステップの一覧: 済んだところ・今のところ・この先 を見分けられるように
     [...stepsEl.children].forEach((li, k) => {
@@ -269,7 +292,7 @@ const Tour = (() => {
     countEl.textContent = `${index + 1} / ${STEPS.length}`;
 
     place();
-    nextBtn.focus({ preventScroll: true });
+    (hero ? heroNext : nextBtn).focus({ preventScroll: true });
   }
 
   /** 明るくする範囲と吹き出しの位置を、今の画面に合わせて決める */
@@ -278,11 +301,13 @@ const Tour = (() => {
     fitScreen();
     const r = targetRect(STEPS[index].target?.());
     const vw = window.innerWidth;
-    // 吹き出しは下の操作バーに重ねない
-    const floor = Math.min(window.innerHeight, dock.getBoundingClientRect().top) - EDGE;
+    const vh = window.innerHeight;
+    // 吹き出しは右下のパネルに重ねない
+    const d = dock.hidden ? null : dock.getBoundingClientRect();
+    const hitsDock = (l, t) => !!d && l + tw > d.left - EDGE && t + th > d.top - EDGE && l < d.right && t < d.bottom;
     if (!r) {
       // 対象が無い (ようこそ など): 画面全体を暗くして、真ん中に出す
-      Object.assign(spot.style, { left: `${vw / 2}px`, top: `${floor / 2}px`, width: '0px', height: '0px' });
+      Object.assign(spot.style, { left: `${vw / 2}px`, top: `${vh / 2}px`, width: '0px', height: '0px' });
       spot.classList.add('none');
     } else {
       spot.classList.remove('none');
@@ -295,25 +320,41 @@ const Tour = (() => {
     }
     const tw = tip.offsetWidth;
     const th = tip.offsetHeight;
+    const clampX = (l) => Math.min(Math.max(EDGE, l), vw - tw - EDGE);
+    const clampY = (t) => Math.max(EDGE, Math.min(t, vh - th - EDGE));
     let left;
     let top;
     let side = 'none'; // 吹き出しから見て対象がある向き (その辺に矢印を出す)
     if (!r) {
       left = (vw - tw) / 2;
-      top = (floor - th) / 2;
+      top = (vh - th) / 2;
     } else {
-      // 下 → 上 → 右 → 左 の順に、入るところへ出す。どこも無理なら対象の中 (大きい枠など)
+      // 下 → 上 → 右 → 左 の順に、入るところへ出す。パネルに重なるなら、パネルを避けてずらす。
+      // どこも無理なら対象の中 (大きい枠など)
       const out = PAD + GAP;
       const cx = r.left + r.width / 2;
       const cy = r.top + r.height / 2;
-      if (r.bottom + out + th <= floor) [left, top, side] = [cx - tw / 2, r.bottom + out, 'up'];
-      else if (r.top - out - th >= EDGE) [left, top, side] = [cx - tw / 2, r.top - out - th, 'down'];
-      else if (r.right + out + tw <= vw - EDGE) [left, top, side] = [r.right + out, cy - th / 2, 'left'];
-      else if (r.left - out - tw >= EDGE) [left, top, side] = [r.left - out - tw, cy - th / 2, 'right'];
-      else [left, top] = [cx - tw / 2, r.top + (r.height - th) / 2];
+      const cands = [];
+      if (r.bottom + out + th <= vh - EDGE) cands.push([clampX(cx - tw / 2), r.bottom + out, 'up']);
+      if (r.top - out - th >= EDGE) cands.push([clampX(cx - tw / 2), r.top - out - th, 'down']);
+      if (r.right + out + tw <= vw - EDGE) cands.push([r.right + out, clampY(cy - th / 2), 'left']);
+      if (r.left - out - tw >= EDGE) cands.push([r.left - out - tw, clampY(cy - th / 2), 'right']);
+      for (const [l, t, s] of cands) {
+        if (!hitsDock(l, t)) {
+          [left, top, side] = [l, t, s];
+          break;
+        }
+        // 上下に出すなら左へ、左右に出すなら上へずらして、パネルを避ける
+        const [l2, t2] = s === 'up' || s === 'down' ? [d.left - EDGE * 2 - tw, t] : [l, d.top - EDGE * 2 - th];
+        if (l2 >= EDGE && t2 >= EDGE && !hitsDock(l2, t2)) {
+          [left, top, side] = [l2, t2, s];
+          break;
+        }
+      }
+      if (side === 'none') [left, top] = [cx - tw / 2, r.top + (r.height - th) / 2];
     }
-    left = Math.min(Math.max(EDGE, left), vw - tw - EDGE);
-    top = Math.max(EDGE, Math.min(top, floor - th));
+    left = clampX(left);
+    top = clampY(top);
     if (r && side !== 'none') {
       // 矢印は対象の真ん中を指す (吹き出しの角には寄せすぎない)
       const vertical = side === 'up' || side === 'down';
@@ -370,7 +411,7 @@ const Tour = (() => {
     entered = null;
     root.remove();
     root = spot = tip = tipBody = dock = null;
-    skipBtn = backBtn = nextBtn = stepsEl = countEl = null;
+    skipBtn = backBtn = nextBtn = stepsEl = countEl = heroNav = heroNext = null;
     window.removeEventListener('keydown', onKey, true);
     window.removeEventListener('resize', place);
     onDone?.();
