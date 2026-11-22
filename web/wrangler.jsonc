@@ -4,6 +4,11 @@
   "name": "hakomado-feed",
   "main": "src/worker.mjs",
   "compatibility_date": "2026-11-01",
+  // 本番のドメイン (contee.net は同じアカウントの Cloudflare のゾーン。DNS レコードと証明書はデプロイのときに自動で作られる)
+  "routes": [{ "pattern": "hakomado.contee.net", "custom_domain": true }],
+  // 最初に出した hakomado-feed.contee213.workers.dev も残す。プレビュー用の URL は使わない
+  "workers_dev": true,
+  "preview_urls": false,
   // 拡張機能のスクリプト (share-code.js・layouts.js) を src/gen/ と public/js/ext/ に置く
   "build": {
     "command": "node tools/build.js",
@@ -20,8 +25,8 @@
     {
       "binding": "DB",
       "database_name": "hakomado-feed",
-      // npx wrangler d1 create hakomado-feed で作ったものの ID に置き換える (ローカルの開発はこのままで動く)
-      "database_id": "00000000-0000-0000-0000-000000000000",
+      // 本番の D1 (npx wrangler d1 create hakomado-feed で作ったもの)。ローカルの開発 (wrangler dev) は手元の D1 を使う
+      "database_id": "78e4aab7-d89b-4686-9c21-5775d5ed1c8a",
       "migrations_dir": "migrations"
     }
   ],
