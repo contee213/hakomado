@@ -1,6 +1,6 @@
 // 投稿の画面 (/post): コード・リンクを貼る (または共有画像の QR を読む) → 形を確かめて見せる → 送る
 // 画面の切り替えは js/app.js が POST_VIEW.enter を呼ぶ
-/* global api, layoutPreview, errorText, saveKey, copyText, parseShareCode, parseShareLink, LAYOUTS, jsQR, turnstile, t, CONFIG, FEAT, APP */
+/* global api, layoutPreview, errorText, saveKey, copyText, parseShareCode, parseShareLink, LAYOUTS, jsQR, turnstile, t, CONFIG, FEAT, APP, ACCOUNT */
 /* exported POST_VIEW */
 'use strict';
 
@@ -203,6 +203,13 @@ const POST_VIEW = (() => {
         $('postMsg').textContent = '';
       }
       update();
+      // X でログインしていれば、投稿者は X の @ユーザー名 (名前の欄は出さない。サーバーも名前の欄を使わない)
+      ACCOUNT.me().then((user) => {
+        document.querySelector('label[for="author"]').hidden = !!user;
+        $('author').hidden = !!user;
+        $('authorX').hidden = !user;
+        if (user) $('authorX').textContent = t('authorX', user.username);
+      });
       if (!started) {
         started = true;
         setupTurnstile(); // 確認 (Turnstile) は投稿の画面を初めて出したときだけ読み込む

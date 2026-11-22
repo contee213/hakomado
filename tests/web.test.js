@@ -127,7 +127,7 @@ test('D1 の行を画面に渡す形: コードとリンクを作り、秘密は
 
 test('機能フラグ: オブジェクト・JSON の文字列・カンマ区切りで決め、書いていないものはオフ', async () => {
   const { features } = await import(pathToFileURL(path.join(WEB, 'src', 'features.mjs')).href);
-  assert.deepEqual(features({}), { unlisted: false, extShare: false, tags: false, search: false, videoCheck: false, en: false });
+  assert.deepEqual(features({}), { unlisted: false, extShare: false, tags: false, search: false, videoCheck: false, en: false, xLogin: false });
   assert.equal(features({ FEATURES: { tags: true, search: false } }).tags, true);
   assert.equal(features({ FEATURES: '{"search":true}' }).search, true);
   assert.equal(features({ FEATURES: 'tags, en' }).en, true);
@@ -135,6 +135,24 @@ test('機能フラグ: オブジェクト・JSON の文字列・カンマ区切�
   // 拡張機能の短縮リンクは限定公開で入れるので、unlisted がオフなら一緒にオフ
   assert.equal(features({ FEATURES: { extShare: true } }).extShare, false);
   assert.equal(features({ FEATURES: { extShare: true, unlisted: true } }).extShare, true);
+  // X でログインは、X のアプリ (クライアント ID・シークレット) と公開の URL がそろうまで出さない
+  assert.equal(features({ FEATURES: { xLogin: true } }).xLogin, false);
+  assert.equal(features({ FEATURES: { xLogin: true }, X_CLIENT_ID: 'id', X_CLIENT_SECRET: 's', PUBLIC_ORIGIN: 'https://a.example' }).xLogin, true);
+});
+
+test('X でログイン: 戻り先はこのサイトの中だけ・Cookie の読み方・アイコンの URL', async () => {
+  const x = await import(pathToFileURL(path.join(WEB, 'src', 'xauth.mjs')).href);
+  assert.equal(x.safeReturn('/s/abcdEFGH?x=1'), '/s/abcdEFGH?x=1');
+  assert.equal(x.safeReturn('/authorize?client_id=a&state=b'), '/authorize?client_id=a&state=b');
+  for (const bad of ['//evil.example', '/\\evil.example', 'https://evil.example', 'evil', '', undefined, '/a\nb', 'x'.repeat(3000)]) {
+    assert.equal(x.safeReturn(bad), '/', String(bad));
+  }
+  assert.equal(x.readCookie('a=1; __Host-hk_session=abc; b=2', x.COOKIE), 'abc');
+  assert.equal(x.readCookie('x__Host-hk_session=abc', x.COOKIE), '');
+  assert.equal(x.readCookie(undefined, x.COOKIE), '');
+  assert.equal(x.cleanAvatar('https://pbs.twimg.com/profile_images/1/abc_normal.jpg'), 'https://pbs.twimg.com/profile_images/1/abc_bigger.jpg');
+  assert.equal(x.cleanAvatar('https://evil.example/a.jpg'), '');
+  assert.equal(x.cleanAvatar('javascript:alert(1)'), '');
 });
 
 test('タグ: 空白・カンマで区切り、# を取って小文字に。5 個・20 文字まで', () => {
@@ -209,7 +227,7 @@ test('wrangler.jsonc: ステージングは本番とずれず、本番の D1・�
   assert.notEqual(stg.vars.PUBLIC_ORIGIN, prod.vars.PUBLIC_ORIGIN);
   assert.notEqual(stg.vars.ACCESS_AUD, prod.vars.ACCESS_AUD);
   // OAuth の口は Worker を通す (静的アセットに取られないように)
-  for (const p of ['/mcp', '/authorize', '/oauth/*', '/.well-known/oauth-*']) assert.ok(prod.assets.run_worker_first.includes(p), p);
+  for (const p of ['/mcp', '/authorize', '/oauth/*', '/.well-known/oauth-*', '/auth/*', '/me']) assert.ok(prod.assets.run_worker_first.includes(p), p);
 });
 
 // ---- Access の証明書 (web/src/access-jwt.mjs)

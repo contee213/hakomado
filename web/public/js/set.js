@@ -50,7 +50,9 @@ const SET_VIEW = (() => {
       }),
     );
 
-    $('ownDelete').hidden = !savedKeys()[s.id];
+    // X でログインした人の投稿なら (own)、合言葉なしで消せる
+    $('ownDelete').hidden = !(savedKeys()[s.id] || s.own);
+    $('ownNote').textContent = s.own ? t('ownNoteX') : t('ownNote');
     $('set').hidden = false;
     $('setStatus').textContent = '';
   }

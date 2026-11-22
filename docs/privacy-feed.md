@@ -2,7 +2,7 @@
 
 [日本語](#日本語) | [English](#english)
 
-最終更新 / Last updated: 2026-11-22
+最終更新 / Last updated: 2026-11-23
 
 このページは Web サイト <https://hakomado.contee.net> (共有された視聴セットを集めるサイト) のものです。
 Chrome 拡張機能の Hakomado のポリシーは [privacy.md](privacy.md) にあります。
@@ -14,7 +14,7 @@ The policy for the Hakomado Chrome extension is in [privacy.md](privacy.md).
 
 ## 日本語
 
-個人が作った非公式のサイトです。ログインはなく、アカウントも作りません。
+個人が作った非公式のサイトです。ログインしなくても使えます。X でログインすることもできます (任意)。
 
 ### 投稿したときに保存するもの
 
@@ -22,6 +22,13 @@ The policy for the Hakomado Chrome extension is in [privacy.md](privacy.md).
 - 開かれた回数・通報の件数
 
 「リンクを知っている人だけ」で投稿したものは一覧・検索に出ませんが、リンクを知っている人は見られます。
+
+### X でログインしたとき
+
+- X から受け取るのは、X のユーザー ID・ユーザー名・表示名・アイコンの URL だけです。ポストの投稿やタイムラインの読み取りはしません。X のパスワードは受け取りません
+- ログインして投稿したセットには、投稿者として @ユーザー名 を表示します。自分の投稿の一覧と削除のために、投稿に X のユーザー ID を記録します
+- ログインの状態を保つため、ブラウザに Cookie を 1 つ保存します (30 日、またはログアウトするまで)
+- 「自分の投稿」の画面の「X との連携を消す」で、ログインの記録と、投稿に付いている X の情報をいつでも消せます (投稿そのものは残ります)。X の設定からこのサイトの連携を外すこともできます
 
 ### 接続元 (IP アドレス)
 
@@ -34,11 +41,11 @@ The policy for the Hakomado Chrome extension is in [privacy.md](privacy.md).
 
 ### ブラウザの中に保存するもの
 
-自分が投稿したセットを消すための情報と、画面の設定 (言語など) を、利用者のブラウザにだけ保存します。
+自分が投稿したセットを消すための情報と、画面の設定 (言語など) を、利用者のブラウザにだけ保存します。X でログインしたときは、ログインの Cookie も保存します。
 
 ### 外部のサービス
 
-このサイトは Cloudflare の上で動いています。動画の情報とサムネイルは YouTube から取ります。
+このサイトは Cloudflare の上で動いています。動画の情報とサムネイルは YouTube から取ります。X でログインしたときは X (ログインとユーザーの情報) を使い、その扱いは [X のプライバシーポリシー](https://x.com/ja/privacy) に従います。
 
 ### 消し方
 
@@ -53,7 +60,7 @@ The policy for the Hakomado Chrome extension is in [privacy.md](privacy.md).
 
 ## English
 
-An unofficial site made by an individual. There is no login and no account.
+An unofficial site made by an individual. You can use it without signing in. You can also sign in with X (optional).
 
 ### What is stored when you post
 
@@ -61,6 +68,13 @@ An unofficial site made by an individual. There is no login and no account.
 - How many times it was opened, and the number of reports
 
 Sets posted as "Only people with the link" are not shown in the list or search, but anyone with the link can see them.
+
+### When you sign in with X
+
+- From X we receive only your X user ID, username, display name and profile image URL. We never post or read your timeline, and we never receive your X password
+- Sets you post while signed in show your @username as the author. Your X user ID is recorded on them so you can list and delete your own posts
+- One cookie is stored in your browser to keep you signed in (30 days, or until you sign out)
+- "Disconnect X" on the "My posts" page deletes your sign-in records and the X information on your posts at any time (the posts themselves stay). You can also remove this site's access in your X settings
 
 ### IP address
 
@@ -73,11 +87,11 @@ It is handled under [Cloudflare's privacy policy](https://www.cloudflare.com/pri
 
 ### What is stored in your browser
 
-Information for deleting sets you posted, and display settings (such as the language), are stored only in your browser.
+Information for deleting sets you posted, and display settings (such as the language), are stored only in your browser. When you sign in with X, a sign-in cookie is stored too.
 
 ### External services
 
-This site runs on Cloudflare. Video information and thumbnails come from YouTube.
+This site runs on Cloudflare. Video information and thumbnails come from YouTube. When you sign in with X, X is used (sign-in and user information) under [X's privacy policy](https://x.com/privacy).
 
 ### Deleting
 

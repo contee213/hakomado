@@ -44,6 +44,56 @@ export async function listSets(env, { sort, page, tag, q } = {}, feats = {}) {
   return { sets: results.slice(0, PAGE).map(rowToSet), more: results.length > PAGE && p < MAX_PAGE };
 }
 
+/** X でログインした人の投稿 (限定公開・通報で隠れたものも含む。新しい順に 24 件ずつ) */
+export async function listMine(env, xId, { page } = {}) {
+  const p = Math.min(MAX_PAGE, Math.max(0, Number.parseInt(page ?? 0, 10) || 0));
+  const { results } = await env.DB.prepare('SELECT * FROM sets WHERE owner_x = ? ORDER BY created_at DESC LIMIT ? OFFSET ?')
+    .bind(xId, PAGE + 1, p * PAGE)
+    .all();
+  return { sets: results.slice(0, PAGE).map((r) => ({ ...rowToSet(r), hidden: r.hidden !== 0 })), more: results.length > PAGE && p < MAX_PAGE };
+}
+
+/** X の @ユーザー名 が変わっていたら、その人の投稿の投稿者も新しくする (ログインのたびに呼ぶ。X の規約: X の情報を新しく保つ) */
+export async function refreshXHandle(env, xId, username) {
+  const author = `@${username}`;
+  const { results } = await env.DB.prepare('SELECT id, name, tags, videos FROM sets WHERE owner_x = ? AND author != ?').bind(xId, author).all();
+  if (!results.length) return;
+  await env.DB.batch(
+    results.map((r) =>
+      env.DB.prepare('UPDATE sets SET author = ?, search = ? WHERE id = ?').bind(
+        author,
+        searchText({ name: r.name, author, tags: JSON.parse(r.tags || '[]'), videos: JSON.parse(r.videos) }),
+        r.id,
+      ),
+    ),
+  );
+}
+
+/** そのセットを X でログインしたこの人が投稿したか */
+export async function ownsSet(env, id, xId) {
+  if (!xId || !SET_ID_RE.test(String(id))) return false;
+  const row = await env.DB.prepare('SELECT 1 AS ok FROM sets WHERE id = ? AND owner_x = ?').bind(id, xId).first();
+  return !!row;
+}
+
+/**
+ * X との連携を消す (X の規約: 本人に求められたら X の情報を消す)。ログインをすべて消し、
+ * 投稿から X の ID と @ユーザー名 を外す (投稿そのものは残る。消したいものは先に消してもらう)
+ */
+export async function unlinkX(env, xId) {
+  const { results } = await env.DB.prepare('SELECT id, name, tags, videos FROM sets WHERE owner_x = ?').bind(xId).all();
+  await env.DB.batch([
+    env.DB.prepare('DELETE FROM sessions WHERE x_id = ?').bind(xId),
+    ...results.map((r) =>
+      env.DB.prepare("UPDATE sets SET owner_x = NULL, author = '', search = ? WHERE id = ?").bind(
+        searchText({ name: r.name, author: '', tags: JSON.parse(r.tags || '[]'), videos: JSON.parse(r.videos) }),
+        r.id,
+      ),
+    ),
+  ]);
+  return { sets: results.length };
+}
+
 /** よく使われているタグ (公開のセットの分。多い順に 30 個) */
 export async function listTags(env) {
   const { results } = await env.DB.prepare(
@@ -128,7 +178,7 @@ export async function checkVideos(env, { budget = 40 } = {}) {
  * feats = 機能フラグ (オフの機能の指定は無視する: unlisted がオフならいつも公開、tags がオフならタグなし)
  * @returns {Promise<{id: string, deleteKey?: string, existed?: boolean, listed: boolean}>}
  */
-export async function createSet(env, input, { who, source = who ? 'web' : 'api', feats = {} }) {
+export async function createSet(env, input, { who, source = who ? 'web' : 'api', feats = {}, user = null }) {
   const parsed = buildSubmission(input);
   if (!parsed.ok) throw new ApiError(parsed.error);
   const tagsIn = feats.tags ? cleanTags(input.tags) : { ok: true, tags: [] };
@@ -153,14 +203,15 @@ export async function createSet(env, input, { who, source = who ? 'web' : 'api',
 
   const videos = await fetchVideos(set.ids);
   if (!videos) throw new ApiError('missing_video');
-  const author = cleanAuthor(input.author);
+  // X でログインしていれば、投稿者は X の @ユーザー名 (自分で名乗る名前は使わない)。自分の投稿の一覧・削除のため X の ID も持つ
+  const author = user ? `@${user.username}` : cleanAuthor(input.author);
 
   const id = randomToken(8);
   const deleteKey = randomToken(16);
   const statements = [
     env.DB.prepare(
-      `INSERT INTO sets (id, canon, layout, ids, offsets, ref, name, author, videos, delete_hash, created_at, source, listed, tags, search)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO sets (id, canon, layout, ids, offsets, ref, name, author, videos, delete_hash, created_at, source, listed, tags, search, owner_x)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).bind(
       id,
       canon,
@@ -177,6 +228,7 @@ export async function createSet(env, input, { who, source = who ? 'web' : 'api',
       listed ? 1 : 0,
       JSON.stringify(tags),
       searchText({ name: set.name, author, tags, videos }),
+      user ? user.xId : null,
     ),
     ...tags.map((t) => env.DB.prepare('INSERT INTO set_tags (tag, set_id) VALUES (?, ?)').bind(t, id)),
     // 古い記録は投稿のついでに消す (どれも 1 日あれば足りる)
@@ -195,12 +247,16 @@ export async function createSet(env, input, { who, source = who ? 'web' : 'api',
   return { id, deleteKey, listed };
 }
 
-/** 削除。key = 削除用の合言葉。admin (トークンを使った API・MCP) なら合言葉なしで消せる */
-export async function deleteSet(env, id, { key, admin = false }) {
+/**
+ * 削除。key = 削除用の合言葉。admin (トークンを使った API・MCP) なら合言葉なしで消せる。
+ * xId = ログインしている人の X の ID。その人の投稿なら合言葉なしで消せる
+ */
+export async function deleteSet(env, id, { key, admin = false, xId = null }) {
   if (!SET_ID_RE.test(String(id))) throw new ApiError('not_found', 404);
-  const row = await env.DB.prepare('SELECT delete_hash FROM sets WHERE id = ?').bind(id).first();
+  const row = await env.DB.prepare('SELECT delete_hash, owner_x FROM sets WHERE id = ?').bind(id).first();
   if (!row) throw new ApiError('not_found', 404);
-  if (!admin && (typeof key !== 'string' || !sameHex(await sha256Hex(key), row.delete_hash))) throw new ApiError('bad_key', 403);
+  const owner = !!xId && row.owner_x === xId;
+  if (!admin && !owner && (typeof key !== 'string' || !sameHex(await sha256Hex(key), row.delete_hash))) throw new ApiError('bad_key', 403);
   await env.DB.batch([
     env.DB.prepare('DELETE FROM sets WHERE id = ?').bind(id),
     env.DB.prepare('DELETE FROM open_log WHERE set_id = ?').bind(id),

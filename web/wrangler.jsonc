@@ -22,7 +22,7 @@
     "not_found_handling": "404-page",
     // API・MCP・セットの画面 (OGP を入れる)・投稿の画面 (1 枚の画面 index.html を返す) だけ Worker を通す。ほかは静的アセットをそのまま返す
     // MCP の OAuth (/authorize・/oauth/*・/.well-known/oauth-*) も Worker を通す
-    "run_worker_first": ["/api/*", "/s/*", "/post", "/post/", "/mcp", "/config.js", "/authorize", "/oauth/*", "/.well-known/oauth-*"]
+    "run_worker_first": ["/api/*", "/s/*", "/post", "/post/", "/mcp", "/config.js", "/authorize", "/oauth/*", "/.well-known/oauth-*", "/auth/*", "/me", "/me/"]
   },
   "d1_databases": [
     {
@@ -43,6 +43,9 @@
     "ACCESS_TEAM_DOMAIN": "orange-scene-fc8e.cloudflareaccess.com",
     // Access のアプリ「hakomado-feed /authorize (MCP OAuth)」(hakomado.contee.net/authorize だけを守る) の AUD
     "ACCESS_AUD": "6637edbe7875f794729d161e396a19b362340aabfaca0526f4d46f4ae2863cd7",
+    // X でログイン (機能フラグ xLogin) の X のアプリのクライアント ID。シークレットは X_CLIENT_SECRET、
+    // MCP の許可を X でログインで出す持ち主の X のユーザー ID は OWNER_X_ID (どちらも wrangler secret put)
+    "X_CLIENT_ID": "",
     // Turnstile のサイトキー (空なら投稿フォームに確認を出さない)。シークレットは wrangler secret put TURNSTILE_SECRET
     "TURNSTILE_SITE_KEY": "",
     // 短縮リンク (extShare) を受け付ける拡張機能の ID (カンマ区切り): ストア版・GitHub のリリースの ZIP 版
@@ -54,7 +57,8 @@
       "tags": true, // タグ
       "search": true, // 検索
       "videoCheck": true, // 消えた動画の見直し (下の triggers の Cron で動く)
-      "en": true // 英語の画面
+      "en": true, // 英語の画面
+      "xLogin": true // X でログイン (X_CLIENT_ID・X_CLIENT_SECRET を設定するまでは出ない)
     }
   },
   // 消えた動画の見直し (1 時間ごとに、長く見直していないセットから動画 40 本分まで)
@@ -87,6 +91,7 @@
         "ACCESS_TEAM_DOMAIN": "orange-scene-fc8e.cloudflareaccess.com",
         // ステージングは Worker 全体を Access で守っているので、その (workers.dev の) アプリの AUD
         "ACCESS_AUD": "344d0f334403230e824c03c42cf5cb3c172fba7cc3f341577de24358e3d9ae91",
+        "X_CLIENT_ID": "",
         "TURNSTILE_SITE_KEY": "",
         "EXT_IDS": "bhmbchggpdficakjfllkmfkpbdpddomp,lhafnnpnfpgogdbapeepkgohemnnifpp",
         // 本番と同じにしておく (新しい機能を先にここだけでオンにして試すのはいい)
@@ -96,7 +101,8 @@
           "tags": true,
           "search": true,
           "videoCheck": true,
-          "en": true
+          "en": true,
+          "xLogin": true
         }
       },
       "triggers": { "crons": ["23 3 * * *"] }

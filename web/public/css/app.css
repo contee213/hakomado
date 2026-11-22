@@ -312,3 +312,18 @@ label.check input { width: auto; margin: 0; }
   .top .btn.primary { width: 28px; padding: 0; }
   .top .btn.primary .tb-label { display: none; }
 }
+
+/* X でログイン (js/account.js・js/me.js) */
+.account { display: inline-flex; align-items: center; }
+.account .btn { gap: 5px; }
+.x-logo { width: 13px; height: 13px; vertical-align: -2px; }
+.avatar { width: 26px; height: 26px; border-radius: 50%; display: block; background: var(--panel); }
+.avatar.big { width: 48px; height: 48px; }
+.account-link { display: inline-flex; align-items: center; gap: 4px; border-radius: 50%; }
+.top-notice { margin: 8px auto; max-width: 720px; }
+.me-user { display: flex; align-items: center; gap: 12px; margin: 0 0 16px; }
+.me-user > div { flex: 1 1 auto; min-width: 0; }
+.me-user p { margin: 0; }
+.me-name { font-weight: 600; }
+#meGrid { --min: 260px; margin-bottom: 12px; }
+.card-badge { display: inline-block; margin-left: 6px; padding: 0 5px; border: 1px solid var(--line); border-radius: 4px; font-size: 11px; color: var(--muted); }
