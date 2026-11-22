@@ -22,7 +22,7 @@ before(async () => {
 test('コードを読む: レイアウト・動画・ずれ・基準・名前', () => {
   const r = core.parseSubmission(`見てね #Hakomado u2x2.${A}${B}${C}~0,*1.5,-2 "箱企画"`);
   assert.equal(r.ok, true);
-  assert.deepEqual({ ...r.set }, { layoutId: 'u2x2', ids: [A, B, C], offsets: [0, 1.5, -2], ref: 1, name: '箱企画' });
+  assert.deepEqual({ ...r.set }, { layoutId: 'u2x2', ids: [A, B, C], offsets: [0, 1.5, -2], ref: 1, name: '箱企画', movie: null });
 });
 
 test('取り込み用リンクも読める (コードと同じ中身)', () => {
@@ -59,7 +59,7 @@ test('動画の並びから作る (API・MCP): URL と ID を読み、レイア�
 test('動画の並びから作る: ずれと基準 (小数 1 桁に丸める)', () => {
   const r = core.buildSubmission({ videos: [A, B], layoutId: 'tl-pip1', offsets: [0, 2.25], ref: 1 });
   assert.equal(r.ok, true);
-  assert.deepEqual({ ...r.set, ids: [...r.set.ids], offsets: [...r.set.offsets] }, { layoutId: 'tl-pip1', ids: [A, B], offsets: [0, 2.3], ref: 1, name: '' });
+  assert.deepEqual({ ...r.set, ids: [...r.set.ids], offsets: [...r.set.offsets] }, { layoutId: 'tl-pip1', ids: [A, B], offsets: [0, 2.3], ref: 1, name: '', movie: null });
 });
 
 test('動画の並びから作る: 読めないものは種類ごとのエラー', () => {
@@ -180,6 +180,22 @@ test('同じセットのまとめ方: 公開は名前を除いて、限定公開
   assert.notEqual(core.canonKey(a, false), core.canonKey(b, false));
   assert.notEqual(core.canonKey(a, true), core.canonKey(a, false));
   assert.match(core.canonKey(a, false), /^u:/);
+});
+
+test('🎬 本編モードのセット: 読む・同じセットの判定・D1 の列 ({movie}) から戻す', () => {
+  const r = core.parseSubmission(`#Hakomado u2x2.${A}${B} "コマンドー" ~!754.2,*`);
+  assert.equal(r.ok, true);
+  assert.deepEqual({ ...r.set, ids: [...r.set.ids], movie: [...r.set.movie] }, { layoutId: 'u2x2', ids: [A, B], offsets: null, ref: 1, name: 'コマンドー', movie: [754.2, null] });
+  const plainSet = core.parseSubmission(`#Hakomado u2x2.${A}${B}`).set;
+  assert.notEqual(core.canonical(r.set), core.canonical(plainSet), '本編の位置が違えば別のセット');
+  assert.equal(core.offsetsColumn(r.set), JSON.stringify({ movie: [754.2, null] }));
+  assert.equal(core.offsetsColumn({ offsets: [0, 2] }), '[0,2]');
+  assert.equal(core.offsetsColumn({ offsets: null }), null);
+  const s = core.rowToSet({ id: 'abcdEFGH', layout: 'u2x2', ids: JSON.stringify([A, B]), offsets: core.offsetsColumn(r.set), ref: 1, name: 'コマンドー', author: '', videos: '[{},{}]', opens: 0, created_at: 1 });
+  assert.equal(s.offsets, null);
+  assert.deepEqual(s.movie, [754.2, null]);
+  assert.equal(s.code, `#Hakomado u2x2.${A}${B} "コマンドー" ~!754.2,*`);
+  assert.match(s.link, /&hkm=754\.2,\*&/);
 });
 
 test('D1 の行: 公開範囲・タグ・消えた動画の数 (前の版の行は公開・タグなし)', () => {

@@ -41,6 +41,18 @@
     );
   });
 
+  // ライブの位置 (配信開始からの経過。watch-main.js から。🎬 本編モード用)
+  document.addEventListener('hakomado:live-pos', (e) => {
+    let d;
+    try {
+      d = JSON.parse(e.detail);
+    } catch {
+      return;
+    }
+    const pos = Number(d.pos);
+    if (Number.isFinite(pos)) window.parent.postMessage({ hakomado: 'livePos', pos, ps: Number(d.ps) || 0 }, PARENT_ORIGIN);
+  });
+
   // ライブ配信中か (watch-main.js から)
   document.addEventListener('hakomado:live', (e) => window.parent.postMessage({ hakomado: 'live', on: e.detail === '1' }, PARENT_ORIGIN));
 
