@@ -2,7 +2,7 @@
 // - 一覧は隠しても残しておくので、セットを見て戻っても、読み込んだ所 (もっと見る) とスクロールの位置がそのまま
 // - URL は今までどおり (/ ・ /s/:id ・ /post)。ブラウザの戻る・進むも使え、どの URL を直接開いても同じ画面になる
 // - このサイトの中のリンク (<a href>) は、ここで受けて中身を入れ替える。ほかのサイトへのリンクと新しいタブはそのまま
-/* global BAR, LIST, SET_VIEW, POST_VIEW, t */
+/* global BAR, LIST, SET_VIEW, POST_VIEW, ME_VIEW, t */
 /* exported APP */
 'use strict';
 
@@ -11,6 +11,7 @@ const APP = (() => {
     list: document.getElementById('viewList'),
     set: document.getElementById('viewSet'),
     post: document.getElementById('viewPost'),
+    me: document.getElementById('viewMe'),
     notFound: document.getElementById('viewNotFound'),
   };
   let current = '';
@@ -23,6 +24,7 @@ const APP = (() => {
     const m = url.pathname.match(/^\/s\/([A-Za-z0-9]{8})\/?$/);
     if (m) return { view: 'set', id: m[1] };
     if (/^\/post\/?$/.test(url.pathname)) return { view: 'post' };
+    if (/^\/me\/?$/.test(url.pathname)) return { view: 'me' };
     return null;
   }
 
@@ -39,6 +41,7 @@ const APP = (() => {
       scrollTo(0, 0);
       if (route.view === 'set') SET_VIEW.enter(route.id, url.search);
       else if (route.view === 'post') POST_VIEW.enter();
+      else if (route.view === 'me') ME_VIEW.enter();
       else document.title = t('title404');
     }
     BAR.sync(route.view === 'list');

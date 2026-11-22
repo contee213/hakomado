@@ -109,7 +109,7 @@ Origin は Turnstile を通らない呼び出しでも名乗れるので、こ�
 
 | | 使うもの | 認証 |
 |---|---|---|
-| OAuth (`src/oauth.mjs`) | claude.ai のコネクタ、クラウドの定期タスク (claude.ai のコネクタを使う) | OAuth 2.1 (クライアントの自動登録・PKCE)。許可の画面 `/authorize` は Cloudflare Access の後ろにあり、Access の証明書のメールが `OWNER_EMAIL` の人にだけ出る |
+| OAuth (`src/oauth.mjs`) | claude.ai のコネクタ、クラウドの定期タスク (claude.ai のコネクタを使う) | OAuth 2.1 (クライアントの自動登録・PKCE)。許可の画面 `/authorize` は持ち主にだけ出る: X でログインしているアカウントが `OWNER_X_ID` か (下の「X でログイン」)、Cloudflare Access の証明書のメールが `OWNER_EMAIL` か |
 | トークン | Claude Code・スクリプト | `Authorization: Bearer <API_TOKEN>` |
 
 OAuth は `@cloudflare/workers-oauth-provider` が受け持つ (メタデータ `/.well-known/oauth-*`、登録 `/oauth/register`、トークン `/oauth/token`)。
@@ -139,6 +139,28 @@ Claude Code から使うとき (`.mcp.json` か `claude mcp add`):
 ```
 
 ステージングは Access の後ろなので、`CF-Access-Client-Id`・`CF-Access-Client-Secret` (Access のサービストークン) も付ける。
+
+## X でログイン (機能フラグ xLogin)
+
+ログインは任意 (しなくても今までどおり使える)。ログインすると:
+
+- 投稿者が X の @ユーザー名 になる (自分で名乗る名前の欄は出さない)。ログインのたびに新しい @ユーザー名 に直す
+- 自分の投稿の一覧 (`/me`。限定公開・通報で隠れたものも出る) と、合言葉なしの削除
+- MCP の許可の画面 (`/authorize`) を、持ち主の X のアカウント (`OWNER_X_ID`) で出せる (ログインしていなければ X のログインへ送って戻る)
+- 「X との連携を消す」(`/me`): ログインの記録を消し、投稿から X の ID と @ユーザー名 を外す (X の規約: 求められたら X の情報を消す)
+
+仕組み (`src/xauth.mjs`): OAuth 2.0 (認可コード + PKCE、クライアントシークレットあり)。権限は `users.read tweet.read`。
+X の API はログインのたびに `GET /2/users/me` を 1 回だけ呼ぶ (X の API は使った分だけ払う形。1 回 0.01 ドルほど)。X のアクセストークンは使い終わったら無効にして持たない。
+ログインは D1 の `sessions` (Cookie `__Host-hk_session` の値のハッシュだけ。30 日)。ログインの途中は `x_login` (10 分)。
+
+設定:
+
+- X の Developer Console でアプリ (Web App) を作り、コールバックに `<PUBLIC_ORIGIN>/auth/x/callback` を入れる
+  (本番 `https://hakomado.contee.net/auth/x/callback`、ステージング `https://hakomado-feed-staging.contee213.workers.dev/auth/x/callback`。
+  手元は X が localhost を受け付けないので `http://127.0.0.1:8787/auth/x/callback` にし、`.dev.vars` の `PUBLIC_ORIGIN` も合わせる)
+- vars `X_CLIENT_ID`、シークレット `X_CLIENT_SECRET` (`npx wrangler secret put X_CLIENT_SECRET`、ステージングは `--env staging` も)
+- MCP の許可を X でログインで出すなら、シークレット `OWNER_X_ID` (持ち主の X のユーザー ID)
+- `X_CLIENT_ID`・`X_CLIENT_SECRET`・`PUBLIC_ORIGIN` がそろうまでは、機能フラグがオンでもログインは出ない
 
 ## ローカルで動かす
 
@@ -170,6 +192,7 @@ Cron (消えた動画の見直し) を試すときは `npx wrangler dev --test-s
 | `search` | 検索 | 欄を出さず、`q` を無視する |
 | `videoCheck` | 消えた動画の見直し (Cron) | 見直さない。付けた印は残る |
 | `en` | 英語の画面 | いつも日本語 |
+| `xLogin` | X でログイン (下) | ログインのボタン・自分の投稿の画面を出さない。投稿に付いた @名前 はそのまま |
 
 拡張機能の側の短縮リンクは、拡張機能に入っている `extension/sets-link.js` の `ENABLED` で別にオンオフする
 (オンにする手順はルートの `CHROMEWEBSTORE.md` の「短縮リンク」)。
@@ -241,6 +264,6 @@ GitHub から自動で出すときは、Workers Builds で「ルートディレ�
 
 ## まだ無いもの
 
-- X アカウントでのログイン (MCP の OAuth の許可の画面のログインも、作るならここに差し替えられる)
+- X でログインした人どうしのつながり (フォロー・お気に入りなど)
 - 拡張機能で作った短縮リンクを消す手段 (拡張機能は削除用の合言葉を持っていない)
 - セットのページの OGP (タイトル・説明) の英語

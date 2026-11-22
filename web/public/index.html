@@ -21,7 +21,10 @@
   <header class="top">
     <a class="brand" href="/"><img class="brand-logo" src="/js/ext/icon.svg" alt="" width="22" height="22"><span class="brand-name">Hakomado</span></a>
     <a class="btn primary" href="/post" data-i18n-aria-label="navPostLabel" aria-label="投稿">＋<span class="tb-label" data-i18n="navPostLabel">投稿</span></a>
+    <!-- X でログイン (機能フラグ xLogin)。ログインしていなければ「X でログイン」、していれば X のアイコン (自分の投稿へ)。js/account.js -->
+    <span id="account" class="account" data-feature="xLogin"></span>
   </header>
+  <p id="loginNotice" class="notice warn top-notice" role="alert" hidden></p>
 
   <!-- 一覧 (/)。マルチビュー画面の枠と同じく、画像で画面を埋める。上の段ほど大きく (大・中・小の 3 段) -->
   <main id="viewList" class="view wall" hidden>
@@ -58,7 +61,7 @@
       <details id="manage" class="manage">
         <summary data-i18n="manageH">削除・通報</summary>
         <div id="ownDelete" hidden>
-          <p data-i18n="ownNote">このブラウザから投稿したセットです。</p>
+          <p id="ownNote" data-i18n="ownNote">このブラウザから投稿したセットです。</p>
           <button type="button" id="deleteOwn" class="btn danger" data-i18n="deleteOwn">このセットを削除</button>
         </div>
         <form id="keyDelete" class="row">
@@ -89,6 +92,7 @@
 
       <label for="author" data-i18n="authorLabel">投稿者の名前 (任意・30 文字まで)</label>
       <input id="author" maxlength="30" autocomplete="nickname">
+      <p id="authorX" class="sub" hidden></p>
 
       <div data-feature="tags">
         <label for="tagsIn" data-i18n="tagsInputLabel">タグ (任意・空白で区切って 5 個まで)</label>
@@ -107,6 +111,30 @@
       <p><a id="doneLink" class="btn primary" data-i18n="doneLink">セットのページを見る</a></p>
       <p data-i18n="doneKeyNote">削除用の合言葉 (このブラウザにも保存しました。ほかの端末から消すときに使います):</p>
       <p class="row"><input id="doneKey" readonly><button type="button" id="copyKey" class="btn" data-i18n="copyKey">コピー</button></p>
+    </section>
+  </main>
+
+  <!-- 自分の投稿 (/me。X でログインした人だけ。js/me.js) -->
+  <main id="viewMe" class="view wrap" hidden>
+    <h1 data-i18n="meH">自分の投稿</h1>
+    <p id="meStatus" class="status"></p>
+    <section id="meBox" hidden>
+      <div class="me-user">
+        <img id="meAvatar" class="avatar big" alt="" width="48" height="48">
+        <div>
+          <p id="meName" class="me-name"></p>
+          <p class="sub"><img class="x-logo" src="/img/x-logo.svg" alt="X" width="14" height="14"> <a id="meHandle" target="_blank" rel="noopener"></a></p>
+        </div>
+        <button type="button" id="logout" class="btn" data-i18n="logout">ログアウト</button>
+      </div>
+      <div id="meGrid" class="grid"></div>
+      <p id="meListStatus" class="status"></p>
+      <div class="center"><button type="button" id="meMore" class="btn" hidden data-i18n="more">もっと見る</button></div>
+      <details class="manage">
+        <summary data-i18n="unlinkH">X との連携を消す</summary>
+        <p data-i18n="unlinkNote">ログインの記録と、投稿に付いている X の情報 (@ユーザー名) を消します。投稿は残り、投稿者は空になります (消したい投稿は先に消してください)。もう一度ログインすると、新しく連携されます。</p>
+        <button type="button" id="unlink" class="btn danger" data-i18n="unlinkBtn">X との連携を消す</button>
+      </details>
     </section>
   </main>
 
@@ -131,6 +159,8 @@
   <script src="/js/list.js"></script>
   <script src="/js/set.js"></script>
   <script src="/js/post.js"></script>
+  <script src="/js/account.js"></script>
+  <script src="/js/me.js"></script>
   <script src="/js/app.js"></script>
 </body>
 </html>

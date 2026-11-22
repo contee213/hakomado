@@ -3,13 +3,15 @@
 //   Turnstile と回数の制限なしで投稿でき (定期的なタスクなど)、合言葉なしで削除できる
 // - /mcp: MCP の口 (mcp.mjs)。OAuth (oauth.mjs。claude.ai のコネクタなど) のトークンか API_TOKEN が要る
 // - /authorize・/oauth/*・/.well-known/oauth-*: MCP の OAuth (oauth.mjs)
+// - /auth/*: X でログイン (xauth.mjs。機能フラグ xLogin)。/me は自分の投稿の画面 (1 枚の画面を返す)
 // - /s/:id: セットの画面 (1 枚の画面 public/index.html に OGP を入れて返す)。/post も同じ画面を返す
 // - /config.js: 画面に渡す設定 (機能フラグ・Turnstile のサイトキー)
 // - Cron (scheduled): 消えた動画の見直し (機能フラグ videoCheck)
 // 機能フラグは features.mjs (wrangler.jsonc の vars.FEATURES)
 // ほかのパス (一覧・投稿の画面、JS・CSS) は public/ の静的アセットとしてそのまま返る (wrangler.jsonc の run_worker_first)
 import { TEXT_MAX, sha256Hex, sameHex, layoutList } from './core.mjs';
-import { ApiError, DAY, listSets, listTags, getSet, createSet, deleteSet, countOpen, report, checkVideos } from './sets.mjs';
+import { ApiError, DAY, listSets, listTags, getSet, createSet, deleteSet, countOpen, report, checkVideos, listMine, ownsSet, unlinkX } from './sets.mjs';
+import { currentUser, xLoginStart, xLoginCallback, logout } from './xauth.mjs';
 import { handleMcp } from './mcp.mjs';
 import { features } from './features.mjs';
 import { oauthReady, isOAuthPath, oauthProvider } from './oauth.mjs';
@@ -112,6 +114,23 @@ async function api(request, env, url) {
   const who = await auth(request, env);
   if (who === 'bad') return unauthorized({ error: 'bad_token' });
   const admin = who === 'ok';
+  // X でログインしている人 (機能フラグ xLogin。トークン・拡張機能からの呼び出しでは見ない)
+  const user = feats.xLogin && !admin && !ext ? await currentUser(request, env) : null;
+
+  // 自分のこと (X でログイン): GET /api/me、GET /api/me/sets、POST /api/me/unlink (X との連携を消す)
+  if (parts[1] === 'me') {
+    if (parts.length === 2 && method === 'GET') {
+      return json({ user: user && { username: user.username, name: user.name, avatar: user.avatar } });
+    }
+    if (!user) return fail('login', 401);
+    if (parts[2] === 'sets' && parts.length === 3 && method === 'GET') return json(await listMine(env, user.xId, { page: url.searchParams.get('page') }));
+    if (parts[2] === 'unlink' && parts.length === 3 && method === 'POST') {
+      if (!(await readJson(request))) return fail('bad_request');
+      const r = await unlinkX(env, user.xId);
+      return json({ ok: true, ...r }, 200, await logout(request, env));
+    }
+    return fail('not_found', 404);
+  }
 
   if (parts.length === 2 && method === 'GET') {
     if (parts[1] === 'config') return json(publicConfig(env));
@@ -136,7 +155,7 @@ async function api(request, env, url) {
     if (!admin && typeof body.text !== 'string') return fail('bad_request', 400, cors);
     // 拡張機能からは名前とコードだけ受け取る (投稿者の名前・タグは付けない。いつも限定公開)
     const input = source === 'ext' ? { text: body.text } : body;
-    const r = await createSet(env, input, { who: admin ? null : await clientKey(request, env), source, feats });
+    const r = await createSet(env, input, { who: admin ? null : await clientKey(request, env), source, feats, user: source === 'web' ? user : null });
     return json({ ...r, url: `${url.origin}/s/${r.id}` }, r.existed ? 200 : 201, cors);
   }
 
@@ -144,14 +163,16 @@ async function api(request, env, url) {
   if (parts.length === 3) {
     if (method !== 'GET') return fail('method', 405);
     const set = await getSet(env, id);
-    return set ? json(set, 200, cors) : fail('not_found', 404, cors);
+    if (!set) return fail('not_found', 404, cors);
+    // own = ログインしている人の投稿 (合言葉なしで消せる)
+    return json(user ? { ...set, own: await ownsSet(env, id, user.xId) } : set, 200, cors);
   }
   if (method !== 'POST') return fail('method', 405);
   // 削除・開く・通報も JSON だけ (ほかのサイトのフォームから、見に来た人の接続元で通報させられないように)
   const body = await readJson(request);
   if (!body) return fail('bad_request');
   if (parts[3] === 'delete') {
-    await deleteSet(env, id, { key: body.key, admin });
+    await deleteSet(env, id, { key: body.key, admin, xId: user?.xId });
     return json({ ok: true });
   }
   if (parts[3] === 'open') {
@@ -195,6 +216,19 @@ async function setPage(env, url, id) {
     .transform(page);
 }
 
+/** /auth/*: X でログイン (機能フラグ xLogin) */
+async function authRoute(request, env, url) {
+  if (!features(env).xLogin) return fail('not_found', 404);
+  if (url.pathname === '/auth/x/login' && request.method === 'GET') return xLoginStart(request, env);
+  if (url.pathname === '/auth/x/callback' && request.method === 'GET') return xLoginCallback(request, env);
+  // ログアウトは JSON の POST だけ (ほかのサイトから勝手にログアウトさせられないように)
+  if (url.pathname === '/auth/logout' && request.method === 'POST') {
+    if (!(await readJson(request))) return fail('bad_request');
+    return json({ ok: true }, 200, await logout(request, env));
+  }
+  return fail('not_found', 404);
+}
+
 /** /config.js: 画面のスクリプトより先に読み込む設定 (同期で使えるように、スクリプトとして返す) */
 const configScript = (env) =>
   new Response(`window.SETS_CONFIG = ${JSON.stringify(publicConfig(env)).replace(/</g, '\\u003c')};\n`, {
@@ -209,10 +243,11 @@ async function appFetch(request, env) {
     if (isApi) return await api(request, env, url);
     if (url.pathname === '/mcp') return await mcp(request, env, url);
     if (url.pathname === '/config.js') return configScript(env);
+    if (url.pathname.startsWith('/auth/')) return await authRoute(request, env, url);
     const m = url.pathname.match(/^\/s\/([^/]+)\/?$/);
     if (m && (request.method === 'GET' || request.method === 'HEAD')) return await setPage(env, url, m[1]);
     // 投稿の画面も同じ 1 枚の画面 (public/index.html) で、中身を切り替えて出す
-    if (/^\/post\/?$/.test(url.pathname)) return env.ASSETS.fetch(new URL('/', url));
+    if (/^\/(post|me)\/?$/.test(url.pathname)) return env.ASSETS.fetch(new URL('/', url));
     return env.ASSETS.fetch(request);
   } catch (e) {
     // 拡張機能からの投稿の失敗 (回数の制限など) も、拡張機能が読めるように CORS を付ける

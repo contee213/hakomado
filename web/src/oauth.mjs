@@ -1,13 +1,17 @@
 // MCP の OAuth (claude.ai のコネクタ・クラウドの定期タスクからつなぐ用)。
 // @cloudflare/workers-oauth-provider が OAuth 2.1 の口 (メタデータ・クライアントの登録・トークン) を受け持ち、
 // /mcp には、ここで出したトークンか API_TOKEN (Claude Code・スクリプト用。今までどおり) を付けた呼び出しだけを通す。
-// ログイン (/authorize) は Cloudflare Access の後ろに置き、Access の証明書 (JWT) のメールが OWNER_EMAIL の人だけに
-// 許可の画面を出す。設定は wrangler.jsonc の vars (PUBLIC_ORIGIN・ACCESS_TEAM_DOMAIN・ACCESS_AUD) とシークレット
-// (OWNER_EMAIL・API_TOKEN)、KV の OAUTH_KV。手順は README の「MCP」
+// 許可の画面 (/authorize) を出すのは持ち主だけ。持ち主かは次のどちらかで確かめる:
+// - X でログイン (機能フラグ xLogin とシークレット OWNER_X_ID): ログインしている X のアカウントが OWNER_X_ID か。
+//   ログインしていなければ X のログインへ送り、終わったら戻ってくる
+// - Cloudflare Access (vars ACCESS_TEAM_DOMAIN・ACCESS_AUD とシークレット OWNER_EMAIL): Access の証明書 (JWT) のメールが OWNER_EMAIL か
+// ほかの設定は vars の PUBLIC_ORIGIN、シークレットの API_TOKEN、KV の OAUTH_KV。手順は README の「MCP」
 import { OAuthProvider, AuthorizationError, CimdFetchError } from '@cloudflare/workers-oauth-provider';
 import { sha256Hex, sameHex } from './core.mjs';
 import { verifyAccessJwt, accessKeys } from './access-jwt.mjs';
 import { handleMcp } from './mcp.mjs';
+import { features } from './features.mjs';
+import { currentUser } from './xauth.mjs';
 
 export const OAUTH_PATHS = { authorize: '/authorize', token: '/oauth/token', register: '/oauth/register' };
 const SCOPE = 'mcp';
@@ -33,13 +37,20 @@ const mcpHandler = {
   },
 };
 
+/** X でログインで持ち主を確かめるか (xLogin がオンで OWNER_X_ID を設定したとき) */
+const ownerByX = (env) => features(env).xLogin && !!env.OWNER_X_ID;
+
 /**
- * Access を通ったログインの人か。返すのはメールアドレス (だめなら null)。
- * 手元 (localhost) で ACCESS_TEAM_DOMAIN を空にしたときだけ、Access なしで通す (wrangler dev で試す用)
+ * 持ち主か。返すのは画面に出す名前 (X の @ユーザー名 か Access のメールアドレス)。だめなら null。
+ * 手元 (localhost) で X も ACCESS_TEAM_DOMAIN も設定していないときだけ、確かめずに通す (wrangler dev で試す用)
  */
 async function signedInOwner(request, env) {
   const url = new URL(request.url);
-  if (!env.ACCESS_TEAM_DOMAIN) return isLoopback(url.hostname) ? 'localhost' : null;
+  if (ownerByX(env)) {
+    const user = await currentUser(request, env);
+    if (user && user.xId === String(env.OWNER_X_ID).trim()) return `@${user.username}`;
+  }
+  if (!env.ACCESS_TEAM_DOMAIN) return !ownerByX(env) && isLoopback(url.hostname) ? 'localhost' : null;
   if (!env.OWNER_EMAIL || !env.ACCESS_AUD) return null;
   const token = request.headers.get('cf-access-jwt-assertion');
   if (!token) return null;
@@ -79,7 +90,14 @@ const page = (title, body, status = 200, headers = new Headers()) => {
 async function authorize(request, env) {
   const oauth = env.OAUTH_PROVIDER;
   const who = await signedInOwner(request, env);
-  if (!who) return page('ログインできません', '<p>このサイトの持ち主だけが、MCP の接続を許可できます。</p>', 403);
+  if (!who) {
+    // X でログインしていなければ、ログインしてから戻ってくる (戻り先はこのページ。GET のときだけ)
+    if (ownerByX(env) && request.method === 'GET' && !(await currentUser(request, env))) {
+      const url = new URL(request.url);
+      return new Response(null, { status: 302, headers: { location: `/auth/x/login?return=${encodeURIComponent(url.pathname + url.search)}`, 'cache-control': 'no-store' } });
+    }
+    return page('ログインできません', '<p>このサイトの持ち主だけが、MCP の接続を許可できます。</p>', 403);
+  }
   try {
     if (request.method === 'POST') {
       const form = await request.formData();
