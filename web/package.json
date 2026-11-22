@@ -13,6 +13,7 @@
     "deploy:staging": "wrangler deploy --env staging"
   },
   "devDependencies": {
+    "@cloudflare/workers-oauth-provider": "^1.2.4",
     "wrangler": "^4.166.0"
   }
 }

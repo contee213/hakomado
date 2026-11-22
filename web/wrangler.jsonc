@@ -4,6 +4,8 @@
   "name": "hakomado-feed",
   "main": "src/worker.mjs",
   "compatibility_date": "2026-11-01",
+  // 外への fetch を公開のアドレスだけにする (MCP の OAuth で、クライアントの情報 (CIMD) の URL を取りに行くのに要る)
+  "compatibility_flags": ["global_fetch_strictly_public"],
   // 本番のドメイン (contee.net は同じアカウントの Cloudflare のゾーン。DNS レコードと証明書はデプロイのときに自動で作られる)
   "routes": [{ "pattern": "hakomado.contee.net", "custom_domain": true }],
   // 最初に出した hakomado-feed.contee213.workers.dev も残す。プレビュー用の URL は使わない
@@ -19,7 +21,8 @@
     "binding": "ASSETS",
     "not_found_handling": "404-page",
     // API・MCP・セットの画面 (OGP を入れる)・投稿の画面 (1 枚の画面 index.html を返す) だけ Worker を通す。ほかは静的アセットをそのまま返す
-    "run_worker_first": ["/api/*", "/s/*", "/post", "/post/", "/mcp", "/config.js"]
+    // MCP の OAuth (/authorize・/oauth/*・/.well-known/oauth-*) も Worker を通す
+    "run_worker_first": ["/api/*", "/s/*", "/post", "/post/", "/mcp", "/config.js", "/authorize", "/oauth/*", "/.well-known/oauth-*"]
   },
   "d1_databases": [
     {
@@ -30,7 +33,16 @@
       "migrations_dir": "migrations"
     }
   ],
+  // MCP の OAuth (oauth.mjs) のクライアント・許可・トークン (トークンはハッシュで持つ)
+  "kv_namespaces": [{ "binding": "OAUTH_KV", "id": "6d1de197d0b7481cb06a1f59013ca8f1" }],
   "vars": {
+    // 公開の URL (MCP の OAuth の resource = <これ>/mcp。claude.ai のコネクタにはこの URL を入れる)
+    "PUBLIC_ORIGIN": "https://hakomado.contee.net",
+    // /authorize を守る Cloudflare Access のチームのドメインと、そのアプリの AUD (README の「MCP」)。
+    // 通してよい人のメールアドレスはシークレット OWNER_EMAIL
+    "ACCESS_TEAM_DOMAIN": "orange-scene-fc8e.cloudflareaccess.com",
+    // Access のアプリ「hakomado-feed /authorize (MCP OAuth)」(hakomado.contee.net/authorize だけを守る) の AUD
+    "ACCESS_AUD": "6637edbe7875f794729d161e396a19b362340aabfaca0526f4d46f4ae2863cd7",
     // Turnstile のサイトキー (空なら投稿フォームに確認を出さない)。シークレットは wrangler secret put TURNSTILE_SECRET
     "TURNSTILE_SITE_KEY": "",
     // 短縮リンク (extShare) を受け付ける拡張機能の ID (カンマ区切り): ストア版・GitHub のリリースの ZIP 版
@@ -51,7 +63,7 @@
 
   // ステージング (本番の手前で、Cloudflare の上で確かめる所)。npm run deploy:staging で
   // https://hakomado-feed-staging.contee213.workers.dev に出る。Cloudflare Access で自分だけが見られるようにする (README)。
-  // wrangler の環境は vars・d1_databases を上から引き継がないので全部書く。routes・triggers は引き継ぐので、
+  // wrangler の環境は vars・d1_databases・kv_namespaces を上から引き継がないので全部書く。routes・triggers は引き継ぐので、
   // 本番のドメインに付かないように routes を空にし、Cron は 1 日 1 回にする。
   // 本番とずれていないかは tests/web.test.js の「wrangler.jsonc」で確かめる
   "env": {
@@ -69,7 +81,12 @@
           "migrations_dir": "migrations"
         }
       ],
+      "kv_namespaces": [{ "binding": "OAUTH_KV", "id": "b445fce72ef64f20af22e5fa9205569d" }],
       "vars": {
+        "PUBLIC_ORIGIN": "https://hakomado-feed-staging.contee213.workers.dev",
+        "ACCESS_TEAM_DOMAIN": "orange-scene-fc8e.cloudflareaccess.com",
+        // ステージングは Worker 全体を Access で守っているので、その (workers.dev の) アプリの AUD
+        "ACCESS_AUD": "344d0f334403230e824c03c42cf5cb3c172fba7cc3f341577de24358e3d9ae91",
         "TURNSTILE_SITE_KEY": "",
         "EXT_IDS": "bhmbchggpdficakjfllkmfkpbdpddomp,lhafnnpnfpgogdbapeepkgohemnnifpp",
         // 本番と同じにしておく (新しい機能を先にここだけでオンにして試すのはいい)

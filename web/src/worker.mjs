@@ -1,7 +1,8 @@
 // Hakomado Feed の Worker:
 // - /api/*: REST の API (D1 に投稿したセットを置く)。Authorization: Bearer <API_TOKEN> を付けると、
 //   Turnstile と回数の制限なしで投稿でき (定期的なタスクなど)、合言葉なしで削除できる
-// - /mcp: MCP の口 (mcp.mjs)。API_TOKEN が要る
+// - /mcp: MCP の口 (mcp.mjs)。OAuth (oauth.mjs。claude.ai のコネクタなど) のトークンか API_TOKEN が要る
+// - /authorize・/oauth/*・/.well-known/oauth-*: MCP の OAuth (oauth.mjs)
 // - /s/:id: セットの画面 (1 枚の画面 public/index.html に OGP を入れて返す)。/post も同じ画面を返す
 // - /config.js: 画面に渡す設定 (機能フラグ・Turnstile のサイトキー)
 // - Cron (scheduled): 消えた動画の見直し (機能フラグ videoCheck)
@@ -11,6 +12,7 @@ import { TEXT_MAX, sha256Hex, sameHex, layoutList } from './core.mjs';
 import { ApiError, DAY, listSets, listTags, getSet, createSet, deleteSet, countOpen, report, checkVideos } from './sets.mjs';
 import { handleMcp } from './mcp.mjs';
 import { features } from './features.mjs';
+import { oauthReady, isOAuthPath, oauthProvider } from './oauth.mjs';
 
 const json = (body, status = 200, extra = {}) =>
   new Response(JSON.stringify(body), {
@@ -199,25 +201,32 @@ const configScript = (env) =>
     headers: { 'content-type': 'text/javascript; charset=utf-8', 'cache-control': 'no-cache', 'x-content-type-options': 'nosniff' },
   });
 
+/** OAuth を通さない部分 (API・画面・OAuth の設定が無いときの /mcp) */
+async function appFetch(request, env) {
+  const url = new URL(request.url);
+  const isApi = url.pathname.startsWith('/api/');
+  try {
+    if (isApi) return await api(request, env, url);
+    if (url.pathname === '/mcp') return await mcp(request, env, url);
+    if (url.pathname === '/config.js') return configScript(env);
+    const m = url.pathname.match(/^\/s\/([^/]+)\/?$/);
+    if (m && (request.method === 'GET' || request.method === 'HEAD')) return await setPage(env, url, m[1]);
+    // 投稿の画面も同じ 1 枚の画面 (public/index.html) で、中身を切り替えて出す
+    if (/^\/post\/?$/.test(url.pathname)) return env.ASSETS.fetch(new URL('/', url));
+    return env.ASSETS.fetch(request);
+  } catch (e) {
+    // 拡張機能からの投稿の失敗 (回数の制限など) も、拡張機能が読めるように CORS を付ける
+    if (e instanceof ApiError) return fail(e.message, e.status, corsFor(features(env).extShare ? extOrigin(request, env) : ''));
+    console.error(e);
+    return isApi || url.pathname === '/mcp' ? fail('server', 500) : new Response('Server error', { status: 500 });
+  }
+}
+
 export default {
-  async fetch(request, env) {
-    const url = new URL(request.url);
-    const isApi = url.pathname.startsWith('/api/');
-    try {
-      if (isApi) return await api(request, env, url);
-      if (url.pathname === '/mcp') return await mcp(request, env, url);
-      if (url.pathname === '/config.js') return configScript(env);
-      const m = url.pathname.match(/^\/s\/([^/]+)\/?$/);
-      if (m && (request.method === 'GET' || request.method === 'HEAD')) return await setPage(env, url, m[1]);
-      // 投稿の画面も同じ 1 枚の画面 (public/index.html) で、中身を切り替えて出す
-      if (/^\/post\/?$/.test(url.pathname)) return env.ASSETS.fetch(new URL('/', url));
-      return env.ASSETS.fetch(request);
-    } catch (e) {
-      // 拡張機能からの投稿の失敗 (回数の制限など) も、拡張機能が読めるように CORS を付ける
-      if (e instanceof ApiError) return fail(e.message, e.status, corsFor(features(env).extShare ? extOrigin(request, env) : ''));
-      console.error(e);
-      return isApi || url.pathname === '/mcp' ? fail('server', 500) : new Response('Server error', { status: 500 });
-    }
+  async fetch(request, env, ctx) {
+    // MCP と OAuth の口は OAuthProvider に任せる (トークンを確かめてから /mcp を通し、ほかは appFetch に戻す)
+    if (oauthReady(env) && isOAuthPath(new URL(request.url).pathname)) return oauthProvider(env, appFetch).fetch(request, env, ctx);
+    return appFetch(request, env);
   },
 
   /** Cron (wrangler.jsonc の triggers): 消えた動画の見直し */

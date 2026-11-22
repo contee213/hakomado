@@ -101,9 +101,28 @@ Origin は Turnstile を通らない呼び出しでも名乗れるので、こ�
 
 ## MCP
 
-`/mcp` が MCP のサーバー (Streamable HTTP。状態を持たない形で、JSON で返す)。`API_TOKEN` を設定するまでは閉じている (404)。
+`/mcp` が MCP のサーバー (Streamable HTTP。状態を持たない形で、JSON で返す)。
 道具は `list_sets`・`get_set`・`list_layouts`・`list_tags`・`post_set`・`delete_set` で、中身は上の API と同じ。
 機能フラグがオフの道具 (`list_tags`) と引数 (`tag`・`q`・`tags`・`unlisted`) は `tools/list` に出さない。
+
+つなぎ方は 2 つ。どちらも持ち主だけが使える:
+
+| | 使うもの | 認証 |
+|---|---|---|
+| OAuth (`src/oauth.mjs`) | claude.ai のコネクタ、クラウドの定期タスク (claude.ai のコネクタを使う) | OAuth 2.1 (クライアントの自動登録・PKCE)。許可の画面 `/authorize` は Cloudflare Access の後ろにあり、Access の証明書のメールが `OWNER_EMAIL` の人にだけ出る |
+| トークン | Claude Code・スクリプト | `Authorization: Bearer <API_TOKEN>` |
+
+OAuth は `@cloudflare/workers-oauth-provider` が受け持つ (メタデータ `/.well-known/oauth-*`、登録 `/oauth/register`、トークン `/oauth/token`)。
+クライアント・許可・トークン (ハッシュ) は KV `OAUTH_KV` に入る。設定:
+
+- vars: `PUBLIC_ORIGIN` (OAuth の resource = `<PUBLIC_ORIGIN>/mcp`。コネクタにはこの URL を入れる)・`ACCESS_TEAM_DOMAIN`・`ACCESS_AUD` (`/authorize` を守る Access のアプリの AUD)
+- シークレット: `OWNER_EMAIL` (許可できる人のメールアドレス。Access でログインするもの)
+- Access: 本番は `hakomado.contee.net/authorize` だけを守るアプリ (ポリシーは自分)。ステージングは Worker 全体を守っているので、
+  claude.ai のサーバー (Anthropic の送信元 IP `160.79.104.0/21`・`153.61.208.0/20`) を通す Bypass のポリシーを足してある
+  (そこから来ても `/mcp` は OAuth のトークン、`/authorize` は Access の証明書が無いと使えない)
+
+claude.ai からつなぐ: 設定 → コネクタ → カスタムコネクタを追加 で、URL に `https://hakomado.contee.net/mcp` (ステージングは
+`https://hakomado-feed-staging.contee213.workers.dev/mcp`) を入れて接続する。Access のログイン → 許可の画面 →「許可する」で戻る。
 
 Claude Code から使うとき (`.mcp.json` か `claude mcp add`):
 
@@ -119,8 +138,7 @@ Claude Code から使うとき (`.mcp.json` か `claude mcp add`):
 }
 ```
 
-認証はトークン (Bearer) だけ。claude.ai のコネクタ (カスタムコネクタ) やクラウドで動く定期タスクのように、
-OAuth で接続するものからはまだつなげない (つなぐなら OAuth の口を足す)。
+ステージングは Access の後ろなので、`CF-Access-Client-Id`・`CF-Access-Client-Secret` (Access のサービストークン) も付ける。
 
 ## ローカルで動かす
 
@@ -132,6 +150,10 @@ npm run dev            # http://localhost:8787
 ```
 
 API・MCP をトークン付きで試すときは、`web/.dev.vars` (git には入れない) に `API_TOKEN=<適当な長い文字列>` を書いてから `npm run dev`。
+
+MCP の OAuth を手元で試すときは、`.dev.vars` に `PUBLIC_ORIGIN=http://localhost:8787` と `ACCESS_TEAM_DOMAIN=` (空。localhost のときだけ
+Access なしで許可の画面を出す) を足す。`wrangler.jsonc` の `routes` (本番のドメイン) があると `wrangler dev` の URL が本番のものになり
+OAuth の resource と合わないので、`routes` を消した設定のコピーを `-c` で渡して起動する。
 
 Cron (消えた動画の見直し) を試すときは `npx wrangler dev --test-scheduled` で起動し、`http://localhost:8787/cdn-cgi/handler/scheduled` を開く。
 
@@ -219,6 +241,6 @@ GitHub から自動で出すときは、Workers Builds で「ルートディレ�
 
 ## まだ無いもの
 
-- X アカウントでのログイン、MCP の OAuth (claude.ai のコネクタ・クラウドの定期タスクからつなぐのに要る)
+- X アカウントでのログイン (MCP の OAuth の許可の画面のログインも、作るならここに差し替えられる)
 - 拡張機能で作った短縮リンクを消す手段 (拡張機能は削除用の合言葉を持っていない)
 - セットのページの OGP (タイトル・説明) の英語
