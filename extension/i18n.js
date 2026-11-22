@@ -152,6 +152,10 @@ const MESSAGES = {
   shareImageTitle: ['視聴セット', 'viewing set'],
   shareImageCount: ['{0} 本 · {1}', '{0} streams · {1}'],
   shareImageBy: ['作: {0}', 'by {0}'],
+  shareXAttaching: ['X の投稿画面に画像を入れています…', 'Adding the image to the X post screen…'],
+  shareXAttached: ['X の投稿画面に画像を入れました。内容を確かめて投稿してください', 'Added the image to the X post screen. Check it and post'],
+  shareXPaste: ['画像をコピーしました。X の投稿画面で Ctrl+V で貼り付けてください', 'Copied the image. Paste it into the X post screen with Ctrl+V'],
+  shareXNoImage: ['X の投稿画面を開きました。画像は「画像を保存」してから添付してください', 'Opened the X post screen. Save the image and attach it there'],
   shareNothing: ['YouTube の URL が見つかりませんでした', 'No YouTube URLs were found'],
   shareLoading: ['読み込んでいます ({0} / {1})', 'Loading ({0} / {1})'],
   shareBadLines: ['{0} 行は読み取れなかったので飛ばしました', 'Skipped {0} lines that could not be read'],
@@ -778,6 +782,8 @@ const HTML_EN = {
   'share.tabCode': '# Code',
   'share.tabText': '📝 Text',
   'share.tabLink': '🌐 Link',
+  'share.toX': '𝕏 Post',
+  'share.toXTitle': 'Open the X post screen with the image, the name and the link filled in (you press Post yourself)',
   'share.imgCopy': '🖼 Copy image',
   'share.imgSave': '⬇ Save image',
   'share.authorLabel': 'Author',
@@ -877,7 +883,7 @@ const HTML_EN = {
 </ul>`,
   'helpPage.share': `<p>“🔗 Share” turns the current tiles or a playlist into one of four forms.</p>
 <ul>
-<li><b>Image</b>: attach it to a post on X or elsewhere. The QR holds the code. You can also copy ALT text for the image</li>
+<li><b>Image</b>: attach it to a post on X or elsewhere. Scanning the QR opens it on YouTube, and Hakomado opens the same arrangement. You can also copy ALT text for the image. “𝕏 Post” opens the X post screen with the image, the name and the link filled in (you press Post yourself; the first time, it asks for access to x.com)</li>
 <li><b>Code</b>: one line, <code>#Hakomado …</code> (up to 16). Shows its length on X</li>
 <li><b>Text</b>: one per line, with the name, sync, layout, offsets and tile names. You can hand it to an AI chat to edit</li>
 <li><b>Import link</b>: people without Hakomado can watch it as a YouTube playlist (up to 50)</li>
