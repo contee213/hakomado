@@ -2785,7 +2785,7 @@ function errReportText(list, fit) {
     tr('errBodyWhat'),
     '',
     tr('errBodyEnv'),
-    `- Hakomado: ${m.version_name || m.version}${m.update_url ? ' (store)' : ''}`,
+    `- Hakomado: ${appVersionText()}${m.update_url ? ' (store)' : ''}`,
     `- Browser: ${browser}`,
     `- OS: ${navigator.userAgentData?.platform || navigator.platform || '?'}`,
     `- Language: ${LANG}`,
@@ -4311,12 +4311,18 @@ function flashDanmakuArea() {
 }
 
 /**
- * 使い方・設定の画面の下にバージョンを出す。
- * version = リリースバージョン、version_name = コミット時にフックが書き込むビルド番号付きの表示 (無ければ version だけ)
+ * 版の表示 (例: "0.2.0 · build 120 (2026-11-22)")。
+ * version = manifest.json のリリースバージョン、build = コミット時にフックが build.js に書き込むビルド番号と日付 (無ければ version だけ)
  */
+function appVersionText() {
+  const { version } = chrome.runtime.getManifest();
+  const b = typeof BUILD === 'object' && BUILD ? BUILD : null;
+  return b?.n ? `${version} · build ${b.n}${b.date ? ` (${b.date})` : ''}` : version;
+}
+
+/** 使い方・設定の画面の下にバージョンを出す */
 function showAppVersion() {
-  const m = chrome.runtime.getManifest();
-  const text = `Hakomado ${m.version_name || m.version}`;
+  const text = `Hakomado ${appVersionText()}`;
   for (const el of document.querySelectorAll('.app-version')) el.textContent = text;
   showUpdateLink();
 }
