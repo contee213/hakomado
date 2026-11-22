@@ -76,7 +76,7 @@ async function fetchVideos(ids) {
 async function oembed(id) {
   try {
     const url = `https://www.youtube.com/oembed?format=json&url=${encodeURIComponent(`https://www.youtube.com/watch?v=${id}`)}`;
-    const r = await fetch(url, { headers: { 'user-agent': 'HakomadoSets/1.0' } });
+    const r = await fetch(url, { headers: { 'user-agent': 'HakomadoFeed/1.0' } });
     if (r.status === 404 || r.status === 400) return null;
     if (r.status === 401 || r.status === 403) return { title: '', channel: '' }; // 埋め込みの禁止など。あるものとする
     if (!r.ok) return false;

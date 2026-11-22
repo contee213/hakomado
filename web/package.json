@@ -1,13 +1,13 @@
 {
-  "name": "hakomado-sets",
+  "name": "hakomado-feed",
   "private": true,
-  "description": "Hakomado セット集 (共有された視聴セットを集める Web アプリ。Cloudflare Workers + D1)",
+  "description": "Hakomado Feed (共有された視聴セットを集める Web アプリ。Cloudflare Workers + D1)",
   "license": "MIT",
   "scripts": {
     "build": "node tools/build.js",
     "dev": "wrangler dev",
-    "db:migrate:local": "wrangler d1 migrations apply hakomado-sets --local",
-    "db:migrate:remote": "wrangler d1 migrations apply hakomado-sets --remote",
+    "db:migrate:local": "wrangler d1 migrations apply hakomado-feed --local",
+    "db:migrate:remote": "wrangler d1 migrations apply hakomado-feed --remote",
     "deploy": "wrangler deploy"
   },
   "devDependencies": {

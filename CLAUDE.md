@@ -2,7 +2,7 @@
 
 拡張機能の本体は `extension/` (Manifest V3)。
 
-`web/` は共有されたセットを集める Web アプリ「Hakomado セット集」(Cloudflare Workers + D1)。拡張機能の `share-code.js`・`layouts.js` をビルドのときに読み込んで使う (詳しくは `web/README.md`)。コードやリンクの形を変えたら `web/` でも読めるかを確かめる。
+`web/` は共有されたセットを集める Web アプリ「Hakomado Feed」(画面の名前は「Hakomado」)(Cloudflare Workers + D1)。拡張機能の `share-code.js`・`layouts.js` をビルドのときに読み込んで使う (詳しくは `web/README.md`)。コードやリンクの形を変えたら `web/` でも読めるかを確かめる。
 web/ の機能 (公開範囲・拡張機能の短縮リンク・タグ・検索・消えた動画の見直し・英語の画面) は `web/wrangler.jsonc` の `FEATURES` でオンオフする。拡張機能の短縮リンクは `extension/sets-link.js` の `ENABLED` (今はオフ)。オンにするときは `CHROMEWEBSTORE.md` の「短縮リンク」の手順に従う。
 
 ## Chrome Web Store 情報

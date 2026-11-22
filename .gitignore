@@ -18,7 +18,7 @@ node_modules/
 test-results/
 playwright-report/
 
-# web/ (Hakomado セット集) の生成物とローカルの開発用データ
+# web/ (Hakomado Feed) の生成物とローカルの開発用データ
 web/src/gen/
 web/public/js/ext/
 web/.wrangler/

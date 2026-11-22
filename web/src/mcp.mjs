@@ -6,9 +6,9 @@ import { layoutList, MAX_VIDEOS, TAGS_MAX, TAG_LEN } from './core.mjs';
 import { features } from './features.mjs';
 
 const VERSIONS = ['2025-11-25', '2025-06-18', '2025-03-26', '2024-11-05'];
-const SERVER = { name: 'hakomado-sets', title: 'Hakomado セット集', version: '0.1.0' };
+const SERVER = { name: 'hakomado-feed', title: 'Hakomado', version: '0.1.0' };
 const INSTRUCTIONS =
-  'Hakomado セット集: YouTube の配信・動画を同時視聴する Chrome 拡張機能 Hakomado の「視聴セット」(最大 16 本の動画とレイアウト) を集めたサイト。' +
+  'Hakomado (Hakomado Feed): YouTube の配信・動画を同時視聴する Chrome 拡張機能 Hakomado の「視聴セット」(最大 16 本の動画とレイアウト) を集めたサイト。' +
   '投稿する前に list_sets で似たセットが無いか確かめ、レイアウトに迷ったら list_layouts を見る (layoutId を省くと本数に合う均等のレイアウトになる)。';
 
 const ERROR_TEXT = {

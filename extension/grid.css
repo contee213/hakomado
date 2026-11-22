@@ -1332,7 +1332,7 @@ dialog.share-dialog { width: min(600px, calc(100% - 32px)); }
   font: 12px/1.5 ui-monospace, Consolas, monospace;
 }
 .share-buttons { display: flex; align-items: center; gap: 10px; }
-/* Hakomado セット集の短縮リンク (sets-link.js の機能フラグがオンのときだけ出る) */
+/* Hakomado Feed (web/) の短縮リンク (sets-link.js の機能フラグがオンのときだけ出る) */
 .share-short { display: flex; flex-direction: column; gap: 6px; }
 .share-panel[data-spanel="image"] .share-short { flex-direction: row; align-items: center; gap: 10px; }
 .share-short[hidden], .share-short-url[hidden], #shareShortCopy[hidden] { display: none; }

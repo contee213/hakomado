@@ -1,8 +1,8 @@
-// Hakomado セット集の Worker:
+// Hakomado Feed の Worker:
 // - /api/*: REST の API (D1 に投稿したセットを置く)。Authorization: Bearer <API_TOKEN> を付けると、
 //   Turnstile と回数の制限なしで投稿でき (定期的なタスクなど)、合言葉なしで削除できる
 // - /mcp: MCP の口 (mcp.mjs)。API_TOKEN が要る
-// - /s/:id: セットのページ (OGP を入れて返す)
+// - /s/:id: セットの画面 (1 枚の画面 public/index.html に OGP を入れて返す)。/post も同じ画面を返す
 // - /config.js: 画面に渡す設定 (機能フラグ・Turnstile のサイトキー)
 // - Cron (scheduled): 消えた動画の見直し (機能フラグ videoCheck)
 // 機能フラグは features.mjs (wrangler.jsonc の vars.FEATURES)
@@ -56,7 +56,7 @@ async function auth(request, env) {
 const unauthorized = (body) =>
   new Response(JSON.stringify(body), {
     status: 401,
-    headers: { 'content-type': 'application/json; charset=utf-8', 'www-authenticate': 'Bearer realm="hakomado-sets"', 'cache-control': 'no-store' },
+    headers: { 'content-type': 'application/json; charset=utf-8', 'www-authenticate': 'Bearer realm="hakomado-feed"', 'cache-control': 'no-store' },
   });
 
 /** POST の本文 (JSON) を読む。ほかのサイトのフォームから送られないよう JSON だけ受け付ける (送るには事前確認が要り、それには答えない) */
@@ -172,17 +172,17 @@ async function mcp(request, env, url) {
   return handleMcp(request, env);
 }
 
-/** /s/:id: セットのページ (public/set.html) に、そのセットのタイトルと OGP を入れて返す。限定公開なら検索エンジンに載せない */
+/** /s/:id: 画面 (public/index.html。中身の切り替えは画面の側) に、そのセットのタイトルと OGP を入れて返す。限定公開なら検索エンジンに載せない */
 async function setPage(env, url, id) {
   const set = await getSet(env, id);
   if (!set) {
     const nf = await env.ASSETS.fetch(new URL('/404', url));
     return new Response(nf.body, { status: 404, headers: nf.headers });
   }
-  const title = `${set.name || set.videos[0]?.title || 'Hakomado のセット'} | Hakomado セット集`;
+  const title = `${set.name || set.videos[0]?.title || 'Hakomado のセット'} | Hakomado`;
   const desc = `${set.ids.length} 本 · ${set.layoutName}${set.author ? ` · ${set.author}` : ''}`;
   const image = `https://i.ytimg.com/vi/${set.ids[0]}/hqdefault.jpg`;
-  const page = await env.ASSETS.fetch(new URL('/set', url));
+  const page = await env.ASSETS.fetch(new URL('/', url));
   return new HTMLRewriter()
     .on('title', { element: (el) => el.setInnerContent(title) })
     .on('meta[property="og:title"]', { element: (el) => el.setAttribute('content', title) })
@@ -209,6 +209,8 @@ export default {
       if (url.pathname === '/config.js') return configScript(env);
       const m = url.pathname.match(/^\/s\/([^/]+)\/?$/);
       if (m && (request.method === 'GET' || request.method === 'HEAD')) return await setPage(env, url, m[1]);
+      // 投稿の画面も同じ 1 枚の画面 (public/index.html) で、中身を切り替えて出す
+      if (/^\/post\/?$/.test(url.pathname)) return env.ASSETS.fetch(new URL('/', url));
       return env.ASSETS.fetch(request);
     } catch (e) {
       // 拡張機能からの投稿の失敗 (回数の制限など) も、拡張機能が読めるように CORS を付ける

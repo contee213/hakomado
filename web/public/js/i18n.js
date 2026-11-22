@@ -9,7 +9,7 @@
 
 const CONFIG = window.SETS_CONFIG || { features: {}, turnstileSiteKey: '' };
 const FEAT = CONFIG.features || {};
-const LANG_KEY = 'hakomado-sets:lang';
+const LANG_KEY = 'hakomado-feed:lang';
 
 const LANG = (() => {
   if (!FEAT.en) return 'ja';
@@ -34,8 +34,7 @@ function setLang(v) {
 // [日本語, 英語]
 const STR = {
   // どの画面にもあるもの
-  brandSub: ['セット集', 'Sets'],
-  navPost: ['＋ 投稿', '＋ Post'],
+  navPostLabel: ['投稿', 'Post'],
   footExt: ['Hakomado (Chrome 拡張機能)', 'Hakomado (Chrome extension)'],
   footNote: [' · 個人が作った非公式のツールです', ' · An unofficial tool made by an individual'],
   langToggle: ['English', '日本語'],
@@ -44,10 +43,9 @@ const STR = {
   loading: ['読み込み中…', 'Loading…'],
   copyFail: ['コピーできませんでした', 'Could not copy'],
   goneBadge: ['⚠ 消えた動画 {0} 本', '⚠ {0} unavailable'],
-  unlistedBadge: ['🔒 リンクを知っている人だけ', '🔒 Unlisted'],
 
   // 一覧
-  titleIndex: ['Hakomado セット集', 'Hakomado Sets'],
+  titleIndex: ['Hakomado', 'Hakomado'],
   leadIndex: [
     'Hakomado で共有された視聴セットの一覧です。セットを開いて「Hakomado で開く」を押すと、同じ並びで同時視聴できます。',
     'Viewing sets shared from Hakomado. Open a set and press "Open in Hakomado" to watch them side by side in the same layout.',
@@ -57,17 +55,16 @@ const STR = {
   sortPopular: ['人気', 'Popular'],
   searchPlaceholder: ['名前・チャンネル・タグで探す', 'Search by name, channel or tag'],
   searchLabel: ['探す', 'Search'],
-  searchBtn: ['検索', 'Search'],
   tagsLabel: ['タグ', 'Tags'],
-  filterTag: ['タグ「{0}」', 'Tag "{0}"'],
-  filterQuery: ['「{0}」の検索結果', 'Results for "{0}"'],
-  filterClear: ['✕ 解除', '✕ Clear'],
+  tagsAll: ['すべてのタグ', 'All tags'],
+  backToList: ['一覧に戻る (絞り込みはそのまま)', 'Back to the list (keeps your filters)'],
+  filterClear: ['絞り込みを解除', 'Clear filters'],
   more: ['もっと見る', 'Load more'],
   empty: ['まだ投稿がありません。共有したセットを投稿してみてください', 'No sets yet. Try posting one you shared.'],
   noResults: ['見つかりませんでした', 'No matching sets'],
 
   // セットのページ
-  titleSet: ['Hakomado セット集', 'Hakomado Sets'],
+  titleSet: ['Hakomado', 'Hakomado'],
   openBtn: ['▶ Hakomado で開く', '▶ Open in Hakomado'],
   copyCode: ['コードをコピー', 'Copy code'],
   copyPage: ['ページの URL をコピー', 'Copy page URL'],
@@ -100,7 +97,7 @@ const STR = {
   existedToast: ['同じセットがもう投稿されていたので、そちらを開きました', 'The same set was already posted, so it was opened instead'],
 
   // 投稿
-  titlePost: ['投稿 | Hakomado セット集', 'Post | Hakomado Sets'],
+  titlePost: ['投稿 | Hakomado', 'Post | Hakomado'],
   postH: ['セットを投稿', 'Post a set'],
   leadPost: [
     'Hakomado の「🔗 共有」で作ったコード (#Hakomado …) かリンクを貼るか、共有画像を選んでください。',
@@ -130,7 +127,7 @@ const STR = {
   sending: ['送っています…', 'Sending…'],
 
   // 見つかりません
-  title404: ['見つかりません | Hakomado セット集', 'Not found | Hakomado Sets'],
+  title404: ['見つかりません | Hakomado', 'Not found | Hakomado'],
   h404: ['見つかりません', 'Not found'],
   lead404: ['ページが見つかりません。セットは削除されたか、非公開になっているかもしれません。', 'Page not found. The set may have been deleted or hidden.'],
   toList: ['一覧へ', 'Back to the list'],
@@ -168,6 +165,7 @@ function applyI18n() {
   for (const el of document.querySelectorAll('[data-i18n]')) el.textContent = t(el.dataset.i18n);
   for (const el of document.querySelectorAll('[data-i18n-placeholder]')) el.placeholder = t(el.dataset.i18nPlaceholder);
   for (const el of document.querySelectorAll('[data-i18n-aria-label]')) el.setAttribute('aria-label', t(el.dataset.i18nAriaLabel));
+  for (const el of document.querySelectorAll('[data-i18n-title]')) el.title = t(el.dataset.i18nTitle);
 }
 
 applyI18n();

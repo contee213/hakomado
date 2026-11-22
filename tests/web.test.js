@@ -1,4 +1,4 @@
-// Hakomado セット集 (web/) の、D1 や fetch に触らない部分 (web/src/core.mjs)
+// Hakomado Feed (web/) の、D1 や fetch に触らない部分 (web/src/core.mjs)
 'use strict';
 
 const { test, before } = require('node:test');

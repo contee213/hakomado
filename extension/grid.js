@@ -2900,7 +2900,7 @@ const IMPORT_LINK_MAX = 50;
  * @returns {Promise<ShareSet & {bad: number, tooMany: boolean}>}
  */
 async function parseIncoming(text, onProgress) {
-  // Hakomado セット集の短縮リンク (sets-link.js。機能フラグがオフなら読まない) は、セット集からコードを取ってきて読む
+  // Hakomado Feed の短縮リンク (sets-link.js。機能フラグがオフなら読まない) は、Feed からコードを取ってきて読む
   if (SetsLink.isLink(text) && !parseShareCode(text) && !parseShareLink(text)) {
     onProgress?.(0, 0, 'short');
     try {
@@ -3213,7 +3213,7 @@ async function renderShareImage(set, { labels = false, author = '', qrText = '' 
   const filled = syncItems(set);
   const title = shareName(set.name) || `${SHARE_TAG} ${tr('shareImageTitle')}`;
   // QR にはコードと同じ中身のリンクを入れる (スマホのカメラで読むと YouTube で開ける)。
-  // qrText (Hakomado セット集の短縮リンク) を渡したときはそれを入れる (読むとセット集のページが開く)
+  // qrText (Hakomado Feed の短縮リンク) を渡したときはそれを入れる (読むと Feed のページが開く)
   const code = qrText || shareSetCode(set, (...a) => formatShareLink(...a, title));
   const canvas = document.createElement('canvas');
   canvas.width = SHARE_W;
@@ -3423,7 +3423,7 @@ function setupShare() {
   let renderSeq = 0;
   let refreshSeq = 0;
   let nameTimer = 0;
-  // Hakomado セット集の短縮リンク (sets-link.js の機能フラグがオンのときだけ)。作ったときのコードと同じ間だけ使う
+  // Hakomado Feed の短縮リンク (sets-link.js の機能フラグがオンのときだけ)。作ったときのコードと同じ間だけ使う
   // (名前や中身を変えたら作り直してもらう。押したときだけ送る)
   let short = null; // { code, url }
   const shortEl = document.getElementById('shareShort');

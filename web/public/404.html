@@ -3,13 +3,15 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title data-i18n="title404">見つかりません | Hakomado セット集</title>
+  <title data-i18n="title404">見つかりません | Hakomado</title>
   <link rel="icon" href="/js/ext/icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/css/app.css">
 </head>
 <body>
+  <!-- 上部バー: ロゴと投稿のあいだ (検索・並び順・タグ) は js/bar.js が入れる。どの画面でも同じ -->
   <header class="top">
-    <a class="brand" href="/"><img src="/js/ext/icon.svg" alt="" width="28" height="28">Hakomado <span data-i18n="brandSub">セット集</span></a>
+    <a class="brand" href="/"><img class="brand-logo" src="/js/ext/icon.svg" alt="" width="22" height="22"><span class="brand-name">Hakomado</span></a>
+    <a class="btn primary" href="/post" data-i18n-aria-label="navPostLabel" aria-label="投稿">＋<span class="tb-label" data-i18n="navPostLabel">投稿</span></a>
   </header>
   <main class="wrap narrow">
     <h1 data-i18n="h404">見つかりません</h1>
@@ -18,5 +20,7 @@
   </main>
   <script src="/config.js"></script>
   <script src="/js/i18n.js"></script>
+  <script src="/js/common.js"></script>
+  <script src="/js/bar.js"></script>
 </body>
 </html>

@@ -93,7 +93,7 @@ function timeAgo(ms) {
 }
 
 // 投稿したセットの削除用の合言葉 (この端末のブラウザにだけ置く)
-const KEYS = 'hakomado-sets:keys';
+const KEYS = 'hakomado-feed:keys';
 function savedKeys() {
   try {
     const v = JSON.parse(localStorage.getItem(KEYS) || '{}');

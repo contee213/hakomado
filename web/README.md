@@ -1,4 +1,6 @@
-# Hakomado セット集 (web/)
+# Hakomado Feed (web/)
+
+画面に出す名前は「Hakomado」(拡張機能と同じ)。内部 (Worker・D1・MCP・ドキュメント) では Hakomado Feed (`hakomado-feed`) と呼ぶ。
 
 Hakomado で共有された視聴セット (コード `#Hakomado …` / 取り込み用リンク) を集めて一覧にする Web アプリ。
 Cloudflare Workers (静的アセット付き) と D1 で動く。拡張機能 (`extension/`) とは別に配信する
@@ -16,7 +18,7 @@ Cloudflare Workers (静的アセット付き) と D1 で動く。拡張機能 (`
 - **公開範囲** (`unlisted`): 「リンクを知っている人だけ」で投稿できる。一覧・検索に出ず、ページは検索エンジンに載せない (`noindex`)
 - **拡張機能の短縮リンク** (`extShare`): 拡張機能の共有画面から送られたセットを限定公開で入れ、`/s/:id` の短いリンクを返す。
   拡張機能が短縮リンクを読むときの 1 件の読み出しも受け付ける
-- **タグ** (`tags`): 投稿に 5 個まで付け、一覧をタグで絞り込む (`/?tag=…`)。よく使われているタグを一覧の上に出す
+- **タグ** (`tags`): 投稿に 5 個まで付け、一覧をタグで絞り込む (`/?tag=…`)。よく使われているタグを上部バーの選択肢に出す
 - **検索** (`search`): 名前・投稿者・タグ・動画のタイトル・チャンネル名から探す (`/?q=…`。空白で区切ると全部を含むもの)
 - **消えた動画の見直し** (`videoCheck`): Cron で 1 時間ごとに、7 日以上見直していないセットの動画を oEmbed で確かめ直す。
   見つからない動画に印を付け、ページとカードに「消えた動画 n 本」と出す。全部消えたセットは一覧に出さない
@@ -31,10 +33,15 @@ Hakomado を入れていればマルチビュー画面で開き、入れてい�
   `src/gen/ext.mjs` (Worker 用に export を付けたもの) と `public/js/ext/` (画面用のコピー) に置く。どちらも生成物で git には入れない。
   `wrangler dev` / `wrangler deploy` のたびに自動で動く (`wrangler.jsonc` の `build`)
 - コードの読み書きは拡張機能と同じ関数を使うので、コードの形を変えたらこちらにもそのまま反映される
-- `src/worker.mjs`: `/api/*`・`/mcp`・`/s/:id`・`/config.js` だけ Worker を通す (認証・CORS もここ)。ほかは `public/` の静的アセット。
+- `src/worker.mjs`: `/api/*`・`/mcp`・`/s/:id`・`/post`・`/config.js` だけ Worker を通す (認証・CORS もここ)。ほかは `public/` の静的アセット。
   Cron (`scheduled`) もここ
 - `src/features.mjs`: 機能フラグを読む。`/config.js` (`window.SETS_CONFIG`) で画面にも渡し、オフの機能の欄・ボタンは出さない
 - `public/js/i18n.js`: 画面の文言 (日本語・英語)。HTML は日本語で書き、`data-i18n` の付いた要素を英語に差し替える
+- `public/index.html`: 画面は 1 枚だけ。上部バーは固定の枠で、その下の中身 (一覧・セット・投稿) を `public/js/app.js` が入れ替える
+  (ページは読み込み直さない。一覧は隠して残すので、セットを見て戻っても読み込んだ所とスクロールの位置がそのまま)。
+  `/s/:id` と `/post` も Worker がこの画面を返し、`/s/:id` ではタイトルと OGP をそのセットのものにする
+- `public/js/list.js`・`set.js`・`post.js`: 一覧・セット・投稿の中身
+- `public/js/bar.js`: 上部バー (検索・並び順・タグ)。一覧の条件を持ち、変えると一覧に切り替わる。ほかの画面ではロゴで絞り込んだままの一覧に戻る
 - `src/sets.mjs`: セットの読み書き (D1)。REST の API と MCP (`src/mcp.mjs`) の両方から使う
 - `src/core.mjs`: D1・fetch に触らない部分 (テストは `tests/web.test.js`。ルートの `npm test` で動く)
 - 投稿のときに YouTube の oEmbed で動画があるかを確かめ、タイトル・チャンネル名を保存する
@@ -62,7 +69,8 @@ POST の本文は JSON だけ受け付ける (`content-type: application/json`)�
 
 **拡張機能から** (`extShare`): Origin が `chrome-extension://<ID>` の投稿は Turnstile なしで受け付け、`text` だけを使っていつも限定公開で入れる
 (回数の制限は掛ける)。CORS は拡張機能のページにだけ、`POST /api/sets` と `GET /api/sets/:id` で許す。
-`EXT_IDS` (カンマ区切り。`npx wrangler secret put` か vars) を設定すると、その ID の拡張機能だけにする。
+`EXT_IDS` (カンマ区切り。`wrangler.jsonc` の vars) に書いた ID の拡張機能だけにする (ストア版 `bhmbchggpdficakjfllkmfkpbdpddomp` と GitHub のリリースの ZIP 版 `lhafnnpnfpgogdbapeepkgohemnnifpp` を入れてある。空にすると、どの拡張機能からでも受け付ける)。
+開発用のフォルダから読み込んだ拡張機能 (ID が違う) で試すときは、`web/.dev.vars` に `EXT_IDS=` (空) を書いて上書きする。
 Origin は Turnstile を通らない呼び出しでも名乗れるので、ここから入るものは限定公開 (一覧に出ない) にだけして、荒らしが一覧に出ないようにしている。
 
 **トークン**: `Authorization: Bearer <API_TOKEN>` を付けると、定期的なタスクなどから投稿する用になる。
@@ -95,7 +103,7 @@ Claude Code から使うとき (`.mcp.json` か `claude mcp add`):
 ```json
 {
   "mcpServers": {
-    "hakomado-sets": {
+    "hakomado-feed": {
       "type": "http",
       "url": "https://<デプロイ先>/mcp",
       "headers": { "Authorization": "Bearer ${HAKOMADO_SETS_TOKEN}" }
@@ -142,7 +150,7 @@ Cron (消えた動画の見直し) を試すときは `npx wrangler dev --test-s
 ```sh
 cd web
 npx wrangler login
-npx wrangler d1 create hakomado-sets      # 出てきた database_id を wrangler.jsonc に書く
+npx wrangler d1 create hakomado-feed      # 出てきた database_id を wrangler.jsonc に書く
 npm run db:migrate:remote              # 0003_features.sql (公開範囲・タグ・検索・見直し) もここで入る
 npx wrangler secret put IP_SALT           # 接続元のハッシュに混ぜる値 (長いランダムな文字列)
 npx wrangler secret put API_TOKEN         # API・MCP のトークン (長いランダムな文字列。設定しなければ /mcp は閉じたまま)
