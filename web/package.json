@@ -8,7 +8,9 @@
     "dev": "wrangler dev",
     "db:migrate:local": "wrangler d1 migrations apply hakomado-feed --local",
     "db:migrate:remote": "wrangler d1 migrations apply hakomado-feed --remote",
-    "deploy": "wrangler deploy"
+    "db:migrate:staging": "wrangler d1 migrations apply hakomado-feed-staging --remote --env staging",
+    "deploy": "wrangler deploy",
+    "deploy:staging": "wrangler deploy --env staging"
   },
   "devDependencies": {
     "wrangler": "^4.166.0"

@@ -170,3 +170,37 @@ test('D1 の行: 公開範囲・タグ・消えた動画の数 (前の版の行�
   const s = core.rowToSet({ ...base, listed: 0, tags: '["x"]', dead: 1 });
   assert.deepEqual([s.listed, s.tags, s.dead], [false, ['x'], 1]);
 });
+
+/** wrangler.jsonc を読む (コメントを除く。文字列の中の // はそのまま) */
+function readWranglerConfig() {
+  const src = require('node:fs').readFileSync(path.join(WEB, 'wrangler.jsonc'), 'utf8');
+  let out = '';
+  for (let i = 0; i < src.length; i++) {
+    const c = src[i];
+    if (c === '"') {
+      const j = src.indexOf('"', i + 1); // 設定の文字列に \" は無い
+      out += src.slice(i, j + 1);
+      i = j;
+    } else if (c === '/' && src[i + 1] === '/') {
+      while (i < src.length && src[i] !== '\n') i++;
+      out += '\n';
+    } else out += c;
+  }
+  return JSON.parse(out.replace(/,(\s*[}\]])/g, '$1'));
+}
+
+test('wrangler.jsonc: ステージングは本番とずれず、本番の D1・ドメイン・名前を使わない', () => {
+  const prod = readWranglerConfig();
+  const stg = prod.env.staging;
+  assert.notEqual(stg.name, prod.name);
+  // routes は上から引き継ぐので、空にしていないと本番のドメインがステージングに付く
+  assert.deepEqual(stg.routes, []);
+  assert.equal(stg.d1_databases.length, prod.d1_databases.length);
+  assert.notEqual(stg.d1_databases[0].database_id, prod.d1_databases[0].database_id);
+  assert.notEqual(stg.d1_databases[0].database_name, prod.d1_databases[0].database_name);
+  assert.equal(stg.d1_databases[0].binding, prod.d1_databases[0].binding);
+  assert.equal(stg.d1_databases[0].migrations_dir, prod.d1_databases[0].migrations_dir);
+  // vars は引き継がないので、本番にある名前はステージングにも全部書く (機能フラグの中身は違ってもいい)
+  assert.deepEqual(Object.keys(stg.vars).sort(), Object.keys(prod.vars).sort());
+  assert.equal(stg.vars.EXT_IDS, prod.vars.EXT_IDS);
+});
