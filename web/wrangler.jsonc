@@ -47,5 +47,42 @@
   },
   // 消えた動画の見直し (1 時間ごとに、長く見直していないセットから動画 40 本分まで)
   "triggers": { "crons": ["23 * * * *"] },
-  "observability": { "enabled": true }
+  "observability": { "enabled": true },
+
+  // ステージング (本番の手前で、Cloudflare の上で確かめる所)。npm run deploy:staging で
+  // https://hakomado-feed-staging.contee213.workers.dev に出る。Cloudflare Access で自分だけが見られるようにする (README)。
+  // wrangler の環境は vars・d1_databases を上から引き継がないので全部書く。routes・triggers は引き継ぐので、
+  // 本番のドメインに付かないように routes を空にし、Cron は 1 日 1 回にする。
+  // 本番とずれていないかは tests/web.test.js の「wrangler.jsonc」で確かめる
+  "env": {
+    "staging": {
+      "name": "hakomado-feed-staging",
+      // contee.net の下に置かない (Web Analytics に数えられて本番の数に混ざるので)
+      "routes": [],
+      "workers_dev": true,
+      "preview_urls": false,
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "hakomado-feed-staging",
+          "database_id": "648fc116-701d-4f1b-a41f-d3fd17993448",
+          "migrations_dir": "migrations"
+        }
+      ],
+      "vars": {
+        "TURNSTILE_SITE_KEY": "",
+        "EXT_IDS": "bhmbchggpdficakjfllkmfkpbdpddomp,lhafnnpnfpgogdbapeepkgohemnnifpp",
+        // 本番と同じにしておく (新しい機能を先にここだけでオンにして試すのはいい)
+        "FEATURES": {
+          "unlisted": true,
+          "extShare": true,
+          "tags": true,
+          "search": true,
+          "videoCheck": true,
+          "en": true
+        }
+      },
+      "triggers": { "crons": ["23 3 * * *"] }
+    }
+  }
 }

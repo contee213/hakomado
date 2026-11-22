@@ -154,15 +154,36 @@ Cron (消えた動画の見直し) を試すときは `npx wrangler dev --test-s
 
 ## Cloudflare に出す
 
-本番は出してある (D1 の ID とドメインは `wrangler.jsonc` に書いてある)。直したものを出すときは、
-`web/` のあるフォルダ (リポジトリ全体。ビルドで `../extension` を読む) で次を動かす:
+環境は 3 つ:
+
+| 環境 | 場所 | D1 | 使いどころ |
+|---|---|---|---|
+| ローカル | `npm run dev` (http://localhost:8787) | 手元 (`.wrangler/`) | ふだんの開発 |
+| ステージング | https://hakomado-feed-staging.contee213.workers.dev (Cloudflare Access で自分だけ) | `hakomado-feed-staging` | 本番に出す前に、Cloudflare の上で確かめる |
+| 本番 | https://hakomado.contee.net | `hakomado-feed` | 公開 |
+
+`wrangler dev --remote` は使わない (本番の D1 につながる)。
+
+直したものを出すときは、`web/` のあるフォルダ (リポジトリ全体。ビルドで `../extension` を読む) で、ステージング → 本番の順に:
 
 ```sh
 cd web
 npm install
+npm run db:migrate:staging  # migrations/ に足したものがあるときだけ
+npm run deploy:staging      # ステージングで確かめてから ↓
 npm run db:migrate:remote   # migrations/ に足したものがあるときだけ
 npm run deploy
 ```
+
+ステージングは `wrangler.jsonc` の `env.staging`。wrangler の環境は `vars`・`d1_databases` を上から引き継がない
+(`routes`・`triggers` は引き継ぐ) ので、本番の設定を変えたらステージングの側も直す (`npm test` がずれを見つける)。
+ステージングの Cron は 1 日 1 回 (3:23 UTC)。シークレットは本番とは別 (`npx wrangler secret put <名前> --env staging`)。
+`API_TOKEN` を入れるまでは、ステージングの `/mcp` は閉じている。
+
+ステージングを自分だけが見られるようにする (Cloudflare Access。一度だけ):
+ダッシュボードの Workers & Pages → `hakomado-feed-staging` → Settings → Domains & Routes で、`workers.dev` の
+「Cloudflare Access」をオンにする。Access の画面でログインできる人 (自分のメールアドレス) を決める。
+Access を掛けると、ブラウザ以外 (curl・MCP・拡張機能の短縮リンク) は Access のサービストークンが無いと通らない。
 
 ドメイン (`hakomado.contee.net`) は `wrangler.jsonc` の `routes` (`custom_domain`)。`contee.net` は同じアカウントの
 Cloudflare のゾーンなので、DNS レコードと証明書はデプロイのときに自動で作られる (同じ名前のレコードを手で作らない)。
