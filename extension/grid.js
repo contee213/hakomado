@@ -68,7 +68,7 @@ function newTileState() {
   // fill = 自動再生で、ライブの代わりに最近の配信を入れた枠
   // (アーカイブの同期再生のずれは、枠ではなく動画ごとに記録する: SyncOffsets)
   // pan = 音の左右 (-1 = 左・0 = 真ん中・1 = 右)、gain = 音量 (1 = 元のまま、0〜2)。枠の中の Web Audio で変える (content/watch.js)
-  return { input: '', videoId: null, chat: false, danmaku: null, muted: true, auto: false, queue: false, fill: false, label: '', pan: 0, gain: 1 };
+  return { input: '', videoId: null, chat: false, danmaku: null, muted: true, auto: false, queue: false, fill: false, label: '', pan: 0, gain: 1, delay: 0 };
 }
 
 const gridEl = document.getElementById('grid');
@@ -121,6 +121,7 @@ function applySession(saved = {}) {
       if (picked.videoId != null && !(typeof picked.videoId === 'string' && ID_RE.test(picked.videoId))) picked.videoId = null;
       if ('pan' in picked) picked.pan = clampPan(picked.pan);
       if ('gain' in picked) picked.gain = clampGain(picked.gain);
+      if ('delay' in picked) picked.delay = clampDelay(picked.delay);
       // 以前の版は弾幕の初期値が「表示」だったので、そのときの true は自動 (メイン枠だけ) として扱う
       if (!saved.dmAuto && picked.danmaku === true) picked.danmaku = null;
       // あとで見るの再生中かどうかは保存しない (開き直したら、ふつうの枠として扱う)
@@ -633,7 +634,8 @@ function setTileVideo(i, videoId, input) {
   views[i].el.querySelector('.error').textContent = '';
   views[i].danmaku.clear();
   // 手で読み込んだ枠は自動再生でも消さない
-  Object.assign(state.tiles[i], { input, videoId, auto: false, queue: false, fill: false, label: '' });
+  // 音の遅延はその配信のずれに合わせた値なので、別の動画にしたら戻す
+  Object.assign(state.tiles[i], { input, videoId, auto: false, queue: false, fill: false, label: '', delay: 0 });
   // 新しく読み込んだ枠は、他に音の出ている枠が無ければ音を出す
   const anyAudible = state.tiles.some((t, j) => j !== i && isVisible(j) && t.videoId && !t.muted);
   state.tiles[i].muted = anyAudible;
@@ -1021,17 +1023,22 @@ function setToggle(btn, on) {
 function applyAudio(i) {
   const t = state.tiles[i];
   postToFrame(views[i].player, { hakomado: 'audio', muted: t.muted });
-  postToFrame(views[i].player, { hakomado: 'mix', pan: t.pan, gain: t.gain });
+  postToFrame(views[i].player, { hakomado: 'mix', pan: t.pan, gain: t.gain, delay: t.delay });
 }
 
-// ---- 音の左右 (パン) と音量 (枠のバーの 🎚)
+// ---- 音の左右 (パン)・音量・遅延 (枠のバーの 🎚)
+// 遅延はライブ配信の音ずれ用: 映像はそのまま、音だけ遅らせる (進んでいる配信の声を、ほかの配信に合わせる)。
+// 追っかけ再生を切った配信は YouTube が遅れを 1 秒ほどの幅に保つので、映像ごとは遅らせられない
 const clampPan = (v) => (Number.isFinite(v) ? Math.max(-1, Math.min(1, Math.round(v * 100) / 100)) : 0);
 const clampGain = (v) => (Number.isFinite(v) ? Math.max(0, Math.min(2, Math.round(v * 100) / 100)) : 1);
+const MAX_DELAY = 60; // 秒 (0.01 秒単位)。content/watch.js の MAX_DELAY と合わせる
+const clampDelay = (v) => (Number.isFinite(v) ? Math.max(0, Math.min(MAX_DELAY, Math.round(v * 100) / 100)) : 0);
 
-function setMix(i, { pan, gain } = {}) {
+function setMix(i, { pan, gain, delay } = {}) {
   const t = state.tiles[i];
   if (pan != null) t.pan = clampPan(pan);
   if (gain != null) t.gain = clampGain(gain);
+  if (delay != null) t.delay = clampDelay(delay);
   applyAudio(i);
   renderMix(i);
   save();
@@ -1043,11 +1050,16 @@ function renderMix(i) {
   const el = views[i].el;
   const btn = el.querySelector('.bar [data-act="mix"]');
   btn.textContent = '🎚' + (t.pan < 0 ? 'L' : t.pan > 0 ? 'R' : '');
-  btn.classList.toggle('on', t.pan !== 0 || t.gain !== 1);
+  btn.classList.toggle('on', t.pan !== 0 || t.gain !== 1 || t.delay !== 0);
   btn.disabled = !t.videoId;
   const panel = el.querySelector('.mix-panel');
   if (!t.videoId) panel.hidden = true;
   if (panel.hidden) return;
+  // 遅延の行はライブ配信のときだけ出す (アーカイブは ⏱ の同期で映像ごと合わせる)。0 以外なら戻せるように出したままにする
+  const showDelay = el.classList.contains('is-live') || t.delay !== 0;
+  for (const row of panel.querySelectorAll('.mix-delay-row')) row.hidden = !showDelay;
+  const input = panel.querySelector('.mix-delay');
+  if (document.activeElement !== input) input.value = t.delay.toFixed(2);
   for (const b of panel.querySelectorAll('[data-pan]')) b.classList.toggle('on', Number(b.dataset.pan) === t.pan);
   panel.querySelector('.mix-gain').value = String(Math.round(t.gain * 100));
   panel.querySelector('.mix-gain-value').textContent = `${Math.round(t.gain * 100)}%`;
@@ -1078,10 +1090,25 @@ function setupMixPanel(i, el) {
     if (!b) return;
     if (b.dataset.pan != null) setMix(i, { pan: Number(b.dataset.pan) });
     else if (b.dataset.mix === 'split') splitStereo();
-    else if (b.dataset.mix === 'reset') setMix(i, { pan: 0, gain: 1 });
+    else if (b.dataset.delay != null) setMix(i, { delay: state.tiles[i].delay + Number(b.dataset.delay) });
+    else if (b.dataset.mix === 'reset') setMix(i, { pan: 0, gain: 1, delay: 0 });
   });
   const range = panel.querySelector('.mix-gain');
   range.addEventListener('input', () => setMix(i, { gain: Number(range.value) / 100 }));
+  const input = panel.querySelector('.mix-delay');
+  const commit = () => {
+    const v = Number(input.value);
+    if (input.value.trim() !== '' && Number.isFinite(v)) setMix(i, { delay: v });
+    input.value = state.tiles[i].delay.toFixed(2);
+  };
+  input.addEventListener('change', commit);
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      commit();
+      input.blur();
+    }
+  });
 }
 
 /**
@@ -2340,6 +2367,7 @@ window.addEventListener('message', (e) => {
     if (data.ok === false) showToast(i, tr('mixBlocked'));
   } else if (data.hakomado === 'live') {
     views[i].el.classList.toggle('is-live', !!data.on);
+    renderMix(i);
     Sync.refresh();
     TileInfo.update();
   } else if (data.hakomado === 'replay') {

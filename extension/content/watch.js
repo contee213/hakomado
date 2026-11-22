@@ -158,9 +158,11 @@
   // 「ストレッチ」表示のときは映像を枠に合わせて拡大し、はみ出た端を切る
   document.documentElement.classList.toggle('hakomado-fill', params.get('hakomado_fill') === '1');
 
-  // ---- 枠ごとの音の左右 (パン) と音量。Web Audio で video → StereoPanner → Gain → 出力 とつなぐ
-  // - 経路は、初めて中央・等倍以外にしたときだけ作る (使っていない枠には何もしない)。
-  //   一度つなぐと元には戻せない (createMediaElementSource は 1 つの要素に 1 回だけ) ので、中央・等倍に戻したときは値だけ戻す
+  // ---- 枠ごとの音の遅延・左右 (パン)・音量。Web Audio で video → Delay → StereoPanner → Gain → 出力 とつなぐ
+  // - 遅延はライブ配信の音ずれ用 (映像はそのまま、音だけ遅らせる)。追っかけ再生を切った配信は、YouTube が
+  //   遅れを 1 秒ほどの幅に保とうとして映像ごとは遅らせられないため、音のほうを遅らせる
+  // - 経路は、初めて遅延 0・中央・等倍以外にしたときだけ作る (使っていない枠には何もしない)。
+  //   一度つなぐと元には戻せない (createMediaElementSource は 1 つの要素に 1 回だけ) ので、元に戻したときは値だけ戻す
   // - AudioContext が動いていない (自動再生の許可が無いなど) ときにつなぐと音が消えるので、動いているのを確かめてからつなぐ。
   //   つなげなかったら親に知らせる
   // - 消音・音量・再生速度はプレイヤー (video 要素) 側の操作のまま効く (経路は video の出力のあとにつなぐ)
@@ -169,8 +171,10 @@
     let ctx = null;
     let panner = null;
     let gainNode = null;
+    let delayNode = null;
     let connected = null; // 今つないでいる video
     let timer = 0;
+    const MAX_DELAY = 60; // 遅延の上限 (秒)。grid.js の clampDelay と合わせる
     const sources = new WeakMap(); // video → MediaElementAudioSourceNode
     const video = () => document.querySelector('#movie_player video');
     const report = (ok) => window.parent.postMessage({ hakomado: 'mix', ok }, PARENT_ORIGIN);
@@ -180,7 +184,8 @@
         ctx = new AudioContext();
         panner = new StereoPannerNode(ctx);
         gainNode = new GainNode(ctx);
-        panner.connect(gainNode).connect(ctx.destination);
+        delayNode = new DelayNode(ctx, { maxDelayTime: MAX_DELAY });
+        delayNode.connect(panner).connect(gainNode).connect(ctx.destination);
         // 途中で止められたら (タブを長く隠したなど) 動かし直す。動かなければ親に知らせる
         ctx.addEventListener('statechange', () => {
           if (ctx.state === 'suspended') ctx.resume().catch(() => {}).finally(() => ctx.state !== 'running' && report(false));
@@ -199,14 +204,15 @@
         sources.set(v, src);
       }
       if (connected) sources.get(connected)?.disconnect();
-      src.connect(panner);
+      src.connect(delayNode);
       connected = v;
     }
 
-    async function set(pan, gain) {
+    async function set(pan, gain, delay) {
       pan = Math.max(-1, Math.min(1, Number(pan) || 0));
       gain = Math.max(0, Math.min(2, Number.isFinite(Number(gain)) ? Number(gain) : 1));
-      if (!ctx && pan === 0 && gain === 1) return; // まだ使っていない枠は、そのまま
+      delay = Math.max(0, Math.min(MAX_DELAY, Number(delay) || 0));
+      if (!ctx && pan === 0 && gain === 1 && delay === 0) return; // まだ使っていない枠は、そのまま
       if (!(await running())) {
         report(false);
         return;
@@ -214,6 +220,8 @@
       connectVideo();
       panner.pan.setTargetAtTime(pan, ctx.currentTime, 0.02);
       gainNode.gain.setTargetAtTime(gain, ctx.currentTime, 0.02);
+      // 遅延は急に変えるとプツッと鳴るので、少しかけて変える (変えている間だけ音の高さが少し揺れる)
+      delayNode.delayTime.setTargetAtTime(delay, ctx.currentTime, 0.05);
       if (!timer) timer = setInterval(connectVideo, 2000);
       report(true);
     }
@@ -232,7 +240,7 @@
     if (e.data?.hakomado === 'audio') {
       setMuted(!!e.data.muted);
     } else if (e.data?.hakomado === 'mix') {
-      Mix.set(e.data.pan, e.data.gain);
+      Mix.set(e.data.pan, e.data.gain, e.data.delay);
     } else if (e.data?.hakomado === 'fill') {
       document.documentElement.classList.toggle('hakomado-fill', !!e.data.on);
     } else if (e.data?.hakomado === 'social' && ['subscribe', 'like'].includes(e.data.act)) {
