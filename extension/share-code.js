@@ -37,21 +37,50 @@ function videoIdFromUrl(raw) {
 const SHARE_TAG = 'Hakomado';
 const SHARE_NAME_MAX = 40; // 再生リストの名前と同じ
 // 「~…」はアーカイブの同期のずれ (動画の並び順に「,」区切りの秒。「*」の付いた動画が同期の基準)、
-// 続く「 "…"」は名前。以前の版はコードの直後で読むのをやめるので、ずれや名前が無視されるだけで読める
+// 続く「 "…"」は名前。以前の版はコードの直後で読むのをやめるので、ずれや名前が無視されるだけで読める。
+// 最後の「 ~!…」は「🎬 本編」モードの本編の位置 (動画の並び順に「,」区切りの秒。決めていない動画は空。「*」が基準)。
+// 名前より後ろに置くので、以前の版は本編の位置だけを無視して、並び・レイアウト・名前は読める
 const SHARE_CODE_RE =
-  /#?Hakomado\s+([a-z0-9-]{1,24})\.((?:[A-Za-z0-9_-]{11}){1,16})(?:~([-+*\d.,]{1,240}))?(?![A-Za-z0-9_-])(?: "([^"\r\n]{1,40})")?/i;
+  /#?Hakomado\s+([a-z0-9-]{1,24})\.((?:[A-Za-z0-9_-]{11}){1,16})(?:~([-+*\d.,]{1,240}))?(?![A-Za-z0-9_-])(?: "([^"\r\n]{1,40})")?(?: ~!([-*\d.,]{1,240}))?/i;
 
 /** コードや画像に入れる名前 (「"」と改行は入れない) */
 const shareName = (s) => String(s || '').replace(/["\r\n]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, SHARE_NAME_MAX);
 
 /**
  * 視聴セットのコードを作る。ids = 動画 (並び順)、offs = 動画ごとのずれ (秒)、refK = 同期の基準の番号、name = 名前。
- * ずれのある動画があるか、同期の基準が先頭以外のときだけ「~…」を付ける (先頭が基準なら印は省く)
+ * ずれのある動画があるか、同期の基準が先頭以外のときだけ「~…」を付ける (先頭が基準なら印は省く)。
+ * movie = 動画ごとの本編の位置 (秒。決めていなければ null) を渡すと「🎬 本編」モードのコードにする
+ * (ずれの「~…」の代わりに、名前の後ろに「 ~!…」を付ける。基準は refK)
  */
-function formatShareCode(layoutId, ids, offs = [], refK = 0, name = '') {
-  const tail = shareTail(ids, offs, refK);
+function formatShareCode(layoutId, ids, offs = [], refK = 0, name = '', movie = null) {
+  const tail = movie ? '' : shareTail(ids, offs, refK);
+  const mt = movie ? movieTail(ids, movie, refK) : '';
   const n = shareName(name);
-  return `#${SHARE_TAG} ${layoutId}.${ids.join('')}${tail ? `~${tail}` : ''}${n ? ` "${n}"` : ''}`;
+  return `#${SHARE_TAG} ${layoutId}.${ids.join('')}${tail ? `~${tail}` : ''}${n ? ` "${n}"` : ''}${mt ? ` ~!${mt}` : ''}`;
+}
+
+/** 本編の位置 (コードの「~!」の後ろ・リンクの hkm=)。決めていない動画は空。基準が先頭以外なら「*」。1 つも無ければ '' */
+function movieTail(ids, anchors = [], refK = 0) {
+  const a = ids.map((_, k) => (Number.isFinite(anchors[k]) ? Math.round(anchors[k] * 10) / 10 : null));
+  if (!a.some((v) => v != null)) return '';
+  return a.map((v, k) => (k === refK && k > 0 ? '*' : '') + (v == null ? '' : String(v))).join(',');
+}
+
+/** 本編の位置を読む (shareIds と同じく、同じ動画が 2 回あれば 1 回目だけ)。{anchors, ref} */
+function movieIds(list, text) {
+  const tail = text.split(',');
+  const seen = [];
+  const anchors = [];
+  let ref = 0;
+  list.forEach((id, k) => {
+    if (seen.includes(id)) return;
+    const t = tail[k] ?? '';
+    if (t.startsWith('*')) ref = seen.length;
+    seen.push(id);
+    const v = t.replace('*', '');
+    anchors.push(v !== '' && Number.isFinite(Number(v)) ? Number(v) : null);
+  });
+  return { anchors, ref };
 }
 
 /** 同期のずれ (コードの「~」の後ろ・リンクの hks=)。ずれのある動画があるか、基準が先頭以外のときだけ。無ければ '' */
@@ -71,14 +100,15 @@ function shareTail(ids, offs = [], refK = 0) {
  *   X は URL の途中の日本語でリンクを切るため。X は URL を長さに関係なく 23 文字に数えるので、長くなってもよい)
  * - hkl・hks・hakomado は YouTube には無視される。hakomado= は空でも付ける: 取り込みのルールの目印
  */
-function formatShareLink(layoutId, ids, offs = [], refK = 0, name = '', fallback = '', ascii = false) {
-  const tail = shareTail(ids, offs, refK);
+function formatShareLink(layoutId, ids, offs = [], refK = 0, name = '', fallback = '', ascii = false, movie = null) {
+  const tail = movie ? '' : shareTail(ids, offs, refK);
+  const mt = movie ? movieTail(ids, movie, refK) : '';
   const title = shareName(name) || fallback;
   const pct = (c) => `%${c.charCodeAt(0).toString(16).toUpperCase().padStart(2, '0')}`;
   const enc = ascii
     ? encodeURIComponent(title).replace(/[!'()*]/g, pct)
     : title.replace(/[\s%&#+'<>"]/g, pct);
-  return `https://www.youtube.com/watch_videos?video_ids=${ids.join(',')}&hkl=${layoutId}${tail ? `&hks=${tail}` : ''}${title ? `&title=${enc}` : ''}&hakomado=`;
+  return `https://www.youtube.com/watch_videos?video_ids=${ids.join(',')}&hkl=${layoutId}${tail ? `&hks=${tail}` : ''}${mt ? `&hkm=${mt}` : ''}${title ? `&title=${enc}` : ''}&hakomado=`;
 }
 
 /**
@@ -96,13 +126,20 @@ function formatXPostUrl(text, url) {
 /**
  * テキストの中の視聴セットのコード (#Hakomado …) を読む。無ければ null。
  * 同じ動画が 2 回あれば 1 回目だけ使う。offsets = 動画ごとの同期のずれ (コードに入っていなければ null)、
- * ref = 同期の基準にする動画の番号、name = 名前 (入っていなければ '')
- * @returns {{ids: string[], layoutId: string, offsets: number[]|null, ref: number, name: string}|null}
+ * ref = 同期の基準にする動画の番号、name = 名前 (入っていなければ '')、
+ * movie = 「🎬 本編」モードの本編の位置 (動画ごとの秒。決めていなければ null。本編モードでなければ movie 自体が null。基準は ref)
+ * @returns {{ids: string[], layoutId: string, offsets: number[]|null, ref: number, name: string, movie: (number|null)[]|null}|null}
  */
 function parseShareCode(text) {
   const code = text.match(SHARE_CODE_RE);
   if (!code) return null;
-  return { ...shareIds(code[2].match(/.{11}/g), code[3]), layoutId: code[1], name: (code[4] || '').trim() };
+  const list = code[2].match(/.{11}/g);
+  const base = { ...shareIds(list, code[3]), layoutId: code[1], name: (code[4] || '').trim(), movie: null };
+  if (code[5]) {
+    const m = movieIds(list, code[5]);
+    return { ...base, offsets: null, ref: m.ref, movie: m.anchors };
+  }
+  return base;
 }
 
 /** 動画の並びとずれ (「,」区切り) を読む。同じ動画が 2 回あれば 1 回目だけ (ずれも 1 回目のもの) */
@@ -140,9 +177,16 @@ function parseShareLink(text) {
   const layoutId = p.get('hkl') || '';
   const tail = p.get('hks');
   const list = (p.get('video_ids') || '').split(',');
+  const mt = p.get('hkm');
   if (!/^[a-z0-9-]{1,24}$/i.test(layoutId) || (tail != null && !/^[-+*\d.,]{1,240}$/.test(tail))) return null;
+  if (mt != null && !/^[-*\d.,]{1,240}$/.test(mt)) return null;
   if (list.length > 16 || !list.every((id) => SHARE_ID_RE.test(id))) return null;
-  return { ...shareIds(list, tail), layoutId, name: shareName(p.get('hakomado') || p.get('title')) };
+  const base = { ...shareIds(list, tail), layoutId, name: shareName(p.get('hakomado') || p.get('title')), movie: null };
+  if (mt) {
+    const m = movieIds(list, mt);
+    return { ...base, offsets: null, ref: m.ref, movie: m.anchors };
+  }
+  return base;
 }
 
 /**

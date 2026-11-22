@@ -1,4 +1,4 @@
-/* global Danmaku, LAYOUTS, ANCHORS, DEFAULT_LAYOUT_ID, MAX_SLOTS, getLayout, layoutFor, solveTracks, LANG, LANG_PREF, tr, setLangPref, Backup, UpdateCheck, qrcode, jsQR, ChannelPack, SyncOffsets, AudioAlign */
+/* global Danmaku, LAYOUTS, ANCHORS, DEFAULT_LAYOUT_ID, MAX_SLOTS, getLayout, layoutFor, solveTracks, LANG, LANG_PREF, tr, setLangPref, Backup, UpdateCheck, qrcode, jsQR, ChannelPack, SyncOffsets, MovieAnchors, AudioAlign */
 'use strict';
 
 const MAX_TILES = MAX_SLOTS;
@@ -766,6 +766,7 @@ function renderTile(i, { reloadPlayer = false, reloadChat = false } = {}) {
     v.info = null;
     v.playStatus = '';
     v.ss = null;
+    v.lv = null;
     Diagnose.clear(i);
     v.meta = null;
     v.social = null;
@@ -794,6 +795,7 @@ function renderTile(i, { reloadPlayer = false, reloadChat = false } = {}) {
     el.classList.remove('is-live'); // ライブかどうかも、読み込んだプレイヤーが知らせてくる
     v.archive = null; // アーカイブなら、読み込んだプレイヤーが配信の時刻を知らせてくる (同期再生用)
     v.ss = null;
+    v.lv = null; // ライブなら、画面に出ている瞬間の配信開始からの経過 (🎬 本編モード用)
     v.info = null; // 種類・視聴者数など (「ℹ 枠の情報」・同期ボタン用)。読み込んだプレイヤーが知らせてくる
     v.playStatus = ''; // 見られるか (playabilityStatus.status)
   }
@@ -1483,6 +1485,14 @@ window.addEventListener('message', (e) => {
 // - 基準でない枠を、枠の中のプレイヤーでシーク (シークバー・← → キー) すると、引き戻さずに、その位置でずれを決める
 //   (進みすぎた枠をシークバーで戻す、など)。基準の枠をシークしたときは、これまでどおりほかの枠がついてくる
 // ON / OFF は保存しない (開き直したら OFF。視聴セットを開いたときは、ずれが入っていれば自動で ON にする)
+//
+// 🎬 本編モード (上部バーで「🕒 実際の時刻 / 🎬 本編」を切り替える): 時間のずれた同時視聴 (先月のアーカイブと今のライブなど) を、
+// 見ている作品 (映画など) の同じ場面でそろえる。実際の時刻は使わない
+// - 動画ごとに「本編 0:00 に当たる再生位置」(MovieAnchors) を持つ。枠の ⏱ の「▶ ここが本編 0:00」か「今は本編の h:mm:ss」で決める。
+//   ライブは配信開始からの経過で表す (プレイヤーが知らせる、画面に出ている瞬間の実際の時刻から。見ている人の遅れによらない)
+// - 時計 = 本編の時刻 (ミリ秒)。ほかの枠の目標位置 = 本編の位置 + 時計。シーク・速度・止めて待つなどは実際の時刻のときと同じ
+// - ライブは基準にだけできる (動かせないため)。ライブが基準なら、時計はライブの位置で進む (止められない)
+// - 本編の位置を決めていない枠は動かさず、そのことを枠に出す。時間帯の重なりも配信の開始時刻も要らない
 const Sync = (() => {
   const TICK_MS = 500;
   const SEEK_DRIFT = 2; // これ以上ずれたらシーク (秒)
@@ -1495,6 +1505,7 @@ const Sync = (() => {
   const CMD_GAP_MS = 1500; // 再生・一時停止の指示を続けて送らない
 
   let on = false;
+  let mode = 'time'; // 'time' = 実際の時刻 / 'movie' = 🎬 本編
   let timer = 0;
   let clock = { R0: 0, at: 0, playing: true }; // R = 実際の時刻 (ミリ秒)
   let holdUntil = 0; // シークバーで動かした直後は、基準の枠が追いつくまで時計を基準に合わせない
@@ -1509,26 +1520,49 @@ const Sync = (() => {
   const nowR = () => (clock.playing ? clock.R0 + (now() - clock.at) : clock.R0);
   const setClock = (R, playing) => (clock = { R0: R, at: now(), playing });
   const off = (i) => SyncOffsets.get(state.tiles[i].videoId);
-  const archived = (i) => isVisible(i) && !!state.tiles[i].videoId && !!views[i].archive;
-  const rangeOf = (i) => [views[i].archive.start, views[i].archive.start + views[i].archive.dur * 1000];
+  const movie = () => mode === 'movie';
+  const anchor = (i) => MovieAnchors.get(state.tiles[i].videoId);
+  /** 動かせる枠 (アーカイブ。再生位置と長さが分かる) */
+  const movable = (i) => isVisible(i) && !!state.tiles[i].videoId && !!views[i].archive;
+  /** 本編モードで基準にできるライブの枠 (位置の知らせが届いている) */
+  const liveTile = (i) => isVisible(i) && !!state.tiles[i].videoId && !views[i].archive && !!views[i].lv;
+  /** 同期に加わる枠 (実際の時刻: アーカイブ / 本編: アーカイブとライブ) */
+  const archived = (i) => movable(i) || (movie() && liveTile(i));
+  const rangeOf = (i) => {
+    if (movie()) {
+      const a = anchor(i);
+      if (a == null || !views[i].archive) return [-Infinity, Infinity];
+      return [-a * 1000, (views[i].archive.dur - a) * 1000];
+    }
+    return [views[i].archive.start, views[i].archive.start + views[i].archive.dur * 1000];
+  };
   const overlaps = (i, j) => {
+    if (movie()) return true;
     const [a, b] = rangeOf(i);
     const [c, d] = rangeOf(j);
     return a < d && c < b;
   };
   /** 今の再生位置 (秒)。最後に届いた位置から、再生中なら経った分を足す */
   const posOf = (i) => {
+    const lv = views[i].lv;
+    if (lv && !views[i].archive) return lv.pos + (lv.ps === 1 ? (now() - lv.at) / 1000 : 0); // ライブ: 配信開始からの経過
     const ss = views[i].ss;
     if (!ss) return null;
     const moving = ss.ps === 1 && !ss.ad;
     return ss.t + (moving ? ((now() - ss.at) / 1000) * (ss.r || 1) : 0);
   };
-  const realOf = (i, t) => views[i].archive.start + (t - off(i)) * 1000;
-  const targetOf = (i, R) => (R - views[i].archive.start) / 1000 + off(i);
+  // 時計の時刻 R (実際の時刻か本編の時刻。ミリ秒) と、枠の再生位置 t (秒) の読み替え
+  const realOf = (i, t) => (movie() ? (t - anchor(i)) * 1000 : views[i].archive.start + (t - off(i)) * 1000);
+  const targetOf = (i, R) => (movie() ? anchor(i) + R / 1000 : (R - views[i].archive.start) / 1000 + off(i));
 
   /** 基準にする枠の初期値: 音を出しているアーカイブ (複数ならレイアウトで一番前)。無ければ先頭のアーカイブ */
   function initialReference() {
     const list = visibleIndexes().filter(archived);
+    if (movie()) {
+      // 本編モードでライブがあれば、ライブを基準にする (ライブは動かせないため)
+      const live = list.find(liveTile);
+      if (live != null) return live;
+    }
     return list.find((i) => !state.tiles[i].muted) ?? list[0] ?? null;
   }
   /** 基準の枠 (同期中は選んだ枠。閉じられていたら選び直して知らせる) */
@@ -1560,8 +1594,18 @@ const Sync = (() => {
   }
   const available = () => {
     const ref = reference();
-    return ref != null && members(ref).length >= 2;
+    return ref != null && members(ref).length >= 2 && members(ref).some(movable);
   };
+  /** モード m で同期できるか (同期していないときだけ使う。モードを一時的に切り替えて確かめる) */
+  function availableIn(m) {
+    const prev = mode;
+    mode = m;
+    try {
+      return available();
+    } finally {
+      mode = prev;
+    }
+  }
 
   function send(i, msg) {
     postToFrame(views[i].player, { hakomado: 'sync', ...msg });
@@ -1591,6 +1635,8 @@ const Sync = (() => {
     return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
   };
   const spanText = (sec) => hms(Math.ceil(sec));
+  /** 本編の時刻 (ミリ秒) → 「本編 0:47:12」(本編の前なら − を付ける) */
+  const movieText = (ms) => tr('movieClock', (ms < 0 ? '−' : '') + hms(Math.floor(Math.abs(ms) / 1000)));
 
   function overlay(i, text) {
     const el = views[i].el.querySelector('.sync-overlay');
@@ -1611,7 +1657,14 @@ const Sync = (() => {
     const rs = views[ref].ss;
     let playing = !pausedAll;
     let R = nowR();
-    if (now() > holdUntil && !waiting.has(ref) && rs && !rs.ad && now() - rs.at < 2000) {
+    if (movie() && liveTile(ref)) {
+      // ライブが基準: 時計はライブの位置で進む (止められない)。本編の位置を決めるまでは、時計はそのまま
+      const lv = views[ref].lv;
+      if (anchor(ref) != null && now() - lv.at < 3000) {
+        R = realOf(ref, posOf(ref));
+        playing = lv.ps === 1;
+      }
+    } else if (now() > holdUntil && !waiting.has(ref) && rs && !rs.ad && now() - rs.at < 2000 && (!movie() || anchor(ref) != null)) {
       const [s, e] = rangeOf(ref);
       const Rref = realOf(ref, posOf(ref));
       if (Rref >= s && Rref < e - 1000) {
@@ -1621,8 +1674,25 @@ const Sync = (() => {
     }
     setClock(R, playing);
 
+    // 本編モードで基準の枠の本編の位置がまだ無ければ、時計が決まらないので、ほかの枠も動かさない
+    const idle = movie() && anchor(ref) == null;
     for (const i of visibleIndexes()) {
       if (!archived(i)) continue;
+      if (idle && i !== ref && anchor(i) != null) {
+        overlay(i, tr('movieNeedRefAnchor'));
+        if (!liveTile(i)) rate(i, 1);
+        continue;
+      }
+      if (movie() && anchor(i) == null) {
+        overlay(i, tr('movieNeedAnchor')); // 本編の位置を決めるまでは動かさない
+        if (!liveTile(i)) rate(i, 1);
+        continue;
+      }
+      if (movie() && liveTile(i)) {
+        overlay(i, i === ref ? '' : tr('movieLiveRefOnly')); // ライブは動かせない
+        if (i === ref) showDrift(i, null);
+        continue;
+      }
       const userSeek = sawUserSeek(i);
       if (waiting.has(i) && list.includes(i)) {
         tickWaiting(i, R);
@@ -1644,7 +1714,7 @@ const Sync = (() => {
       const ss = views[i].ss;
       const [s, e] = rangeOf(i);
       if (R < s) {
-        overlay(i, tr('syncStartsIn', spanText((s - R) / 1000)));
+        overlay(i, movie() ? tr('movieStartsLater', hms(Math.ceil(s / 1000))) : tr('syncStartsIn', spanText((s - R) / 1000)));
         cmd(i, 'pause');
         if (ss && ss.t > 1) seek(i, 0);
         continue;
@@ -1701,31 +1771,62 @@ const Sync = (() => {
   /** 上部バーのシークバー: 同期している枠の時間帯を全部まとめた範囲 */
   function updateBar(list) {
     const seekEl = document.getElementById('syncSeek');
-    const lo = Math.min(...list.map((i) => rangeOf(i)[0]));
-    const hi = Math.max(...list.map((i) => rangeOf(i)[1]));
+    const ranges = list.map(rangeOf).filter(([a, b]) => Number.isFinite(a) && Number.isFinite(b));
+    // 本編モードは 0:00 から、本編の位置を決めた枠のうち一番長く続くものの終わりまで
+    const lo = movie() ? Math.min(0, ...ranges.map((r) => r[0])) : Math.min(...ranges.map((r) => r[0]));
+    const hi = ranges.length ? Math.max(...ranges.map((r) => r[1])) : lo + 1000;
+    const text = movie() ? movieText : clockText;
     seekEl.dataset.lo = String(lo);
     seekEl.max = String(Math.max(1, Math.round((hi - lo) / 1000)));
+    seekEl.disabled = movie() && liveTile(reference()); // ライブが基準なら動かせない
     if (!dragging) {
       seekEl.value = String(Math.round((nowR() - lo) / 1000));
-      document.getElementById('syncNow').textContent = clockText(nowR());
+      document.getElementById('syncNow').textContent = text(nowR());
     }
-    document.getElementById('syncEnd').textContent = clockText(hi);
+    document.getElementById('syncEnd').textContent = text(hi);
+    document.getElementById('syncMode').value = mode;
+    document.getElementById('syncAudio').hidden = movie(); // 🎧 は実際の時刻のときだけ (本編モードは共通の音が無い前提)
   }
 
-  function start() {
+  /** m = 'time' | 'movie'。省略したら、実際の時刻で同期できればそれ、できなければ本編 */
+  function start(m = availableIn('time') ? 'time' : 'movie') {
+    mode = m;
     const ref = initialReference();
     if (ref == null) return;
     refTile = ref;
     const p = posOf(ref);
-    setClock(p != null ? realOf(ref, p) : rangeOf(ref)[0], !pausedAll);
+    const R0 = movie() ? (anchor(ref) != null && p != null ? realOf(ref, p) : 0) : p != null ? realOf(ref, p) : rangeOf(ref)[0];
+    setClock(R0, !pausedAll);
     holdUntil = 0;
     sent.clear();
     on = true;
     clearInterval(timer);
     timer = setInterval(tick, TICK_MS);
     tick();
-    notify(tr('syncOn', members(ref).length));
+    notify(tr(movie() ? 'movieOn' : 'syncOn', members(ref).length));
     refresh();
+  }
+
+  /** 同期したまま、実際の時刻 / 本編を切り替える (基準の枠はそのまま。使えなければ選び直す) */
+  function setMode(m) {
+    if (!on || m === mode) return;
+    mode = m;
+    waiting.clear();
+    sent.clear();
+    forceSeek.clear();
+    holdUntil = 0;
+    if (refTile == null || !archived(refTile) || (movie() && liveTile(initialReference()) && !liveTile(refTile))) refTile = initialReference();
+    if (refTile == null || !available()) {
+      stop();
+      notify(tr('syncStopped'));
+      return;
+    }
+    const p = posOf(refTile);
+    setClock(movie() ? (anchor(refTile) != null && p != null ? realOf(refTile, p) : 0) : p != null ? realOf(refTile, p) : rangeOf(refTile)[0], !pausedAll);
+    marksKey = '';
+    notify(tr(movie() ? 'movieOn' : 'syncOn', members(refTile).length));
+    refresh();
+    tick();
   }
 
   function stop() {
@@ -1742,6 +1843,7 @@ const Sync = (() => {
       views[i].el.querySelector('.sync-panel').hidden = true;
     }
     sent.clear();
+    mode = 'time';
     refresh();
   }
 
@@ -1749,7 +1851,7 @@ const Sync = (() => {
   function refresh() {
     if (views.length < MAX_TILES) return;
     if (pending) checkPending();
-    const can = available();
+    const can = on ? available() : availableIn('time') || availableIn('movie');
     if (on && !can) {
       stop();
       notify(tr('syncStopped'));
@@ -1851,19 +1953,31 @@ const Sync = (() => {
   /** 今の再生位置が時刻 R に合うずれ (秒、0.01 秒単位)。位置が分からなければ null */
   function offsetAt(i, R) {
     const p = posOf(i);
-    return p == null ? null : Math.round((p - (R - views[i].archive.start) / 1000) * 100) / 100;
+    if (p == null) return null;
+    if (movie()) return Math.round((p - R / 1000) * 10) / 10; // 本編の位置
+    return Math.round((p - (R - views[i].archive.start) / 1000) * 100) / 100;
+  }
+  /** ずれ (実際の時刻) か本編の位置 (本編) を書き込む。v = null は本編の位置を消す */
+  function storeOffset(i, v) {
+    const id = state.tiles[i].videoId;
+    if (movie()) {
+      if (v == null) MovieAnchors.remove(id);
+      else MovieAnchors.set(id, v);
+      return;
+    }
+    SyncOffsets.set(id, v);
+    playlistOffsetChanged(id, v);
   }
   /** 今の再生位置のまま合うように、ずれを決める (「止めて待つ」の再生・枠の中でのシーク) */
   function adoptOffset(i, R) {
     const v = offsetAt(i, R);
     if (v == null) return updateAdj(i);
-    SyncOffsets.set(state.tiles[i].videoId, v);
-    playlistOffsetChanged(state.tiles[i].videoId, v);
+    storeOffset(i, v);
     sent.delete(i);
     forceSeek.delete(i);
     rate(i, 1);
     updateAdj(i);
-    showToast(i, tr('syncOffsetSet', signedSec(v)));
+    showToast(i, movie() ? tr('movieAnchorSet', hms(Math.max(0, Math.round(v)))) : tr('syncOffsetSet', signedSec(v)));
   }
   /** 前の確認のあとで、枠の中でユーザーがシークしたか (同期を始めて最初に見たときは、数を覚えるだけ) */
   function sawUserSeek(i) {
@@ -1906,23 +2020,24 @@ const Sync = (() => {
    * tiles の枠がアーカイブだと分かったら (最長 30 秒待って、分かった分だけで)、ref の枠を基準にして同期を始める。
    * at (同期の時計。実際の時刻のミリ秒) を渡すと、始めたあとにその時刻へ動かす (再生リストの続きから)
    */
-  function startWhenReady(tiles, ref, { at = null } = {}) {
-    pending = { tiles, ref, until: now() + 30000, at };
+  function startWhenReady(tiles, ref, { at = null, mode: m = 'time' } = {}) {
+    pending = { tiles, ref, until: now() + 30000, at, mode: m };
     clearTimeout(pendingTimer);
     pendingTimer = setTimeout(refresh, 30500);
     setTimeout(refresh, 0); // もう読み込んである動画だけなら、すぐ始める
   }
   function checkPending() {
-    const { tiles, ref, until, at } = pending;
-    const ready = tiles.every((i) => archived(i) || !state.tiles[i].videoId);
+    const { tiles, ref, until, at, mode: m } = pending;
+    const ready = tiles.every((i) => movable(i) || (m === 'movie' && liveTile(i)) || !state.tiles[i].videoId);
     if (!ready && now() < until) return;
     pending = null;
     clearTimeout(pendingTimer);
     setTimeout(() => {
       // 基準にしたい枠に音を出しておく (同期を始めたときの基準は、音を出している枠)
-      if (!on && available()) start();
+      if (!on && availableIn(m)) start(m);
+      else if (on) setMode(m);
       if (on && archived(ref)) setReference(ref);
-      if (on && at) seekReal(at);
+      if (on && at && !movie()) seekReal(at);
     }, 0);
   }
   /** 同期している全部の枠を、時計の時刻 R へ動かす (上部バーのシークバーと同じ) */
@@ -1934,7 +2049,7 @@ const Sync = (() => {
   }
   /** 今どこを見ているか ({at: 時計, pos: 基準の動画の再生位置 (秒)})。同期していなければ null */
   function resumePoint() {
-    if (!on) return null;
+    if (!on || movie()) return null;
     const ref = reference();
     if (ref == null) return null;
     const R = nowR();
@@ -1981,6 +2096,10 @@ const Sync = (() => {
 
   function updateAdj(i, R = nowR()) {
     const el = views[i].el;
+    el.querySelector('.sync-movie').hidden = !movie();
+    el.querySelector('.sync-reset').textContent = tr(movie() ? 'movieClear' : 'syncReset');
+    el.querySelector('.sync-wait').hidden = false; // 本編モードのライブの枠では隠す (updateMovieAdj)
+    if (movie()) return updateMovieAdj(i, R);
     const wait = waiting.get(i);
     // 待っている間は、今再生したら決まるずれを出す
     const v = (wait && views[i].archive ? offsetAt(i, R) : null) ?? off(i);
@@ -2007,6 +2126,33 @@ const Sync = (() => {
     }
   }
 
+  /** 本編モードの ⏱ パネル: 本編の位置 (決めていなければそう出す)・止めて待つ */
+  function updateMovieAdj(i, R) {
+    const el = views[i].el;
+    const wait = waiting.get(i);
+    const a = (wait ? offsetAt(i, R) : null) ?? anchor(i);
+    const label = a == null ? tr('movieNoAnchor') : tr('movieAnchor', (a < 0 ? '−' : '') + hms(Math.round(Math.abs(a) * 10) / 10));
+    el.querySelector('.sync-panel-label').textContent = label;
+    const adj = el.querySelector('.sync-adj');
+    adj.textContent = wait ? '⏸ 🎬' : a == null ? '🎬' : '🎬 ✓';
+    adj.classList.toggle('is-waiting', !!wait);
+    adj.classList.toggle('has-trim', a == null); // まだ決めていなければ目立たせる
+    const waitBtn = el.querySelector('.sync-wait');
+    waitBtn.textContent = tr(wait ? 'syncWaitResume' : 'syncWait');
+    waitBtn.classList.toggle('is-waiting', !!wait);
+    waitBtn.hidden = liveTile(i);
+    const input = el.querySelector('.sync-input');
+    if (document.activeElement !== input) input.value = a == null ? '' : String(a);
+    el.querySelector('.sync-trim').hidden = true;
+  }
+
+  /** 「今は本編の h:mm:ss」(h:mm:ss / m:ss / 秒) を秒に。読めなければ null */
+  function parseClock(text) {
+    const t = String(text).trim();
+    if (!/^\d+(?::\d{1,2}){0,2}(?:\.\d+)?$/.test(t)) return null;
+    return t.split(':').reduce((acc, x) => acc * 60 + Number(x), 0);
+  }
+
   function togglePanel(i) {
     const panel = views[i].el.querySelector('.sync-panel');
     panel.hidden = !panel.hidden;
@@ -2016,8 +2162,7 @@ const Sync = (() => {
 
   /** この枠のずれを v 秒にして、すぐ合わせ直す */
   function setOffset(i, v) {
-    SyncOffsets.set(state.tiles[i].videoId, v);
-    playlistOffsetChanged(state.tiles[i].videoId, v);
+    storeOffset(i, v);
     sent.delete(i);
     forceSeek.add(i); // 速度で詰めず、すぐ合わせ直す
     updateAdj(i);
@@ -2041,19 +2186,45 @@ const Sync = (() => {
         toggleWait(i);
         return;
       }
+      if (b.dataset.sync === 'here') {
+        // ▶ ここが本編 0:00: 今の再生位置 (ライブは配信開始からの経過) を本編の位置にする
+        const p = posOf(i);
+        if (p != null) setOffset(i, Math.round(p * 10) / 10);
+        return;
+      }
       const d = Number(b.dataset.sync);
+      if (movie()) {
+        if (d === 0) setOffset(i, null); // 本編の位置を消す
+        else if (anchor(i) != null) setOffset(i, anchor(i) + d);
+        return;
+      }
       setOffset(i, d === 0 ? 0 : off(i) + d);
+    });
+    // 今は本編の h:mm:ss: 今の再生位置 − 入れた時刻 を本編の位置にする
+    const nowInput = el.querySelector('.movie-now-input');
+    nowInput.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter') return;
+      const c = parseClock(nowInput.value);
+      const p = posOf(i);
+      if (c == null || p == null) {
+        showToast(i, tr('movieBadClock'));
+        return;
+      }
+      setOffset(i, Math.round((p - c) * 10) / 10);
+      nowInput.value = '';
+      nowInput.blur();
     });
     const input = el.querySelector('.sync-input');
     input.addEventListener('change', () => {
       const v = Number(input.value);
       if (input.value.trim() !== '' && Number.isFinite(v)) setOffset(i, v);
+      else if (movie() && input.value.trim() === '') setOffset(i, null);
       else updateAdj(i);
     });
     input.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') input.blur(); // blur で change が走る
       else if (e.key === 'Escape') {
-        input.value = String(off(i));
+        input.value = movie() ? String(anchor(i) ?? '') : String(off(i));
         input.blur();
       }
     });
@@ -2061,10 +2232,16 @@ const Sync = (() => {
 
   function setup() {
     SyncOffsets.onChange(offsetsChanged);
+    MovieAnchors.onChange(offsetsChanged);
+    const modeSel = document.getElementById('syncMode');
+    modeSel.addEventListener('change', () => {
+      modeSel.blur();
+      if (modeSel.value === 'movie' || modeSel.value === 'time') setMode(modeSel.value);
+    });
     document.getElementById('syncToggle').addEventListener('click', (e) => {
       e.currentTarget.blur(); // Space キーでボタンが押し直されないように
       if (on) stop();
-      else if (available()) start();
+      else if (availableIn('time') || availableIn('movie')) start();
       else notify(whyNot().join('\n'));
     });
     const refSel = document.getElementById('syncRef');
@@ -2096,6 +2273,7 @@ const Sync = (() => {
     startWhenReady,
     offsetsChanged,
     isOn: () => on,
+    isMovie: () => on && movie(),
     tileStatus,
     resumePoint,
     isWaiting: (i) => on && waiting.has(i),
@@ -2114,6 +2292,7 @@ const Sync = (() => {
 // - 計算は audio-align.js。結果は候補として出し、「反映」で各枠のずれ (SyncOffsets) に書き込む。基準の枠のずれはそのまま
 // - 2 枠のときは「中間 (映像がそろう)」が既定。それぞれの人の声に合わせる値も選べる (通話の遅れのぶん、もう一人の声はずれる)
 // - 声が少ない区間などで決められなければ、そう知らせて、別の場面で測り直してもらう
+// - 🎬 本編モードでは使わない (ボタンを隠す。共通の音が無い前提のため)
 const AudioSync = (() => {
   const MEASURE_SEC = 90;
   let run = null; // 測っている間: {tiles, ref, offs, ids, tracks, blocked, played, last, timer, closed}
@@ -2129,7 +2308,7 @@ const AudioSync = (() => {
   }
 
   function start() {
-    if (!Sync.isOn()) return;
+    if (!Sync.isOn() || Sync.isMovie()) return;
     const ref = Sync.refIfOn();
     const tiles = Sync.memberList();
     if (ref == null || tiles.length < 2) return;
@@ -2159,7 +2338,8 @@ const AudioSync = (() => {
     const t = performance.now();
     const dt = (t - run.last) / 1000;
     run.last = t;
-    if (!Sync.isOn() || run.tiles.some((i) => state.tiles[i].videoId !== run.ids.get(i))) {
+    // 同期が止まった・本編モードにした・枠の動画が変わった → やめる
+    if (!Sync.isOn() || Sync.isMovie() || run.tiles.some((i) => state.tiles[i].videoId !== run.ids.get(i))) {
       cancel();
       return;
     }
@@ -2587,6 +2767,16 @@ window.addEventListener('message', (e) => {
     const sampled = Number(data.ts) - performance.timeOrigin;
     const at = sampled > recv - 1000 && sampled <= recv + 5 ? Math.min(sampled, recv) : recv;
     views[i].ss = { t: Number(data.t), ps: Number(data.ps), ad: !!data.ad, r: Number(data.r) || 1, up: !!data.up, sk: Number(data.sk) || 0, at };
+    return;
+  }
+  if (data.hakomado === 'livePos') {
+    // ライブの、画面に出ている瞬間の配信開始からの経過 (秒)。🎬 本編モードでライブを基準にするため
+    const pos = Number(data.pos);
+    if (Number.isFinite(pos) && pos >= 0 && pos < 30 * 86400) views[i].lv = { pos, ps: Number(data.ps), at: performance.now() };
+    if (!views[i].lvSeen) {
+      views[i].lvSeen = true;
+      Sync.refresh();
+    }
     return;
   }
   if (data.hakomado === 'archive') {
@@ -3140,8 +3330,9 @@ const SHARE_MAX = MAX_TILES;
 
 /**
  * 共有セット: 共有するもの (今の枠 / 再生リスト) と、読み込んだものの共通の形
- * @typedef {{name: string, items: {videoId: string, label?: string, channel?: string, offset?: number}[],
- *   sync: boolean, layoutId: string|null, ref: string|null}} ShareSet
+ * movie = 🎬 本編モード (items の anchor = 本編の位置。sync は false)
+ * @typedef {{name: string, items: {videoId: string, label?: string, channel?: string, offset?: number, anchor?: number|null}[],
+ *   sync: boolean, movie?: boolean, layoutId: string|null, ref: string|null}} ShareSet
  */
 // コードの読み書き (formatShareCode / parseShareCode / shareName)・取り込み用リンク・1 行 1 本のテキストの読み取りは share-code.js
 
@@ -3152,6 +3343,10 @@ const shareTiles = () => visibleIndexes().filter((i) => state.tiles[i].videoId);
 function tilesShareSet(name = '') {
   const items = tileEntries();
   const refTile = Sync.refIfOn();
+  if (Sync.isMovie()) {
+    const withAnchor = items.map((h) => ({ ...h, anchor: MovieAnchors.get(h.videoId) }));
+    return { name, items: withAnchor, sync: false, movie: true, layoutId: state.layoutId, ref: refTile != null ? state.tiles[refTile].videoId : null };
+  }
   const sync = Sync.isOn() || items.some((x) => x.offset);
   return { name, items, sync, layoutId: state.layoutId, ref: sync && refTile != null ? state.tiles[refTile].videoId : null };
 }
@@ -3178,6 +3373,10 @@ async function parseIncoming(text, onProgress) {
     }
   }
   const code = parseShareCode(text) || parseShareLink(text);
+  if (code?.movie) {
+    const items = code.ids.map((videoId, k) => ({ videoId, anchor: code.movie[k] }));
+    return { name: code.name, items, sync: false, movie: true, layoutId: code.layoutId, ref: code.ids[code.ref], bad: 0, tooMany: false };
+  }
   if (code) {
     const sync = !!code.offsets;
     const items = code.ids.map((videoId, k) => (sync ? { videoId, offset: code.offsets[k] } : { videoId }));
@@ -3230,17 +3429,22 @@ function playlistLayoutId(pl) {
   return LAYOUTS.find((l) => l.id === pl.layoutId && l.slots.length >= n)?.id || chooseLayoutFor(n).id;
 }
 
-/** 共有セットをコードにする (先頭から 16 本。同期再生ならずれと基準も入れる。名前も入れる)。format = formatShareLink なら QR 用のリンクにする */
+/**
+ * 共有セットをコードにする (先頭から 16 本。同期再生ならずれと基準も入れる。名前も入れる)。format = formatShareLink なら QR 用のリンクにする。
+ * format は (レイアウト, 動画, ずれ, 基準, 名前, 本編の位置) を受け取る (本編モードでなければ本編の位置は null)
+ */
 function shareSetCode(pl, format = formatShareCode) {
   const items = syncItems(pl);
   if (!items.length) return '';
   const ids = items.map((h) => h.videoId);
+  const keepRef = pl.sync || pl.movie;
   return format(
     playlistLayoutId(pl),
     ids,
     pl.sync ? items.map((h) => h.offset ?? SyncOffsets.get(h.videoId)) : [],
-    pl.sync ? Math.max(0, ids.indexOf(pl.ref)) : 0,
+    keepRef ? Math.max(0, ids.indexOf(pl.ref)) : 0,
     pl.name,
+    pl.movie ? items.map((h) => h.anchor ?? null) : null,
   );
 }
 
@@ -3284,6 +3488,7 @@ async function applyShareSet(set) {
   const ids = items.map((h) => h.videoId);
   await applyViewingSet(ids, set.layoutId, {
     offsets: set.sync ? items.map((h) => h.offset || 0) : null,
+    anchors: set.movie ? items.map((h) => h.anchor ?? null) : null,
     ref: Math.max(0, ids.indexOf(set.ref)),
     labels: items.map((h) => h.label || ''),
   });
@@ -3293,7 +3498,7 @@ async function applyShareSet(set) {
  * 視聴セットで今の枠を置き換える (同じ配信を表示中の枠はそのまま使い、読み込み直さない)。
  * offsets (動画ごとの同期のずれ) があれば記録し、アーカイブだと分かりしだい ref 番目の動画を基準に同期を始める
  */
-async function applyViewingSet(ids, layoutId, { offsets = null, ref = 0, labels = [], resumeAt = null } = {}) {
+async function applyViewingSet(ids, layoutId, { offsets = null, anchors = null, ref = 0, labels = [], resumeAt = null } = {}) {
   playlistSyncSession = null;
   if (state.autoMode) await setAutoMode(false); // 自動再生が枠を入れ替えないように
   stopQueue();
@@ -3325,12 +3530,15 @@ async function applyViewingSet(ids, layoutId, { offsets = null, ref = 0, labels 
   if (state.layout.anchor) state.anchor = state.layout.anchor;
   state.order = [...assigned, ...state.order.filter((j) => !assigned.includes(j))];
   if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
-  const refK = offsets && ref < ids.length ? ref : 0;
-  setAudioSet([assigned[refK]]); // 音は先頭 (メイン) の枠。同期のずれ付きなら基準の枠
+  const refK = (offsets || anchors) && ref < ids.length ? ref : 0;
+  setAudioSet([assigned[refK]]); // 音は先頭 (メイン) の枠。同期のずれ付き・本編モードなら基準の枠
   if (offsets) offsets.forEach((o, k) => SyncOffsets.set(ids[k], o));
+  // 🎬 本編モード: 本編の位置を記録して、本編モードで同期を始める (決めていない動画の位置は消さない)
+  if (anchors) anchors.forEach((a, k) => a != null && MovieAnchors.set(ids[k], a));
   renderAll();
   save();
   if (offsets) Sync.startWhenReady(assigned, assigned[refK], { at: resumeAt });
+  else if (anchors) Sync.startWhenReady(assigned, assigned[refK], { mode: 'movie' });
 }
 
 // ---- 共有画像
@@ -3482,7 +3690,7 @@ async function renderShareImage(set, { labels = false, author = '', qrText = '' 
   const title = shareName(set.name) || `${SHARE_TAG} ${tr('shareImageTitle')}`;
   // QR にはコードと同じ中身のリンクを入れる (スマホのカメラで読むと YouTube で開ける)。
   // qrText (Hakomado Feed の短縮リンク) を渡したときはそれを入れる (読むと Feed のページが開く)
-  const code = qrText || shareSetCode(set, (...a) => formatShareLink(...a, title));
+  const code = qrText || shareSetCode(set, (l, ids, o, r, n, mv) => formatShareLink(l, ids, o, r, n, title, false, mv));
   const canvas = document.createElement('canvas');
   canvas.width = SHARE_W;
   canvas.height = SHARE_H;
@@ -3984,7 +4192,7 @@ function setupShare() {
     const blob = imageBlob;
     const title = shareName(set.name) || `${SHARE_TAG} ${tr('shareImageTitle')}`;
     // X の本文に入れるリンクは名前も % にする (X は URL の途中の日本語でリンクを切る)
-    const url = formatXPostUrl(`${title} #${SHARE_TAG}`, shareSetCode(set, (...a) => formatShareLink(...a, title, true)));
+    const url = formatXPostUrl(`${title} #${SHARE_TAG}`, shareSetCode(set, (l, ids, o, r, n, mv) => formatShareLink(l, ids, o, r, n, title, true, mv)));
     const allowed = await asked;
     // 入れられなかったときのために、画像はいつもクリップボードにも入れておく
     let copied = false;
@@ -4091,6 +4299,7 @@ function setupRead() {
     const layout = set.layoutId && LAYOUTS.find((l) => l.id === set.layoutId);
     if (layout) parts.push(tr('readLayout', layout.name));
     if (set.sync) parts.push(tr(set.items.some((h) => h.offset) ? 'readSyncOffsets' : 'readSync'));
+    if (set.movie) parts.push(tr('readMovie'));
     const notes = [];
     if (set.bad) notes.push(tr('shareBadLines', set.bad));
     if (set.tooMany) notes.push(tr('plTooMany', Playlists.MAX_ITEMS));
@@ -8150,7 +8359,7 @@ async function chooseSession() {
 
 (async function main() {
   // 再生リスト: 以前の版の形 (全部で 1 つの項目) なら 1 つずつに分けて移す。1 つも無ければ既定の「新規マイリスト」を作る
-  await Promise.all([loadSettings(), Favorites.seedPresets(), SyncOffsets.load(), Playlists.setup(tr('plSeedName'))]);
+  await Promise.all([loadSettings(), Favorites.seedPresets(), SyncOffsets.load(), MovieAnchors.load(), Playlists.setup(tr('plSeedName'))]);
   buildTiles();
   refreshFavKeys().catch(() => {});
   refreshSavedIds().catch(() => {});

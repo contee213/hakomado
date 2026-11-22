@@ -1370,6 +1370,7 @@ code { font-size: 12px; background: #222228; padding: 0 4px; border-radius: 3px;
 /* 🎧 音で合わせる: ボタン (測っている間は進み具合) と、結果の候補 */
 .sync-audio { flex: none; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .sync-audio.is-measuring { color: #8fd3ff; border-color: #8fd3ff; }
+.sync-audio[hidden] { display: none; }
 .sync-audio-panel {
   position: fixed;
   top: 52px;
@@ -1415,6 +1416,10 @@ code { font-size: 12px; background: #222228; padding: 0 4px; border-radius: 3px;
 .sync-adj { font-variant-numeric: tabular-nums; }
 .sync-adj[hidden] { display: none; }
 .sync-ref { flex: 0 1 auto; max-width: 170px; font-size: 12px; }
+.sync-mode { flex: none; font-size: 12px; }
+.sync-movie[hidden] { display: none; }
+.movie-now { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; }
+.movie-now-input { width: 7em; font-variant-numeric: tabular-nums; }
 /* 同期の基準の枠の印 (枠のバーの、チャンネル名の前) */
 .sync-ref-badge {
   flex: none;

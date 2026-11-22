@@ -17,12 +17,21 @@ const SET_VIEW = (() => {
   }
 
   const titleOf = (s) => s.name || s.videos[0]?.title || t('unnamed');
+  /** 本編の位置 (秒) を h:mm:ss / m:ss に (負なら − を付ける) */
+  const hms = (sec) => {
+    const a = Math.round(Math.abs(sec));
+    const p2 = (n) => String(n).padStart(2, '0');
+    const body = a >= 3600 ? `${Math.floor(a / 3600)}:${p2(Math.floor(a / 60) % 60)}:${p2(a % 60)}` : `${Math.floor(a / 60)}:${p2(a % 60)}`;
+    return (sec < 0 ? '−' : '') + body;
+  };
 
   function render(s) {
     document.title = `${titleOf(s)} | ${t('titleSet')}`;
     $('setPreview').replaceChildren(layoutPreview(s.layoutId, s.ids, { big: true }));
     $('name').textContent = titleOf(s);
-    $('meta').textContent = [t('count', s.ids.length), s.layoutName, s.offsets ? t('syncPlay') : '', s.author, timeAgo(s.createdAt)].filter(Boolean).join(' · ');
+    $('meta').textContent = [t('count', s.ids.length), s.layoutName, s.movie ? t('moviePlay') : s.offsets ? t('syncPlay') : '', s.author, timeAgo(s.createdAt)]
+      .filter(Boolean)
+      .join(' · ');
     const tags = tagLinks(s.tags);
     $('setTags').replaceChildren(...tags);
     $('setTags').hidden = !tags.length;
@@ -35,7 +44,16 @@ const SET_VIEW = (() => {
       ...s.ids.map((vid, k) => {
         const v = s.videos[k] || {};
         const off = s.offsets ? s.offsets[k] : null;
-        const sync = s.offsets ? (k === s.ref ? t('syncRef') : off ? t('syncOffset', `${off > 0 ? '+' : ''}${off}`) : '') : '';
+        const at = s.movie ? s.movie[k] : null;
+        const sync = s.movie
+          ? [k === s.ref ? t('syncRef') : '', at != null ? t('movieAt', hms(at)) : ''].filter(Boolean).join(' · ')
+          : s.offsets
+            ? k === s.ref
+              ? t('syncRef')
+              : off
+                ? t('syncOffset', `${off > 0 ? '+' : ''}${off}`)
+                : ''
+            : '';
         return el(
           'li',
           v.gone ? { class: 'gone' } : {},

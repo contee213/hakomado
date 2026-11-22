@@ -1,6 +1,6 @@
 // セットの読み書き (D1)。REST の API (worker.mjs) と MCP (mcp.mjs) の両方から使う。
 // 失敗は ApiError (code = エラーの種類、status = HTTP の状態) で投げる
-import { buildSubmission, canonKey, cleanAuthor, cleanTags, searchText, searchTerms, randomToken, sha256Hex, sameHex, rowToSet } from './core.mjs';
+import { buildSubmission, canonKey, offsetsColumn, cleanAuthor, cleanTags, searchText, searchTerms, randomToken, sha256Hex, sameHex, rowToSet } from './core.mjs';
 
 export const PAGE = 24; // 一覧の 1 回分
 const MAX_PAGE = 50; // これより先は出さない (深いページのたびに大きく読まないように)
@@ -217,7 +217,7 @@ export async function createSet(env, input, { who, source = who ? 'web' : 'api',
       canon,
       set.layoutId,
       JSON.stringify(set.ids),
-      set.offsets ? JSON.stringify(set.offsets) : null,
+      offsetsColumn(set),
       set.ref,
       set.name,
       author,
