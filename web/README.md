@@ -4,7 +4,7 @@
 
 Hakomado で共有された視聴セット (コード `#Hakomado …` / 取り込み用リンク) を集めて一覧にする Web アプリ。
 Cloudflare Workers (静的アセット付き) と D1 で動く。拡張機能 (`extension/`) とは別に配信する
-(拡張機能からの短縮リンクは `extension/sets-link.js` の機能フラグで、今はオフ)。
+(拡張機能からの短縮リンクは `extension/sets-link.js` の機能フラグで、オン。送り先は本番)。
 
 本番: <https://hakomado.contee.net> (最初に出した `https://hakomado-feed.contee213.workers.dev` でも同じものが開く)
 
