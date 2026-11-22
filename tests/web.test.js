@@ -203,4 +203,47 @@ test('wrangler.jsonc: ステージングは本番とずれず、本番の D1・�
   // vars は引き継がないので、本番にある名前はステージングにも全部書く (機能フラグの中身は違ってもいい)
   assert.deepEqual(Object.keys(stg.vars).sort(), Object.keys(prod.vars).sort());
   assert.equal(stg.vars.EXT_IDS, prod.vars.EXT_IDS);
+  // kv_namespaces も引き継がない。OAuth の KV・公開の URL・Access のアプリは本番と分ける
+  assert.deepEqual(stg.kv_namespaces.map((k) => k.binding), prod.kv_namespaces.map((k) => k.binding));
+  assert.notEqual(stg.kv_namespaces[0].id, prod.kv_namespaces[0].id);
+  assert.notEqual(stg.vars.PUBLIC_ORIGIN, prod.vars.PUBLIC_ORIGIN);
+  assert.notEqual(stg.vars.ACCESS_AUD, prod.vars.ACCESS_AUD);
+  // OAuth の口は Worker を通す (静的アセットに取られないように)
+  for (const p of ['/mcp', '/authorize', '/oauth/*', '/.well-known/oauth-*']) assert.ok(prod.assets.run_worker_first.includes(p), p);
+});
+
+// ---- Access の証明書 (web/src/access-jwt.mjs)
+const b64url = (buf) => Buffer.from(buf).toString('base64url');
+async function signedJwt(claims, { kid = 'k1', key } = {}) {
+  const head = b64url(JSON.stringify({ alg: 'RS256', kid, typ: 'JWT' }));
+  const body = b64url(JSON.stringify(claims));
+  const sig = await crypto.subtle.sign('RSASSA-PKCS1-v1_5', key, new TextEncoder().encode(`${head}.${body}`));
+  return `${head}.${body}.${b64url(sig)}`;
+}
+
+test('Access の証明書: 署名・AUD・発行元・期限・メールを確かめる', async () => {
+  const { verifyAccessJwt } = await import(pathToFileURL(path.join(WEB, 'src', 'access-jwt.mjs')).href);
+  const gen = () => crypto.subtle.generateKey({ name: 'RSASSA-PKCS1-v1_5', modulusLength: 2048, publicExponent: new Uint8Array([1, 0, 1]), hash: 'SHA-256' }, true, ['sign', 'verify']);
+  const pair = await gen();
+  const other = await gen();
+  const jwk = { ...(await crypto.subtle.exportKey('jwk', pair.publicKey)), kid: 'k1' };
+  const now = 1_800_000_000;
+  const iss = 'https://team.cloudflareaccess.com';
+  const good = { aud: ['AUD1'], iss, email: 'Owner@Example.com', exp: now + 600, iat: now };
+  const opts = { keys: [jwk], aud: 'AUD1', issuer: iss, email: 'owner@example.com', now };
+  const claims = await verifyAccessJwt(await signedJwt(good, { key: pair.privateKey }), opts);
+  assert.equal(claims.email, 'Owner@Example.com'); // メールは大文字小文字を区別しない
+  const fails = async (token, o, reason) => assert.rejects(verifyAccessJwt(token, { ...opts, ...o }), { message: reason });
+  await fails(await signedJwt(good, { key: other.privateKey }), {}, 'signature'); // ほかの鍵で署名したもの
+  await fails(await signedJwt(good, { key: pair.privateKey, kid: 'nope' }), {}, 'unknown_key');
+  await fails(await signedJwt({ ...good, aud: ['AUD2'] }, { key: pair.privateKey }), {}, 'aud');
+  await fails(await signedJwt(good, { key: pair.privateKey }), { aud: '' }, 'aud'); // AUD を設定していなければ通さない
+  await fails(await signedJwt({ ...good, iss: 'https://evil.example' }, { key: pair.privateKey }), {}, 'iss');
+  await fails(await signedJwt({ ...good, exp: now - 120 }, { key: pair.privateKey }), {}, 'expired');
+  await fails(await signedJwt({ ...good, email: 'someone@example.com' }, { key: pair.privateKey }), {}, 'email');
+  await fails('a.b', {}, 'malformed');
+  await fails(undefined, {}, 'no_token');
+  const [h, b] = (await signedJwt(good, { key: pair.privateKey })).split('.');
+  await fails(`${b64url(JSON.stringify({ alg: 'none', kid: 'k1' }))}.${b}.`, {}, 'alg'); // 署名なしは通さない
+  assert.ok(h);
 });
