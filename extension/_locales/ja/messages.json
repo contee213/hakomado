@@ -14,5 +14,9 @@
   "menuAddToTile": {
     "message": "Hakomado の空き枠に追加",
     "description": "右クリックのメニュー (YouTube のリンク・視聴ページ)"
+  },
+  "cmdScreenshot": {
+    "message": "スクリーンショット (マルチビュー画面の枠の並び全体を撮る)",
+    "description": "キーボードショートカットの説明 (chrome://extensions/shortcuts)"
   }
 }

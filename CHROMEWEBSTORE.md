@@ -94,6 +94,7 @@ YouTube の配信・動画を 1 つの画面に最大 16 枠並べて、同時�
 ・音の左右と音量: 枠ごとに音を左 / 右から聞こえるようにしたり、音量を変えたりできます (2 視点の聞き分けに)
 ・再生リスト / 視聴履歴 / あとで見る / 配信開始の通知
 ・共有: 今の枠や再生リストを、画像・1 行のコード・リンクにして人に渡せます
+・スクリーンショット: Alt+Shift+S で枠の並び全体を PNG で保存 (クリップボードにもコピー)
 ・右クリックで追加: YouTube のリンクを右クリック →「Hakomado の空き枠に追加」
 
 ■ 使い方
@@ -135,6 +136,7 @@ FEATURES
 • Per-tile audio: pan each tile's sound left or right and change its volume (handy for telling two voices apart)
 • Playlists, watch history, Watch later and go-live notifications
 • Sharing: turn your current tiles or a playlist into an image, a one-line code or a link
+• Screenshots: press Alt+Shift+S to save all the tiles as a PNG (also copied to the clipboard)
 • Right-click to add: right-click a YouTube link and choose "Add to an empty Hakomado tile"
 
 HOW TO USE
@@ -229,6 +231,7 @@ YouTube の複数の配信・動画を 1 つの画面に並べて同時に視聴
 | `contextMenus` | 右クリックのメニュー「Hakomado の空き枠に追加」を出す。YouTube の動画・配信へのリンク (`targetUrlPatterns` で watch / live / shorts / youtu.be に限定) と、YouTube の視聴ページ (`documentUrlPatterns`) でだけ表示する。押したときにリンクの URL から動画 ID を取り出し、開いているマルチビュー画面に渡す (画面が無ければ新しいタブで開く)。`tabs` 権限は使わず、タブの URL・タイトルは読まない |
 | ホスト権限 `https://www.youtube.com/*` | 上の declarativeNetRequest ルールの適用先。視聴ページ / ライブチャットに content script を入れて、プレイヤーの操作・弾幕用のチャット取得・同期再生を行う。ログイン中のアカウントで配信中 / 予定 / アーカイブの一覧、動画・再生リストの情報を取得する (メンバー限定配信も見られるようにするため Cookie 付き) |
 | ホスト権限 `https://schedule.hololive.tv/*` | 初期データのホロライブのチャンネルについて、配信予定 (ホロジュール) をまとめて 1 回で取得し、YouTube への問い合わせ回数を減らす |
+| `activeTab` | 利用者がマルチビュー画面のタブで、この拡張機能のショートカットキー (既定 Alt+Shift+S。`commands` で登録し、chrome://extensions/shortcuts で変えられる) を押したときだけ、そのタブの表示中の画面を `chrome.tabs.captureVisibleTab` で撮る (マルチビュー画面のスクリーンショット)。撮った画像は枠の並びに切り抜いて、利用者のパソコンに PNG で保存し、クリップボードに入れるだけで、外部へは送らない。ほかのタブ (YouTube など) では何もしない |
 | `scripting` | 共有画面の「𝕏 に投稿」を押したときだけ、そのボタンが開いた X の投稿画面のタブ 1 つにスクリプトを入れ、投稿欄の画像の入力欄に共有画像を入れる (人が画像を選んだのと同じ)。投稿ボタンは押さない。ほかのタブ・ページには入れない |
 | 任意のホスト権限 `https://x.com/*` (`optional_host_permissions`) | 上の `scripting` で X の投稿画面に画像を入れるため。インストール時には求めず、利用者が初めて「𝕏 に投稿」を押したときに `chrome.permissions.request` で聞く。許可しなくても、投稿画面を開いて画像をクリップボードに入れるところまでは動く (利用者が Ctrl+V で貼る) |
 
@@ -285,6 +288,7 @@ YouTube の複数の配信・動画を 1 つの画面に並べて同時に視聴
 - 収集する利用者データ: なし。開発者のサーバーは Hakomado Feed (`hakomado.contee.net`) だけで、利用者が短縮リンクを作ったときに、共有するつもりのセットのコードだけを受け取る (上の「短縮リンク」)
 - 保存はすべてブラウザ内 (`chrome.storage`)。バックアップは利用者が自分でファイルに書き出す
 - 「ウェブ履歴」に当たるもの: 視聴履歴をローカルにのみ保存。外部へ送信・販売・譲渡しない
+- スクリーンショット: 利用者がマルチビュー画面のタブでショートカットキー (既定 Alt+Shift+S) を押したときだけ、`activeTab` + `captureVisibleTab` でそのタブを撮り、枠の並びに切り抜いて PNG をダウンロード・クリップボードに入れる。画像は外部へ送らない
 - エラーの記録: ローカルにのみ保存 (最大 100 件・7 日)。自動では送らない。利用者が「GitHub で報告」「コピー」を押したときだけ、利用者自身が中身を確かめてから送る
 
 ### ダッシュボードの「プライバシー」タブに入れる内容
@@ -314,6 +318,7 @@ Lets the user watch several YouTube streams and videos side by side on one scree
 | `contextMenus` | Adds "Add to an empty Hakomado tile" to the right-click menu, shown only on links to YouTube videos/streams and on YouTube watch pages. It takes the video ID from the clicked link and passes it to the open multiview screen. The extension does not use the tabs permission and does not read tab URLs or titles. |
 | `https://www.youtube.com/*` | Target of the rules above. Content scripts in the embedded watch and live chat frames control playback, volume, audio panning and archive sync, and read chat messages to show them as scrolling comments. Loads live / upcoming / archived stream lists and video and playlist details with the user's signed-in session, so members-only streams the user can access also work. |
 | `https://schedule.hololive.tv/*` | Loads the stream schedule for the bundled default channels in a single request, which reduces the number of requests made to YouTube. |
+| `activeTab` | Only when the user presses the extension's keyboard shortcut (Alt+Shift+S by default, registered with `commands` and changeable at chrome://extensions/shortcuts) on the extension's own multiview tab: captures that tab with chrome.tabs.captureVisibleTab to take a screenshot of the tiles. The image is cropped to the tiles, saved as a PNG on the user's computer and copied to the clipboard; it is never sent anywhere. Nothing happens on other tabs (such as YouTube pages). |
 | `scripting` | Only when the user presses "𝕏 Post" on the share screen: injects a script into the single X post tab that button just opened, and puts the share image into the post box's image input (the same as choosing the image by hand). It never presses Post and is not injected into any other tab or page. |
 | `https://x.com/*` (optional host permission) | Needed for the `scripting` use above. Not requested at install; asked with chrome.permissions.request the first time the user presses "𝕏 Post". Without it, the extension still opens the post screen and copies the image to the clipboard for the user to paste. |
 

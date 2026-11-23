@@ -9974,6 +9974,79 @@ function notify(text) {
   el._timer = setTimeout(() => el.classList.remove('show'), 3500);
 }
 
+// ---------------------------------------------------------------- 再生枠のスクリーンショット
+// 枠の動画は YouTube の iframe (別のオリジン) なので canvas には描けない。captureVisibleTab でタブの表示を撮り、
+// 枠の並び (#grid) に切り抜く。撮れるのは拡張機能のショートカットキー (既定 Alt+Shift+S) をこのタブで押したときだけ
+// (押すと Chrome がこのタブに activeTab を付け、captureVisibleTab が使えるようになる。ページの中のボタンでは付かない)
+let shooting = false;
+
+/** 画面の再描画を待つ (撮る前に、操作バーを消したのを反映させる) */
+const nextPaint = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+
+/** captureVisibleTab で撮って、枠の並びの部分の PNG にする */
+async function shotByVisibleTab() {
+  const tab = await chrome.tabs.getCurrent();
+  document.body.classList.add('shooting');
+  let url;
+  try {
+    await nextPaint();
+    url = await chrome.tabs.captureVisibleTab(tab.windowId, { format: 'png' });
+  } finally {
+    document.body.classList.remove('shooting');
+  }
+  const img = await createImageBitmap(await (await fetch(url)).blob());
+  const rect = document.getElementById('grid').getBoundingClientRect();
+  const scale = img.width / window.innerWidth;
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(1, Math.round(rect.width * scale));
+  canvas.height = Math.max(1, Math.round(rect.height * scale));
+  canvas.getContext('2d').drawImage(img, rect.left * scale, rect.top * scale, canvas.width, canvas.height, 0, 0, canvas.width, canvas.height);
+  img.close();
+  const blob = await new Promise((r) => canvas.toBlob(r, 'image/png'));
+  if (!blob) throw new Error('toBlob');
+  return blob;
+}
+
+async function captureGridScreenshot() {
+  if (shooting) return;
+  shooting = true;
+  try {
+    const blob = await shotByVisibleTab();
+    const d = new Date();
+    const p2 = (v) => String(v).padStart(2, '0');
+    const name = `hakomado-${d.getFullYear()}${p2(d.getMonth() + 1)}${p2(d.getDate())}-${p2(d.getHours())}${p2(d.getMinutes())}${p2(d.getSeconds())}.png`;
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = name;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 10_000);
+    // クリップボードにも入れる (このページにフォーカスが無いときなどは保存だけ)
+    let copied = false;
+    try {
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+      copied = true;
+    } catch {
+      /* 保存だけ */
+    }
+    notify(tr(copied ? 'shotSavedCopied' : 'shotSaved', name));
+  } catch (e) {
+    console.warn('screenshot', e);
+    notify(tr('shotFailed'));
+  } finally {
+    shooting = false;
+  }
+}
+
+/** ショートカットキーで撮る (background.js が、このタブで押されたときに送ってくる) */
+function listenScreenshotKey(myTabId) {
+  chrome.runtime.onMessage.addListener((msg, sender) => {
+    if (msg?.type !== 'screenshot' || sender.id !== chrome.runtime.id || sender.tab || msg.tabId !== myTabId) return false;
+    captureGridScreenshot();
+    return false;
+  });
+}
+
 function setupFavorites() {
   document.getElementById('openChannels').addEventListener('click', () => openFavorites(null, 'channels'));
   document.getElementById('queuePlay').addEventListener('click', () => startQueue());
@@ -10466,7 +10539,11 @@ async function chooseSession() {
   // 右クリックのメニューからの追加を受け取る (起動し終えてから。それまでに押されたものは新しいタブで開く)
   chrome.tabs
     .getCurrent()
-    .then((tab) => tab && listenAddVideo(tab.id))
+    .then((tab) => {
+      if (!tab) return;
+      listenAddVideo(tab.id);
+      listenScreenshotKey(tab.id);
+    })
     .catch(() => {});
 
   // インストール直後の 1 回だけ、使い方ツアーを出す (先に印を消して、他のタブでは出さない)

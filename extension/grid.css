@@ -372,6 +372,9 @@ body.hl-animate .tile.audible::before { animation: hl-flow 6s ease-in-out infini
   transition: opacity .15s;
 }
 .tile:hover .bar, .tile:focus-within .bar { opacity: 1; }
+/* スクリーンショットを撮っている間は、マウスが乗っている枠の操作バーを写さない */
+body.shooting .tile:is(:hover, :focus-within) .bar { opacity: 0; transition: none; }
+body.shooting .global-toast { visibility: hidden; }
 /* ライブ配信中の印: 操作バーの、チャンネル名の前に小さく */
 .live-badge {
   flex: none;

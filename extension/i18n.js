@@ -846,6 +846,9 @@ const MESSAGES = {
     '{0} other tab(s) are in use. This tab will be a separate viewing session.',
   ],
   leftover: ['前回の視聴内容が残っています。', 'Your previous viewing session is saved.'],
+  shotSaved: ['スクリーンショットを保存しました ({0})', 'Screenshot saved ({0})'],
+  shotSavedCopied: ['スクリーンショットを保存し、クリップボードにもコピーしました ({0})', 'Screenshot saved and copied to the clipboard ({0})'],
+  shotFailed: ['スクリーンショットを撮れませんでした', 'Could not take a screenshot'],
   chooseTitle: ['どの内容で視聴しますか?', 'What would you like to watch?'],
 };
 
@@ -1147,6 +1150,7 @@ const HTML_EN = {
   'errlog.copy': 'Copy',
   'errlog.clear': 'Delete the record',
   'errlog.empty': 'Nothing recorded',
+  'key.shot': 'Take a screenshot of all the tiles (saved as a PNG and copied to the clipboard. Change the key at chrome://extensions/shortcuts)',
   'key.help': 'Open this screen',
 
   // レイアウト
