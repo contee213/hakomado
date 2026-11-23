@@ -2024,24 +2024,16 @@ const Sync = (() => {
     assigned = a;
   }
   /**
-   * 本編の枠のあるグループに、どのグループにも入らなかった枠 (時間のずれたアーカイブ・ライブ) を入れる
-   * (🎬 同時視聴: 同じ本編を見ていた、別の日の配信)。本編の枠がどのグループにも入っていなければ、それらで 1 つのグループを作る。
-   * 手で「同期しない」にした枠は入れない。本編の枠のあるグループが 2 つ以上なら、どこに入れるか決められないので入れない
+   * 🎬 同時視聴のグループで本編の枠のあるものに、どのグループにも入らなかった枠 (時間のずれたアーカイブ・ライブ) を入れる
+   * (同じ本編を見ていた、別の日の配信)。🕒 コラボ配信のグループには入れない (そろえ方は使う人が見出しで選ぶ)。
+   * 手で「同期しない」にした枠は入れない。当てはまるグループが 2 つ以上なら、どこに入れるか決められないので入れない
    */
   function joinMainGroup(a) {
     const loose = [...a.excluded].filter(([, why]) => why === 'alone' || why === 'live').map(([i]) => i);
     if (!loose.length) return;
-    const withMain = [...a.groups].filter(([, list]) => mainOf(list) != null);
-    let target = null;
-    if (withMain.length === 1) target = withMain[0];
-    else if (!withMain.length && mainOf(loose) != null && loose.length >= 2) {
-      const g = [1, 2, 3, 4].find((x) => !a.groups.has(x));
-      if (g == null) return;
-      target = [g, []];
-      a.groups.set(g, target[1]);
-    }
-    if (!target) return;
-    const [, list] = target;
+    const withMain = [...a.groups].filter(([g, list]) => groups.get(g)?.mode === 'movie' && mainOf(list) != null);
+    if (withMain.length !== 1) return;
+    const [, list] = withMain[0];
     for (const i of loose) {
       list.push(i);
       a.excluded.delete(i);
@@ -2159,8 +2151,6 @@ const Sync = (() => {
   function tick() {
     if (!on) return;
     regroup();
-    // 本編の枠が入った・抜けた → そろえ方を変えて知らせる
-    for (const c of autoMode()) notify(movieOnText(c.G, c.filled));
     const act = activeGroups();
     // 同期できるグループが無くなった (手で分けている途中は、そのまま待つ)
     if (!act.length && !manual.size) {
@@ -2482,59 +2472,18 @@ const Sync = (() => {
     sent.clear();
     on = true;
     regroup();
-    // 本編の枠 (プレミア公開) と、それを見ていた配信のアーカイブのグループは、🎬 本編モードで始める
-    const filled = autoMode().reduce((n, c) => n + c.filled, 0);
     clearInterval(timer);
     timer = setInterval(tick, TICK_MS);
     tick();
-    notifyStarted(filled);
+    notifyStarted();
     Dock.autoShow();
     refresh();
   }
-  function notifyStarted(filled = 0) {
+  function notifyStarted() {
     const act = activeGroups();
     const n = act.reduce((s, G) => s + membersOf(G.g).length, 0);
     if (act.length > 1) notify(tr('syncOnGroups', act.length, n));
-    else if (act[0]) notify(movieOnText(act[0], filled));
-  }
-
-  /**
-   * そろえ方を本編の枠で自動で決める (使う人が見出しでそろえ方を選んだグループは変えない):
-   * - 本編の枠 (プレミア公開) が入ったグループは 🎬 本編に。実際の時刻でのそろい方から、各枠の本編の位置の見当を付け、
-   *   基準は本編の枠に (ライブがあればライブのまま)。枠は手で決めたことにする (自動のまとめ直しで崩れないように)
-   * - こうして 🎬 にしたグループから本編の枠が抜けたら、🕒 実際の時刻に戻す (手で決めたことにした枠も自動に戻す)
-   * 変えたグループの [{G, filled: 見当を付けた枠の数}] を返す
-   */
-  function autoMode() {
-    const changed = [];
-    for (const [g, list] of assigned.groups) {
-      const G = groups.get(g);
-      if (!G || G.userMode) continue;
-      const main = mainOf(list);
-      if (!isMovie(G) && main != null && list.length >= 2) {
-        const filled = anchorsFromTime(list);
-        pin(list, g, 'movie');
-        G.auto = new Set(list);
-        if (!list.some(liveTile)) G.ref = main;
-        changed.push({ G, filled });
-      } else if (isMovie(G) && G.auto && main == null) {
-        for (const i of G.auto) if (manual.get(i)?.g === g) manual.delete(i);
-        G.mode = 'time';
-        G.init = true;
-        G.auto = null;
-        changed.push({ G, filled: 0 });
-      } else continue;
-      for (const i of list) {
-        waiting.delete(i);
-        sent.delete(i);
-        forceSeek.delete(i);
-        drift.delete(i);
-      }
-      G.holdUntil = 0;
-      if (G === primary()) playlistRefChanged(state.tiles[G.ref]?.videoId);
-    }
-    if (changed.length) regroup();
-    return changed;
+    else if (act[0]) notify(movieOnText(act[0]));
   }
 
   /** 枠をまとめてグループ g に手で入れる (mode を渡すと、そのそろえ方にする) */
@@ -2551,8 +2500,6 @@ const Sync = (() => {
   /** グループのそろえ方 (実際の時刻 / 本編) を切り替える。そのときの枠は、手で決めたことにする */
   function setMode(G, m) {
     if (!on || m === G.mode) return;
-    G.userMode = m; // 使う人が選んだそろえ方は、本編の枠が入っても抜けても変えない (autoMode)
-    G.auto = null;
     const list = membersOf(G.g);
     // 🕒 → 🎬: 今のそろい方を、決めていない枠の本編の位置にして引き継ぐ (本編の枠があるとき)。基準は本編の枠に
     const main = m === 'movie' ? mainOf(list) : null;
@@ -2809,8 +2756,8 @@ const Sync = (() => {
       }
       const G = groupOfTile(ref);
       if (!G) return;
-      // 時刻で合わせた視聴セットは 🕒 に戻す (本編の枠があれば 🎬 のまま。ずれから本編の位置を決めてあるので、そろい方は同じ)
-      if (m === 'time' && isMovie(G) && mainOf(membersOf(G.g)) == null) setMode(G, 'time');
+      // 時刻で合わせた視聴セットは 🕒 に
+      if (m === 'time' && isMovie(G)) setMode(G, 'time');
       setReference(ref);
       if (at && !isMovie(G)) seekGroup(G, at);
     }, 0);
@@ -2869,8 +2816,9 @@ const Sync = (() => {
     tick();
   }
   /**
-   * 枠 i を本編にする / やめる (on)。本編にすると、同じグループのほかの枠の「本編にした」印は外し、グループを 🎬 同時視聴にして、
-   * 基準をこの枠にする (ライブがあればライブのまま)。ほかの枠の本編の位置の見当は、実際の時刻から付ける
+   * 枠 i を本編にする / やめる (on)。本編にすると、同じグループのほかの枠の「本編にした」印は外し、
+   * 基準をこの枠にする (ライブがあればライブのまま)。ほかの枠の本編の位置の見当は、実際の時刻から付ける。
+   * 🎬 同時視聴のグループだけ (🕒 コラボ配信では印を出さず、そろえ方も変えない)
    */
   function setMain(i, on) {
     const G = on ? groupOfTile(i) : null;
@@ -2878,7 +2826,7 @@ const Sync = (() => {
     if (!on) return tick();
     for (const j of membersOf(G?.g)) if (j !== i && MovieAnchors.isMain(vidOf(j))) MovieAnchors.setMain(vidOf(j), false);
     if (!G) return tick();
-    if (!isMovie(G)) return setMode(G, 'movie');
+    if (!isMovie(G)) return tick();
     const filled = anchorsFromTime(membersOf(G.g));
     notify(movieOnText(G, filled));
     setReference(i);
@@ -3076,10 +3024,10 @@ const Sync = (() => {
      * 「🎬」(押すとこの枠を本編にする。ライブのアーカイブなど、プレミア公開でない本編のため)
      */
     function mainTagEl(i, G) {
-      if (!G || !movable(i)) return null;
+      if (!G || !isMovie(G) || !movable(i)) return null; // 🕒 コラボ配信では出さない
       const isMainTile = mainOf(membersOf(G.g)) === i;
       const marked = MovieAnchors.isMain(vidOf(i));
-      if (isMainTile && isMovie(G)) {
+      if (isMainTile) {
         return marked
           ? mk('button', { type: 'button', class: 'dr-ref-tag dr-main-tag', title: tr('movieMainUnsetTitle'), onclick: () => setMain(i, false) }, '🎬 ' + tr('movieMainTag'))
           : mk('span', { class: 'dr-ref-tag dr-main-tag', title: tr('movieMainTagTitle') }, '🎬 ' + tr('movieMainTag'));
@@ -3298,9 +3246,6 @@ const Sync = (() => {
         modeSel.blur();
         setMode(G, modeSel.value === 'movie' ? 'movie' : 'time');
       });
-      // 本編の枠があって 🎬 でそろえているときは、切り替えを出さない (本編の枠の 0:00 でそろえるのが、実際の時刻でそろえるのと
-      // 同じそろい方で、時間のずれた枠も入れられるため)
-      const modeEl = isMovie(G) && mainOf(list) != null ? mk('span', { class: 'dg-mode dg-mode-fixed', title: tr('syncModeAutoTitle') }, tr('syncModeMovie')) : modeSel;
       h.play = mk('button', { type: 'button', class: 'dg-play', onclick: () => togglePauseGroup(G) });
       h.audio = mk('button', { type: 'button', class: 'dg-audio sync-audio', title: tr('syncAudioTitle'), onclick: () => AudioSync.toggle(G.g) });
       h.reset = mk('button', { type: 'button', class: 'dg-reset', textContent: tr('syncResetLabel'), title: tr('syncResetGroupTitle', G.g), onclick: () => resetGroup(G) });
@@ -3331,7 +3276,7 @@ const Sync = (() => {
           { class: 'dg-head' },
           fold,
           mk('span', { class: 'dg-num', title: tr('syncGroupN', G.g) }, String(G.g)),
-          modeEl,
+          modeSel,
           folded.has(G.g) ? mk('span', { class: 'dg-count' }, tr('syncGroupCount', list.length)) : null,
         ),
         // ✨ 自動補正と ↺ はコラボ配信だけ (同時視聴の配信には本編の音が入っていないことが多いので、タイマーなどで合わせる)

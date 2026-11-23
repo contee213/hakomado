@@ -45,8 +45,18 @@ const SHARE_NAME_MAX = 40; // 再生リストの名前と同じ
 const SHARE_CODE_RE =
   /#?Hakomado\s+([a-z0-9-]{1,24})\.((?:[A-Za-z0-9_-]{11}){1,16})(?:~([-+*\d.,]{1,240}))?(?![A-Za-z0-9_-])(?: "([^"\r\n]{1,40})")?(?: ~!([-*\d.,]{1,240}))?/i;
 
-/** コードや画像に入れる名前 (「"」と改行は入れない) */
-const shareName = (s) => String(s || '').replace(/["\r\n]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, SHARE_NAME_MAX);
+/**
+ * コードや画像に入れる名前 (「"」と改行は入れない)。40 (UTF-16 の単位。コードの読み取りと入力欄の maxlength と同じ数え方) で切り、
+ * 絵文字などの途中で切れたら、その半端な 1 文字は落とす (残すと URL にするとき encodeURIComponent が例外を出す)
+ */
+const shareName = (s) =>
+  String(s || '')
+    .replace(/["\r\n]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, SHARE_NAME_MAX)
+    .replace(/[\uD800-\uDBFF]$/, '')
+    .trim();
 
 /**
  * 視聴セットのコードを作る。ids = 動画 (並び順)、offs = 動画ごとのずれ (秒)、refK = 同期の基準の番号、name = 名前。
@@ -105,13 +115,15 @@ function shareTail(ids, offs = [], refK = 0) {
 /**
  * コードと同じ中身を取り込み用リンクの形にする (共有画像の QR 用)。スマホのカメラで読むと YouTube の一時的な
  * 再生リストとして開け、Hakomado ではコードと同じように (レイアウト・ずれごと) 読める:
- *   https://www.youtube.com/watch_videos?video_ids=ID,ID,…&hkl=<レイアウト>&hks=<ずれ>&title=<名前>&hakomado=
- * - title= は YouTube のリストの名前になる (無いと「Untitled List」)。Hakomado でも名前として読む
- *   (QR を小さくするため、名前は hakomado= には入れない。name が空なら title = fallback)。
+ *   https://www.youtube.com/watch_videos?video_ids=ID,ID,…&hkl=<レイアウト>&hks=<ずれ>&title=<名前>&hakomado=<1|0>
+ * - title= は YouTube のリストの名前になる (無いと「Untitled List」)。name が空なら title = fallback (YouTube に出すだけの仮の名前)。
+ *   Hakomado は hakomado= が 1 のときだけ title= を名前として読む (0 なら名前なし。仮の名前を名前にしない)。
+ *   QR を小さくするため、名前そのものは hakomado= には入れない。
  *   日本語などは %E3… にせずそのまま入れる (3 倍の長さになって QR が大きくなるため。開くときにブラウザが直す)。
  *   URL の区切りになる文字・空白だけ % にする。ascii = true なら名前を全部 % にする (X の本文に入れるとき。
  *   X は URL の途中の日本語でリンクを切るため。X は URL を長さに関係なく 23 文字に数えるので、長くなってもよい)
- * - hkl・hks・hakomado は YouTube には無視される。hakomado= は空でも付ける: 取り込みのルールの目印
+ * - hkl・hks・hakomado は YouTube には無視される。hakomado= はいつも最後に付ける: 取り込みのルールの目印。
+ *   最後なので、貼られた文で後ろに文字が続くと値にくっつく。読むときは最初の 1 文字だけを見る
  */
 function formatShareLink(layoutId, ids, offs = [], refK = 0, name = '', fallback = '', ascii = false, movie = null, mainK = -1) {
   const tail = movie ? '' : shareTail(ids, offs, refK);
@@ -121,7 +133,8 @@ function formatShareLink(layoutId, ids, offs = [], refK = 0, name = '', fallback
   const enc = ascii
     ? encodeURIComponent(title).replace(/[!'()*]/g, pct)
     : title.replace(/[\s%&#+'<>"]/g, pct);
-  return `https://www.youtube.com/watch_videos?video_ids=${ids.join(',')}&hkl=${layoutId}${tail ? `&hks=${tail}` : ''}${mt ? `&hkm=${mt}` : ''}${title ? `&title=${enc}` : ''}&hakomado=`;
+  const named = shareName(name) ? '1' : '0';
+  return `https://www.youtube.com/watch_videos?video_ids=${ids.join(',')}&hkl=${layoutId}${tail ? `&hks=${tail}` : ''}${mt ? `&hkm=${mt}` : ''}${title ? `&title=${enc}` : ''}&hakomado=${named}`;
 }
 
 /**
@@ -195,7 +208,9 @@ function parseShareLink(text) {
   if (!/^[a-z0-9-]{1,24}$/i.test(layoutId) || (tail != null && !/^[-+*\d.,]{1,240}$/.test(tail))) return null;
   if (mt != null && !/^[-*\d.,]{1,240}$/.test(mt)) return null;
   if (list.length > 16 || !list.every((id) => SHARE_ID_RE.test(id))) return null;
-  const base = { ...shareIds(list, tail), layoutId, name: shareName(p.get('hakomado') || p.get('title')), movie: null };
+  // 名前は hakomado= が 1 (最初の 1 文字。後ろに貼られた文がくっついていても) のときの title= だけ。0 なら title= は仮の名前
+  const named = (p.get('hakomado') || '').startsWith('1');
+  const base = { ...shareIds(list, tail), layoutId, name: named ? shareName(p.get('title')) : '', movie: null };
   if (mt) {
     const m = movieIds(list, mt);
     return { ...base, offsets: null, ref: m.ref, movie: m.anchors, main: m.main };

@@ -1472,9 +1472,6 @@ code { font-size: 12px; background: #222228; padding: 0 4px; border-radius: 3px;
 .sync-mark { position: absolute; inset: 0; z-index: 3; pointer-events: none; display: none; }
 .tile.sync-grouped .sync-mark { display: block; border-bottom: 3px solid var(--g); }
 .tile.sync-hl .sync-mark { display: block; border: 2px dashed var(--g, #f5b942); }
-/* 同期中は、基準の印を、マウスを乗せなくても出しておく (バーごと出すと映像の邪魔になるので印だけ) */
-.tile:not(:hover) .bar:has(.sync-ref-badge:not([hidden])) { opacity: 1; background: none; }
-.tile:not(:hover) .bar:has(.sync-ref-badge:not([hidden])) > :not(.sync-ref-badge) { visibility: hidden; }
 .mix-panel {
   position: absolute;
   top: 34px;
@@ -1604,7 +1601,6 @@ body.grid-fs .sync-dock { top: 0; }
 .dg-head { display: flex; align-items: center; gap: 4px; }
 .dg-head select { min-width: 0; flex: 1 1 auto; }
 /* 本編の枠があるときのそろえ方 (切り替えは出さず、文字だけ) */
-.dg-head .dg-mode-fixed { flex: 1 1 auto; min-width: 0; padding: 2px 6px; font-size: 12px; }
 .dg-head button { flex: none; padding: 0 8px; font-variant-numeric: tabular-nums; }
 .dg-num { flex: none; min-width: 20px; border-radius: 10px; background: var(--g); color: #111; font-weight: 700; line-height: 20px; text-align: center; }
 .dg-title { color: var(--muted); }
@@ -1703,12 +1699,15 @@ button.dr-main-tag { border: 0; cursor: pointer; }
 /* 確かさ: ◎ / ○ はそのまま、△ は注意の色 */
 .dr-grade.g1 { color: #f0c36d; }
 .dr-note { color: var(--muted); }
-.dr-movie-label { display: inline-flex; align-items: center; gap: 4px; }
-.dr-movie-now { width: 6em; }
+/* 🚩 開始位置・⏲ 画面タイマー・✕ も 1 行に収める (欄を縮める) */
+.dr-sub:has(.dr-movie-now) { flex-wrap: nowrap; gap: 3px; }
+.dr-movie-label { display: inline-flex; align-items: center; gap: 4px; flex: 0 1 auto; min-width: 0; white-space: nowrap; }
+.dr-movie-now { width: 6em; flex: 0 1 6em; min-width: 3.5em; }
+.dr-sub .dr-here, .dr-sub .dr-clear { flex: none; white-space: nowrap; }
 /* たたんだとき: 番号・ずれ・点だけ */
 .sync-dock.mini .dock-title, .sync-dock.mini .dg-actions, .sync-dock.mini .dr-ref-tag, .sync-dock.mini .dr-make-main, .sync-dock.mini .dr-sub, .sync-dock.mini .dr-name,
 .sync-dock.mini .dr-group, .sync-dock.mini .dr-ref, .sync-dock.mini .dg-seek, .sync-dock.mini .dg-head select,
-.sync-dock.mini .dg-head button, .sync-dock.mini .dg-mode-fixed, .sync-dock.mini .dg-note, .sync-dock.mini .dg-audio-result, .sync-dock.mini .dg-tl, .sync-dock.mini .dg-count { display: none; }
+.sync-dock.mini .dg-head button, .sync-dock.mini .dg-note, .sync-dock.mini .dg-audio-result, .sync-dock.mini .dg-tl, .sync-dock.mini .dg-count { display: none; }
 .sync-dock.mini .dr-short { display: inline; flex: 1 1 auto; text-align: right; }
 .sync-dock.mini .dock-body { padding: 4px; }
 

@@ -26,7 +26,7 @@ test('コードを読む: レイアウト・動画・ずれ・基準・名前', 
 });
 
 test('取り込み用リンクも読める (コードと同じ中身)', () => {
-  const r = core.parseSubmission(`https://www.youtube.com/watch_videos?video_ids=${A},${B}&hkl=u1x2&title=名前&hakomado=`);
+  const r = core.parseSubmission(`https://www.youtube.com/watch_videos?video_ids=${A},${B}&hkl=u1x2&title=名前&hakomado=1`);
   assert.equal(r.ok, true);
   assert.equal(r.set.layoutId, 'u1x2');
   assert.deepEqual([...r.set.ids], [A, B]);
@@ -123,9 +123,13 @@ test('D1 の行を画面に渡す形: コードとリンクを作り、秘密は
   };
   const s = core.rowToSet(row);
   assert.equal(s.code, `#Hakomado u2x2.${A}${B}~0,2 "名前"`);
-  assert.match(s.link, /^https:\/\/www\.youtube\.com\/watch_videos\?video_ids=A{11},B{11}&hkl=u2x2&hks=0,2&title=名前&hakomado=$/);
+  assert.match(s.link, /^https:\/\/www\.youtube\.com\/watch_videos\?video_ids=A{11},B{11}&hkl=u2x2&hks=0,2&title=名前&hakomado=1$/);
   assert.equal(s.layoutName, '2×2');
   assert.equal('delete_hash' in s || 'reports' in s, false);
+  // 名前の無いセットのリンクは title= が仮の名前 (Hakomado) で hakomado=0。読み戻しても (投稿し直しても) 名前は付かない
+  const unnamed = core.rowToSet({ ...row, name: '' });
+  assert.match(unnamed.link, /&title=Hakomado&hakomado=0$/);
+  assert.equal(core.parseSubmission(unnamed.link).set.name, '');
 });
 
 test('機能フラグ: オブジェクト・JSON の文字列・カンマ区切りで決め、書いていないものはオフ', async () => {
