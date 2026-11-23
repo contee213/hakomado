@@ -2557,10 +2557,11 @@ const Sync = (() => {
       );
       const parts = [line1];
       if (G && active(G)) {
-        const step = (d) =>
-          mk('button', { type: 'button', class: 'dr-step', textContent: d < 0 ? '◀' : '▶', title: tr(d < 0 ? 'syncStepBack' : 'syncStepFwd'), onclick: () => nudge(i, d) });
-        r.minus = step(-0.1);
-        r.plus = step(0.1);
+        const stepLabel = (d) => (d < 0 ? '−' : '+') + Math.abs(d);
+        r.steps = [-0.1, -0.01, 0.01, 0.1].map((d) =>
+          holdButton({ class: 'dr-step', textContent: stepLabel(d), title: tr('syncStepTitle', stepLabel(d)) }, () => nudge(i, d)),
+        );
+        const [m1, m2, p2, p1] = r.steps;
         r.val = mk('input', { type: 'text', class: 'dr-val sync-input', inputMode: 'decimal', spellcheck: false, title: tr(movie ? 'syncAnchorInputTitle' : 'syncInputTitle') });
         r.val.addEventListener('keydown', (e) => {
           if (e.key === 'Enter') {
@@ -2587,17 +2588,34 @@ const Sync = (() => {
         const live = liveTile(i);
         // 基準の枠は時計を動かす側なので、ずれは見せるだけ (動かすと、基準ではなくほかの枠が逆向きにずれるため)。
         // 合わせるのはほかの枠で。基準の動画そのものの直し (冒頭が切られた場合・0 に戻す) だけ残す
-        if (isRef && !live) {
-          // 実際の時刻: 基準の補正はいつも 0 (zeroRef) なので値も ↺ も出さない。本編: 本編の位置を出す
-          r.refVal = movie ? mk('span', { class: 'dr-ref-val', title: tr('syncRefAnchorTitle') }) : null;
-          r.minus = r.plus = r.val = r.wait = null;
-          if (!movie) r.reset = null;
+        // 実際の時刻の基準: 補正はいつも 0 (zeroRef)。ほかの枠と同じ操作を、押せない形で 🔒 と並べる (固定されていると分かるように)
+        // 本編の基準: 本編の位置は決める必要があるので、位置だけ出す (下に「▶ ここが 0:00」など)
+        if (isRef && !live && !movie) {
+          r.locked = true;
+          r.reset = null;
+          for (const b of [...r.steps, r.wait]) b.disabled = true;
+          r.val.disabled = true;
+        } else if (isRef && !live) {
+          r.refVal = mk('span', { class: 'dr-ref-val', title: tr('syncRefAnchorTitle') });
+          r.steps = r.val = r.wait = null;
         }
         const line2 = live
           ? mk('div', { class: 'dr-line dr-sub' }, mk('span', { class: 'dr-note' }, tr(isRef ? 'syncLiveRef' : 'movieLiveRefOnly')))
-          : isRef
-            ? mk('div', { class: 'dr-line dr-sub' }, r.refVal, r.reset, mk('span', { class: 'dr-note' }, tr('syncRefRowNote')))
-            : mk('div', { class: 'dr-line dr-sub' }, r.minus, r.val, r.plus, r.wait, r.reset, r.cand);
+          : isRef && movie
+            ? mk('div', { class: 'dr-line dr-sub' }, r.refVal)
+            : mk(
+                'div',
+                { class: 'dr-line dr-sub' + (r.locked ? ' is-locked' : '') },
+                r.locked ? mk('span', { class: 'dr-lock', title: tr('syncRefLockTitle') }, '🔒') : null,
+                m1,
+                m2,
+                r.val,
+                p2,
+                p1,
+                r.wait,
+                r.reset,
+                r.cand,
+              );
         parts.push(line2);
         if (movie && !live) {
           const nowIn = mk('input', { type: 'text', class: 'dr-movie-now sync-input', inputMode: 'numeric', placeholder: '0:47:12', title: tr('syncMovieNowTitle') });
@@ -2782,11 +2800,46 @@ const Sync = (() => {
       }
       return { at: realOf(G, i, 0), raw: views[i].archive.start };
     }
+    /**
+     * 押すと 1 回、押し続けると続けて fn を呼ぶボタン (0.4 秒後から、1.5 秒たつと 2 倍の速さで)。キーボードの Enter / Space は 1 回。
+     * 押している間にパネルが作り直されて外れたら止める (止まらないまま動き続けないように)
+     */
+    let stopHold = null; // 押し続けているボタンを止める (ページのどこで放しても・ウィンドウを離れても)
+    function holdButton(props, fn) {
+      const b = mk('button', { type: 'button', ...props });
+      let wait = 0;
+      let rep = 0;
+      const stop = () => {
+        clearTimeout(wait);
+        clearInterval(rep);
+        wait = rep = 0;
+      };
+      b.addEventListener('pointerdown', (e) => {
+        if (e.button !== 0 || b.disabled) return;
+        e.preventDefault(); // 行の選択 (フォーカス) はそのまま
+        stop();
+        fn();
+        const t0 = performance.now();
+        wait = setTimeout(() => {
+          rep = setInterval(() => {
+            if (!b.isConnected || b.disabled) return stop();
+            fn();
+            if (performance.now() - t0 > 1500) fn();
+          }, 80);
+        }, 400);
+      });
+      for (const ev of ['pointerup', 'pointerleave', 'pointercancel', 'lostpointercapture']) b.addEventListener(ev, stop);
+      b.addEventListener('pointerdown', () => (stopHold = stop)); // どこで放しても止める (下の setup の 1 つの受け口で)
+      b.addEventListener('click', (e) => {
+        if (e.detail === 0) fn(); // キーボードで押したとき
+      });
+      return b;
+    }
+
     function timelineEl(G, list) {
       const t = { rows: new Map() };
-      t.lo = mk('span', { class: 'tl-lo' });
-      t.hi = mk('span', { class: 'tl-hi' });
       t.breakKey = '';
+      t.labelKey = '';
       const rowsEl = list.map((i) => {
         const x = {
           bar: mk('div', { class: 'tl-bar' }),
@@ -2806,7 +2859,7 @@ const Sync = (() => {
           x.st,
         );
       });
-      t.axis = mk('div', { class: 'tl-axis' }, t.lo, t.hi);
+      t.axis = mk('div', { class: 'tl-axis' });
       t.el = mk('div', { class: 'dg-tl' }, mk('div', { class: 'tl-axis-row' }, t.axis), ...rowsEl);
       return t;
     }
@@ -2823,23 +2876,39 @@ const Sync = (() => {
       if (!sc) return;
       const pct = sc.pos;
       const fmt = isMovie(G) ? (ms) => movieText(ms).replace(/^\S+\s/, '') : clockText;
-      // 目盛りの両端: 一番早い開始と一番遅い開始 (その位置に置く)
-      // 時刻の文字が、ほかの時刻や切れ目の ≈ と重なるなら出さない (差は左の文字で分かる)
-      const room = (at, others) => others.every((o) => Math.abs(o - at) >= 40);
-      t.lo.textContent = room(pct(sc.first), sc.breaks) ? fmt(sc.first) : '';
-      t.lo.style.left = pct(sc.first) + '%';
-      t.hi.textContent = room(pct(sc.last), [pct(sc.first), ...sc.breaks]) ? fmt(sc.last) : '';
-      t.hi.style.left = pct(sc.last) + '%';
-      // 切れ目 (≈): 目盛りと各枠の棒に入れる (位置が変わったときだけ作り直す)
+      // 目盛り: 各枠の開始の時刻 (実際の時刻は配信が始まった時刻、本編は本編 0:00 の位置) を、その位置に出せるだけ出す。
+      // 2 段に振り分け、どちらの段でも重なるものは出さない (差は左の文字で分かる)
+      const starts = [...new Set([...marks.values()].filter(Boolean).map((m) => m.raw ?? m.at))].sort((a, b) => a - b);
+      const labelKey = starts.map((v) => fmt(v) + '@' + pct(v).toFixed(1)).join(',');
+      if (labelKey !== t.labelKey && t.axis.clientWidth) {
+        t.labelKey = labelKey;
+        const w = t.axis.clientWidth;
+        const lanes = [-Infinity, -Infinity]; // 各段の、最後に置いた文字の右端 (px)
+        const spans = [];
+        t.axis.replaceChildren();
+        for (const v of starts) {
+          const el = mk('span', { class: 'tl-time' }, fmt(v));
+          t.axis.append(el);
+          const half = el.offsetWidth / 2;
+          const x = Math.max(half, Math.min(w - half, (pct(v) / 100) * w)); // 端ではみ出さないよう、内側へ寄せる
+          const lane = lanes.findIndex((right) => x - half >= right + 4);
+          if (lane < 0) {
+            el.remove();
+            continue;
+          }
+          lanes[lane] = x + half;
+          el.style.left = x + 'px';
+          el.style.top = lane * 11 + 'px';
+          spans.push(el);
+        }
+      }
+      // 各枠の棒の切れ目 (間を詰めたところ。位置が変わったときだけ作り直す)
       const breakKey = sc.breaks.map((b) => b.toFixed(1)).join(',');
       if (breakKey !== t.breakKey) {
         t.breakKey = breakKey;
-        const cut = (cls, text = '') => sc.breaks.map((b) => mk('span', { class: cls, style: `left: ${b}%` }, text));
-        t.axis.querySelectorAll('.tl-break-mark').forEach((e) => e.remove());
-        t.axis.append(...cut('tl-break-mark', '≈'));
         for (const x of t.rows.values()) {
           x.track.querySelectorAll('.tl-break').forEach((e) => e.remove());
-          x.track.append(...cut('tl-break'));
+          x.track.append(...sc.breaks.map((b) => mk('span', { class: 'tl-break', style: `left: ${b}%` })));
         }
       }
       const R = nowR(G);
@@ -2879,7 +2948,7 @@ const Sync = (() => {
         const st = waiting.has(i) ? 'wait' : drift.get(i);
         x.st.textContent =
           st === 'ref'
-            ? tr('syncTlRef')
+            ? '✓'
             : st === 'wait'
               ? tr('syncTlWait')
               : st === 'ok'
@@ -2963,11 +3032,11 @@ const Sync = (() => {
           r.val.dataset.shown = txt;
         }
         if (r.wait) {
-          r.wait.textContent = tr(wait ? 'syncWaitResumeLabel' : 'syncWaitLabel');
+          r.wait.textContent = wait ? '▶' : '⏸';
           r.wait.title = tr(wait ? 'syncWaitResumeTitle' : 'syncWaitTitle');
           r.wait.classList.toggle('is-waiting', !!wait);
         }
-        if (r.minus) r.minus.disabled = r.plus.disabled = movie && anchor(i) == null;
+        if (r.steps && !r.locked) for (const b of r.steps) b.disabled = movie && anchor(i) == null;
         if (r.cand) {
           const c = AudioSync.candidateFor(i);
           r.cand.textContent = c == null ? '' : c === false ? '🎧 —' : `🎧 ${signedSec(c)}`;
@@ -3001,6 +3070,7 @@ const Sync = (() => {
         update();
       });
       document.getElementById('syncUndo').addEventListener('click', undo);
+      for (const ev of ['pointerup', 'blur']) addEventListener(ev, () => stopHold?.());
       document.getElementById('syncLegend').replaceChildren(
         mk('span', { class: 'dock-legend-item' }, mk('span', { class: 'dr-dot is-ok' }, '✓'), tr('syncLegendOk')),
         mk('span', { class: 'dock-legend-item' }, mk('span', { class: 'dr-dot' }, '↻'), tr('syncLegendFix')),
