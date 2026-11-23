@@ -41,7 +41,7 @@
     <button id="openChannels" type="button" data-i18n-title="ch.title" title="チャンネル (F): 配信中・配信予定と、チャンネルの追加・ピックアップ"><span class="tb-icon">📺</span><span class="tb-label" data-i18n="ch.label">チャンネル</span></button>
     <button id="openFavorites" type="button" data-i18n-title="fav.title" title="ライブラリ (B): 最近の動画・視聴履歴・あとで見る"><span class="tb-icon">📚</span><span class="tb-label" data-i18n="fav.label">ライブラリ</span></button>
     <button id="openInfo" class="icon-only" type="button" data-i18n-title="info.title" title="枠の情報 (I): 各枠の種類 (ライブ・アーカイブ・動画)・配信の時間・視聴者数・再生数などを一覧で見る">ℹ️</button>
-    <button id="openShare" class="icon-only" type="button" data-i18n-title="share.title" title="共有: 今の枠や再生リストを、画像・コード・テキスト・リンクにして人に渡す">🔗</button>
+    <button id="openShare" class="icon-only" type="button" data-i18n-title="share.title" title="共有: 今の枠や再生リストを、画像・リンク・テキストにして人に渡す">🔗</button>
     <button id="openRead" class="icon-only" type="button" data-i18n-title="read.title" title="読み込む: 共有された画像・コード・テキスト・リンクや URL を、枠に並べるか再生リストとして保存する">📥</button>
     <button id="gridFullscreen" class="icon-only" type="button" data-i18n-title="gridFs.title" title="分割したまま全画面 (Shift+F)。上端にマウスを寄せると、このバーが出ます">⛶</button>
     <button id="openSettings" class="icon-only" type="button" data-i18n-title="settings.title" title="設定">⚙</button>
@@ -377,13 +377,13 @@
             </ul>
           </section>
           <section class="help-page" data-help-page="share" role="tabpanel" data-i18n-html="helpPage.share" hidden>
-            <p>「🔗 共有」で、今の枠か再生リストを選んで、4 つの形式にできます。</p>
+            <p>「🔗 共有」で、今の枠か再生リストを選んで、渡す相手に合わせた 3 つの形式にできます。</p>
             <ul>
-              <li><b>画像</b>: X などに添えて投稿します。QR を読むと YouTube で開け、Hakomado では同じ並びで開けます。画像に付ける説明 (ALT) の文もコピーできます。「𝕏 に投稿」で、画像・名前・リンクを入れた X の投稿画面を開きます (投稿ボタンは自分で押します。初めてのときは x.com へのアクセスの許可を聞きます)</li>
-              <li><b>コード</b>: <code>#Hakomado …</code> の 1 行 (16 本まで)。X での文字数も出します</li>
-              <li><b>テキスト</b>: 1 行に 1 本。名前・同期・レイアウト・補正・枠の名前まで全部入ります。AI チャットに渡して直してもらうこともできます</li>
-              <li><b>取り込み用リンク</b>: Hakomado が無い人も YouTube の再生リストとして見られます (50 本まで)</li>
+              <li><b>画像</b>: X などに添えて見せます。QR を読むと YouTube で開け、Hakomado では同じ並びで開けます。画像に付ける説明 (ALT) の文もコピーできます。「𝕏 に投稿」で、画像・名前・リンクを入れた X の投稿画面を開きます (投稿ボタンは自分で押します。初めてのときは x.com へのアクセスの許可を聞きます)</li>
+              <li><b>リンク</b>: DM などで直接送ります。中身は画像の QR と同じ (16 本まで・レイアウト・補正・名前)。Hakomado が入っていれば開くだけで同じ並びになり、入っていない人も YouTube の再生リストとして見られます</li>
+              <li><b>テキスト</b>: 1 行に 1 本。名前・同期・レイアウト・補正・枠の名前まで全部入ります (17 本以上の再生リストもこれで)。AI チャットに渡して直してもらうこともできます</li>
             </ul>
+            <p>「📮 サイトに投稿」で、Hakomado のサイトの投稿画面をこのセットを入れた状態で開きます (X でログインして、投稿ボタンは自分で押します)。</p>
             <p>受け取ったものは「📥 読み込む」に貼ります (画像はドロップでも。入力欄の外で <kbd>Ctrl</kbd> + <kbd>V</kbd> しても開きます)。読み取った内容を確かめて、「▦ 枠に並べる」か「📃 再生リストとして保存」を選びます。取り込み用リンクを開いたときもここに来ます。</p>
           </section>
           <section class="help-page" data-help-page="look" role="tabpanel" data-i18n-html="helpPage.look" hidden>
@@ -444,8 +444,8 @@
     </form>
   </dialog>
 
-  <!-- 🔗 共有: 共有するもの (今の枠 / 再生リスト) を選び、画像・コード・テキスト・リンクのどれかにして渡す。
-       どちらを選んでも 4 つの形式を作れる。タブの中身は同じ場所に重ね、切り替えても画面の大きさを変えない -->
+  <!-- 🔗 共有: 共有するもの (今の枠 / 再生リスト) を選び、渡す相手で選ぶ 3 つの形式 (画像・リンク・テキスト) のどれかにして渡す。
+       サイトに投稿はタブの外に 1 つだけ。タブの中身は同じ場所に重ね、切り替えても画面の大きさを変えない -->
   <dialog id="shareDialog" class="share-dialog">
     <form method="dialog" class="help-form share-form">
       <div class="settings-title">
@@ -460,9 +460,8 @@
       </label>
       <div class="settings-tabs share-tabs" role="tablist">
         <button type="button" role="tab" data-stab="image" data-i18n="share.tabImage">🖼 画像</button>
-        <button type="button" role="tab" data-stab="code" data-i18n="share.tabCode"># コード</button>
-        <button type="button" role="tab" data-stab="text" data-i18n="share.tabText">📝 テキスト</button>
         <button type="button" role="tab" data-stab="link" data-i18n="share.tabLink">🌐 リンク</button>
+        <button type="button" role="tab" data-stab="text" data-i18n="share.tabText">📝 テキスト</button>
       </div>
       <div class="share-panels">
         <section class="share-panel" data-spanel="image" role="tabpanel">
@@ -474,19 +473,9 @@
           <p class="settings-note" id="shareNoteImage"></p>
           <div class="share-buttons">
             <button type="button" id="shareToX" data-i18n="share.toX" data-i18n-title="share.toXTitle" title="X の投稿画面を開いて、画像・名前・リンクを入れます (投稿ボタンは自分で押します)">𝕏 に投稿</button>
-            <button type="button" id="shareToFeed" class="share-to-feed" data-i18n="share.toFeed" data-i18n-title="share.toFeedTitle" title="このセットのコードを入れた Hakomado のサイトの投稿画面を開きます (X でログインして、投稿ボタンは自分で押します。拡張機能からは送りません)">📮 サイトに投稿</button>
             <button type="button" id="shareImgCopy" data-i18n="share.imgCopy">🖼 画像をコピー</button>
             <button type="button" id="shareImgSave" data-i18n="share.imgSave">⬇ 画像を保存</button>
             <button type="button" id="shareAltCopy" data-i18n="share.altCopy" data-i18n-title="share.altCopyTitle" title="X などで画像に付ける説明 (ALT) の文をコピーする (読み込み用のコード入り)">📋 ALT 用の文をコピー</button>
-          </div>
-        </section>
-        <section class="share-panel" data-spanel="code" role="tabpanel" hidden>
-          <textarea id="shareCode" class="share-text share-wrap" rows="3" readonly spellcheck="false"></textarea>
-          <p class="settings-note" id="shareNoteCode"></p>
-          <div class="share-buttons">
-            <button type="button" id="shareCopyCode" data-i18n="share.copyCode">📋 コードをコピー</button>
-            <button type="button" id="shareCodeToFeed" class="share-to-feed" data-i18n="share.toFeed" data-i18n-title="share.toFeedTitle" title="このセットのコードを入れた Hakomado のサイトの投稿画面を開きます (X でログインして、投稿ボタンは自分で押します。拡張機能からは送りません)">📮 サイトに投稿</button>
-            <span id="shareXCount" class="share-status"></span>
           </div>
         </section>
         <section class="share-panel" data-spanel="text" role="tabpanel" hidden>
@@ -503,6 +492,9 @@
             <button type="button" id="shareCopyLink" data-i18n="share.copyLink">📋 リンクをコピー</button>
           </div>
         </section>
+      </div>
+      <div class="share-buttons share-feed">
+        <button type="button" id="shareToFeed" data-i18n="share.toFeed" data-i18n-title="share.toFeedTitle" title="このセットを入れた Hakomado のサイトの投稿画面を開きます (X でログインして、投稿ボタンは自分で押します。拡張機能からは送りません)">📮 サイトに投稿</button>
       </div>
       <span id="shareStatus" class="share-status" role="status"></span>
     </form>

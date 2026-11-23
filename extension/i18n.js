@@ -147,7 +147,6 @@ const MESSAGES = {
   progressStatus: ['チャンネルの配信状況を確認しています ({0} / {1})', 'Checking live status of channels ({0} / {1})'],
   progressAccess: ['見られる配信か確認しています ({0} / {1})', 'Checking which streams you can watch ({0} / {1})'],
   shareEmpty: ['表示中の枠に配信がありません', 'No streams in the shown tiles'],
-  shareCopied: ['コードをコピーしました', 'Copied the code'],
   shareImageMaking: ['画像を作っています…', 'Making the image…'],
   shareImageCopied: ['画像をコピーしました。X などの投稿欄に貼り付けられます', 'Copied the image. You can paste it into a post on X or elsewhere'],
   shareImageFail: ['画像を作れませんでした: {0}', 'Could not make the image: {0}'],
@@ -165,11 +164,6 @@ const MESSAGES = {
   shareBadLines: ['{0} 行は読み取れなかったので飛ばしました', 'Skipped {0} lines that could not be read'],
   shareTooMany: ['枠に並べたのは先頭 16 本です', 'Only the first 16 were laid out in tiles'],
   shareLoaded: ['▦ 枠に並べました ({0} 本)', '▦ Laid out {0} streams in tiles'],
-  shareXCount: ['X の文字数: {0} / {1}', 'Length on X: {0} / {1}'],
-  shareXOver: [
-    'X の文字数: {0} / {1}。本文には入らないので、画像で共有してください (画像の QR と ALT には入ります)',
-    'Length on X: {0} / {1}. Too long for a post, so share the image instead (the QR and ALT text hold it)',
-  ],
   shareAltHead: ['{0} — Hakomado の視聴セット ({1} 本 · {2})', '{0} — a Hakomado viewing set ({1} streams · {2})'],
   shareAltSep: ['、', ', '],
   shareAltCode: ['Hakomado の「📥 読み込む」に貼ると開けるコード: {0}', 'Code to paste into “📥 Import” in Hakomado: {0}'],
@@ -185,17 +179,13 @@ const MESSAGES = {
     '入るもの: {0}・レイアウト・同期の補正・名前 (画像に描き、QR にも入れます) / 入らないもの: 枠の名前。X などに添えて投稿すると、受け取った人は画像を Hakomado に貼るだけで同じ並びを開けます',
     'Includes: {0}, the layout, sync offsets and the name (drawn on the image and kept in the QR) / Not included: tile names. Attach it to a post on X or elsewhere, and others can open the same arrangement just by pasting the image into Hakomado',
   ],
-  shareNoteCode: [
-    '入るもの: {0}・レイアウト・同期の補正・名前 / 入らないもの: 枠の名前。X などの本文に貼りやすい 1 行です。Hakomado に貼ると開けます',
-    'Includes: {0}, the layout, sync offsets and the name / Not included: tile names. One line, easy to put in a post on X. Paste it into Hakomado to open it',
-  ],
   shareNoteText: [
     '入るもの: 全部 ({0}・名前・同期再生・レイアウト・補正・枠の名前)。Hakomado に貼ると元どおりに戻ります。AI チャットに渡して直してもらうこともできます',
     'Includes: everything ({0}, the name, sync setting, layout, offsets and tile names). Pasting it into Hakomado restores it as it was. You can also hand it to an AI chat to edit',
   ],
   shareNoteLink: [
-    '入るもの: {0}・名前 / 入らないもの: 同期の補正・レイアウト・枠の名前。Hakomado が入っていれば開くだけで読み込めます。入っていない人も YouTube の再生リストとして見られます (YouTube の制限で 50 本まで)',
-    'Includes: {0} and the name / Not included: sync offsets, layout and tile names. With Hakomado, opening it imports them. Without it, it still opens as a YouTube playlist (up to 50 because of a YouTube limit)',
+    '入るもの: {0}・レイアウト・同期の補正・名前 (画像の QR と同じ) / 入らないもの: 枠の名前。DM などで直接送るときに。Hakomado が入っていれば開くだけで同じ並びになり、入っていない人も YouTube の再生リストとして見られます',
+    'Includes: {0}, the layout, sync offsets and the name (the same as the QR on the image) / Not included: tile names. For sending directly, such as in a DM. With Hakomado, opening it gives the same arrangement; without it, it still opens as a YouTube playlist',
   ],
   readNothing: [
     '読み込めるもの (共有のコード・テキスト・取り込み用リンク・YouTube の URL) が見つかりませんでした',
@@ -682,7 +672,7 @@ const MESSAGES = {
   ],
   plNameTitle: ['再生リストの名前 (書き換えると変わる)', 'Playlist name (edit to rename)'],
   plShareBtn: ['🔗 共有', '🔗 Share'],
-  plShareBtnTitle: ['この再生リストを画像・コード・テキスト・リンクにして人に渡す', 'Share this playlist as an image, a code, text or a link'],
+  plShareBtnTitle: ['この再生リストを画像・リンク・テキストにして人に渡す', 'Share this playlist as an image, a link or text'],
   plDeleteTitle: ['この再生リストを削除する', 'Delete this playlist'],
   plModeLabel: ['再生のしかた', 'Play'],
   plModeQueue: ['▶ 順に再生', '▶ In order'],
@@ -980,19 +970,18 @@ const HTML_EN = {
   'sync.dockTitle': 'Show / hide the sync panel (groups, reference, offsets, ✨ auto-correct)',
   'sync.dockHead': '⏱ Sync',
   'sync.adjTitle': 'Open the sync panel with this tile selected (offset, reference, group)',
-  'share.title': 'Share: turn the current tiles or a playlist into an image, a code, text or a link to give to others',
+  'share.title': 'Share: turn the current tiles or a playlist into an image, a link or text to give to others',
   'share.h': '🔗 Share',
   'share.sourceLabel': 'What to share',
   'share.nameLabel': 'Name',
   'share.namePlaceholder': 'Optional (the image shows “Hakomado viewing set”)',
   'share.tabImage': '🖼 Image',
-  'share.tabCode': '# Code',
   'share.tabText': '📝 Text',
   'share.tabLink': '🌐 Link',
   'share.toX': '𝕏 Post',
   'share.toXTitle': 'Open the X post screen with the image, the name and the link filled in (you press Post yourself)',
   'share.toFeed': '📮 Post to the site',
-  'share.toFeedTitle': 'Open the post screen of the Hakomado site with this set’s code filled in (sign in with X and press Post yourself; the extension sends nothing)',
+  'share.toFeedTitle': 'Open the post screen of the Hakomado site with this set filled in (sign in with X and press Post yourself; the extension sends nothing)',
   'share.imgCopy': '🖼 Copy image',
   'share.imgSave': '⬇ Save image',
   'share.authorLabel': 'Author',
@@ -1000,7 +989,6 @@ const HTML_EN = {
   'share.imgLabels': 'Draw the channel and title on each tile',
   'share.altCopy': '📋 Copy ALT text',
   'share.altCopyTitle': 'Copy ALT text for the image on X and elsewhere (includes the code to import it)',
-  'share.copyCode': '📋 Copy code',
   'share.copyText': '📋 Copy text',
   'share.copyLink': '📋 Copy link',
   'read.title': 'Import: lay out a shared image, code, text, link or URLs in tiles, or save them as a playlist',
@@ -1095,13 +1083,13 @@ const HTML_EN = {
 <li>Playback speed: tiles in a synced group can’t change speed on their own. Changing it on any tile in the group (its 1× button, the < > keys, or the player’s ⚙) changes the whole group, and the sync clock moves at that speed. A group with a live stream stays at normal speed</li>
 <li>Choosing the reference: make the tile you mainly listen to the reference, so its sound stays the most natural (the others change speed slightly or jump to keep up). If one tile needs a much larger offset than the rest, don’t make it the reference, so the other videos keep small offsets (offsets are remembered per video and reused in other sets)</li>
 </ul>`,
-  'helpPage.share': `<p>“🔗 Share” turns the current tiles or a playlist into one of four forms.</p>
+  'helpPage.share': `<p>“🔗 Share” turns the current tiles or a playlist into one of three forms, depending on who you give it to.</p>
 <ul>
 <li><b>Image</b>: attach it to a post on X or elsewhere. Scanning the QR opens it on YouTube, and Hakomado opens the same arrangement. You can also copy ALT text for the image. “𝕏 Post” opens the X post screen with the image, the name and the link filled in (you press Post yourself; the first time, it asks for access to x.com)</li>
-<li><b>Code</b>: one line, <code>#Hakomado …</code> (up to 16). Shows its length on X</li>
-<li><b>Text</b>: one per line, with the name, sync, layout, offsets and tile names. You can hand it to an AI chat to edit</li>
-<li><b>Import link</b>: people without Hakomado can watch it as a YouTube playlist (up to 50)</li>
+<li><b>Link</b>: send it directly, such as in a DM. It holds the same as the QR on the image (up to 16, the layout, offsets and the name). With Hakomado, opening it gives the same arrangement; without it, it opens as a YouTube playlist</li>
+<li><b>Text</b>: one per line, with the name, sync, layout, offsets and tile names (use it for playlists of 17 or more). You can hand it to an AI chat to edit</li>
 </ul>
+<p>“📮 Post to the site” opens the post screen of the Hakomado site with this set filled in (sign in with X and press Post yourself).</p>
 <p>Paste what you receive into “📥 Import” (drop images too, or press <kbd>Ctrl</kbd> + <kbd>V</kbd> outside any input box). Check what was read, then “▦ Lay out in tiles” or “📃 Save as playlist”. Opening an import link lands here too.</p>`,
   'helpPage.look': `<ul>
 <li><b>Danmaku</b>: scrolls each tile’s live chat across it. Turn it on/off per tile with ≋ (by default only on the main tile). <kbd>D</kbd> hides it on all tiles for now. Size, speed, rows and more are in Settings → Danmaku</li>

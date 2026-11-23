@@ -1398,6 +1398,7 @@ dialog.share-dialog { width: min(600px, calc(100% - 32px)); }
   font: 12px/1.5 ui-monospace, Consolas, monospace;
 }
 .share-buttons { display: flex; align-items: center; gap: 10px; }
+.share-feed { justify-content: flex-end; }
 .share-status { color: var(--muted); font-size: 12px; }
 .share-error { color: #ff8a80; }
 .help-form { display: flex; flex-direction: column; gap: 10px; padding: 16px; }

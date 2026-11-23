@@ -93,7 +93,7 @@ YouTube の配信・動画を 1 つの画面に最大 16 枠並べて、同時�
 ・アーカイブ同期: コラボ配信の各視点のアーカイブを、配信していた実際の時刻でそろえて再生
 ・音の左右と音量: 枠ごとに音を左 / 右から聞こえるようにしたり、音量を変えたりできます (2 視点の聞き分けに)
 ・再生リスト / 視聴履歴 / あとで見る / 配信開始の通知
-・共有: 今の枠や再生リストを、画像・1 行のコード・リンクにして人に渡せます
+・共有: 今の枠や再生リストを、画像・リンク・テキストにして人に渡せます
 ・右クリックで追加: YouTube のリンクを右クリック →「Hakomado の空き枠に追加」
 
 ■ 使い方
@@ -134,7 +134,7 @@ FEATURES
 • Archive sync: play the archives of a collab's different points of view aligned to the real time they were streamed
 • Per-tile audio: pan each tile's sound left or right and change its volume (handy for telling two voices apart)
 • Playlists, watch history, Watch later and go-live notifications
-• Sharing: turn your current tiles or a playlist into an image, a one-line code or a link
+• Sharing: turn your current tiles or a playlist into an image, a link or text
 • Right-click to add: right-click a YouTube link and choose "Add to an empty Hakomado tile"
 
 HOW TO USE

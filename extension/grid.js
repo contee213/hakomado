@@ -5125,12 +5125,12 @@ function setupErrLog() {
 }
 
 // ---------------------------------------------------------------- 🔗 共有 / 📥 読み込み
-// 共有するもの (今の枠 = 視聴セット、または再生リスト) を「共有セット」という 1 つの形にそろえ、そこから 4 つの形式を作る:
-// - 画像: レイアウトの形にサムネイルを並べ (切り替えで各枠に枠の名前も)、コードを入れた QR を添えたもの (X は画像を文字数に数えない)
-// - コード: 「#Hakomado <レイアウト>.<動画 ID をつなげたもの>~<ずれ> "名前"」の 1 行。動画 ID は必ず 11 文字なので区切らない。
-//   16 本でも X に貼れる長さ (拡張機能の画面の URL は入れた環境ごとに ID が違うので、共有には使えない)
-// - テキスト: 1 行に 1 本 (playlistText)。名前・同期再生・レイアウト・ずれ・枠の名前まで全部入る
-// - リンク: YouTube の watch_videos の URL (playlistImportLink)。Hakomado が無い人も YouTube で開ける
+// 共有するもの (今の枠 = 視聴セット、または再生リスト) を「共有セット」という 1 つの形にそろえ、渡す相手で選ぶ 3 つの形式を作る:
+// - 画像: レイアウトの形にサムネイルを並べ (切り替えで各枠に枠の名前も)、リンクを入れた QR を添えたもの (X などで見せる)
+// - リンク: QR と同じ中身の YouTube の watch_videos の URL (formatShareLink。16 本・レイアウト・ずれ・名前)。DM などで直接送る。
+//   Hakomado が入っていれば同じ並びで開け、入っていない人も YouTube の一時的な再生リストとして見られる
+// - テキスト: 1 行に 1 本 (playlistText)。名前・同期再生・レイアウト・ずれ・枠の名前まで全部入る (17 本以上・AI に渡すとき)
+// コード (#Hakomado …) は共有画面には出さないが、ALT の文・サイトへの投稿・サイトのセットのページで使い、読み込みもできる
 // 読み込むときは、どの形式も (投稿の本文をまるごと貼っても) parseIncoming で同じ形に読み、枠に並べるか再生リストとして保存する
 const SHARE_MAX = MAX_TILES;
 
@@ -5160,8 +5160,6 @@ function tilesShareSet(name = '') {
   return { name, items, sync, layoutId: state.layoutId, ref: sync && refTile != null ? state.tiles[refTile].videoId : null };
 }
 
-/** 取り込み用リンクに入れる動画の数 (YouTube の一時的な再生リストが開ける数) */
-const IMPORT_LINK_MAX = 50;
 
 /**
  * 貼られたテキストを共有セットとして読む (どの形式でも。投稿の本文をまるごと貼ってもよい)。
@@ -5213,14 +5211,6 @@ function playlistText(pl) {
   return lines.join('\n');
 }
 
-/** 取り込み用リンク (先頭から 50 本。ずれは入らない) */
-function playlistImportLink(pl) {
-  const ids = pl.items.slice(0, IMPORT_LINK_MAX).map((h) => h.videoId);
-  // title= は YouTube のリストの名前 (無いと「Untitled List」)。以前の版は hakomado= から名前を読むので両方に入れる
-  const name = encodeURIComponent(pl.name);
-  return `${YT}/watch_videos?video_ids=${ids.join(',')}${pl.name ? `&title=${name}` : ''}&hakomado=${name}`;
-}
-
 /** 同期再生で一度に並べる分 (同期再生の再生リストは 16 本までなので全部。順に再生の再生リストをコードにするときは先頭から 16 本) */
 const syncItems = (pl) => pl.items.slice(0, SHARE_MAX);
 
@@ -5250,22 +5240,6 @@ function shareSetCode(pl, format = formatShareCode) {
     pl.movie ? items.map((h) => h.anchor ?? null) : null,
     pl.movie && pl.main ? ids.indexOf(pl.main) : -1,
   );
-}
-
-/** X の投稿の文字数の上限 (無料のアカウント) */
-const X_TEXT_MAX = 280;
-
-/**
- * X での文字数 (twitter-text の数え方: ラテン文字・一部の記号は 1、日本語・絵文字などは 2。URL は含まない前提)
- */
-function xLength(text) {
-  let n = 0;
-  for (const ch of text) {
-    const c = ch.codePointAt(0);
-    const light = c <= 4351 || (c >= 8192 && c <= 8205) || (c >= 8208 && c <= 8223) || (c >= 8242 && c <= 8247);
-    n += light ? 1 : 2;
-  }
-  return n;
 }
 
 /** X の代替テキスト (ALT) の上限 */
@@ -5758,14 +5732,12 @@ function setupShare() {
   const nameEl = document.getElementById('shareName');
   const status = document.getElementById('shareStatus');
   const imgEl = document.getElementById('shareImg');
-  const codeEl = document.getElementById('shareCode');
   const textEl = document.getElementById('shareText');
   const linkEl = document.getElementById('shareLink');
-  const xCountEl = document.getElementById('shareXCount');
   const tabs = dialog.querySelectorAll('[data-stab]');
   const imgBtns = ['shareToX', 'shareImgCopy', 'shareImgSave'].map((id) => document.getElementById(id));
-  const feedBtns = ['shareToFeed', 'shareCodeToFeed'].map((id) => document.getElementById(id));
-  const outBtns = [...imgBtns, ...feedBtns, ...['shareAltCopy', 'shareCopyCode', 'shareCopyText', 'shareCopyLink'].map((id) => document.getElementById(id))];
+  const feedBtn = document.getElementById('shareToFeed');
+  const outBtns = [...imgBtns, feedBtn, ...['shareAltCopy', 'shareCopyText', 'shareCopyLink'].map((id) => document.getElementById(id))];
   const TAB_KEY = 'hakomado.shareTab';
   const LABELS_KEY = 'hakomado.shareImgLabels'; // 画像の各枠に枠の名前を入れるか (既定は入れない)
   const labelsEl = document.getElementById('shareImgLabels');
@@ -5831,17 +5803,13 @@ function setupShare() {
     set = next?.items.length ? next : null;
     const n = set?.items.length || 0;
     const count = (max) => (n > max ? tr('shareFirstN', max, n) : tr('shareAllN', n));
-    codeEl.value = set ? shareSetCode(set) : '';
-    // X の本文に入るか (入らなければ画像で共有してもらう)
-    const xLen = set ? xLength(codeEl.value) : 0;
-    xCountEl.textContent = set ? tr(xLen > X_TEXT_MAX ? 'shareXOver' : 'shareXCount', xLen, X_TEXT_MAX) : '';
-    xCountEl.classList.toggle('share-error', xLen > X_TEXT_MAX);
     textEl.value = set ? playlistText(set) : '';
-    linkEl.value = set ? playlistImportLink(set) : '';
+    // リンクは画像の QR と同じ中身。DM・チャットなどに貼るので名前も % にする (日本語でリンクが切れるアプリがある)
+    const title = set ? shareName(set.name) || `${SHARE_TAG} ${tr('shareImageTitle')}` : '';
+    linkEl.value = set ? shareSetCode(set, (l, ids, o, r, nm, mv, mk) => formatShareLink(l, ids, o, r, nm, title, true, mv, mk)) : '';
     document.getElementById('shareNoteImage').textContent = tr('shareNoteImage', count(SHARE_MAX));
-    document.getElementById('shareNoteCode').textContent = tr('shareNoteCode', count(SHARE_MAX));
     document.getElementById('shareNoteText').textContent = tr('shareNoteText', count(Infinity));
-    document.getElementById('shareNoteLink').textContent = tr('shareNoteLink', count(IMPORT_LINK_MAX));
+    document.getElementById('shareNoteLink').textContent = tr('shareNoteLink', count(SHARE_MAX));
     for (const b of outBtns) b.disabled = !set;
     setStatus(set ? '' : tr(source === 'tiles' ? 'shareEmpty' : 'shareEmptyPl'));
     imageStale = true;
@@ -5947,7 +5915,6 @@ function setupShare() {
     setStatus(tr(msg));
   };
 
-  document.getElementById('shareCopyCode').addEventListener('click', () => copy(codeEl, 'shareCopied'));
   document.getElementById('shareCopyText').addEventListener('click', () => copy(textEl, 'plShareCopiedText'));
   document.getElementById('shareCopyLink').addEventListener('click', () => copy(linkEl, 'plShareCopiedLink'));
   document.getElementById('shareImgCopy').addEventListener('click', async () => {
@@ -5960,12 +5927,10 @@ function setupShare() {
     }
   });
   // サイトに投稿: コードを入れた投稿画面を新しいタブで開く (送るのは利用者がサイトで「投稿する」を押したとき)
-  for (const b of feedBtns) {
-    b.addEventListener('click', () => {
-      const code = set ? shareSetCode(set) : '';
-      if (code) window.open(`${FEED_POST_URL}#text=${encodeURIComponent(code)}`, '_blank', 'noopener,noreferrer');
-    });
-  }
+  feedBtn.addEventListener('click', () => {
+    const code = set ? shareSetCode(set) : '';
+    if (code) window.open(`${FEED_POST_URL}#text=${encodeURIComponent(code)}`, '_blank', 'noopener,noreferrer');
+  });
   document.getElementById('shareToX').addEventListener('click', async () => {
     if (!imageBlob || !set) return;
     // x.com の権限は、押した操作の中で最初に聞く (await の後では聞けない)。許可済みなら聞かずに true
