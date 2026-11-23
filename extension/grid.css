@@ -816,7 +816,8 @@ dialog.notice-dialog[open] { width: min(420px, calc(100% - 32px)); margin: 48px 
 /* ---------- layout picker ---------- */
 dialog.layout-dialog { width: min(760px, calc(100% - 32px)); }
 .layout-wrap { display: flex; flex-direction: column; max-height: calc(100vh - 64px); }
-.layout-groups { overflow-y: auto; padding: 8px 14px 14px; height: min(560px, calc(100vh - 220px)); }
+/* スクロールバーの場所はいつも空けておく (タブによってバーが出たり出なかったりして、カードの大きさがぶれないように) */
+.layout-groups { overflow-y: auto; scrollbar-gutter: stable; padding: 8px 14px 14px; height: min(560px, calc(100vh - 220px)); }
 /* タブ: おすすめ / お気に入り / 1〜8 枠 / 9〜12 枠 / 13〜16 枠 (PinP 以外) / PinP。どれも総枠数の順に並べる。
    枠数のタブでは、枠数が変わる最初のカードの上に小さな見出しを付ける (行は切らない)。
    配置順 (メインを置く角: 左上〜右下) はタブの上で選ぶ。タブを切り替えても高さが変わらないよう、一覧の高さは固定する */
