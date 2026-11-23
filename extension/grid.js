@@ -5129,12 +5129,12 @@ function setupErrLog() {
 }
 
 // ---------------------------------------------------------------- 🔗 共有 / 📥 読み込み
-// 共有するもの (今の枠 = 視聴セット、または再生リスト) を「共有セット」という 1 つの形にそろえ、そこから 4 つの形式を作る:
-// - 画像: レイアウトの形にサムネイルを並べ (切り替えで各枠に枠の名前も)、コードを入れた QR を添えたもの (X は画像を文字数に数えない)
-// - コード: 「#Hakomado <レイアウト>.<動画 ID をつなげたもの>~<ずれ> "名前"」の 1 行。動画 ID は必ず 11 文字なので区切らない。
-//   16 本でも X に貼れる長さ (拡張機能の画面の URL は入れた環境ごとに ID が違うので、共有には使えない)
-// - テキスト: 1 行に 1 本 (playlistText)。名前・同期再生・レイアウト・ずれ・枠の名前まで全部入る
-// - リンク: YouTube の watch_videos の URL (playlistImportLink)。Hakomado が無い人も YouTube で開ける
+// 共有するもの (今の枠 = 視聴セット、または再生リスト) を「共有セット」という 1 つの形にそろえ、渡す相手で選ぶ 3 つの形式を作る:
+// - 画像: レイアウトの形にサムネイルを並べ (切り替えで各枠に枠の名前も)、リンクを入れた QR を添えたもの (X などで見せる)
+// - リンク: QR と同じ中身の YouTube の watch_videos の URL (formatShareLink。16 本・レイアウト・ずれ・名前)。DM などで直接送る。
+//   Hakomado が入っていれば同じ並びで開け、入っていない人も YouTube の一時的な再生リストとして見られる
+// - テキスト: 1 行に 1 本 (playlistText)。名前・同期再生・レイアウト・ずれ・枠の名前まで全部入る (17 本以上・AI に渡すとき)
+// コード (#Hakomado …) は共有画面には出さないが、ALT の文・サイトへの投稿・サイトのセットのページで使い、読み込みもできる
 // 読み込むときは、どの形式も (投稿の本文をまるごと貼っても) parseIncoming で同じ形に読み、枠に並べるか再生リストとして保存する
 const SHARE_MAX = MAX_TILES;
 
@@ -5164,8 +5164,6 @@ function tilesShareSet(name = '') {
   return { name, items, sync, layoutId: state.layoutId, ref: sync && refTile != null ? state.tiles[refTile].videoId : null };
 }
 
-/** 取り込み用リンクに入れる動画の数 (YouTube の一時的な再生リストが開ける数) */
-const IMPORT_LINK_MAX = 50;
 
 /**
  * 貼られたテキストを共有セットとして読む (どの形式でも。投稿の本文をまるごと貼ってもよい)。
@@ -5176,15 +5174,6 @@ const IMPORT_LINK_MAX = 50;
  * @returns {Promise<ShareSet & {bad: number, tooMany: boolean}>}
  */
 async function parseIncoming(text, onProgress) {
-  // Hakomado Feed の短縮リンク (sets-link.js。機能フラグがオフなら読まない) は、Feed からコードを取ってきて読む
-  if (SetsLink.isLink(text) && !parseShareCode(text) && !parseShareLink(text)) {
-    onProgress?.(0, 0, 'short');
-    try {
-      text = await SetsLink.resolve(text);
-    } catch (e) {
-      throw new Error(tr('shortResolveFail', e.message || e));
-    }
-  }
   const code = parseShareCode(text) || parseShareLink(text);
   if (code?.movie) {
     const items = code.ids.map((videoId, k) => ({ videoId, anchor: code.movie[k] }));
@@ -5226,14 +5215,6 @@ function playlistText(pl) {
   return lines.join('\n');
 }
 
-/** 取り込み用リンク (先頭から 50 本。ずれは入らない) */
-function playlistImportLink(pl) {
-  const ids = pl.items.slice(0, IMPORT_LINK_MAX).map((h) => h.videoId);
-  // title= は YouTube のリストの名前 (無いと「Untitled List」)。以前の版は hakomado= から名前を読むので両方に入れる
-  const name = encodeURIComponent(pl.name);
-  return `${YT}/watch_videos?video_ids=${ids.join(',')}${pl.name ? `&title=${name}` : ''}&hakomado=${name}`;
-}
-
 /** 同期再生で一度に並べる分 (同期再生の再生リストは 16 本までなので全部。順に再生の再生リストをコードにするときは先頭から 16 本) */
 const syncItems = (pl) => pl.items.slice(0, SHARE_MAX);
 
@@ -5263,22 +5244,6 @@ function shareSetCode(pl, format = formatShareCode) {
     pl.movie ? items.map((h) => h.anchor ?? null) : null,
     pl.movie && pl.main ? ids.indexOf(pl.main) : -1,
   );
-}
-
-/** X の投稿の文字数の上限 (無料のアカウント) */
-const X_TEXT_MAX = 280;
-
-/**
- * X での文字数 (twitter-text の数え方: ラテン文字・一部の記号は 1、日本語・絵文字などは 2。URL は含まない前提)
- */
-function xLength(text) {
-  let n = 0;
-  for (const ch of text) {
-    const c = ch.codePointAt(0);
-    const light = c <= 4351 || (c >= 8192 && c <= 8205) || (c >= 8208 && c <= 8223) || (c >= 8242 && c <= 8247);
-    n += light ? 1 : 2;
-  }
-  return n;
 }
 
 /** X の代替テキスト (ALT) の上限 */
@@ -5435,8 +5400,8 @@ const SHARE_QR_QUIET = 3;
 const SHARE_QR_TYPE = 14;
 const SHARE_ACCENT = '#29a9ff'; // ロゴと同じ青 (差し色)
 
-/** QR を作る。cell = 1 マスの画素数 (4。短縮リンクのように中身が短く、型が小さいときは、型 14 と同じくらいの大きさになるまで大きくする)、size = 余白を含めた 1 辺の画素数 */
-function makeShareQr(text, { auto = false } = {}) {
+/** QR を作る。cell = 1 マスの画素数 (4)、size = 余白を含めた 1 辺の画素数 */
+function makeShareQr(text) {
   // 名前に日本語などが入るので UTF-8 で入れる (jsQR は UTF-8 として読む。ASCII だけなら以前と同じ中身)
   qrcode.stringToBytes = qrcode.stringToBytesFuncs['UTF-8'];
   const build = (type) => {
@@ -5447,7 +5412,7 @@ function makeShareQr(text, { auto = false } = {}) {
   };
   let qr;
   try {
-    qr = build(auto ? 0 : SHARE_QR_TYPE); // auto = 中身に合う一番小さい型 (短縮リンク)
+    qr = build(SHARE_QR_TYPE);
   } catch {
     qr = build(0); // 入りきらない (code length overflow)
   }
@@ -5507,12 +5472,11 @@ const shareAuthor = (s) => String(s || '').replace(/\s+/g, ' ').trim().slice(0, 
  *   │ ▌名前 (大きく) / 本数 · レイアウト · 作者 (小さく)       QR  │
  *   └──────────────────────────┘
  */
-async function renderShareImage(set, { labels = false, author = '', qrText = '' } = {}) {
+async function renderShareImage(set, { labels = false, author = '' } = {}) {
   const filled = syncItems(set);
   const title = shareName(set.name) || `${SHARE_TAG} ${tr('shareImageTitle')}`;
   // QR にはコードと同じ中身のリンクを入れる (スマホのカメラで読むと YouTube で開ける)。
-  // qrText (Hakomado Feed の短縮リンク) を渡したときはそれを入れる (読むと Feed のページが開く)
-  const code = qrText || shareSetCode(set, (l, ids, o, r, n, mv, mk) => formatShareLink(l, ids, o, r, n, title, false, mv, mk));
+  const code = shareSetCode(set, (l, ids, o, r, n, mv, mk) => formatShareLink(l, ids, o, r, n, title, false, mv, mk));
   const canvas = document.createElement('canvas');
   canvas.width = SHARE_W;
   canvas.height = SHARE_H;
@@ -5558,7 +5522,7 @@ async function renderShareImage(set, { labels = false, author = '', qrText = '' 
   });
 
   // QR はいつも右下の角に、同じ大きさで (空き枠があっても合わせない)
-  const qr = makeShareQr(code, { auto: !!qrText });
+  const qr = makeShareQr(code);
   const qx = SHARE_W - M - qr.size;
   const qy = SHARE_H - M - qr.size;
   // 名前と説明は QR の左まで
@@ -5682,6 +5646,9 @@ async function readQrFromImage(blob) {
 // (人が画像を選んだときと同じ)。x.com の権限は任意の権限で、初めて押したときに聞く。
 // 許可されなかったとき・X の画面が変わって入れられなかったときは、クリップボードの画像を Ctrl+V で貼ってもらう
 const X_ORIGIN = 'https://x.com/*';
+// Hakomado のサイト (Hakomado Feed。web/) の投稿画面。拡張機能からは送らず、コードを # の後ろに入れて開くだけ
+// (# の後ろはサーバーに送られない。投稿は X でログインした利用者がサイトの画面で押す)
+const FEED_POST_URL = 'https://hakomado.contee.net/post';
 
 /** タブの読み込みが終わるのを待つ (最大 ms。終わらなくても進む) */
 function waitTabComplete(tabId, ms) {
@@ -5769,13 +5736,12 @@ function setupShare() {
   const nameEl = document.getElementById('shareName');
   const status = document.getElementById('shareStatus');
   const imgEl = document.getElementById('shareImg');
-  const codeEl = document.getElementById('shareCode');
   const textEl = document.getElementById('shareText');
   const linkEl = document.getElementById('shareLink');
-  const xCountEl = document.getElementById('shareXCount');
   const tabs = dialog.querySelectorAll('[data-stab]');
   const imgBtns = ['shareToX', 'shareImgCopy', 'shareImgSave'].map((id) => document.getElementById(id));
-  const outBtns = [...imgBtns, ...['shareAltCopy', 'shareCopyCode', 'shareCopyText', 'shareCopyLink'].map((id) => document.getElementById(id))];
+  const feedBtn = document.getElementById('shareToFeed');
+  const outBtns = [...imgBtns, feedBtn, ...['shareAltCopy', 'shareCopyText', 'shareCopyLink'].map((id) => document.getElementById(id))];
   const TAB_KEY = 'hakomado.shareTab';
   const LABELS_KEY = 'hakomado.shareImgLabels'; // 画像の各枠に枠の名前を入れるか (既定は入れない)
   const labelsEl = document.getElementById('shareImgLabels');
@@ -5791,22 +5757,6 @@ function setupShare() {
   let renderSeq = 0;
   let refreshSeq = 0;
   let nameTimer = 0;
-  // Hakomado Feed の短縮リンク (sets-link.js の機能フラグがオンのときだけ)。作ったときのコードと同じ間だけ使う
-  // (名前や中身を変えたら作り直してもらう。押したときだけ送る)
-  let short = null; // { code, url }
-  const shortEl = document.getElementById('shareShort');
-  const shortCopyBtn = document.getElementById('shareShortCopy');
-  const shortState = document.getElementById('shareImgShortState');
-  const shortBtns = ['shareShortMake', 'shareImgShort'].map((id) => document.getElementById(id));
-  for (const el of dialog.querySelectorAll('[data-sets-link]')) el.hidden = !SetsLink.enabled;
-  const shortUrl = () => (short && set && short.code === shareSetCode(set) ? short.url : '');
-  const showShort = () => {
-    const url = shortUrl();
-    shortEl.value = url;
-    shortEl.hidden = shortCopyBtn.hidden = !url;
-    shortState.textContent = url ? tr('shortQrOn') : '';
-    for (const b of shortBtns) b.disabled = !set || !!url;
-  };
   closeOnBackdrop(dialog);
 
   const setStatus = (text, isError = false) => {
@@ -5857,19 +5807,14 @@ function setupShare() {
     set = next?.items.length ? next : null;
     const n = set?.items.length || 0;
     const count = (max) => (n > max ? tr('shareFirstN', max, n) : tr('shareAllN', n));
-    codeEl.value = set ? shareSetCode(set) : '';
-    // X の本文に入るか (入らなければ画像で共有してもらう)
-    const xLen = set ? xLength(codeEl.value) : 0;
-    xCountEl.textContent = set ? tr(xLen > X_TEXT_MAX ? 'shareXOver' : 'shareXCount', xLen, X_TEXT_MAX) : '';
-    xCountEl.classList.toggle('share-error', xLen > X_TEXT_MAX);
     textEl.value = set ? playlistText(set) : '';
-    linkEl.value = set ? playlistImportLink(set) : '';
+    // リンクは画像の QR と同じ中身。DM・チャットなどに貼るので名前も % にする (日本語でリンクが切れるアプリがある)
+    const title = set ? shareName(set.name) || `${SHARE_TAG} ${tr('shareImageTitle')}` : '';
+    linkEl.value = set ? shareSetCode(set, (l, ids, o, r, nm, mv, mk) => formatShareLink(l, ids, o, r, nm, title, true, mv, mk)) : '';
     document.getElementById('shareNoteImage').textContent = tr('shareNoteImage', count(SHARE_MAX));
-    document.getElementById('shareNoteCode').textContent = tr('shareNoteCode', count(SHARE_MAX));
     document.getElementById('shareNoteText').textContent = tr('shareNoteText', count(Infinity));
-    document.getElementById('shareNoteLink').textContent = tr('shareNoteLink', count(IMPORT_LINK_MAX));
+    document.getElementById('shareNoteLink').textContent = tr('shareNoteLink', count(SHARE_MAX));
     for (const b of outBtns) b.disabled = !set;
-    showShort();
     setStatus(set ? '' : tr(source === 'tiles' ? 'shareEmpty' : 'shareEmptyPl'));
     imageStale = true;
     if (!set) clearImage();
@@ -5884,7 +5829,7 @@ function setupShare() {
     setStatus(tr('shareImageMaking'));
     for (const b of imgBtns) b.disabled = true;
     try {
-      const blob = await renderShareImage(set, { labels: labelsEl.checked, author: authorEl.value, qrText: shortUrl() });
+      const blob = await renderShareImage(set, { labels: labelsEl.checked, author: authorEl.value });
       if (seq !== renderSeq) return;
       imageBlob = blob;
       if (imageUrl) URL.revokeObjectURL(imageUrl);
@@ -5973,29 +5918,7 @@ function setupShare() {
     await copyField(el);
     setStatus(tr(msg));
   };
-  // 短縮リンクを作る (リンクのタブ・画像のタブのどちらからでも。作ったら画像の QR もそれにする)
-  const makeShort = async () => {
-    if (!set || !SetsLink.enabled) return;
-    const code = shareSetCode(set);
-    for (const b of shortBtns) b.disabled = true;
-    setStatus(tr('shortMaking'));
-    try {
-      const url = await SetsLink.create(code);
-      if (!set || shareSetCode(set) !== code) return; // 作っている間に中身が変わった
-      short = { code, url };
-      showShort();
-      setStatus(tr('shortMade'));
-      if (tab === 'image') makeImage();
-      else imageStale = true;
-    } catch (e) {
-      setStatus(tr('shortFail', e.message || e), true);
-      showShort();
-    }
-  };
-  for (const b of shortBtns) b.addEventListener('click', makeShort);
-  shortCopyBtn.addEventListener('click', () => copy(shortEl, 'shortCopied'));
 
-  document.getElementById('shareCopyCode').addEventListener('click', () => copy(codeEl, 'shareCopied'));
   document.getElementById('shareCopyText').addEventListener('click', () => copy(textEl, 'plShareCopiedText'));
   document.getElementById('shareCopyLink').addEventListener('click', () => copy(linkEl, 'plShareCopiedLink'));
   document.getElementById('shareImgCopy').addEventListener('click', async () => {
@@ -6006,6 +5929,11 @@ function setupShare() {
     } catch (e) {
       setStatus(tr('shareImageFail', e.message || e), true);
     }
+  });
+  // サイトに投稿: コードを入れた投稿画面を新しいタブで開く (送るのは利用者がサイトで「投稿する」を押したとき)
+  feedBtn.addEventListener('click', () => {
+    const code = set ? shareSetCode(set) : '';
+    if (code) window.open(`${FEED_POST_URL}#text=${encodeURIComponent(code)}`, '_blank', 'noopener,noreferrer');
   });
   document.getElementById('shareToX').addEventListener('click', async () => {
     if (!imageBlob || !set) return;
@@ -6143,8 +6071,8 @@ function setupRead() {
       return;
     }
     try {
-      const set = await parseIncoming(text, (done, total, what) => {
-        if (seq === parseSeq) setSummary(what === 'short' ? tr('shortResolving') : tr('shareLoading', done, total));
+      const set = await parseIncoming(text, (done, total) => {
+        if (seq === parseSeq) setSummary(tr('shareLoading', done, total));
       });
       if (seq !== parseSeq) return;
       if (!set.items.length) {
@@ -6183,7 +6111,7 @@ function setupRead() {
       /* 画像として読めない */
     }
     if (seq !== parseSeq) return;
-    if (!text || !(SHARE_CODE_RE.test(text) || parseShareLink(text) || SetsLink.isLink(text))) {
+    if (!text || !(SHARE_CODE_RE.test(text) || parseShareLink(text))) {
       setSummary(tr('shareImageNoQr'), true);
       return;
     }

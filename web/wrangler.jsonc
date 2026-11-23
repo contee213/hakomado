@@ -48,12 +48,9 @@
     "X_CLIENT_ID": "SzFRT21wUHNaZUFPWGhpeGVHaFA6MTpjaQ",
     // Turnstile のサイトキー (空なら投稿フォームに確認を出さない)。シークレットは wrangler secret put TURNSTILE_SECRET
     "TURNSTILE_SITE_KEY": "",
-    // 短縮リンク (extShare) を受け付ける拡張機能の ID (カンマ区切り): ストア版・GitHub のリリースの ZIP 版
-    "EXT_IDS": "bhmbchggpdficakjfllkmfkpbdpddomp,lhafnnpnfpgogdbapeepkgohemnnifpp",
     // 機能フラグ (true でオン。書いていないものはオフ。中身は src/features.mjs)
     "FEATURES": {
       "unlisted": true, // 公開範囲 (リンクを知っている人だけ) を選べる
-      "extShare": true, // 拡張機能の短縮リンクを受け付ける (unlisted も要る。拡張機能側のフラグは extension/sets-link.js)
       "tags": true, // タグ
       "search": true, // 検索
       "videoCheck": true, // 消えた動画の見直し (下の triggers の Cron で動く)
@@ -93,11 +90,9 @@
         "ACCESS_AUD": "344d0f334403230e824c03c42cf5cb3c172fba7cc3f341577de24358e3d9ae91",
         "X_CLIENT_ID": "SzFRT21wUHNaZUFPWGhpeGVHaFA6MTpjaQ",
         "TURNSTILE_SITE_KEY": "",
-        "EXT_IDS": "bhmbchggpdficakjfllkmfkpbdpddomp,lhafnnpnfpgogdbapeepkgohemnnifpp",
         // 本番と同じにしておく (新しい機能を先にここだけでオンにして試すのはいい)
         "FEATURES": {
           "unlisted": true,
-          "extShare": true,
           "tags": true,
           "search": true,
           "videoCheck": true,
