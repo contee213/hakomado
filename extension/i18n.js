@@ -290,8 +290,8 @@ const MESSAGES = {
   syncModeTime: ['🕒 実際の時刻', '🕒 Real time'],
   syncModeMovie: ['🎬 本編', '🎬 Movie'],
   syncAudioTitle: [
-    '✨ 自動補正: このグループの枠の音 (コラボの通話の声) を 90 秒聞いて、各枠の補正を求めます。今の位置から再生したまま測り、結果を確かめてから反映できます。もう一度押すとやめます',
-    '✨ Auto-correct: listens to the tiles in this group (the shared call voices in a collab) for 90 seconds and works out each tile’s offset. It measures from the current position while playing, and you can check the result before applying it. Press again to stop',
+    '✨ 自動補正: このグループの枠の音 (コラボの通話の声) を最大 180 秒聞いて、各枠の補正を求めます。今の位置から再生したまま測り、35 秒を過ぎると途中の結果が出ます。どの枠も確かになったら、切り上げを提案します。結果を確かめてから反映できます。もう一度押すとやめます',
+    '✨ Auto-correct: listens to the tiles in this group (the shared call voices in a collab) for up to 180 seconds and works out each tile’s offset. It measures from the current position while playing and shows a provisional result after 35 seconds. Once every tile is certain, it suggests stopping early. You can check the result before applying it. Press again to stop',
   ],
   syncInputTitle: ['補正の秒数 (+ = 先へ進める、− = 戻す)。入れて Enter で決定', 'The offset in seconds (+ = move ahead, − = move back). Type and press Enter'],
   syncAnchorInputTitle: ['本編 0:00 に当たる、この動画の再生位置 (h:mm:ss・m:ss・秒)。入れて Enter で決定', 'Where the movie is at 0:00 in this video (h:mm:ss, m:ss or seconds). Type and press Enter'],
@@ -382,8 +382,36 @@ const MESSAGES = {
     '✨ 補正を決められませんでした。声が少ない区間かもしれません。話している場面で、もう一度測ってください',
     "✨ Couldn't determine the offsets. There may be too little talking here. Try again where people are talking",
   ],
-  syncAudioResultTitle: ['✨ 自動補正の結果 (各行の ✨ の値)', '✨ Auto-correct result (the ✨ value on each row)'],
+  syncAudioResultTitle: ['✨ 自動補正の結果 (各行の ✨ の値・図の ◆)', '✨ Auto-correct result (the ✨ value on each row, the ◆ in the chart)'],
   syncAudioDone: ['✨ 測り終わりました。調整パネルの各行の ✨ の値を確かめて「反映」してください', '✨ Done. Check the ✨ value on each row of the sync panel, then press Apply'],
+  syncAudioSuggest: ['✨ どの枠も ◎ になりました ({0} 秒分)。ここで決めますか？ (このまま聞き続けることもできます)', '✨ Every tile is ◎ ({0}s so far). Decide now? (You can also keep listening)'],
+  syncAudioSuggestNote: [
+    '✨ {0} 秒でどの枠も確かになりました。調整パネルの「ここで決める」で終えられます',
+    '✨ Every tile is certain after {0}s. Press “Decide now” in the sync panel to finish',
+  ],
+  syncAudioListening: ['✨ 聞いています…', '✨ Listening…'],
+  syncAudioListeningSub: ['{0} 秒を過ぎると、途中の結果が各行と図に出ます', 'A provisional result appears on each row and in the chart after {0}s'],
+  syncAudioPrelimTitle: [
+    '✨ 途中の結果 ({0} 秒分。ここまでで一番よかった値。聞き続けて確かめています)',
+    '✨ Provisional result ({0}s so far; the best value yet. Still listening to confirm)',
+  ],
+  syncAudioLegend: ['確かさ: ◎ 確か / ○ たぶん / △ 怪しい。図の ◆ が反映したあとの位置です', 'Confidence: ◎ sure / ○ likely / △ doubtful. The ◆ in the chart is where it goes once applied'],
+  syncAudioFinishNow: ['ここで決める', 'Decide now'],
+  syncAudioFinishNowTitle: [
+    '180 秒を待たずに終えて、ここまでで一番よかった値を結果にする',
+    'Stop listening and use the best value found so far as the result',
+  ],
+  syncAudioStop: ['やめる', 'Stop'],
+  syncAudioRetry: ['測り直す', 'Measure again'],
+  syncAudioRetryTitle: ['今の位置から、もう一度測る (話している場面で押すと決まりやすい)', 'Measure again from the current position (works best where people are talking)'],
+  syncAudioGrade_1: ['△ 怪しい', '△ doubtful'],
+  syncAudioGrade_2: ['○ たぶん', '○ likely'],
+  syncAudioGrade_3: ['◎ 確か', '◎ sure'],
+  syncAudioCandTitle: ['✨ 自動補正の結果: 補正 {0} 秒 (確かさ {1})。「反映」で入ります', '✨ Auto-correct result: offset {0}s (confidence {1}). Press Apply to use it'],
+  syncAudioCandPrelimTitle: ['✨ 途中の結果: 補正 {0} 秒 (確かさ {1})。まだ聞いています', '✨ Provisional result: offset {0}s (confidence {1}). Still listening'],
+  syncAudioNoCandTitle: ['✨ この枠の補正は決められませんでした', '✨ Couldn’t determine this tile’s offset'],
+  syncTlCandTitle: ['✨ 反映したあとの位置 (補正 {0} 秒、確かさ {1})', '✨ Where it goes once applied (offset {0}s, confidence {1})'],
+  syncTlCandPrelimTitle: ['✨ 途中の結果の位置 (補正 {0} 秒、確かさ {1})', '✨ Provisional position (offset {0}s, confidence {1})'],
   syncAudioMid: ['中間 (映像がそろう)', 'Midpoint (video lines up)'],
   syncAudioVoice: ['{0} の声に合わせる', "Match {0}'s voice"],
   syncAudioApply: ['反映', 'Apply'],
@@ -1018,6 +1046,7 @@ const HTML_EN = {
 <li>Press “⏱ Archive sync” on the top bar to play stream archives that overlap in time, aligned to when they were actually streamed. Until 2 such archives are shown it is dimmed, and pressing it tells you why (live now, a regular video, and so on)</li>
 <li>Archives streamed at overlapping times are grouped automatically, so A·B and C·D from different collabs sync separately (up to 4 groups, shown by color and number on the tiles). Change a tile’s group on its row in the sync panel</li>
 <li>The sync panel (☰ on the top bar, or ⏱ on a tile) floats over the tiles, semi-transparent (drag its header to move it; ⇲ docks it on the right). Per group: what to align on (🕒 real time / 🎬 movie), ⏸, ✨ auto-correct and a slider. Per tile: the reference (🔒; ◉ in 🎬 groups), the offset and ⏸ pause and wait. Each group’s chart zooms in on where the streams start (gaps of more than a minute between starts are cut short, with each tile’s start time shown above where it fits): each bar runs from the actual stream start, the offset shows as a light-blue stretch (which side of the thin line tells earlier or later) where it starts playing alongside the reference (at the reference’s start for tiles that started earlier), with a thin line at the uncorrected position (also drawn on the other tiles already playing then, to compare against), plus how much earlier or later it started than the reference and how far it still has to move. Collapse groups you are not adjusting with ▾</li>
+<li>✨ Auto-correct listens to the group’s tiles (the shared call voices in a collab) for up to 180 seconds and works out each tile’s offset. After 35 seconds a provisional result appears, showing the best value found so far for each tile. Once every tile is ◎ it suggests stopping (“Decide now”); otherwise it uses the best value found by 180 seconds. Check the result on each row (“✨ −1.61 ◎”) and the ◆ in the chart (where it goes once applied), then press Apply. ◎ sure / ○ likely / △ doubtful. If it can’t decide or shows many △, press “Measure again” where people are talking</li>
 <li>You adjust the tiles other than the reference. The reference (🔒 at the start of its row) always has offset 0; when you change the reference, the offsets move to the other tiles and the alignment stays the same. Move an offset with −0.1, −0.01, +0.01 and +0.1 (hold to keep going). ⏸ pauses just that tile to wait, ▶ matches it there. Select a row and ← → also move the offset by 0.1 s (Shift: 0.01 s). ✓ on a row means it plays at the position the offset says, ↻ that it is still moving there (whether voices line up is up to your ears). If adjusting by hand went wrong, ↺ on the row (↺ in the header for the whole group) goes back to real time. Offsets are remembered per video and go into playlists and share codes</li>
 <li>The slider on the top bar moves the group of the tile playing audio</li>
 <li>Choosing the reference: make the tile you mainly listen to the reference, so its sound stays the most natural (the others change speed slightly or jump to keep up). If one tile needs a much larger offset than the rest, don’t make it the reference, so the other videos keep small offsets (offsets are remembered per video and reused in other sets)</li>

@@ -2720,6 +2720,7 @@ const Sync = (() => {
         },
       });
       h.tl = ok ? timelineEl(G, list) : null;
+      h.box = ok ? AudioSync.resultEl(G.g) : null;
       const kids = [
         mk(
           'div',
@@ -2733,7 +2734,7 @@ const Sync = (() => {
         ok ? mk('div', { class: 'dg-seek' }, h.now, h.range, h.end) : null,
         h.tl?.el,
         h.note,
-        ok ? AudioSync.resultEl(G.g) : null,
+        h.box?.el,
         ...list.map((i) => rowEl(i, G)),
       ];
       heads.set(G.g, h);
@@ -2810,6 +2811,8 @@ const Sync = (() => {
           corr: mk('div', { class: 'tl-corr' }),
           raw: mk('div', { class: 'tl-raw', title: tr('syncTlRawTitle') }),
           now: mk('div', { class: 'tl-now', title: tr('syncTlNowTitle') }),
+          cand: mk('div', { class: 'tl-cand' }),
+          candSpan: mk('div', { class: 'tl-cand-span' }),
           diff: mk('span', { class: 'tl-diff' }),
           st: mk('span', { class: 'tl-st' }),
         };
@@ -2819,7 +2822,7 @@ const Sync = (() => {
           { class: 'tl-row', title: tileName(i) || '' },
           mk('span', { class: 'tl-no' }, String(tileNo(i))),
           x.diff,
-          (x.track = mk('div', { class: 'tl-track' }, x.bar, x.corr, x.raw, x.now)),
+          (x.track = mk('div', { class: 'tl-track' }, x.bar, x.corr, x.candSpan, x.raw, x.cand, x.now)),
           x.st,
         );
       });
@@ -2833,9 +2836,19 @@ const Sync = (() => {
       // 補正を見せる位置: 基準と一緒に流れ始めるところ (基準より前に始まった枠は基準の開始、後に始まった枠と基準は自分の開始)
       const refRaw = marks.get(G.ref)?.raw ?? null;
       const corrAt = (i, m) => (i !== G.ref && refRaw != null ? Math.max(m.raw, refRaw) : m.raw);
+      // ✨ 自動補正の候補 (反映したら補正を入れた開始がどこへ動くか。実際の時刻のグループだけ)
+      const cands = new Map();
+      if (!isMovie(G)) {
+        for (const [i, m] of marks) {
+          const c = m?.raw != null ? AudioSync.candidateFor(i) : null;
+          if (c) cands.set(i, c);
+        }
+      }
       const pts = [...marks.entries()]
         .filter(([, m]) => m)
-        .flatMap(([i, m]) => (m.raw == null ? [m.at] : [m.at, m.raw, corrAt(i, m), corrAt(i, m) - (m.raw - m.at)]));
+        .flatMap(([i, m]) =>
+          m.raw == null ? [m.at] : [m.at, m.raw, corrAt(i, m), corrAt(i, m) - (m.raw - m.at), ...(cands.has(i) ? [corrAt(i, m) - cands.get(i).v * 1000] : [])],
+        );
       const sc = SyncChart.scale(pts);
       if (!sc) return;
       const pct = sc.pos;
@@ -2884,8 +2897,23 @@ const Sync = (() => {
         x.bar.hidden = !m;
         const shift = m && m.raw != null ? m.raw - m.at : 0; // 補正 (ミリ秒。+ = 早めた)
         const corrected = Math.abs(shift) >= 5;
+        const cand = cands.get(i);
         x.corr.hidden = !corrected;
-        x.raw.hidden = !corrected;
+        x.raw.hidden = !corrected && !cand;
+        x.cand.hidden = x.candSpan.hidden = !cand;
+        if (m && cand) {
+          // 候補の印: 反映したあとの補正を入れた開始。今の位置 (補正を入れた開始) から点線でつなぐ
+          const p = corrAt(i, m);
+          const a = pct(p - shift);
+          const b = pct(p - cand.v * 1000);
+          x.raw.style.left = pct(p) + '%';
+          x.cand.style.left = b + '%';
+          x.candSpan.style.left = Math.min(a, b) + '%';
+          x.candSpan.style.width = Math.abs(b - a) + '%';
+          for (const e of [x.cand, x.candSpan]) e.classList.toggle('is-prelim', cand.prelim);
+          x.cand.title = tr(cand.prelim ? 'syncTlCandPrelimTitle' : 'syncTlCandTitle', signedSec(cand.v), tr(`syncAudioGrade_${cand.grade}`));
+          x.cand.dataset.grade = GRADE_MARK[cand.grade];
+        }
         if (m) {
           const p = corrected ? corrAt(i, m) : null;
           // 補正を自分の開始で見せる (基準・基準より後に始まった枠) ときは、棒は遅いほうの開始から (早めた分は空いたところへ延びる)。
@@ -2936,6 +2964,18 @@ const Sync = (() => {
       }
     }
 
+    /** 行の ✨ の候補: 「✨ −1.61 ◎」(途中の結果は薄く)。決められなかった枠は「✨ —」 */
+    function paintCand(el, c) {
+      const key = c == null ? '' : c === false ? '-' : [c.v, c.grade, c.prelim].join();
+      if (el.dataset.k === key) return;
+      el.dataset.k = key;
+      el.classList.toggle('is-prelim', !!c?.prelim);
+      el.title = c == null ? '' : c === false ? tr('syncAudioNoCandTitle') : tr(c.prelim ? 'syncAudioCandPrelimTitle' : 'syncAudioCandTitle', signedSec(c.v), tr(`syncAudioGrade_${c.grade}`));
+      el.replaceChildren(
+        ...(c == null ? [] : c === false ? ['✨ —'] : [`✨ ${signedSec(c.v)} `, mk('span', { class: 'dr-grade g' + c.grade }, GRADE_MARK[c.grade])]),
+      );
+    }
+
     function render() {
       rows.clear();
       heads.clear();
@@ -2979,6 +3019,9 @@ const Sync = (() => {
         h.audio.textContent = a || tr('syncAudioLabel');
         h.audio.classList.toggle('is-measuring', !!a);
         h.audio.disabled = AudioSync.busyOther(g);
+        // まだ補正していないグループでは ✨ を目立たせる (見つけてもらえるように)
+        h.audio.classList.toggle('is-suggest', !a && !AudioSync.hasOutput(g) && !AudioSync.busyOther(g) && membersOf(g).every((i) => !movable(i) || off(i) === 0));
+        h.box?.paint();
         h.reset.disabled = !membersOf(g).some((i) => movable(i) && off(i) !== 0);
         h.note.textContent = isMovie(G) && anchor(G.ref) == null ? tr('syncGroupNeedAnchor') : '';
       }
@@ -3001,10 +3044,7 @@ const Sync = (() => {
           r.wait.classList.toggle('is-waiting', !!wait);
         }
         if (r.steps && !r.locked) for (const b of r.steps) b.disabled = movie && anchor(i) == null;
-        if (r.cand) {
-          const c = AudioSync.candidateFor(i);
-          r.cand.textContent = c == null ? '' : c === false ? '✨ —' : `✨ ${signedSec(c)}`;
-        }
+        if (r.cand) paintCand(r.cand, AudioSync.candidateFor(i));
         const st = wait ? 'wait' : drift.get(i) || 'none';
         r.dot.className = 'dr-dot is-' + st;
         r.dot.textContent = st === 'ok' ? '✓' : st === 'fix' ? '↻' : '';
@@ -3086,20 +3126,39 @@ const Sync = (() => {
 })();
 
 // ---------------------------------------------------------------- ✨ 自動補正 (今は音で合わせる。アーカイブの同期再生のずれを、音で測って直す)
-// コラボの各視点には通話の声が共通して入っているので、同期しているグループの枠の音を 90 秒聞いて突き合わせ、ずれを求める。
+// コラボの各視点には通話の声が共通して入っているので、同期しているグループの枠の音を最大 180 秒聞いて突き合わせ、ずれを求める。
 // - 同期の調整パネルのグループの見出しの「✨ 自動補正」で始める (一度に 1 グループ)。今の位置からそのまま再生しながら測る
 //   (基準の枠が再生している間だけ数える)。もう一度押すとやめる
 // - 測っている間は、各枠の中 (content/watch.js の Mix) が音の大きさを記録して送ってくる。消音中の枠もプレイヤーの消音を外して
 //   Web Audio 側で消音するので、聞こえ方は変わらない。終わったら元の消音に戻す
-// - 計算は audio-align.js。結果はパネルの各行に候補として出し、「反映」で各枠のずれ (SyncOffsets) に書き込む。基準の枠のずれはそのまま
+// - 計算は audio-align.js を Worker (audio-align-worker.js) で動かす (枠が多いと何秒もかかるので、画面と同期を止めないように)。
+//   Worker が使えなければ、この画面で計算する
+// - 35 秒たったら 10 秒ごとに、それまでの分で計算する。計算ごとの結果は全部取っておき、枠ごとに「一番よかった値」
+//   (確かさが一番高く、ほかの計算でも同じ値が多く出たもの) を途中の結果として出す (パネルの行と図に薄く)。
+//   黙っている区間があると、そこで一時的に決められなくなる (—) ので、最後の計算だけでなく、一番よかった値を採る
+//   (途中の結果が 2 回続けて同じ値なら、確かさを 1 段上げる)
+// - どの枠も ◎ で、2 回以上同じ値が出たら、切り上げを提案する (決めるのは使う人。「ここで決める」)。
+//   180 秒まで聞いたら、そこまでで一番よかった値で終える
+// - 結果は確かさ (◎ 確か / ○ たぶん / △ 怪しい) と一緒に、パネルの各行と図 (反映したあとの位置の印) に出し、「反映」で各枠のずれ
+//   (SyncOffsets) に書き込む。基準の枠のずれはそのまま
 // - 2 枠のときは「中間 (映像がそろう)」が既定。それぞれの人の声に合わせる値も選べる (通話の遅れのぶん、もう一人の声はずれる)
-// - 声が少ない区間などで決められなければ、そう知らせて、別の場面で測り直してもらう
+// - 声が少ない区間などで決められなければ、パネルにそう出して、「測り直す」で別の場面から測り直してもらう
 // - 🎬 本編モードのグループでは使わない (共通の音が無い前提のため)
+/** ✨ 自動補正の確かさの記号 (1 = △ 怪しい / 2 = ○ たぶん / 3 = ◎ 確か) */
+const GRADE_MARK = [null, '△', '○', '◎'];
 const AudioSync = (() => {
-  const MEASURE_SEC = 90;
-  let run = null; // 測っている間: {g, tiles, ref, offs, ids, tracks, blocked, played, last, timer, closed}
-  let result = null; // 結果の候補: {g, tiles, ref, offs, ids, res, choice, n}
-  let resultSeq = 0;
+  const MEASURE_SEC = 180;
+  const PRELIM_FIRST = 35; // 途中の結果を出し始める (計算には 30 秒分の記録が要る)
+  const PRELIM_EVERY = 10;
+  const SUGGEST_MIN = 90; // これより前には、切り上げを提案しない (大きいずれは、長く聞かないと確かめられない。実測: 63 秒)
+  const STABLE_SEC = 0.02; // ほかの計算の値とこれ以内なら「同じ値」
+  const MOVING_SEC = 0.05; // 前の計算の値からこれより変わっていたら、確かさを下げる
+  // 測っている間: {g, tiles, ref, offs, ids, tracks, blocked, played, last, timer, closed, busy, nextPrelim,
+  //   history: 計算ごとの結果 [{sec, tiles, res, grade, streak}], best: 一番よかった値 (bestOf), suggested: 切り上げを提案した, n}
+  let run = null;
+  let result = null; // 結果の候補: {g, tiles, ref, offs, ids, pick: Map, two, choice, n}
+  let failure = null; // 決められなかった: {g, reason, n}
+  let seq = 0;
 
   function toggle(g) {
     if (run) {
@@ -3110,6 +3169,7 @@ const AudioSync = (() => {
   }
 
   function start(g) {
+    if (run) return;
     const info = Sync.groupInfo(g);
     if (!info || !info.active || info.movie) return;
     const { ref, tiles } = info;
@@ -3119,6 +3179,7 @@ const AudioSync = (() => {
       return;
     }
     result = null;
+    failure = null;
     run = {
       g,
       tiles,
@@ -3130,6 +3191,12 @@ const AudioSync = (() => {
       played: 0,
       last: performance.now(),
       closed: false,
+      busy: false,
+      nextPrelim: PRELIM_FIRST,
+      history: [],
+      best: null,
+      suggested: false,
+      n: ++seq,
     };
     for (const i of tiles) postToFrame(views[i].player, { hakomado: 'measure', on: true, muted: !!state.tiles[i].muted });
     run.timer = setInterval(progress, 500);
@@ -3150,8 +3217,12 @@ const AudioSync = (() => {
     // 基準の枠が再生している (広告でない) 間だけ数える
     const ss = views[run.ref]?.ss;
     if (ss && ss.ps === 1 && !ss.ad && !pausedAll && !info.paused) run.played += dt;
-    if (run.played >= MEASURE_SEC) finish();
-    else Sync.dockChanged();
+    if (run.played >= MEASURE_SEC) return void finish();
+    if (!run.busy && run.played >= run.nextPrelim) {
+      run.nextPrelim = run.played + PRELIM_EVERY;
+      prelim(run);
+    }
+    Sync.dockChanged();
   }
 
   const stopFrames = (tiles) => {
@@ -3163,37 +3234,199 @@ const AudioSync = (() => {
     clearInterval(run.timer);
     stopFrames(run.tiles);
     run = null;
+    releaseWorker();
     Sync.dockChanged();
     notify(msg);
   }
 
+  // ---- 計算 (Worker で)
+  let worker = null;
+  let noWorker = false;
+  let jobSeq = 0;
+  const jobs = new Map(); // id -> {resolve, items, ref}
+  /** 計算を Worker に頼む。Worker が使えなければ、この画面で計算する。計算できなければ null */
+  function compute(items, ref) {
+    if (!worker && !noWorker) {
+      try {
+        worker = new Worker('audio-align-worker.js');
+        worker.onmessage = (e) => {
+          const { id, res, error } = e.data || {};
+          const job = jobs.get(id);
+          if (!job) return;
+          jobs.delete(id);
+          if (error) console.warn('hakomado: ✨ 自動補正の計算に失敗しました', error);
+          job.resolve(error ? null : res);
+          releaseWorker();
+        };
+        worker.onerror = (e) => {
+          // 読み込めなかったなど: 以後はこの画面で計算する (待っているものも)
+          e.preventDefault?.();
+          console.warn('hakomado: ✨ 自動補正の Worker が使えないので、この画面で計算します', e.message || e);
+          noWorker = true;
+          worker?.terminate();
+          worker = null;
+          const left = [...jobs.values()];
+          jobs.clear();
+          for (const job of left) local(job.items, job.ref).then(job.resolve);
+        };
+      } catch (e) {
+        console.warn('hakomado: ✨ 自動補正の Worker を作れませんでした', e);
+        noWorker = true;
+        worker = null;
+      }
+    }
+    if (!worker) return local(items, ref);
+    return new Promise((resolve) => {
+      const id = ++jobSeq;
+      jobs.set(id, { resolve, items, ref });
+      worker.postMessage({ id, items, ref });
+    });
+  }
+  /** 測り終えて計算も残っていなければ Worker を閉じる (計算に使ったメモリを返す。次に測るときにまた作る) */
+  function releaseWorker() {
+    if (run || jobs.size || !worker) return;
+    worker.terminate();
+    worker = null;
+  }
+  function local(items, ref) {
+    return AudioAlign.analyze(items, ref).catch((e) => {
+      console.warn('hakomado: ✨ 自動補正の計算に失敗しました', e);
+      return null;
+    });
+  }
+
+  /** 今までの記録で計算する: {tiles, res, sec} (計算できなければ res = null) */
+  async function analyzeRun(r) {
+    const sec = Math.floor(r.played);
+    const tiles = r.tiles.filter((i) => !r.blocked.has(i) && r.tracks.has(i) && views[i].archive);
+    const refK = tiles.indexOf(r.ref);
+    if (refK < 0 || tiles.length < 2) return { tiles, res: { ok: false, reason: 'short' }, sec };
+    const items = tiles.map((i) => {
+      const tk = r.tracks.get(i);
+      return {
+        track: { sr: tk.sr, per: tk.per, bins: Float32Array.from(tk.bins), marks: tk.marks.map((m) => m.slice()) },
+        startMs: views[i].archive.start,
+        off: r.offs.get(i),
+      };
+    });
+    return { tiles, res: await compute(items, refK), sec };
+  }
+
+  /**
+   * 枠ごとの確かさ (grade: Map i -> 1〜3) と、途中の結果が続けて同じ値になった回数 (streak: Map i -> 回数) を、cur に書き込む。
+   * 計算の確かさに、前の途中の結果 (prev) からの変わり方を加える:
+   * - 大きく変わった枠は、まだ定まっていない (途中の結果は △、最後の結果は ○ まで)
+   * - 途中の結果で、比べるものが無ければ ○ まで (1 回しか見ていない)
+   * - 2 回続けて同じ値 (streak ≥ 2) なら 1 段上げる (聞き足しても動かない)
+   */
+  function gradesOf(cur, prev, isPrelim) {
+    cur.grade = new Map();
+    cur.streak = new Map();
+    cur.tiles.forEach((i, k) => {
+      const d = cur.res.deltas[k];
+      if (d == null || i === cur.ref) return;
+      let gr = cur.res.grade?.[k] ?? 1;
+      const pk = prev ? prev.tiles.indexOf(i) : -1;
+      const pd = pk >= 0 ? prev.res.deltas[pk] : null;
+      const streak = pd != null && Math.abs(pd - d) <= STABLE_SEC ? (prev.streak?.get(i) ?? 0) + 1 : 0;
+      if (pd == null) {
+        if (isPrelim) gr = Math.min(gr, 2);
+      } else if (Math.abs(pd - d) > MOVING_SEC) gr = Math.min(gr, isPrelim ? 1 : 2);
+      else if (streak >= 2) gr = Math.min(3, gr + 1);
+      cur.grade.set(i, gr);
+      cur.streak.set(i, streak);
+    });
+    return cur;
+  }
+
+  /**
+   * 計算ごとの結果から、一番よかった値を選ぶ。枠ごとにばらばらに選ぶと、別々の計算の値が混ざってそろわなくなる
+   * (実測: 基準との組の決まり方で、全部の枠が 0.11 秒そろって動く) ので、1 回の計算をまとめて採る:
+   * 枠ごとの確かさの合計が一番大きい計算。同じなら、ほかの計算でも同じ値 (STABLE_SEC 以内) が多く出たもの、それも同じなら新しいもの。
+   * その計算で決まらなかった枠だけ、ほかの計算からその枠の一番よい値を採る。
+   * @returns {{tiles: number[], ref: number, pick: Map<number, {d: number, grade: number, sec: number, support: number}>, two: object|null, sec: number}|null}
+   */
+  function bestOf(history, ref) {
+    if (!history.length) return null;
+    const all = new Map(); // i -> [{d, grade, sec, two}]
+    history.forEach((h, n) => {
+      h.tiles.forEach((i, k) => {
+        const d = h.res.deltas[k];
+        if (i === ref || d == null) return;
+        if (!all.has(i)) all.set(i, []);
+        all.get(i).push({ n, d, grade: h.grade.get(i) ?? 1, sec: h.sec, two: h.tiles.length === 2 ? h.res.two : null });
+      });
+    });
+    const better = (x, y) => (y.grade !== x.grade ? y.grade > x.grade : y.support !== x.support ? y.support > x.support : y.sec >= x.sec);
+    for (const list of all.values()) for (const e of list) e.support = list.filter((x) => Math.abs(x.d - e.d) <= STABLE_SEC).length;
+    // 計算ごとの点数 (確かさの合計・同じ値の多さ)
+    const scored = history.map((h, n) => {
+      const es = [...all.values()].map((list) => list.find((e) => e.n === n)).filter(Boolean);
+      return { n, sec: h.sec, grade: es.reduce((s, e) => s + e.grade, 0), support: es.reduce((s, e) => s + e.support, 0) };
+    });
+    const top = scored.reduce((x, y) => (better(x, y) ? y : x));
+    const pick = new Map();
+    let two = null;
+    for (const [i, list] of all) {
+      let best = list.find((e) => e.n === top.n) || list.reduce((x, y) => (better(x, y) ? y : x));
+      // ◎ の値が 2 つに分かれて、どちらも何度も出ている (揺れている) なら ○ まで (実測: 0.14 秒離れた 2 つを行き来した)
+      const wobble = list.some((e) => e.grade === 3 && e.support >= 2 && Math.abs(e.d - best.d) > MOVING_SEC && Math.abs(e.d - best.d) < 1);
+      if (wobble) best = { ...best, grade: Math.min(best.grade, 2) };
+      pick.set(i, best);
+      two = best.two; // 2 枠のときだけ使う (相手の枠は 1 つ)
+    }
+    const tiles = [...new Set(history.flatMap((h) => h.tiles))];
+    return { tiles, ref, pick, two: tiles.length === 2 ? two : null, sec: history.at(-1).sec };
+  }
+
+  /** 今の記録で計算して、計算ごとの結果に足す (計算できたら true) */
+  async function measureOnce(r, isPrelim) {
+    const out = await analyzeRun(r);
+    if (run !== r || !out.res?.ok) return false;
+    const prev = r.history.at(-1);
+    r.history.push(gradesOf({ ...out, ref: r.ref }, prev && prev.sec < out.sec ? prev : null, isPrelim));
+    r.best = bestOf(r.history, r.ref);
+    return true;
+  }
+
+  async function prelim(r) {
+    r.busy = true;
+    await measureOnce(r, true);
+    r.busy = false;
+    if (run !== r || r.closed) return;
+    // 切り上げの提案: 全部の枠が ◎ で、2 回以上同じ値が出た
+    const b = r.best;
+    const ready =
+      !!b && b.sec >= SUGGEST_MIN && r.tiles.every((i) => i === r.ref || r.blocked.has(i) || (b.pick.get(i)?.grade === 3 && b.pick.get(i).support >= 2));
+    if (ready && !r.suggested) {
+      r.suggested = true;
+      notify(tr('syncAudioSuggestNote', b.sec));
+    }
+    Sync.dockChanged();
+  }
+
+  /** 測るのを終えて、そこまでで一番よかった値を結果にする */
   async function finish() {
     const r = run;
+    if (!r || r.closed) return;
     clearInterval(r.timer);
     stopFrames(r.tiles);
     r.closed = true;
     Sync.dockChanged();
     await new Promise((res) => setTimeout(res, 1500)); // 止めたときに枠が送る最後の記録を待つ
     if (run !== r) return;
-    const tiles = r.tiles.filter((i) => !r.blocked.has(i) && r.tracks.has(i) && views[i].archive);
-    const refK = tiles.indexOf(r.ref);
-    let res = null;
-    if (refK >= 0 && tiles.length >= 2) {
-      const items = tiles.map((i) => ({ track: r.tracks.get(i), startMs: views[i].archive.start, off: r.offs.get(i) }));
-      try {
-        res = await AudioAlign.analyze(items, refK);
-      } catch (e) {
-        console.warn('hakomado: 音で合わせる計算に失敗しました', e);
-      }
-    }
+    const okNow = await measureOnce(r, false);
     if (run !== r) return;
     run = null;
-    if (!res?.ok) {
+    releaseWorker();
+    const b = r.best;
+    if (!b || !b.pick.size) {
+      failure = { g: r.g, reason: okNow || r.played >= PRELIM_FIRST ? 'weak' : 'short', n: ++seq };
       Sync.dockChanged();
-      notify(tr(res?.reason === 'short' || refK < 0 ? 'syncAudioShort' : 'syncAudioWeak'));
+      notify(tr(failure.reason === 'short' ? 'syncAudioShort' : 'syncAudioWeak'));
       return;
     }
-    result = { g: r.g, tiles, ref: r.ref, offs: r.offs, ids: r.ids, res, choice: 'mid', n: ++resultSeq };
+    result = { g: r.g, tiles: b.tiles, ref: r.ref, offs: r.offs, ids: r.ids, pick: b.pick, two: b.two, choice: 'mid', n: ++seq };
     notify(tr('syncAudioDone'));
     Sync.dockChanged();
   }
@@ -3222,34 +3455,87 @@ const AudioSync = (() => {
   }
 
   // ---- 結果の候補
-  /** 枠 i に入れる新しいずれ (秒)。決められなければ null */
-  function proposed(i) {
-    const { tiles, ref, offs, res, choice } = result;
-    const k = tiles.indexOf(i);
-    if (k < 0 || i === ref) return null;
-    const d = res.two && choice !== 'mid' ? res.two[choice] : res.deltas[k];
-    return d == null ? null : Math.round((offs.get(i) + d) * 100) / 100;
-  }
   /** 結果がまだ使えるか (グループの基準・枠の動画が測ったときのまま) */
   function resultValid() {
     if (!result) return false;
     const info = Sync.groupInfo(result.g);
     return !!info && !info.movie && info.ref === result.ref && result.tiles.every((i) => state.tiles[i].videoId === result.ids.get(i));
   }
-  /** パネルの行の ✨ の候補: 数 / false (決められなかった) / null (候補なし) */
-  function candidateFor(i) {
-    if (!resultValid() || !result.tiles.includes(i) || i === result.ref) return null;
-    return proposed(i) ?? false;
+  /** 出している候補: 最後の結果か、測っている途中の結果。{src, prelim} / null */
+  function shown() {
+    if (resultValid()) return { src: result, prelim: false };
+    if (run?.best && !run.closed) return { src: { ...run.best, offs: run.offs, choice: 'mid' }, prelim: true };
+    return null;
   }
-  /** パネルの形が変わる目印 (結果が出た・消えた・選び方を変えた) */
-  const resultKey = () => (resultValid() ? [result.n, result.choice] : null);
+  /** 枠 i に入れる新しいずれ (秒)。決められなければ null */
+  function proposedIn(src, i) {
+    const { tiles, ref, offs, pick, two, choice } = src;
+    if (!tiles.includes(i) || i === ref) return null;
+    const d = two && choice !== 'mid' ? two[choice] : pick.get(i)?.d;
+    return d == null ? null : Math.round((offs.get(i) + d) * 100) / 100;
+  }
+  /** パネルの行と図に出す ✨ の候補: {v: 新しいずれ, grade: 1〜3, prelim} / false (決められなかった) / null (候補なし) */
+  function candidateFor(i) {
+    const s = shown();
+    if (!s || !s.src.tiles.includes(i) || i === s.src.ref) return null;
+    const v = proposedIn(s.src, i);
+    return v == null ? false : { v, grade: s.src.pick.get(i)?.grade ?? 1, prelim: s.prelim };
+  }
+  /** パネルの形が変わる目印 (結果が出た・消えた・選び方を変えた・測り始めた・終えた・決められなかった) */
+  const resultKey = () => [resultValid() ? [result.g, result.n, result.choice] : null, run ? [run.g, run.n] : null, failure ? [failure.g, failure.n] : null];
 
-  /** パネルのグループの見出しの下に出す、結果の操作 (2 枠なら合わせ方の選択・反映・閉じる)。結果が無ければ null */
+  /**
+   * パネルのグループの見出しの下に出す箱: 測っている間 (途中の結果)・結果 (2 枠なら合わせ方の選択・反映・測り直す・閉じる)・
+   * 決められなかった (測り直す・閉じる)。出すものが無ければ null。{el, paint}: paint で数字を書き換える (パネルの更新のたび)
+   */
   function resultEl(g) {
-    if (!resultValid() || result.g !== g) return null;
-    const { tiles, ref, res } = result;
-    const kids = [mk('div', { class: 'dga-title' }, tr('syncAudioResultTitle'))];
-    if (res.two) {
+    if (run && run.g === g) return measuringEl();
+    if (resultValid() && result.g === g) return { el: doneEl(), paint() {} };
+    if (failure && failure.g === g) {
+      const el = mk(
+        'div',
+        { class: 'dg-audio-result is-fail' },
+        mk('div', { class: 'dga-title' }, tr(failure.reason === 'short' ? 'syncAudioShort' : 'syncAudioWeak')),
+        mk('div', { class: 'dga-buttons' }, retryButton(g), mk('button', { type: 'button', textContent: tr('syncAudioClose'), onclick: dismiss })),
+      );
+      return { el, paint() {} };
+    }
+    return null;
+  }
+
+  const retryButton = (g) => mk('button', { type: 'button', textContent: tr('syncAudioRetry'), title: tr('syncAudioRetryTitle'), onclick: () => retry(g) });
+
+  function measuringEl() {
+    const title = mk('div', { class: 'dga-title' });
+    const sub = mk('div', { class: 'dga-legend' });
+    const now = mk('button', { type: 'button', class: 'primary', textContent: tr('syncAudioFinishNow'), title: tr('syncAudioFinishNowTitle'), onclick: () => finish() });
+    const stop = mk('button', { type: 'button', textContent: tr('syncAudioStop'), onclick: () => cancel() });
+    const el = mk('div', { class: 'dg-audio-result is-measuring' }, title, sub, mk('div', { class: 'dga-buttons' }, now, stop));
+    return {
+      el,
+      paint() {
+        if (!run) return;
+        const p = run.best;
+        const suggest = run.suggested && !run.closed;
+        el.classList.toggle('is-suggest', suggest);
+        title.textContent = run.closed
+          ? tr('syncAudioAnalyzing')
+          : suggest
+            ? tr('syncAudioSuggest', p.sec)
+            : p
+              ? tr('syncAudioPrelimTitle', p.sec)
+              : tr('syncAudioListening');
+        sub.textContent = run.closed ? '' : p ? tr('syncAudioLegend') : tr('syncAudioListeningSub', PRELIM_FIRST);
+        now.disabled = run.closed || !p;
+        stop.disabled = run.closed;
+      },
+    };
+  }
+
+  function doneEl() {
+    const { tiles, ref, two } = result;
+    const kids = [mk('div', { class: 'dga-title' }, tr('syncAudioResultTitle')), mk('div', { class: 'dga-legend' }, tr('syncAudioLegend'))];
+    if (two) {
       const other = tiles.find((i) => i !== ref);
       const name = (i) => tileName(i) || String(visibleIndexes().indexOf(i) + 1);
       const opts = [
@@ -3286,6 +3572,7 @@ const AudioSync = (() => {
         'div',
         { class: 'dga-buttons' },
         mk('button', { type: 'button', class: 'primary', textContent: tr('syncAudioApply'), onclick: applyResult }),
+        retryButton(result.g),
         mk('button', { type: 'button', textContent: tr('syncAudioClose'), onclick: dismiss }),
       ),
     );
@@ -3294,13 +3581,23 @@ const AudioSync = (() => {
 
   function dismiss() {
     result = null;
+    failure = null;
+    Sync.dockChanged();
+  }
+
+  /** 測り直す (今の位置から。前の結果・知らせは消す) */
+  function retry(g) {
+    if (run) return; // ほかのグループで測っている
+    result = null;
+    failure = null;
+    start(g);
     Sync.dockChanged();
   }
 
   function applyResult() {
     if (!resultValid()) return dismiss();
     // 測ったあとで別の動画にした枠は直さない
-    const pairs = result.tiles.map((i) => [i, proposed(i)]).filter(([i, v]) => v != null && state.tiles[i].videoId === result.ids.get(i));
+    const pairs = result.tiles.map((i) => [i, proposedIn(result, i)]).filter(([i, v]) => v != null && state.tiles[i].videoId === result.ids.get(i));
     result = null;
     Sync.applyOffsets(pairs);
     notify(tr('syncAudioApplied', pairs.length));
@@ -3319,6 +3616,8 @@ const AudioSync = (() => {
     isMeasuring: () => !!run,
     /** ほかのグループで測っている (このグループの ✨ は押せない) */
     busyOther: (g) => !!run && run.g !== g,
+    /** このグループの結果・途中の結果・知らせを出している */
+    hasOutput: (g) => (!!run && run.g === g) || (resultValid() && result.g === g) || failure?.g === g,
     progressText,
     candidateFor,
     resultKey,
