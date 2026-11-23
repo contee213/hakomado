@@ -352,6 +352,7 @@ const MESSAGES = {
   syncTlRef: ['基準', 'Ref'],
   syncTlWait: ['⏸ 待機中', '⏸ Waiting'],
   syncTlFix: ['↻ あと {0}秒', '↻ {0}s to go'],
+  syncTlRawTitle: ['配信が実際に始まった時刻 (補正を入れると、棒の左端がここから離れる)', 'When the stream actually started (with a correction, the left end of the bar moves away from here)'],
   syncTlCorrEarlier: ['補正 {0} 秒: 配信の実際の開始より、この分だけ早めてそろえています', 'Correction {0}s: aligned this much earlier than the actual stream start'],
   syncTlCorrLater: ['補正 {0} 秒: 配信の実際の開始より、この分だけ遅らせてそろえています', 'Correction {0}s: aligned this much later than the actual stream start'],
   syncTlNowTitle: ['今の時刻', 'Now'],

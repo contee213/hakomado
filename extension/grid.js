@@ -2771,6 +2771,7 @@ const Sync = (() => {
         const x = {
           bar: mk('div', { class: 'tl-bar' }),
           corr: mk('div', { class: 'tl-corr' }),
+          raw: mk('div', { class: 'tl-raw', title: tr('syncTlRawTitle') }),
           now: mk('div', { class: 'tl-now', title: tr('syncTlNowTitle') }),
           diff: mk('span', { class: 'tl-diff' }),
           st: mk('span', { class: 'tl-st' }),
@@ -2781,7 +2782,7 @@ const Sync = (() => {
           { class: 'tl-row', title: tileName(i) || '' },
           mk('span', { class: 'tl-no' }, String(tileNo(i))),
           x.diff,
-          (x.track = mk('div', { class: 'tl-track' }, x.bar, x.corr, x.now)),
+          (x.track = mk('div', { class: 'tl-track' }, x.bar, x.corr, x.raw, x.now)),
           x.st,
         );
       });
@@ -2825,6 +2826,8 @@ const Sync = (() => {
         x.bar.hidden = !m;
         const corrected = !!m && m.raw != null && Math.abs(m.raw - m.at) >= 5;
         x.corr.hidden = !corrected;
+        x.raw.hidden = !corrected;
+        if (corrected) x.raw.style.left = pct(m.raw) + '%';
         if (m) {
           // 濃淡のどちらでも、ふつうの色の棒は遅いほうの開始から
           x.bar.style.left = pct(corrected ? Math.max(m.at, m.raw) : m.at) + '%';

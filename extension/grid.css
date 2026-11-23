@@ -1528,12 +1528,16 @@ body.grid-fs .sync-dock { top: 0; }
 .tl-no { flex: none; width: 12px; color: var(--muted); text-align: right; }
 .tl-diff { flex: none; width: 56px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tl-track { position: relative; flex: 1 1 auto; min-width: 60px; height: 8px; border-radius: 2px; background: #ffffff10; }
-.tl-bar { position: absolute; top: 1px; bottom: 1px; right: 0; border-radius: 2px 0 0 2px; background: #7d8492; }
+/* 棒は青 (グループの色 = 黄・緑・紫・橙 に使わない色) */
+.tl-bar { position: absolute; top: 1px; bottom: 1px; right: 0; border-radius: 2px 0 0 2px; background: #4a86e8; }
 /* 補正の分: 早めた (左へ延びた) 分は濃く、遅らせた (右へ縮んだ) 分は薄く。小さな補正も見えるよう、少なくとも 2px */
 .tl-corr { position: absolute; top: 1px; bottom: 1px; min-width: 2px; }
-.tl-corr.is-earlier { background: #d4d9e2; }
-.tl-corr.is-later { background: #7d8492; opacity: .35; }
+.tl-corr.is-earlier { background: #a9cbff; }
+.tl-corr.is-later { background: #4a86e8; opacity: .35; }
 .tl-corr[hidden] { display: none; }
+/* 配信が実際に始まった時刻の細い線 (補正を入れると、棒の左端がここから離れる) */
+.tl-raw { position: absolute; top: -3px; bottom: -3px; width: 1px; background: var(--text); opacity: .7; z-index: 1; }
+.tl-raw[hidden] { display: none; }
 .tl-now[hidden] { display: none; }
 .tl-bar[hidden] { display: none; }
 .tl-now { position: absolute; top: -2px; bottom: -2px; width: 2px; margin-left: -1px; background: var(--text); }
