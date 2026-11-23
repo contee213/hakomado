@@ -75,7 +75,8 @@ function newTileState() {
   // pan = 音の左右 (-1 = 左・0 = 真ん中・1 = 右)、gain = 音量 (1 = 元のまま、0〜2)。枠の中の Web Audio で変える (content/watch.js)
   // speed = 再生速度 (1 = 等速)。同期中のグループの枠は、グループの速度にそろえる (Sync)。ライブ配信では使わない (等速)
   // short = ショートとして縦長 (9:16) の枠で見せる。読み込む前に、URL (/shorts/) で決める (isShortHint)
-  return { input: '', videoId: null, chat: false, danmaku: null, muted: true, auto: false, queue: false, fill: false, label: '', pan: 0, gain: 1, delay: 0, speed: 1, short: false };
+  // corner = ストレッチで映像の端を切るとき、残す角 (CORNERS)。配信者が映る角は配信ごとに違うので、動画を変えたら右下に戻す
+  return { input: '', videoId: null, chat: false, danmaku: null, muted: true, auto: false, queue: false, fill: false, label: '', pan: 0, gain: 1, delay: 0, speed: 1, short: false, corner: 'br' };
 }
 
 /**
@@ -144,6 +145,7 @@ function applySession(saved = {}) {
       if ('gain' in picked) picked.gain = clampGain(picked.gain);
       if ('delay' in picked) picked.delay = clampDelay(picked.delay);
       if ('speed' in picked) picked.speed = clampSpeed(picked.speed);
+      if ('corner' in picked && !CORNERS.includes(picked.corner)) delete picked.corner;
       // 以前の版は弾幕の初期値が「表示」だったので、そのときの true は自動 (メイン枠だけ) として扱う
       if (!saved.dmAuto && picked.danmaku === true) picked.danmaku = null;
       // あとで見るの再生中かどうかは保存しない (開き直したら、ふつうの枠として扱う)
@@ -542,6 +544,7 @@ function relayoutIfVerticalChanged() {
 function layout() {
   const l = state.layout;
   verticalShape = verticalKey();
+  setToggle(document.getElementById('fitFill'), state.fit === 'fill');
   if (state.fit === 'fill') {
     // ストレッチ: 格子を均等に割り、映像は枠に合わせて拡大 (端が切れる。縦長の映像は枠のプレイヤー側で切らずに収める)
     gridEl.style.gridTemplateColumns = `repeat(${l.cols}, minmax(0, 1fr))`;
@@ -703,6 +706,29 @@ function setFit(mode) {
     postToFrame(v.player, { hakomado: 'fill', on: mode === 'fill' });
   }
   layout();
+  for (let i = 0; i < MAX_TILES; i++) renderCornerButton(i);
+  save();
+}
+
+// ストレッチで残す角: 右下 → 左下 → 左上 → 右上 の順に切り替える
+const CORNERS = ['br', 'bl', 'tl', 'tr'];
+const CORNER_ICON = { br: '↘', bl: '↙', tl: '↖', tr: '↗' };
+
+/** 枠のバーの「残す角」ボタン (ストレッチのときだけ出す) */
+function renderCornerButton(i) {
+  const btn = views[i].el.querySelector('.bar [data-act="corner"]');
+  const c = state.tiles[i].corner;
+  btn.hidden = state.fit !== 'fill';
+  btn.textContent = CORNER_ICON[c];
+  btn.title = tr('tileCorner', tr('anchor_' + c));
+}
+
+/** 枠 i のストレッチで残す角を次に切り替え、プレイヤーに伝える */
+function cycleCorner(i) {
+  const t = state.tiles[i];
+  t.corner = CORNERS[(CORNERS.indexOf(t.corner) + 1) % CORNERS.length];
+  postToFrame(views[i].player, { hakomado: 'corner', corner: t.corner });
+  renderCornerButton(i);
   save();
 }
 
@@ -781,7 +807,7 @@ function setTileVideo(i, videoId, input) {
   views[i].danmaku.clear();
   // 手で読み込んだ枠は自動再生でも消さない
   // 音の遅延はその配信のずれに合わせた値なので、別の動画にしたら戻す。速度もその動画のために決めたものなので戻す
-  Object.assign(state.tiles[i], { input, videoId, auto: false, queue: false, fill: false, label: '', delay: 0, short: isShortHint(input), ...(prev !== videoId ? { speed: 1 } : {}) });
+  Object.assign(state.tiles[i], { input, videoId, auto: false, queue: false, fill: false, label: '', delay: 0, short: isShortHint(input), ...(prev !== videoId ? { speed: 1, corner: 'br' } : {}) });
   // 新しく読み込んだ枠は、他に音の出ている枠が無ければ音を出す
   const anyAudible = state.tiles.some((t, j) => j !== i && isVisible(j) && t.videoId && !t.muted);
   state.tiles[i].muted = anyAudible;
@@ -799,6 +825,7 @@ function playerUrl(t) {
     hakomado: '1',
     hakomado_muted: t.muted ? '1' : '0',
     hakomado_fill: state.fit === 'fill' ? '1' : '0',
+    hakomado_corner: t.corner,
   });
   return `${YT}/watch?${p}`;
 }
@@ -977,6 +1004,7 @@ function renderTile(i, { reloadPlayer = false, reloadChat = false } = {}) {
   el.classList.toggle('audible', visible && !!t.videoId && !t.muted && state.count > 1);
   setToggle(el.querySelector('.bar [data-act="chat"]'), t.chat);
   setToggle(el.querySelector('.bar [data-act="danmaku"]'), tileDanmaku(i));
+  renderCornerButton(i);
   renderSpeedButton(i);
   renderSpeedAll();
   renderMix(i);
@@ -1668,6 +1696,9 @@ function onBarAction(i, act, e) {
         renderTile(i);
       }
       break;
+    case 'corner':
+      cycleCorner(i);
+      return;
     case 'chat':
       t.chat = !t.chat;
       renderTile(i);
@@ -4906,21 +4937,12 @@ function setupLayoutPicker() {
     anchorSeg.appendChild(b);
   }
 
-  const fitButtons = dialog.querySelectorAll('[data-fit]');
-  const refresh = () => {
-    for (const b of fitButtons) b.classList.toggle('selected', b.dataset.fit === state.fit);
-    renderTab();
-  };
-  for (const b of fitButtons) {
-    b.addEventListener('click', () => {
-      setFit(b.dataset.fit);
-      refresh();
-    });
-  }
   document.getElementById('openLayout').addEventListener('click', () => {
-    refresh();
+    renderTab();
     dialog.showModal();
   });
+  // 上部バーの「ストレッチ」: ON = 余白なしで画面を埋める / OFF = 標準 (どの枠も 16:9)
+  document.getElementById('fitFill').addEventListener('click', () => setFit(state.fit === 'fill' ? 'fit' : 'fill'));
   document.getElementById('layoutClose').addEventListener('click', () => dialog.close());
   closeOnBackdrop(dialog);
   document.getElementById('addTile').addEventListener('click', () => addTileSlot());
@@ -10058,6 +10080,79 @@ function notify(text) {
   el._timer = setTimeout(() => el.classList.remove('show'), 3500);
 }
 
+// ---------------------------------------------------------------- 再生枠のスクリーンショット
+// 枠の動画は YouTube の iframe (別のオリジン) なので canvas には描けない。captureVisibleTab でタブの表示を撮り、
+// 枠の並び (#grid) に切り抜く。撮れるのは拡張機能のショートカットキー (既定 Alt+Shift+S) をこのタブで押したときだけ
+// (押すと Chrome がこのタブに activeTab を付け、captureVisibleTab が使えるようになる。ページの中のボタンでは付かない)
+let shooting = false;
+
+/** 画面の再描画を待つ (撮る前に、操作バーを消したのを反映させる) */
+const nextPaint = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+
+/** captureVisibleTab で撮って、枠の並びの部分の PNG にする */
+async function shotByVisibleTab() {
+  const tab = await chrome.tabs.getCurrent();
+  document.body.classList.add('shooting');
+  let url;
+  try {
+    await nextPaint();
+    url = await chrome.tabs.captureVisibleTab(tab.windowId, { format: 'png' });
+  } finally {
+    document.body.classList.remove('shooting');
+  }
+  const img = await createImageBitmap(await (await fetch(url)).blob());
+  const rect = document.getElementById('grid').getBoundingClientRect();
+  const scale = img.width / window.innerWidth;
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(1, Math.round(rect.width * scale));
+  canvas.height = Math.max(1, Math.round(rect.height * scale));
+  canvas.getContext('2d').drawImage(img, rect.left * scale, rect.top * scale, canvas.width, canvas.height, 0, 0, canvas.width, canvas.height);
+  img.close();
+  const blob = await new Promise((r) => canvas.toBlob(r, 'image/png'));
+  if (!blob) throw new Error('toBlob');
+  return blob;
+}
+
+async function captureGridScreenshot() {
+  if (shooting) return;
+  shooting = true;
+  try {
+    const blob = await shotByVisibleTab();
+    const d = new Date();
+    const p2 = (v) => String(v).padStart(2, '0');
+    const name = `hakomado-${d.getFullYear()}${p2(d.getMonth() + 1)}${p2(d.getDate())}-${p2(d.getHours())}${p2(d.getMinutes())}${p2(d.getSeconds())}.png`;
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = name;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 10_000);
+    // クリップボードにも入れる (このページにフォーカスが無いときなどは保存だけ)
+    let copied = false;
+    try {
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+      copied = true;
+    } catch {
+      /* 保存だけ */
+    }
+    notify(tr(copied ? 'shotSavedCopied' : 'shotSaved', name));
+  } catch (e) {
+    console.warn('screenshot', e);
+    notify(tr('shotFailed'));
+  } finally {
+    shooting = false;
+  }
+}
+
+/** ショートカットキーで撮る (background.js が、このタブで押されたときに送ってくる) */
+function listenScreenshotKey(myTabId) {
+  chrome.runtime.onMessage.addListener((msg, sender) => {
+    if (msg?.type !== 'screenshot' || sender.id !== chrome.runtime.id || sender.tab || msg.tabId !== myTabId) return false;
+    captureGridScreenshot();
+    return false;
+  });
+}
+
 function setupFavorites() {
   document.getElementById('openChannels').addEventListener('click', () => openFavorites(null, 'channels'));
   document.getElementById('queuePlay').addEventListener('click', () => startQueue());
@@ -10556,7 +10651,11 @@ async function chooseSession() {
   // 右クリックのメニューからの追加を受け取る (起動し終えてから。それまでに押されたものは新しいタブで開く)
   chrome.tabs
     .getCurrent()
-    .then((tab) => tab && listenAddVideo(tab.id))
+    .then((tab) => {
+      if (!tab) return;
+      listenAddVideo(tab.id);
+      listenScreenshotKey(tab.id);
+    })
     .catch(() => {});
 
   // インストール直後の 1 回だけ、使い方ツアーを出す (先に印を消して、他のタブでは出さない)

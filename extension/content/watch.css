@@ -37,6 +37,8 @@ html.hakomado-frame #movie_player video {
 
 html.hakomado-frame.hakomado-fill #movie_player video {
   object-fit: cover !important;
+  /* 切るときは、配信者が映っている角 (枠ごとに選ぶ。既定は右下) を残す */
+  object-position: var(--hakomado-crop-pos, 100% 100%) !important;
 }
 
 /* 縦長の映像 (ショート・縦型の配信) はストレッチでも切らない */

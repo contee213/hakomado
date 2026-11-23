@@ -17,6 +17,7 @@ function setup({ gridTabs = [], tabs = {}, answer = () => undefined } = {}) {
   const log = { sent: [], created: [], updated: [], focused: [], menus: [] };
   const chrome = {
     action: { onClicked: on('action') },
+    commands: { onCommand: on('command') },
     runtime: {
       id: 'self',
       getURL: (p) => `chrome-extension://self/${p}`,
@@ -103,4 +104,21 @@ test('枠の中 (フレーム) で押したときはフレームの動画。動�
   await click({ menuItemId: 'hakomado-add-link', linkUrl: 'https://www.youtube.com/@someone' }, { windowId: 1 });
   await click({ menuItemId: 'other', linkUrl: `https://youtu.be/${A}` }, { windowId: 1 });
   assert.equal(log.created.length, 1);
+});
+
+test('ショートカットキーのスクリーンショットは、マルチビュー画面のタブで押したときだけ、そのタブに頼む', async () => {
+  const manifest = JSON.parse(readExt('manifest.json'));
+  assert.ok(manifest.permissions.includes('activeTab'));
+  assert.ok(manifest.commands.screenshot);
+  for (const lang of ['ja', 'en']) assert.ok(JSON.parse(readExt(`_locales/${lang}/messages.json`)).cmdScreenshot?.message);
+  const { listeners, log } = setup({ gridTabs: [3], answer: () => ({}) });
+  const press = async (command, tab) => {
+    listeners.command(command, tab);
+    for (let k = 0; k < 20; k++) await new Promise((r) => setImmediate(r));
+  };
+  await press('screenshot', { id: 4 });
+  await press('other', { id: 3 });
+  assert.equal(log.sent.length, 0, 'ほかのタブ・ほかのコマンドでは何もしない');
+  await press('screenshot', { id: 3 });
+  assert.deepEqual(plain(log.sent), [{ type: 'screenshot', tabId: 3 }]);
 });
