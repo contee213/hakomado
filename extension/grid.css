@@ -1586,6 +1586,11 @@ body.grid-fs .sync-dock { top: 0; }
 .tl-now[hidden] { display: none; }
 .tl-bar[hidden] { display: none; }
 .tl-now { position: absolute; top: -2px; bottom: -2px; width: 2px; margin-left: -1px; background: var(--text); }
+/* ✨ 自動補正の候補: 反映したあとの位置の ◆ と、今の位置からの点線 (途中の結果は薄く) */
+.tl-cand-span { position: absolute; top: 3px; height: 0; border-top: 2px dotted #8fd3ff; z-index: 1; }
+.tl-cand { position: absolute; top: 50%; width: 9px; height: 9px; margin: -5px 0 0 -5px; background: #8fd3ff; transform: rotate(45deg); box-shadow: 0 0 0 1px #111; z-index: 2; }
+.tl-cand.is-prelim, .tl-cand-span.is-prelim { opacity: .5; }
+.tl-cand[hidden], .tl-cand-span[hidden] { display: none; }
 .tl-st { flex: none; width: 80px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tl-st.is-fix { color: var(--text); }
 /* たためるグループ: たたんだら見出しだけ */
@@ -1597,8 +1602,16 @@ body.grid-fs .sync-dock { top: 0; }
 .dg-note { color: #f0c36d; font-size: 12px; }
 .dg-note:empty { display: none; }
 .sync-audio.is-measuring { color: #8fd3ff; border-color: #8fd3ff; }
+/* まだ補正していないグループ: ✨ を目立たせる */
+.sync-audio.is-suggest:not(:disabled) { border-color: #8fd3ff; box-shadow: 0 0 6px #8fd3ff66; }
 .dg-audio-result { display: flex; flex-direction: column; gap: 4px; padding: 4px 6px; border: 1px solid #8fd3ff55; border-radius: 4px; }
 .dga-title { color: #8fd3ff; }
+.dga-legend { color: var(--muted); font-size: 12px; }
+.dga-legend:empty { display: none; }
+.dg-audio-result.is-fail { border-color: #f0c36d66; }
+/* 切り上げの提案: どの枠も ◎ */
+.dg-audio-result.is-suggest { border-color: #8fd3ff; box-shadow: 0 0 6px #8fd3ff66; }
+.dg-audio-result.is-fail .dga-title { color: #f0c36d; }
 .dga-choice { display: flex; flex-direction: column; gap: 2px; }
 .dga-buttons { display: flex; gap: 6px; justify-content: flex-end; }
 .dock-row { display: flex; flex-direction: column; gap: 4px; padding: 5px; border-radius: 4px; outline: none; }
@@ -1630,6 +1643,9 @@ body.grid-fs .sync-dock { top: 0; }
 .dr-reset[hidden] { display: none; }
 .dr-ref-val { font-variant-numeric: tabular-nums; }
 .dr-cand { color: #8fd3ff; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.dr-cand.is-prelim { opacity: .6; font-style: italic; }
+/* 確かさ: ◎ / ○ はそのまま、△ は注意の色 */
+.dr-grade.g1 { color: #f0c36d; }
 .dr-note { color: var(--muted); }
 .dr-movie-label { display: inline-flex; align-items: center; gap: 4px; }
 .dr-movie-now { width: 6em; }
