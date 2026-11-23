@@ -1557,6 +1557,8 @@ body.grid-fs .sync-dock { top: 0; }
 .dock-rest { border-left-color: var(--line); }
 .dg-head { display: flex; align-items: center; gap: 4px; }
 .dg-head select { min-width: 0; flex: 1 1 auto; }
+/* 本編の枠があるときのそろえ方 (切り替えは出さず、文字だけ) */
+.dg-head .dg-mode-fixed { flex: 1 1 auto; min-width: 0; padding: 2px 6px; font-size: 12px; }
 .dg-head button { flex: none; padding: 0 8px; font-variant-numeric: tabular-nums; }
 .dg-num { flex: none; min-width: 20px; border-radius: 10px; background: var(--g); color: #111; font-weight: 700; line-height: 20px; text-align: center; }
 .dg-title { color: var(--muted); }
@@ -1656,7 +1658,7 @@ body.grid-fs .sync-dock { top: 0; }
 /* たたんだとき: 番号・ずれ・点だけ */
 .sync-dock.mini .dock-title, .sync-dock.mini .dg-actions, .sync-dock.mini .dr-ref-tag, .sync-dock.mini .dr-sub, .sync-dock.mini .dr-name,
 .sync-dock.mini .dr-group, .sync-dock.mini .dr-ref, .sync-dock.mini .dg-seek, .sync-dock.mini .dg-head select,
-.sync-dock.mini .dg-head button, .sync-dock.mini .dg-note, .sync-dock.mini .dg-audio-result, .sync-dock.mini .dg-tl, .sync-dock.mini .dg-count { display: none; }
+.sync-dock.mini .dg-head button, .sync-dock.mini .dg-mode-fixed, .sync-dock.mini .dg-note, .sync-dock.mini .dg-audio-result, .sync-dock.mini .dg-tl, .sync-dock.mini .dg-count { display: none; }
 .sync-dock.mini .dr-short { display: inline; flex: 1 1 auto; text-align: right; }
 .sync-dock.mini .dock-body { padding: 4px; }
 
