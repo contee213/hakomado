@@ -2743,7 +2743,7 @@ const Sync = (() => {
     }
 
     // ---- 図: 各枠の開始のあたりを拡大して並べる (何時間もの配信の全体では、数十秒や 0.1 秒の違いが見えないため。全体はつまみで見る)。
-    // 横棒の左端 = 補正を入れた開始 (この位置でそろえている)、細い線 = 配信の実際の開始 (補正が 0 なら左端と重なる)。
+    // 横棒 = 配信の実際の開始から右へ。補正の分は濃淡で: 早めた (左へ延びた) 分は濃く、遅らせた (右へ縮んだ) 分は薄く。
     // 今の時刻が拡大した範囲に入っていれば縦の線を引く。左に基準との開始の差、右に状態 (✓ 設定どおり / ↻ あと何秒 / 基準 / 待機中)
     /** 秒 → 「36秒」「2分10秒」「1時間5分」 */
     function spanLabel(sec) {
@@ -2768,7 +2768,7 @@ const Sync = (() => {
       const rowsEl = list.map((i) => {
         const x = {
           bar: mk('div', { class: 'tl-bar' }),
-          raw: mk('div', { class: 'tl-raw', title: tr('syncTlRawTitle') }),
+          corr: mk('div', { class: 'tl-corr' }),
           now: mk('div', { class: 'tl-now', title: tr('syncTlNowTitle') }),
           diff: mk('span', { class: 'tl-diff' }),
           st: mk('span', { class: 'tl-st' }),
@@ -2779,7 +2779,7 @@ const Sync = (() => {
           { class: 'tl-row', title: tileName(i) || '' },
           mk('span', { class: 'tl-no' }, String(tileNo(i))),
           x.diff,
-          mk('div', { class: 'tl-track' }, x.bar, x.raw, x.now),
+          mk('div', { class: 'tl-track' }, x.bar, x.corr, x.now),
           x.st,
         );
       });
@@ -2808,10 +2808,19 @@ const Sync = (() => {
       for (const [i, x] of t.rows) {
         const m = marks.get(i);
         x.bar.hidden = !m;
-        x.raw.hidden = !m || m.raw == null || Math.abs(m.raw - m.at) < 5;
+        const corrected = !!m && m.raw != null && Math.abs(m.raw - m.at) >= 5;
+        x.corr.hidden = !corrected;
         if (m) {
-          x.bar.style.left = pct(m.at) + '%';
-          if (m.raw != null) x.raw.style.left = pct(m.raw) + '%';
+          // 濃淡のどちらでも、ふつうの色の棒は遅いほうの開始から
+          x.bar.style.left = pct(corrected ? Math.max(m.at, m.raw) : m.at) + '%';
+        }
+        if (corrected) {
+          const earlier = m.at < m.raw;
+          x.corr.style.left = pct(Math.min(m.at, m.raw)) + '%';
+          x.corr.style.width = pct(Math.max(m.at, m.raw)) - pct(Math.min(m.at, m.raw)) + '%';
+          x.corr.classList.toggle('is-earlier', earlier);
+          x.corr.classList.toggle('is-later', !earlier);
+          x.corr.title = tr(earlier ? 'syncTlCorrEarlier' : 'syncTlCorrLater', signedSec(off(i)));
         }
         x.now.hidden = R < lo || R > hi;
         x.now.style.left = pct(R) + '%';
