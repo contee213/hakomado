@@ -89,9 +89,13 @@ const MESSAGES = {
 
   // レイアウト
   layoutTab_recommend: ['おすすめ', 'Recommended'],
-  layoutTab_uniform: ['均等', 'Uniform'],
-  layoutTab_main1: ['メイン + サブ①', 'Main + sub 1'],
-  layoutTab_main2: ['メイン + サブ②', 'Main + sub 2'],
+  layoutTab_fav: ['お気に入り', 'Favorites'],
+  layoutFavAdd: ['お気に入りに入れる', 'Add to favorites'],
+  layoutFavRemove: ['お気に入りから外す', 'Remove from favorites'],
+  layoutFavEmpty: ['☆ を押したレイアウトがここに出ます', 'Layouts you star (☆) appear here'],
+  layoutTab_n1: ['1〜8 枠', '1–8 tiles'],
+  layoutTab_n2: ['9〜12 枠', '9–12 tiles'],
+  layoutTab_n3: ['13〜16 枠', '13–16 tiles'],
   layoutTab_pip: ['PinP', 'PinP'],
   anchor_tl: ['左上', 'Top left'],
   anchor_bl: ['左下', 'Bottom left'],
@@ -100,6 +104,7 @@ const MESSAGES = {
   kindFocus: ['メイン重視', 'Main focus'],
   kindBalance: ['バランス', 'Balanced'],
   layoutTitle: ['{0} ({1} 枠)', '{0} ({1} tiles)'],
+  tileCorner: ['ストレッチで切るとき、{0}の角を残す (押すと切り替え。配信者が映っている角に)', 'When stretching crops the video, keep the {0} corner (click to change; pick the corner where the streamer appears)'],
   tileClear: ['この枠を閉じる', 'Close this tile'],
   tileRemove: ['この空き枠を消す (枠の数に合ったレイアウトに変わります)', 'Remove this empty tile (the layout changes to fit the number of tiles)'],
   ytLogin: ['YouTube にログインすると使えます', 'Sign in to YouTube to use this'],
@@ -143,7 +148,6 @@ const MESSAGES = {
   progressStatus: ['チャンネルの配信状況を確認しています ({0} / {1})', 'Checking live status of channels ({0} / {1})'],
   progressAccess: ['見られる配信か確認しています ({0} / {1})', 'Checking which streams you can watch ({0} / {1})'],
   shareEmpty: ['表示中の枠に配信がありません', 'No streams in the shown tiles'],
-  shareCopied: ['コードをコピーしました', 'Copied the code'],
   shareImageMaking: ['画像を作っています…', 'Making the image…'],
   shareImageCopied: ['画像をコピーしました。X などの投稿欄に貼り付けられます', 'Copied the image. You can paste it into a post on X or elsewhere'],
   shareImageFail: ['画像を作れませんでした: {0}', 'Could not make the image: {0}'],
@@ -161,11 +165,6 @@ const MESSAGES = {
   shareBadLines: ['{0} 行は読み取れなかったので飛ばしました', 'Skipped {0} lines that could not be read'],
   shareTooMany: ['枠に並べたのは先頭 16 本です', 'Only the first 16 were laid out in tiles'],
   shareLoaded: ['▦ 枠に並べました ({0} 本)', '▦ Laid out {0} streams in tiles'],
-  shareXCount: ['X の文字数: {0} / {1}', 'Length on X: {0} / {1}'],
-  shareXOver: [
-    'X の文字数: {0} / {1}。本文には入らないので、画像で共有してください (画像の QR と ALT には入ります)',
-    'Length on X: {0} / {1}. Too long for a post, so share the image instead (the QR and ALT text hold it)',
-  ],
   shareAltHead: ['{0} — Hakomado の視聴セット ({1} 本 · {2})', '{0} — a Hakomado viewing set ({1} streams · {2})'],
   shareAltSep: ['、', ', '],
   shareAltCode: ['Hakomado の「📥 読み込む」に貼ると開けるコード: {0}', 'Code to paste into “📥 Import” in Hakomado: {0}'],
@@ -181,17 +180,13 @@ const MESSAGES = {
     '入るもの: {0}・レイアウト・同期の補正・名前 (画像に描き、QR にも入れます) / 入らないもの: 枠の名前。X などに添えて投稿すると、受け取った人は画像を Hakomado に貼るだけで同じ並びを開けます',
     'Includes: {0}, the layout, sync offsets and the name (drawn on the image and kept in the QR) / Not included: tile names. Attach it to a post on X or elsewhere, and others can open the same arrangement just by pasting the image into Hakomado',
   ],
-  shareNoteCode: [
-    '入るもの: {0}・レイアウト・同期の補正・名前 / 入らないもの: 枠の名前。X などの本文に貼りやすい 1 行です。Hakomado に貼ると開けます',
-    'Includes: {0}, the layout, sync offsets and the name / Not included: tile names. One line, easy to put in a post on X. Paste it into Hakomado to open it',
-  ],
   shareNoteText: [
     '入るもの: 全部 ({0}・名前・同期再生・レイアウト・補正・枠の名前)。Hakomado に貼ると元どおりに戻ります。AI チャットに渡して直してもらうこともできます',
     'Includes: everything ({0}, the name, sync setting, layout, offsets and tile names). Pasting it into Hakomado restores it as it was. You can also hand it to an AI chat to edit',
   ],
   shareNoteLink: [
-    '入るもの: {0}・名前 / 入らないもの: 同期の補正・レイアウト・枠の名前。Hakomado が入っていれば開くだけで読み込めます。入っていない人も YouTube の再生リストとして見られます (YouTube の制限で 50 本まで)',
-    'Includes: {0} and the name / Not included: sync offsets, layout and tile names. With Hakomado, opening it imports them. Without it, it still opens as a YouTube playlist (up to 50 because of a YouTube limit)',
+    '入るもの: {0}・レイアウト・同期の補正・名前 (画像の QR と同じ) / 入らないもの: 枠の名前。DM などで直接送るときに。Hakomado が入っていれば開くだけで同じ並びになり、入っていない人も YouTube の再生リストとして見られます',
+    'Includes: {0}, the layout, sync offsets and the name (the same as the QR on the image) / Not included: tile names. For sending directly, such as in a DM. With Hakomado, opening it gives the same arrangement; without it, it still opens as a YouTube playlist',
   ],
   readNothing: [
     '読み込めるもの (共有のコード・テキスト・取り込み用リンク・YouTube の URL) が見つかりませんでした',
@@ -678,7 +673,7 @@ const MESSAGES = {
   ],
   plNameTitle: ['再生リストの名前 (書き換えると変わる)', 'Playlist name (edit to rename)'],
   plShareBtn: ['🔗 共有', '🔗 Share'],
-  plShareBtnTitle: ['この再生リストを画像・コード・テキスト・リンクにして人に渡す', 'Share this playlist as an image, a code, text or a link'],
+  plShareBtnTitle: ['この再生リストを画像・リンク・テキストにして人に渡す', 'Share this playlist as an image, a link or text'],
   plDeleteTitle: ['この再生リストを削除する', 'Delete this playlist'],
   plModeLabel: ['再生のしかた', 'Play'],
   plModeQueue: ['▶ 順に再生', '▶ In order'],
@@ -746,13 +741,6 @@ const MESSAGES = {
   plSyncStarted: ['⏱ 再生リスト「{0}」を同期再生します ({1} 本)。アーカイブだと分かりしだい同期を始めます', '⏱ Playing playlist "{0}" in sync ({1}). Sync starts once the archives are recognized'],
   plShareCopiedText: ['テキストをコピーしました', 'Copied the text'],
   plShareCopiedLink: ['リンクをコピーしました', 'Copied the link'],
-  shortMaking: ['短縮リンクを作っています…', 'Making a short link…'],
-  shortMade: ['短縮リンクを作りました', 'Made a short link'],
-  shortCopied: ['短縮リンクをコピーしました', 'Copied the short link'],
-  shortFail: ['短縮リンクを作れませんでした ({0})', 'Could not make a short link ({0})'],
-  shortQrOn: ['QR は短縮リンクです', 'The QR code is the short link'],
-  shortResolving: ['短縮リンクを読んでいます…', 'Reading the short link…'],
-  shortResolveFail: ['短縮リンクを読めませんでした ({0})', 'Could not read the short link ({0})'],
   shareAiCopied: ['コピーしました。AI チャットに貼って送ってください', 'Copied. Paste it into an AI chat and send it'],
   shareAiCopiedEmpty: [
     'コピーしました。AI チャットに貼り、「見たいもの」を書き足して送ってください',
@@ -986,17 +974,18 @@ const HTML_EN = {
   'sync.dockTitle': 'Show / hide the sync panel (groups, reference, offsets, ✨ auto-correct)',
   'sync.dockHead': '⏱ Sync',
   'sync.adjTitle': 'Open the sync panel with this tile selected (offset, reference, group)',
-  'share.title': 'Share: turn the current tiles or a playlist into an image, a code, text or a link to give to others',
+  'share.title': 'Share: turn the current tiles or a playlist into an image, a link or text to give to others',
   'share.h': '🔗 Share',
   'share.sourceLabel': 'What to share',
   'share.nameLabel': 'Name',
   'share.namePlaceholder': 'Optional (the image shows “Hakomado viewing set”)',
   'share.tabImage': '🖼 Image',
-  'share.tabCode': '# Code',
   'share.tabText': '📝 Text',
   'share.tabLink': '🌐 Link',
   'share.toX': '𝕏 Post',
   'share.toXTitle': 'Open the X post screen with the image, the name and the link filled in (you press Post yourself)',
+  'share.toFeed': '📮 Post to the site',
+  'share.toFeedTitle': 'Open the post screen of the Hakomado site with this set filled in (sign in with X and press Post yourself; the extension sends nothing)',
   'share.imgCopy': '🖼 Copy image',
   'share.imgSave': '⬇ Save image',
   'share.authorLabel': 'Author',
@@ -1004,14 +993,8 @@ const HTML_EN = {
   'share.imgLabels': 'Draw the channel and title on each tile',
   'share.altCopy': '📋 Copy ALT text',
   'share.altCopyTitle': 'Copy ALT text for the image on X and elsewhere (includes the code to import it)',
-  'share.copyCode': '📋 Copy code',
   'share.copyText': '📋 Copy text',
   'share.copyLink': '📋 Copy link',
-  'share.imgShort': '✂ Use a short link in the QR code',
-  'share.imgShortTitle': 'Send this set (videos, layout, sync offsets and name) to the Hakomado website to make a short link, and put that link in the QR code (a smaller QR code that is easier to scan)',
-  'share.shortNote': 'Press "Make a short link" to send this set (videos, layout, sync offsets and name) to the Hakomado website and get a short link. Only people with the link can see it (it is not listed on the website)',
-  'share.shortMake': '✂ Make a short link',
-  'share.shortCopy': '📋 Copy',
   'read.title': 'Import: lay out a shared image, code, text, link or URLs in tiles, or save them as a playlist',
   'read.h': '📥 Import',
   'read.note': 'Paste a shared image (Ctrl+V, or drop it), a code (#Hakomado …), text or an import link, or YouTube URLs (one per line) or a playlist URL. Pasting a whole post works too',
@@ -1104,13 +1087,13 @@ const HTML_EN = {
 <li>Playback speed: tiles in a synced group can’t change speed on their own. Changing it on any tile in the group (its 1× button, the < > keys, or the player’s ⚙) changes the whole group, and the sync clock moves at that speed. A group with a live stream stays at normal speed</li>
 <li>Choosing the reference: make the tile you mainly listen to the reference, so its sound stays the most natural (the others change speed slightly or jump to keep up). If one tile needs a much larger offset than the rest, don’t make it the reference, so the other videos keep small offsets (offsets are remembered per video and reused in other sets)</li>
 </ul>`,
-  'helpPage.share': `<p>“🔗 Share” turns the current tiles or a playlist into one of four forms.</p>
+  'helpPage.share': `<p>“🔗 Share” turns the current tiles or a playlist into one of three forms, depending on who you give it to.</p>
 <ul>
 <li><b>Image</b>: attach it to a post on X or elsewhere. Scanning the QR opens it on YouTube, and Hakomado opens the same arrangement. You can also copy ALT text for the image. “𝕏 Post” opens the X post screen with the image, the name and the link filled in (you press Post yourself; the first time, it asks for access to x.com)</li>
-<li><b>Code</b>: one line, <code>#Hakomado …</code> (up to 16). Shows its length on X</li>
-<li><b>Text</b>: one per line, with the name, sync, layout, offsets and tile names. You can hand it to an AI chat to edit</li>
-<li><b>Import link</b>: people without Hakomado can watch it as a YouTube playlist (up to 50)</li>
+<li><b>Link</b>: send it directly, such as in a DM. It holds the same as the QR on the image (up to 16, the layout, offsets and the name). With Hakomado, opening it gives the same arrangement; without it, it opens as a YouTube playlist</li>
+<li><b>Text</b>: one per line, with the name, sync, layout, offsets and tile names (use it for playlists of 17 or more). You can hand it to an AI chat to edit</li>
 </ul>
+<p>“📮 Post to the site” opens the post screen of the Hakomado site with this set filled in (sign in with X and press Post yourself).</p>
 <p>Paste what you receive into “📥 Import” (drop images too, or press <kbd>Ctrl</kbd> + <kbd>V</kbd> outside any input box). Check what was read, then “▦ Lay out in tiles” or “📃 Save as playlist”. Opening an import link lands here too.</p>`,
   'helpPage.look': `<ul>
 <li><b>Danmaku</b>: scrolls each tile’s live chat across it. Turn it on/off per tile with ≋ (by default only on the main tile). <kbd>D</kbd> hides it on all tiles for now. Size, speed, rows and more are in Settings → Danmaku</li>
@@ -1162,10 +1145,8 @@ const HTML_EN = {
   'notice.empty': 'No notifications yet. When a channel goes live, it shows up here (checked while this page is open).',
   'progress.title': 'Preparing auto play',
   'layout.anchor': 'Placement',
-  'fit.fit': 'Standard',
-  'fit.fitTitle': 'Make every tile exactly 16:9 (Shorts tiles lean toward 9:16). If the screen ratio differs, the leftover space goes to the outer margins',
   'fit.fill': 'Stretch',
-  'fit.fillTitle': 'Fill the screen with no margins. Videos are zoomed to fit their tiles and the edges are cropped (vertical videos are not cropped)',
+  'fit.fillTitle': 'Stretch: fill the screen with no margins. Videos are zoomed to fit their tiles and the edges are cropped (vertical videos are not cropped). When off (standard), every tile is exactly 16:9 and any leftover space goes to the outer margins',
   'layout.note': 'Darker tiles are main tiles. Streams fill tile 1 (main) first. Drag ⠿ on a tile to swap.',
 
   // チャンネル・ピックアップ

@@ -23,21 +23,6 @@ const json = (body, status = 200, extra = {}) =>
   });
 const fail = (error, status = 400, extra = {}) => json({ error }, status, extra);
 
-/**
- * 拡張機能のページ (chrome-extension://<ID>) からの呼び出しか。EXT_IDS (カンマ区切り) を設定していれば、その ID だけ。
- * 返すのはその Origin (CORS で許す相手)。ちがえば ''
- */
-function extOrigin(request, env) {
-  const origin = request.headers.get('origin') || '';
-  const id = origin.match(/^chrome-extension:\/\/([a-p]{32})$/)?.[1];
-  if (!id) return '';
-  const allow = String(env.EXT_IDS || '')
-    .split(/[\s,]+/)
-    .filter(Boolean);
-  return !allow.length || allow.includes(id) ? origin : '';
-}
-const corsFor = (origin) => (origin ? { 'access-control-allow-origin': origin, vary: 'Origin' } : {});
-
 /** 接続元 (IP) を日ごとに変わるハッシュにする。IP そのものは保存しない */
 async function clientKey(request, env) {
   const ip = request.headers.get('cf-connecting-ip') || 'unknown';
@@ -100,22 +85,11 @@ async function api(request, env, url) {
   const parts = url.pathname.split('/').filter(Boolean); // ['api', 'sets', id?, action?]
   const { method } = request;
   const feats = features(env);
-  // 拡張機能からの短縮リンク (機能フラグ extShare): 拡張機能のページからは、投稿 (限定公開) と 1 件の読み出しだけ CORS で許す
-  const ext = feats.extShare ? extOrigin(request, env) : '';
-  const cors = corsFor(ext);
-  if (method === 'OPTIONS') {
-    const ok = ext && parts[1] === 'sets' && (parts.length === 2 || parts.length === 3);
-    if (!ok) return new Response(null, { status: 403 });
-    return new Response(null, {
-      status: 204,
-      headers: { ...cors, 'access-control-allow-methods': 'GET, POST', 'access-control-allow-headers': 'content-type', 'access-control-max-age': '86400' },
-    });
-  }
   const who = await auth(request, env);
   if (who === 'bad') return unauthorized({ error: 'bad_token' });
   const admin = who === 'ok';
-  // X でログインしている人 (機能フラグ xLogin。トークン・拡張機能からの呼び出しでは見ない)
-  const user = feats.xLogin && !admin && !ext ? await currentUser(request, env) : null;
+  // X でログインしている人 (機能フラグ xLogin。トークンを使った呼び出しでは見ない)
+  const user = feats.xLogin && !admin ? await currentUser(request, env) : null;
 
   // 自分のこと (X でログイン): GET /api/me、GET /api/me/sets、POST /api/me/unlink (X との連携を消す)
   if (parts[1] === 'me') {
@@ -144,28 +118,27 @@ async function api(request, env, url) {
       const q = url.searchParams;
       return json(await listSets(env, { sort: q.get('sort'), page: q.get('page'), tag: q.get('tag'), q: q.get('q') }, feats));
     }
-    if (method !== 'POST') return fail('method', 405, cors);
+    if (method !== 'POST') return fail('method', 405);
     const body = await readJson(request);
-    if (!body) return fail('bad_request', 400, cors);
-    let source = 'web';
-    if (admin) source = 'api';
-    else if (ext) source = 'ext';
-    else if (!(await verifyTurnstile(env, body.turnstile, request))) return fail('turnstile', 403);
-    // 投稿フォーム・拡張機能からはコード・リンク (text) だけ。動画の並び (videos) で送れるのはトークンを使ったときだけ
-    if (!admin && typeof body.text !== 'string') return fail('bad_request', 400, cors);
-    // 拡張機能からは名前とコードだけ受け取る (投稿者の名前・タグは付けない。いつも限定公開)
-    const input = source === 'ext' ? { text: body.text } : body;
-    const r = await createSet(env, input, { who: admin ? null : await clientKey(request, env), source, feats, user: source === 'web' ? user : null });
-    return json({ ...r, url: `${url.origin}/s/${r.id}` }, r.existed ? 200 : 201, cors);
+    if (!body) return fail('bad_request', 400);
+    const source = admin ? 'api' : 'web';
+    // 投稿フォームから投稿できるのは X でログインしている人だけ (xLogin がオフなら、トークンを使った投稿だけ)
+    if (!admin && !user) return fail('login_required', 401);
+    if (!admin && !(await verifyTurnstile(env, body.turnstile, request))) return fail('turnstile', 403);
+    // 投稿フォームからはコード・リンク (text) だけ。動画の並び (videos) で送れるのはトークンを使ったときだけ
+    if (!admin && typeof body.text !== 'string') return fail('bad_request', 400);
+    // 回数の制限は X のアカウントごと (接続元を変えても増やせないように)
+    const r = await createSet(env, body, { who: admin ? null : `x:${user.xId}`, source, feats, user: admin ? null : user });
+    return json({ ...r, url: `${url.origin}/s/${r.id}` }, r.existed ? 200 : 201);
   }
 
   const id = parts[2];
   if (parts.length === 3) {
     if (method !== 'GET') return fail('method', 405);
     const set = await getSet(env, id);
-    if (!set) return fail('not_found', 404, cors);
+    if (!set) return fail('not_found', 404);
     // own = ログインしている人の投稿 (合言葉なしで消せる)
-    return json(user ? { ...set, own: await ownsSet(env, id, user.xId) } : set, 200, cors);
+    return json(user ? { ...set, own: await ownsSet(env, id, user.xId) } : set);
   }
   if (method !== 'POST') return fail('method', 405);
   // 削除・開く・通報も JSON だけ (ほかのサイトのフォームから、見に来た人の接続元で通報させられないように)
@@ -250,8 +223,7 @@ async function appFetch(request, env) {
     if (/^\/(post|me)\/?$/.test(url.pathname)) return env.ASSETS.fetch(new URL('/', url));
     return env.ASSETS.fetch(request);
   } catch (e) {
-    // 拡張機能からの投稿の失敗 (回数の制限など) も、拡張機能が読めるように CORS を付ける
-    if (e instanceof ApiError) return fail(e.message, e.status, corsFor(features(env).extShare ? extOrigin(request, env) : ''));
+    if (e instanceof ApiError) return fail(e.message, e.status);
     console.error(e);
     return isApi || url.pathname === '/mcp' ? fail('server', 500) : new Response('Server error', { status: 500 });
   }

@@ -1,22 +1,60 @@
 // 投稿の画面 (/post): コード・リンクを貼る (または共有画像の QR を読む) → 形を確かめて見せる → 送る
 // 画面の切り替えは js/app.js が POST_VIEW.enter を呼ぶ
-/* global api, layoutPreview, errorText, saveKey, copyText, parseShareCode, parseShareLink, LAYOUTS, jsQR, turnstile, t, CONFIG, FEAT, APP, ACCOUNT */
+/* global api, layoutPreview, errorText, parseShareCode, parseShareLink, LAYOUTS, layoutIdOf, jsQR, turnstile, t, CONFIG, FEAT, APP, ACCOUNT */
 /* exported POST_VIEW */
 'use strict';
 
 const POST_VIEW = (() => {
   const $ = (x) => document.getElementById(x);
-  const AUTHOR = 'hakomado-feed:author';
   let turnstileToken = '';
   let needTurnstile = false;
   let sending = false;
+
+  // 拡張機能の「Hakomado Feed に投稿」は、/post#text=<コード> を開く (# の後ろはサーバーに送られない)。
+  // X でログインして戻るとき # の後ろは無くなるので、このタブの sessionStorage に預けておき、投稿できるようになったら欄に入れる。
+  // 自動では送らない (利用者が中身を見て「投稿する」を押す)
+  const DRAFT = 'hakomado-feed:draft';
+  let draft = '';
+  try {
+    draft = sessionStorage.getItem(DRAFT) || '';
+  } catch {
+    // 預けられなくても、ログインしていればそのまま使える
+  }
+  function takeHashDraft() {
+    const m = location.hash.match(/^#text=([^]*)$/);
+    if (!m) return;
+    history.replaceState(history.state, '', location.pathname + location.search);
+    let text = '';
+    try {
+      text = decodeURIComponent(m[1]).slice(0, 2000);
+    } catch {
+      return; // 壊れた %
+    }
+    if (!text.trim()) return;
+    draft = text;
+    try {
+      sessionStorage.setItem(DRAFT, text);
+    } catch {
+      // 何もしない
+    }
+  }
+  function clearDraft() {
+    draft = '';
+    try {
+      sessionStorage.removeItem(DRAFT);
+    } catch {
+      // 何もしない
+    }
+  }
+  takeHashDraft();
 
   /** 貼られたテキストを読む (サーバーと同じ読み方。送る前に形を見せるため) */
   function parse(text) {
     const got = parseShareCode(text) || parseShareLink(text);
     if (!got || !got.ids.length) return { error: text.trim() ? 'not_found' : '' };
-    if (!LAYOUTS.some((l) => l.id === got.layoutId)) return { error: 'bad_layout' };
-    return { set: got };
+    const layoutId = layoutIdOf(got.layoutId); // 今は無いレイアウトは置き換え先にする (サーバーと同じ)
+    if (!layoutId) return { error: 'bad_layout' };
+    return { set: { ...got, layoutId } };
   }
 
   function update() {
@@ -133,29 +171,27 @@ const POST_VIEW = (() => {
     update();
     $('postMsg').textContent = t('sending');
     $('postMsg').classList.remove('bad');
-    const author = $('author').value.trim();
     try {
-      localStorage.setItem(AUTHOR, author);
-    } catch {
-      // 名前を覚えられなくても投稿はできる
-    }
-    try {
-      const body = { text: $('text').value, author, turnstile: turnstileToken };
+      const body = { text: $('text').value, turnstile: turnstileToken };
       if (FEAT.tags) body.tags = $('tagsIn').value;
       if (FEAT.unlisted) body.unlisted = $('unlisted').checked;
       const r = await api('/api/sets', body);
+      clearDraft();
       if (r.existed) {
         APP.go(`/s/${r.id}?existed=1`);
         return;
       }
-      saveKey(r.id, r.deleteKey);
       $('form').hidden = true;
       $('done').hidden = false;
       $('doneLink').href = `/s/${r.id}`;
-      $('doneKey').value = r.deleteKey;
     } catch (err) {
       $('postMsg').textContent = errorText(err.message);
       $('postMsg').classList.add('bad');
+      // ログインが切れていた: ログインの案内に切り替える
+      if (err.message === 'login_required') {
+        ACCOUNT.reset();
+        showGate(null);
+      }
       if (needTurnstile && typeof turnstile !== 'undefined') {
         turnstileToken = '';
         turnstile.reset('#turnstile'); // 確認は 1 回しか使えない
@@ -180,13 +216,23 @@ const POST_VIEW = (() => {
     drop.classList.remove('over');
     useImage(e.dataTransfer.files[0]);
   });
-  $('copyKey').addEventListener('click', async () => {
-    if (!(await copyText($('doneKey').value))) $('doneKey').select();
-  });
-  try {
-    $('author').value = localStorage.getItem(AUTHOR) || '';
-  } catch {
-    // 何もしない
+
+  /** 投稿できるのは X でログインしている人だけ。user が null なら、フォームの代わりにログインの案内を出す */
+  function showGate(user) {
+    $('form').hidden = !user || !$('done').hidden;
+    $('postLogin').hidden = !!user;
+    $('postLead').hidden = !user; // コードの貼り方の説明は、投稿できるときだけ
+    if (user) {
+      $('authorX').textContent = t('authorX', user.username);
+      if (draft && !$('text').value.trim()) {
+        $('text').value = draft;
+        update();
+      }
+      return;
+    }
+    $('postLoginMsg').textContent = t(FEAT.xLogin ? 'postLoginNeeded' : 'postClosed');
+    $('postLoginBtn').hidden = !FEAT.xLogin;
+    $('postLoginBtn').href = ACCOUNT.loginUrl();
   }
 
   let started = false;
@@ -194,22 +240,20 @@ const POST_VIEW = (() => {
     /** 投稿の画面を出す。前の投稿が済んでいたら、新しく書ける状態に戻す */
     enter() {
       document.title = t('titlePost');
+      takeHashDraft();
       if (!$('done').hidden) {
         $('done').hidden = true;
-        $('form').hidden = false;
         $('text').value = '';
         $('tagsIn').value = '';
         $('unlisted').checked = false;
         $('postMsg').textContent = '';
       }
       update();
-      // X でログインしていれば、投稿者は X の @ユーザー名 (名前の欄は出さない。サーバーも名前の欄を使わない)
-      ACCOUNT.me().then((user) => {
-        document.querySelector('label[for="author"]').hidden = !!user;
-        $('author').hidden = !!user;
-        $('authorX').hidden = !user;
-        if (user) $('authorX').textContent = t('authorX', user.username);
-      });
+      // 投稿者は X の @ユーザー名。ログインしていなければフォームを出さない (ログインの案内を出す)
+      $('form').hidden = true;
+      $('postLogin').hidden = true;
+      $('postLead').hidden = true;
+      ACCOUNT.me().then(showGate);
       if (!started) {
         started = true;
         setupTurnstile(); // 確認 (Turnstile) は投稿の画面を初めて出したときだけ読み込む

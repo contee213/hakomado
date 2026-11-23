@@ -39,6 +39,8 @@ test('読めないもの・知らないレイアウトは受け付けない', ()
   assert.deepEqual(core.parseSubmission(''), { ok: false, error: 'not_found' });
   assert.deepEqual(core.parseSubmission(undefined), { ok: false, error: 'not_found' });
   assert.deepEqual(core.parseSubmission(`#Hakomado nosuch.${A}`), { ok: false, error: 'bad_layout' });
+  // 今は無いレイアウト (外した 8+8) は置き換え先で受け付ける
+  assert.equal(core.parseSubmission(`#Hakomado tl-m8s8-sw.${A}`).set.layoutId, 'u4x4');
   // hkl の無い watch_videos は Hakomado の共有リンクではない
   assert.deepEqual(core.parseSubmission(`https://www.youtube.com/watch_videos?video_ids=${A}`), { ok: false, error: 'not_found' });
 });
@@ -52,6 +54,7 @@ test('動画の並びから作る (API・MCP): URL と ID を読み、レイア�
   assert.equal(core.chooseLayout(1), 'u1x1');
   assert.equal(core.chooseLayout(2), 'u1x2');
   assert.equal(core.chooseLayout(16), 'u4x4');
+  assert.equal(core.chooseLayout(14), 'u3x5'); // 15 枠の均等 (おすすめ)
   // text を渡せばコード・リンクとして読む
   assert.equal(core.buildSubmission({ text: `#Hakomado u1x2.${A}${B}` }).set.layoutId, 'u1x2');
 });
@@ -127,14 +130,11 @@ test('D1 の行を画面に渡す形: コードとリンクを作り、秘密は
 
 test('機能フラグ: オブジェクト・JSON の文字列・カンマ区切りで決め、書いていないものはオフ', async () => {
   const { features } = await import(pathToFileURL(path.join(WEB, 'src', 'features.mjs')).href);
-  assert.deepEqual(features({}), { unlisted: false, extShare: false, tags: false, search: false, videoCheck: false, en: false, xLogin: false });
+  assert.deepEqual(features({}), { unlisted: false, tags: false, search: false, videoCheck: false, en: false, xLogin: false });
   assert.equal(features({ FEATURES: { tags: true, search: false } }).tags, true);
   assert.equal(features({ FEATURES: '{"search":true}' }).search, true);
   assert.equal(features({ FEATURES: 'tags, en' }).en, true);
   assert.equal(features({ FEATURES: 'not json {' }).tags, false);
-  // 拡張機能の短縮リンクは限定公開で入れるので、unlisted がオフなら一緒にオフ
-  assert.equal(features({ FEATURES: { extShare: true } }).extShare, false);
-  assert.equal(features({ FEATURES: { extShare: true, unlisted: true } }).extShare, true);
   // X でログインは、X のアプリ (クライアント ID・シークレット) と公開の URL がそろうまで出さない
   assert.equal(features({ FEATURES: { xLogin: true } }).xLogin, false);
   assert.equal(features({ FEATURES: { xLogin: true }, X_CLIENT_ID: 'id', X_CLIENT_SECRET: 's', PUBLIC_ORIGIN: 'https://a.example' }).xLogin, true);
@@ -208,7 +208,7 @@ test('🎬 「本編にした」動画: 読む・同じセットの判定・D1 �
   assert.equal(core.offsetsColumn(r.set), JSON.stringify({ movie: [0, 120], main: 0 }));
   const s = core.rowToSet({ id: 'abcdEFGH', layout: 'u2x2', ids: JSON.stringify([A, B]), offsets: core.offsetsColumn(r.set), ref: 1, name: '同時視聴', author: '', videos: '[{},{}]', opens: 0, created_at: 1 });
   assert.equal(s.main, 0);
-  assert.equal(s.code, `#Hakomado u2x2.${A}${B} "同時視聴" ~!0,*120,*0`, '短縮リンクで受け取った拡張機能にも印が届く');
+  assert.equal(s.code, `#Hakomado u2x2.${A}${B} "同時視聴" ~!0,*120,*0`, 'Feed のコードから読んだ拡張機能にも印が届く');
   assert.match(s.link, /&hkm=0,\*120,\*0&/);
   // 以前に入れた行 ({movie} だけ) は main = null
   const old = core.rowToSet({ id: 'abcdEFGH', layout: 'u2x2', ids: JSON.stringify([A, B]), offsets: JSON.stringify({ movie: [0, 120] }), ref: 1, name: '', author: '', videos: '[{},{}]', opens: 0, created_at: 1 });
@@ -253,7 +253,6 @@ test('wrangler.jsonc: ステージングは本番とずれず、本番の D1・�
   assert.equal(stg.d1_databases[0].migrations_dir, prod.d1_databases[0].migrations_dir);
   // vars は引き継がないので、本番にある名前はステージングにも全部書く (機能フラグの中身は違ってもいい)
   assert.deepEqual(Object.keys(stg.vars).sort(), Object.keys(prod.vars).sort());
-  assert.equal(stg.vars.EXT_IDS, prod.vars.EXT_IDS);
   // kv_namespaces も引き継がない。OAuth の KV・公開の URL・Access のアプリは本番と分ける
   assert.deepEqual(stg.kv_namespaces.map((k) => k.binding), prod.kv_namespaces.map((k) => k.binding));
   assert.notEqual(stg.kv_namespaces[0].id, prod.kv_namespaces[0].id);

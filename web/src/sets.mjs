@@ -173,8 +173,8 @@ export async function checkVideos(env, { budget = 40 } = {}) {
 
 /**
  * セットを投稿する。input = { text } か { videos, layoutId, name, offsets, ref } と author・tags・unlisted。
- * who = 接続元のハッシュ (回数を制限する)。null ならトークンを使った投稿 (制限しない)。
- * source = web (投稿フォーム) / api (トークン) / ext (拡張機能の短縮リンク。いつも限定公開)。
+ * who = 回数を制限する単位 (投稿フォームは X のアカウント「x:<ID>」)。null ならトークンを使った投稿 (制限しない)。
+ * source = web (投稿フォーム) / api (トークン)。
  * feats = 機能フラグ (オフの機能の指定は無視する: unlisted がオフならいつも公開、tags がオフならタグなし)
  * @returns {Promise<{id: string, deleteKey?: string, existed?: boolean, listed: boolean}>}
  */
@@ -184,7 +184,7 @@ export async function createSet(env, input, { who, source = who ? 'web' : 'api',
   const tagsIn = feats.tags ? cleanTags(input.tags) : { ok: true, tags: [] };
   if (!tagsIn.ok) throw new ApiError(tagsIn.error);
   const tags = tagsIn.tags;
-  const listed = !(feats.unlisted && (source === 'ext' || input.unlisted === true));
+  const listed = !(feats.unlisted && input.unlisted === true);
   const now = Date.now();
 
   // 同じセットがもうあれば、それを返す (公開は名前を除いて同じもの、限定公開は名前も同じ限定公開のもの。core.mjs の canonKey)。
@@ -244,7 +244,8 @@ export async function createSet(env, input, { who, source = who ? 'web' : 'api',
     if (won) return { id: won.id, existed: true, listed };
     throw e;
   }
-  return { id, deleteKey, listed };
+  // X でログインして投稿した人は「自分の投稿」から消せるので、削除用の合言葉は返さない (トークンを使った投稿だけに返す)
+  return user ? { id, listed } : { id, deleteKey, listed };
 }
 
 /**

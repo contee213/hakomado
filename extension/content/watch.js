@@ -179,6 +179,12 @@
 
   // 「ストレッチ」表示のときは映像を枠に合わせて拡大し、はみ出た端を切る
   document.documentElement.classList.toggle('hakomado-fill', params.get('hakomado_fill') === '1');
+  // 端を切るとき残す角 (配信者が映っている角)。右下・左下・左上・右上
+  const setCorner = (c) => {
+    const pos = { br: '100% 100%', bl: '0% 100%', tl: '0% 0%', tr: '100% 0%' }[c] || '100% 100%';
+    document.documentElement.style.setProperty('--hakomado-crop-pos', pos);
+  };
+  setCorner(params.get('hakomado_corner'));
 
   // ---- 枠ごとの音の遅延・左右 (パン)・音量。Web Audio で video → Delay → StereoPanner → Gain → outGain → 出力 とつなぐ
   // - 遅延はライブ配信の音ずれ用 (映像はそのまま、音だけ遅らせる)。追っかけ再生を切った配信は、YouTube が
@@ -375,6 +381,8 @@
       Mix.set(e.data.pan, e.data.gain, e.data.delay);
     } else if (e.data?.hakomado === 'fill') {
       document.documentElement.classList.toggle('hakomado-fill', !!e.data.on);
+    } else if (e.data?.hakomado === 'corner') {
+      setCorner(e.data.corner);
     } else if (e.data?.hakomado === 'social' && ['subscribe', 'like'].includes(e.data.act)) {
       document.dispatchEvent(new CustomEvent('hakomado:social-act', { detail: e.data.act }));
     } else if (e.data?.hakomado === 'playback') {

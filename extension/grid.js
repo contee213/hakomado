@@ -1,4 +1,4 @@
-/* global SyncGroups, SyncChart, Danmaku, LAYOUTS, ANCHORS, DEFAULT_LAYOUT_ID, MAX_SLOTS, getLayout, layoutFor, solveTracks, LANG, LANG_PREF, tr, setLangPref, Backup, UpdateCheck, qrcode, jsQR, ChannelPack, SyncOffsets, MovieAnchors, AudioAlign */
+/* global SyncGroups, SyncChart, Danmaku, LAYOUTS, ANCHORS, DEFAULT_LAYOUT_ID, MAX_SLOTS, getLayout, layoutFor, layoutIdOf, solveTracks, LANG, LANG_PREF, tr, setLangPref, Backup, UpdateCheck, qrcode, jsQR, ChannelPack, SyncOffsets, MovieAnchors, AudioAlign */
 'use strict';
 
 const MAX_TILES = MAX_SLOTS;
@@ -38,6 +38,7 @@ const DEFAULT_SETTINGS = {
   autoMaxTiles: 8, // 自動再生で同時に再生する最大の枠数 (回線が細いときは少なく)
   autoTarget: 'all', // 自動再生の対象: 'all' = チャンネル全部 / 'fav' = ピックアップ (📌) だけ
   noticeTarget: 'all', // 通知の対象: 'all' = チャンネル全部 / 'fav' = ピックアップだけ / 'off' = 知らせない
+  layoutFavs: '', // レイアウト画面の「お気に入り」タブに出すもの (レイアウトの id = 形 + 配置順 をカンマでつないだもの)
 };
 
 const state = {
@@ -74,7 +75,8 @@ function newTileState() {
   // pan = 音の左右 (-1 = 左・0 = 真ん中・1 = 右)、gain = 音量 (1 = 元のまま、0〜2)。枠の中の Web Audio で変える (content/watch.js)
   // speed = 再生速度 (1 = 等速)。同期中のグループの枠は、グループの速度にそろえる (Sync)。ライブ配信では使わない (等速)
   // short = ショートとして縦長 (9:16) の枠で見せる。読み込む前に、URL (/shorts/) で決める (isShortHint)
-  return { input: '', videoId: null, chat: false, danmaku: null, muted: true, auto: false, queue: false, fill: false, label: '', pan: 0, gain: 1, delay: 0, speed: 1, short: false };
+  // corner = ストレッチで映像の端を切るとき、残す角 (CORNERS)。配信者が映る角は配信ごとに違うので、動画を変えたら右下に戻す
+  return { input: '', videoId: null, chat: false, danmaku: null, muted: true, auto: false, queue: false, fill: false, label: '', pan: 0, gain: 1, delay: 0, speed: 1, short: false, corner: 'br' };
 }
 
 /**
@@ -143,6 +145,7 @@ function applySession(saved = {}) {
       if ('gain' in picked) picked.gain = clampGain(picked.gain);
       if ('delay' in picked) picked.delay = clampDelay(picked.delay);
       if ('speed' in picked) picked.speed = clampSpeed(picked.speed);
+      if ('corner' in picked && !CORNERS.includes(picked.corner)) delete picked.corner;
       // 以前の版は弾幕の初期値が「表示」だったので、そのときの true は自動 (メイン枠だけ) として扱う
       if (!saved.dmAuto && picked.danmaku === true) picked.danmaku = null;
       // あとで見るの再生中かどうかは保存しない (開き直したら、ふつうの枠として扱う)
@@ -178,9 +181,10 @@ function retiredLayout(id) {
 /** 保存されているレイアウト (今は無いものは置き換え先)。分からなければ null */
 function savedLayoutId(saved) {
   if (typeof saved.layoutId !== 'string') return null;
-  if (LAYOUTS.some((l) => l.id === saved.layoutId)) return saved.layoutId;
+  const cur = layoutIdOf(saved.layoutId);
+  if (cur) return cur;
   const old = retiredLayout(saved.layoutId);
-  return old ? chooseLayoutFor(old.slots, { mains: old.mains, kind: 'single', group: 'main', anchor: 'tl' }).id : null;
+  return old ? chooseLayoutFor(old.slots, { mains: old.mains, group: 'main', anchor: 'tl' }).id : null;
 }
 
 /** 保存されているセッションで表示されていた枠の数 */
@@ -274,10 +278,10 @@ function replaceSettings(next) {
   if (state.settings.cruiseSec !== cruiseBefore) restartCruise();
 }
 
-/** 設定をすべて初期値に戻す (確認してから。表示言語は別に保存しているのでそのまま) */
+/** 設定をすべて初期値に戻す (確認してから。表示言語とお気に入りのレイアウトはそのまま) */
 function resetSettings() {
   if (!confirm(tr('settingsResetConfirm'))) return;
-  replaceSettings({});
+  replaceSettings({ layoutFavs: state.settings.layoutFavs }); // お気に入りのレイアウトは設定ではないので残す
   clearTimeout(settingsTimer);
   dirtySettings.clear();
   chrome.storage.local.set({ settings: state.settings });
@@ -384,14 +388,15 @@ function filledArea(l, n) {
  * n 本の配信を並べるのに向いたレイアウトを選ぶ。優先する順に:
  *  1. メイン枠の数が基準 (ふつうは今のレイアウト) と同じ (無ければ近いもの)。サブ枠が空になるほどメイン枠が多いものは使わない
  *  2. 空き枠が一番少ない (枠数がちょうど n のものがあればそれ)
- *  3. 基準と同じ種類 (メイン重視 / バランス。1 種類しか無い組み合わせはどちらとも合うものとする)
- *  4. 基準と同じ基準位置 (左上 / 左下 / 右上 / 右下)
- *  5. 映像が画面を占める割合が大きい (たいてい横長の形)
+ *  3. PinP を使っているときは PinP
+ *  4. おすすめ (枠数 × メインの数ごとに 1 つ。layouts.js の recommended)
+ *  5. 基準と同じ基準位置 (左上 / 左下 / 右上 / 右下)
+ *  6. 映像が画面を占める割合が大きい (たいてい横長の形)
  * クルーズ中は、メイン枠を回して見られるよう「メイン + サブ」のレイアウトを優先する (合うものが無ければ均等)。
  * 自動再生が枠を組み替えるときと、上部バーの「＋」「−」で使う
  * PinP は、今 PinP を使っているときだけ選ぶ (小窓に入りきらなければメイン 1 のメイン + サブ)
  * @param {number} n
- * @param {{mains: number, kind: string, group: string, anchor: string}} [base] 基準 (省略時は今のレイアウト)
+ * @param {{mains: number, group: string, anchor: string, kind?: string}} [base] 基準 (省略時は今のレイアウト)
  */
 function chooseLayoutFor(n, base = currentBase()) {
   let pool = LAYOUTS.filter(
@@ -402,12 +407,11 @@ function chooseLayoutFor(n, base = currentBase()) {
     if (withMain.length) pool = withMain;
   }
   if (!pool.length) return getLayout(DEFAULT_LAYOUT_ID);
-  const sameKind = (l) =>
-    base.kind === 'pip' ? l.kind === 'pip' : l.kind === base.kind || l.kind === 'single' || base.kind === 'single';
   const rank = (l) => [
     Math.abs(l.mains - base.mains),
     l.slots.length - n,
-    sameKind(l) ? 0 : 1,
+    base.kind === 'pip' && l.kind !== 'pip' ? 1 : 0,
+    l.recommended ? 0 : 1,
     (l.anchor ?? base.anchor) === base.anchor ? 0 : 1,
     -filledArea(l, n),
   ];
@@ -421,6 +425,11 @@ function chooseLayoutFor(n, base = currentBase()) {
     if (!best || better(r, best.r)) best = { l, r };
   }
   return best.l;
+}
+
+/** 枠 k をメイン枠として見せるか。均等はどの枠も同じ大きさなので、全部メイン枠として見せる (選び方の mains は 0 のまま) */
+function isMainSlot(l, k) {
+  return l.group === 'uniform' || k < l.mains;
 }
 
 /** 自動で選ぶときの基準 = 今のレイアウト (均等のときも、覚えている基準位置を使う) */
@@ -468,7 +477,7 @@ function autoMaxTiles() {
 /**
  * 自動再生を新しく始めるとき (ON にしたとき) のレイアウト。今のレイアウトではなく、本数ごとの決まった形を基準に選ぶ:
  *  - メイン枠の数: 1〜4 本はメイン 1、5〜6 本はメイン 2、7〜16 本はメイン 4 (2 本だけは均等の 1×2)
- *  - 3 本以上は「メイン重視」
+ *  - その本数・メイン枠の数のおすすめ
  *  - 基準位置は今のもの (レイアウト画面で選んだもの)
  * 始めた後の組み替えは chooseLayoutFor で、今のレイアウトを引き継ぐ (自分で選び直したものを勝手に戻さない)
  */
@@ -476,7 +485,7 @@ function autoLayoutFor(n) {
   // 2 本は均等の 1×2 (1+1 は作れず、1+2 だとサブが 1 枠空くため)
   if (n === 2) return getLayout('u1x2');
   const mains = n <= 4 ? 1 : n <= 6 ? 2 : 4;
-  return chooseLayoutFor(n, { mains, kind: n >= 3 ? 'focus' : 'single', group: 'main', anchor: state.anchor });
+  return chooseLayoutFor(n, { mains, group: 'main', anchor: state.anchor });
 }
 
 const VERTICAL = 9 / 16;
@@ -535,6 +544,7 @@ function relayoutIfVerticalChanged() {
 function layout() {
   const l = state.layout;
   verticalShape = verticalKey();
+  setToggle(document.getElementById('fitFill'), state.fit === 'fill');
   if (state.fit === 'fill') {
     // ストレッチ: 格子を均等に割り、映像は枠に合わせて拡大 (端が切れる。縦長の映像は枠のプレイヤー側で切らずに収める)
     gridEl.style.gridTemplateColumns = `repeat(${l.cols}, minmax(0, 1fr))`;
@@ -551,12 +561,12 @@ function layout() {
     const el = views[i].el;
     el.style.gridColumn = `${x + 1} / span ${w}`;
     el.style.gridRow = `${y + 1} / span ${h}`;
-    el.classList.toggle('main', k < l.mains);
+    el.classList.toggle('main', isMainSlot(l, k));
     // PinP の小窓はメインの上に重ねて出す
     el.style.zIndex = l.overlap && k >= l.mains ? '3' : '';
     el.classList.toggle('pip-sub', !!l.overlap && k >= l.mains);
     el.querySelector('.index').textContent = String(k + 1);
-    el.querySelector('.empty-title').textContent = k < l.mains ? tr('slotMain', k + 1) : tr('slot', k + 1);
+    el.querySelector('.empty-title').textContent = isMainSlot(l, k) ? tr('slotMain', k + 1) : tr('slot', k + 1);
     // メイン / サブが入れ替わって弾幕の出し方が変わった枠は描き直す (チャットの読み込みも合わせる)
     if (!!views[i].dmOn !== (state.danmakuAll && tileDanmaku(i))) renderTile(i);
   });
@@ -566,17 +576,58 @@ function layout() {
 
 /**
  * 空き枠を減らすときのレイアウト: 今より枠数の少ないレイアウトのうち、読み込んだ配信が全部入るもの。
- * 枠数ごとの選び方は chooseLayoutFor。ちょうど合うものが無い枠数 (7・11) は飛ばすので、
- * 空き枠が一度に 2 つ消えることがある。減らせなければ null
+ * 枠数を 1 つずつ減らしながら、枠数がちょうど合うレイアウトがある最初の枠数で選ぶ (無い枠数は飛ばすので、
+ * 空き枠が一度に 2 つ消えることがある)。減らせなければ null
  */
 function shrinkTarget() {
   const shown = visibleIndexes();
   const filled = shown.filter((j) => state.tiles[j].videoId).length;
   for (let k = shown.length - 1; k >= Math.max(1, filled); k--) {
-    const l = chooseLayoutFor(k);
-    if (l.slots.length < shown.length) return l;
+    const l = shrinkLayoutFor(k);
+    if (l) return l;
   }
   return null;
+}
+
+/** メイン枠の数 (均等はどの枠も同じ大きさなので、全部をメイン枠として数える) */
+function mainCount(l) {
+  return l.group === 'uniform' ? l.slots.length : l.mains;
+}
+
+/**
+ * 枠数をちょうど k にするときのレイアウト (無ければ null)。優先する順に:
+ *  1. メイン枠の数が今と同じか、今より多い (均等は全部メイン枠)。その中では今に近いもの。無ければ今に一番近いもの
+ *  2. おすすめ
+ *  3. 今と同じ基準位置
+ *  4. 映像が画面を占める割合が大きい
+ * PinP は、今 PinP を使っているときだけ選ぶ。クルーズ中 (3 枠以上) はメイン + サブを優先する (chooseLayoutFor と同じ)
+ */
+function shrinkLayoutFor(k) {
+  const base = currentBase();
+  let pool = LAYOUTS.filter((l) => l.slots.length === k && (l.group !== 'pip' || base.group === 'pip'));
+  if (state.cruise && k >= 3) {
+    const withMain = pool.filter((l) => l.mains > 0);
+    if (withMain.length) pool = withMain;
+  }
+  if (!pool.length) return null;
+  const cur = mainCount(base);
+  const rank = (l) => [
+    mainCount(l) >= cur ? 0 : 1,
+    Math.abs(mainCount(l) - cur),
+    l.recommended ? 0 : 1,
+    (l.anchor ?? base.anchor) === base.anchor ? 0 : 1,
+    -filledArea(l, k),
+  ];
+  const better = (x, y) => {
+    for (let i = 0; i < x.length; i++) if (Math.abs(x[i] - y[i]) > 1e-3) return x[i] < y[i];
+    return false;
+  };
+  let best = null;
+  for (const l of pool) {
+    const r = rank(l);
+    if (!best || better(r, best.r)) best = { l, r };
+  }
+  return best.l;
 }
 
 /** 上部バーの「＋」「−」と、空き枠の ✕ を押せるかどうか (枠の中身が変わるたびにまとめて 1 回) */
@@ -600,17 +651,35 @@ function updateSlotButtons() {
 
 /**
  * 空き枠を消して、枠数の少ないレイアウトにする (上部バーの「−」と、空き枠の ✕)。
- * 読み込んだ配信は並び順のまま残す。prefer を渡すとその空き枠を先に消し、残りは後ろの空き枠から消す
+ * 枠の番号はなるべく変えない (keepNumbersOrder)。prefer = ✕ を押した空き枠 (はみ出す配信を先にここへ移す)
  */
 function removeEmptySlot(prefer = null) {
   const l = shrinkTarget();
   if (!l) return;
-  const shown = visibleIndexes();
-  const empties = shown.filter((j) => !state.tiles[j].videoId).reverse();
-  const pick = empties.includes(prefer) ? [prefer, ...empties.filter((j) => j !== prefer)] : empties;
-  const removed = pick.slice(0, shown.length - l.slots.length);
-  state.order = [...shown.filter((j) => !removed.includes(j)), ...removed, ...state.order.slice(state.count)];
+  state.order = keepNumbersOrder(l.slots.length, prefer);
   setLayout(l.id);
+}
+
+/**
+ * 表示する枠を n 個にするときの並び順。新しいレイアウトにもある番号 (n 番まで) の枠は中身をそのまま (番号を変えない)。
+ * はみ出す番号 (n 番より後ろ) の配信は空き枠に移す。移す先は prefer を先に、残りは番号の大きい空き枠から
+ * (元の番号に近いところ)。今より増やすときは、隠れている空き枠を後ろに足す。
+ * 表示している配信の数が n 以下のときだけ使う (はみ出す配信が必ず空き枠に入るように)
+ */
+function keepNumbersOrder(n, prefer = null) {
+  const shown = visibleIndexes();
+  const hiddenEmpty = state.order.slice(state.count).filter((j) => !state.tiles[j].videoId);
+  const next = [...shown, ...hiddenEmpty].slice(0, n);
+  const holes = next.map((j, k) => k).filter((k) => !state.tiles[next[k]].videoId).reverse();
+  const at = next.indexOf(prefer);
+  if (at >= 0 && holes.includes(at)) {
+    holes.splice(holes.indexOf(at), 1);
+    holes.unshift(at);
+  }
+  for (const j of shown.slice(n)) {
+    if (state.tiles[j].videoId) next[holes.shift()] = j;
+  }
+  return [...next, ...state.order.filter((j) => !next.includes(j))];
 }
 
 /**
@@ -637,6 +706,29 @@ function setFit(mode) {
     postToFrame(v.player, { hakomado: 'fill', on: mode === 'fill' });
   }
   layout();
+  for (let i = 0; i < MAX_TILES; i++) renderCornerButton(i);
+  save();
+}
+
+// ストレッチで残す角: 右下 → 左下 → 左上 → 右上 の順に切り替える
+const CORNERS = ['br', 'bl', 'tl', 'tr'];
+const CORNER_ICON = { br: '↘', bl: '↙', tl: '↖', tr: '↗' };
+
+/** 枠のバーの「残す角」ボタン (ストレッチのときだけ出す) */
+function renderCornerButton(i) {
+  const btn = views[i].el.querySelector('.bar [data-act="corner"]');
+  const c = state.tiles[i].corner;
+  btn.hidden = state.fit !== 'fill';
+  btn.textContent = CORNER_ICON[c];
+  btn.title = tr('tileCorner', tr('anchor_' + c));
+}
+
+/** 枠 i のストレッチで残す角を次に切り替え、プレイヤーに伝える */
+function cycleCorner(i) {
+  const t = state.tiles[i];
+  t.corner = CORNERS[(CORNERS.indexOf(t.corner) + 1) % CORNERS.length];
+  postToFrame(views[i].player, { hakomado: 'corner', corner: t.corner });
+  renderCornerButton(i);
   save();
 }
 
@@ -715,7 +807,7 @@ function setTileVideo(i, videoId, input) {
   views[i].danmaku.clear();
   // 手で読み込んだ枠は自動再生でも消さない
   // 音の遅延はその配信のずれに合わせた値なので、別の動画にしたら戻す。速度もその動画のために決めたものなので戻す
-  Object.assign(state.tiles[i], { input, videoId, auto: false, queue: false, fill: false, label: '', delay: 0, short: isShortHint(input), ...(prev !== videoId ? { speed: 1 } : {}) });
+  Object.assign(state.tiles[i], { input, videoId, auto: false, queue: false, fill: false, label: '', delay: 0, short: isShortHint(input), ...(prev !== videoId ? { speed: 1, corner: 'br' } : {}) });
   // 新しく読み込んだ枠は、他に音の出ている枠が無ければ音を出す
   const anyAudible = state.tiles.some((t, j) => j !== i && isVisible(j) && t.videoId && !t.muted);
   state.tiles[i].muted = anyAudible;
@@ -733,6 +825,7 @@ function playerUrl(t) {
     hakomado: '1',
     hakomado_muted: t.muted ? '1' : '0',
     hakomado_fill: state.fit === 'fill' ? '1' : '0',
+    hakomado_corner: t.corner,
   });
   return `${YT}/watch?${p}`;
 }
@@ -911,6 +1004,7 @@ function renderTile(i, { reloadPlayer = false, reloadChat = false } = {}) {
   el.classList.toggle('audible', visible && !!t.videoId && !t.muted && state.count > 1);
   setToggle(el.querySelector('.bar [data-act="chat"]'), t.chat);
   setToggle(el.querySelector('.bar [data-act="danmaku"]'), tileDanmaku(i));
+  renderCornerButton(i);
   renderSpeedButton(i);
   renderSpeedAll();
   renderMix(i);
@@ -1602,6 +1696,9 @@ function onBarAction(i, act, e) {
         renderTile(i);
       }
       break;
+    case 'corner':
+      cycleCorner(i);
+      return;
     case 'chat':
       t.chat = !t.chat;
       renderTile(i);
@@ -4655,7 +4752,7 @@ function layoutThumb(l) {
   const span = (arr, from, n) => sumOf(arr.slice(from, from + n));
   l.slots.forEach(([x, y, w, h], k) => {
     const cell = document.createElement('div');
-    cell.className = k < l.mains ? 'cell main' : 'cell';
+    cell.className = isMainSlot(l, k) ? 'cell main' : 'cell';
     cell.style.left = `${(span(colW, 0, x) / sumW) * 100}%`;
     cell.style.top = `${(span(rowH, 0, y) / sumH) * 100}%`;
     cell.style.width = `${(span(colW, x, w) / sumW) * 100}%`;
@@ -4668,10 +4765,11 @@ function layoutThumb(l) {
 
 const KIND_LABEL = { focus: 'kindFocus', balance: 'kindBalance' };
 
-/** レイアウトの説明 (ツールチップ用): 「2+8 (10 枠) ・ メイン重視」 */
+/** レイアウトの説明 (ツールチップ用): 「2+8 (10 枠) ・ メイン重視 ・ 左上」 */
 function layoutTitle(l) {
   const kind = KIND_LABEL[l.kind] ? ` ・ ${tr(KIND_LABEL[l.kind])}` : '';
-  return tr('layoutTitle', l.name, l.slots.length) + kind;
+  const anchor = l.anchor ? ` ・ ${tr('anchor_' + l.anchor)}` : '';
+  return tr('layoutTitle', l.name, l.slots.length) + kind + anchor;
 }
 
 /** 上部バーのレイアウト名の幅を、一番長い名前に合わせて固定する (レイアウトを変えてもボタンが動かないように) */
@@ -4684,10 +4782,13 @@ function fixLayoutLabelWidth() {
   label.style.width = `${Math.ceil(w) + 2}px`;
 }
 
-// レイアウト画面の「おすすめ」タブ (よく使う見やすいもの)。基準位置は選んでいるものに合わせて出す
-const RECOMMENDED_LAYOUTS = ['u1x2', 'u2x2', 'u3x3', 'u4x4', 'm1s3-sw', 'm1s5-fw', 'm2s4-sw', 'm2s8-sw', 'm4s4-sw', 'm4s9-sw', 'pip1'];
-const LAYOUT_TABS = ['recommend', 'uniform', 'main1', 'main2', 'pip'];
-const MAIN1_MAX_SLOTS = 10; // 「メイン + サブ①」は総枠数 10 まで、「②」は 11 以上
+// レイアウト画面のタブ。お気に入り以外は、配置順 (基準位置) を選んでいるものに合わせて出す
+//  - おすすめ: 枠数ごとに選んだもの (layouts.js の tab)
+//  - お気に入り: 使う人が ☆ を付けたもの (設定 layoutFavs)。形と配置順の組み合わせで覚え、配置順に関係なく全部出す
+//  - 1〜8 枠 / 9〜12 枠 / 13〜16 枠: PinP 以外を合計の枠数で分けたもの (どれも 40 個ほど)。枠数ごとに見出しを入れる
+//  - PinP
+const LAYOUT_TABS = ['recommend', 'fav', 'n1', 'n2', 'n3', 'pip'];
+const LAYOUT_RANGES = { n1: [1, 8], n2: [9, 12], n3: [13, 16] };
 
 /** 一覧の並び: 総枠数の少ない順 → 同じなら均等が先、メイン枠の少ない順 → 横長が先 */
 function layoutOrder(a, b) {
@@ -4699,6 +4800,24 @@ function layoutOrder(a, b) {
 }
 let layoutTab = 'recommend';
 
+/**
+ * お気に入りのレイアウト (id の集まり。今は無いものは除く)。
+ * 形だけで覚えていた前の版のもの (key) は、左上を基準にしたレイアウトとして読む
+ */
+function layoutFavs() {
+  const ids = String(state.settings.layoutFavs || '').split(',');
+  return new Set(ids.map((s) => (LAYOUTS.some((l) => l.id === s) ? s : layoutFor(s, 'tl')?.id)).filter(Boolean));
+}
+
+/** レイアウト (形 + 配置順) をお気に入りに入れる / 外す */
+function toggleLayoutFav(id) {
+  const favs = layoutFavs();
+  if (favs.has(id)) favs.delete(id);
+  else favs.add(id);
+  state.settings.layoutFavs = [...favs].join(',');
+  saveSettings('layoutFavs');
+}
+
 function setupLayoutPicker() {
   fixLayoutLabelWidth();
   const dialog = document.getElementById('layoutPicker');
@@ -4706,7 +4825,10 @@ function setupLayoutPicker() {
   const tabs = document.getElementById('layoutTabs');
   const anchorSeg = document.getElementById('layoutAnchor');
 
+  // カード = 選ぶボタン (右上に合計の枠数) + 左上の ☆ (お気に入りに入れる・外す)
   const option = (l) => {
+    const cell = document.createElement('div');
+    cell.className = 'layout-cell';
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'layout-option';
@@ -4716,17 +4838,50 @@ function setupLayoutPicker() {
     const label = document.createElement('span');
     label.className = 'layout-name';
     label.textContent = l.name;
-    btn.append(layoutThumb(l), label);
+    const count = document.createElement('span');
+    count.className = 'layout-count';
+    count.textContent = String(l.slots.length);
+    btn.append(layoutThumb(l), label, count);
     btn.addEventListener('click', () => {
       setLayout(l.id);
       dialog.close();
     });
-    return btn;
+    const fav = layoutFavs().has(l.id);
+    const star = document.createElement('button');
+    star.type = 'button';
+    star.className = 'layout-fav';
+    star.classList.toggle('on', fav);
+    star.textContent = fav ? '★' : '☆';
+    star.title = tr(fav ? 'layoutFavRemove' : 'layoutFavAdd');
+    star.setAttribute('aria-pressed', String(fav));
+    star.addEventListener('click', () => {
+      toggleLayoutFav(l.id);
+      renderTab();
+    });
+    cell.append(btn, star);
+    return cell;
   };
-  const list = (items) => {
+  // heads = 枠数が変わる最初のカードの上に見出し (「5 枠」) を付ける。行は切らずに詰めて並べる
+  const list = (items, heads = false) => {
     const el = document.createElement('div');
     el.className = 'layout-list';
-    el.append(...items.map(option));
+    el.classList.toggle('with-heads', heads);
+    let last = 0;
+    for (const l of items) {
+      const cell = option(l);
+      if (heads && l.slots.length !== last) {
+        last = l.slots.length;
+        cell.classList.add('first-of-count');
+        cell.dataset.head = tr('tilesCount', last);
+      }
+      el.append(cell);
+    }
+    if (!items.length) {
+      const empty = document.createElement('p');
+      empty.className = 'layout-empty';
+      empty.textContent = tr('layoutFavEmpty');
+      el.append(empty);
+    }
     return el;
   };
   // 今のタブの中身を、選んでいる基準位置で描く
@@ -4734,14 +4889,17 @@ function setupLayoutPicker() {
     const at = (l) => !l.anchor || l.anchor === state.anchor;
     let items;
     if (layoutTab === 'recommend') {
-      items = RECOMMENDED_LAYOUTS.map((k) => layoutFor(k, state.anchor)).filter(Boolean);
-    } else if (layoutTab === 'main1' || layoutTab === 'main2') {
-      const small = layoutTab === 'main1';
-      items = LAYOUTS.filter((l) => l.group === 'main' && at(l) && (l.slots.length <= MAIN1_MAX_SLOTS) === small);
+      items = LAYOUTS.filter((l) => l.tab && at(l));
+    } else if (layoutTab === 'fav') {
+      const favs = layoutFavs();
+      items = LAYOUTS.filter((l) => favs.has(l.id));
+    } else if (layoutTab === 'pip') {
+      items = LAYOUTS.filter((l) => l.group === 'pip' && at(l));
     } else {
-      items = LAYOUTS.filter((l) => l.group === layoutTab && at(l));
+      const [from, to] = LAYOUT_RANGES[layoutTab];
+      items = LAYOUTS.filter((l) => l.group !== 'pip' && l.slots.length >= from && l.slots.length <= to && at(l));
     }
-    body.replaceChildren(list(items.sort(layoutOrder)));
+    body.replaceChildren(list(items.sort(layoutOrder), !!LAYOUT_RANGES[layoutTab]));
     for (const t of tabs.children) {
       const on = t.dataset.tab === layoutTab;
       t.classList.toggle('selected', on);
@@ -4779,21 +4937,12 @@ function setupLayoutPicker() {
     anchorSeg.appendChild(b);
   }
 
-  const fitButtons = dialog.querySelectorAll('[data-fit]');
-  const refresh = () => {
-    for (const b of fitButtons) b.classList.toggle('selected', b.dataset.fit === state.fit);
-    renderTab();
-  };
-  for (const b of fitButtons) {
-    b.addEventListener('click', () => {
-      setFit(b.dataset.fit);
-      refresh();
-    });
-  }
   document.getElementById('openLayout').addEventListener('click', () => {
-    refresh();
+    renderTab();
     dialog.showModal();
   });
+  // 上部バーの「ストレッチ」: ON = 余白なしで画面を埋める / OFF = 標準 (どの枠も 16:9)
+  document.getElementById('fitFill').addEventListener('click', () => setFit(state.fit === 'fill' ? 'fit' : 'fill'));
   document.getElementById('layoutClose').addEventListener('click', () => dialog.close());
   closeOnBackdrop(dialog);
   document.getElementById('addTile').addEventListener('click', () => addTileSlot());
@@ -5002,12 +5151,12 @@ function setupErrLog() {
 }
 
 // ---------------------------------------------------------------- 🔗 共有 / 📥 読み込み
-// 共有するもの (今の枠 = 視聴セット、または再生リスト) を「共有セット」という 1 つの形にそろえ、そこから 4 つの形式を作る:
-// - 画像: レイアウトの形にサムネイルを並べ (切り替えで各枠に枠の名前も)、コードを入れた QR を添えたもの (X は画像を文字数に数えない)
-// - コード: 「#Hakomado <レイアウト>.<動画 ID をつなげたもの>~<ずれ> "名前"」の 1 行。動画 ID は必ず 11 文字なので区切らない。
-//   16 本でも X に貼れる長さ (拡張機能の画面の URL は入れた環境ごとに ID が違うので、共有には使えない)
-// - テキスト: 1 行に 1 本 (playlistText)。名前・同期再生・レイアウト・ずれ・枠の名前まで全部入る
-// - リンク: YouTube の watch_videos の URL (playlistImportLink)。Hakomado が無い人も YouTube で開ける
+// 共有するもの (今の枠 = 視聴セット、または再生リスト) を「共有セット」という 1 つの形にそろえ、渡す相手で選ぶ 3 つの形式を作る:
+// - 画像: レイアウトの形にサムネイルを並べ (切り替えで各枠に枠の名前も)、リンクを入れた QR を添えたもの (X などで見せる)
+// - リンク: QR と同じ中身の YouTube の watch_videos の URL (formatShareLink。16 本・レイアウト・ずれ・名前)。DM などで直接送る。
+//   Hakomado が入っていれば同じ並びで開け、入っていない人も YouTube の一時的な再生リストとして見られる
+// - テキスト: 1 行に 1 本 (playlistText)。名前・同期再生・レイアウト・ずれ・枠の名前まで全部入る (17 本以上・AI に渡すとき)
+// コード (#Hakomado …) は共有画面には出さないが、ALT の文・サイトへの投稿・サイトのセットのページで使い、読み込みもできる
 // 読み込むときは、どの形式も (投稿の本文をまるごと貼っても) parseIncoming で同じ形に読み、枠に並べるか再生リストとして保存する
 const SHARE_MAX = MAX_TILES;
 
@@ -5037,8 +5186,6 @@ function tilesShareSet(name = '') {
   return { name, items, sync, layoutId: state.layoutId, ref: sync && refTile != null ? state.tiles[refTile].videoId : null };
 }
 
-/** 取り込み用リンクに入れる動画の数 (YouTube の一時的な再生リストが開ける数) */
-const IMPORT_LINK_MAX = 50;
 
 /**
  * 貼られたテキストを共有セットとして読む (どの形式でも。投稿の本文をまるごと貼ってもよい)。
@@ -5049,15 +5196,6 @@ const IMPORT_LINK_MAX = 50;
  * @returns {Promise<ShareSet & {bad: number, tooMany: boolean}>}
  */
 async function parseIncoming(text, onProgress) {
-  // Hakomado Feed の短縮リンク (sets-link.js。機能フラグがオフなら読まない) は、Feed からコードを取ってきて読む
-  if (SetsLink.isLink(text) && !parseShareCode(text) && !parseShareLink(text)) {
-    onProgress?.(0, 0, 'short');
-    try {
-      text = await SetsLink.resolve(text);
-    } catch (e) {
-      throw new Error(tr('shortResolveFail', e.message || e));
-    }
-  }
   const code = parseShareCode(text) || parseShareLink(text);
   if (code?.movie) {
     const items = code.ids.map((videoId, k) => ({ videoId, anchor: code.movie[k] }));
@@ -5099,21 +5237,14 @@ function playlistText(pl) {
   return lines.join('\n');
 }
 
-/** 取り込み用リンク (先頭から 50 本。ずれは入らない) */
-function playlistImportLink(pl) {
-  const ids = pl.items.slice(0, IMPORT_LINK_MAX).map((h) => h.videoId);
-  // title= は YouTube のリストの名前 (無いと「Untitled List」)。以前の版は hakomado= から名前を読むので両方に入れる
-  const name = encodeURIComponent(pl.name);
-  return `${YT}/watch_videos?video_ids=${ids.join(',')}${pl.name ? `&title=${name}` : ''}&hakomado=${name}`;
-}
-
 /** 同期再生で一度に並べる分 (同期再生の再生リストは 16 本までなので全部。順に再生の再生リストをコードにするときは先頭から 16 本) */
 const syncItems = (pl) => pl.items.slice(0, SHARE_MAX);
 
 /** 同期再生のレイアウト (決めていないか本数に足りなければ、本数に合わせて選ぶ) */
 function playlistLayoutId(pl) {
   const n = Math.max(1, syncItems(pl).length);
-  return LAYOUTS.find((l) => l.id === pl.layoutId && l.slots.length >= n)?.id || chooseLayoutFor(n).id;
+  const id = layoutIdOf(pl.layoutId);
+  return LAYOUTS.find((l) => l.id === id && l.slots.length >= n)?.id || chooseLayoutFor(n).id;
 }
 
 /**
@@ -5135,22 +5266,6 @@ function shareSetCode(pl, format = formatShareCode) {
     pl.movie ? items.map((h) => h.anchor ?? null) : null,
     pl.movie && pl.main ? ids.indexOf(pl.main) : -1,
   );
-}
-
-/** X の投稿の文字数の上限 (無料のアカウント) */
-const X_TEXT_MAX = 280;
-
-/**
- * X での文字数 (twitter-text の数え方: ラテン文字・一部の記号は 1、日本語・絵文字などは 2。URL は含まない前提)
- */
-function xLength(text) {
-  let n = 0;
-  for (const ch of text) {
-    const c = ch.codePointAt(0);
-    const light = c <= 4351 || (c >= 8192 && c <= 8205) || (c >= 8208 && c <= 8223) || (c >= 8242 && c <= 8247);
-    n += light ? 1 : 2;
-  }
-  return n;
 }
 
 /** X の代替テキスト (ALT) の上限 */
@@ -5216,7 +5331,7 @@ async function applyViewingSet(ids, layoutId, { offsets = null, anchors = null, 
       renderTile(j, { reloadPlayer: true, reloadChat: true });
     }
   });
-  const fixed = LAYOUTS.find((l) => l.id === layoutId && l.slots.length >= ids.length);
+  const fixed = LAYOUTS.find((l) => l.id === layoutIdOf(layoutId) && l.slots.length >= ids.length);
   state.layoutId = (fixed || chooseLayoutFor(ids.length)).id;
   if (state.layout.anchor) state.anchor = state.layout.anchor;
   state.order = [...assigned, ...state.order.filter((j) => !assigned.includes(j))];
@@ -5307,8 +5422,8 @@ const SHARE_QR_QUIET = 3;
 const SHARE_QR_TYPE = 14;
 const SHARE_ACCENT = '#29a9ff'; // ロゴと同じ青 (差し色)
 
-/** QR を作る。cell = 1 マスの画素数 (4。短縮リンクのように中身が短く、型が小さいときは、型 14 と同じくらいの大きさになるまで大きくする)、size = 余白を含めた 1 辺の画素数 */
-function makeShareQr(text, { auto = false } = {}) {
+/** QR を作る。cell = 1 マスの画素数 (4)、size = 余白を含めた 1 辺の画素数 */
+function makeShareQr(text) {
   // 名前に日本語などが入るので UTF-8 で入れる (jsQR は UTF-8 として読む。ASCII だけなら以前と同じ中身)
   qrcode.stringToBytes = qrcode.stringToBytesFuncs['UTF-8'];
   const build = (type) => {
@@ -5319,7 +5434,7 @@ function makeShareQr(text, { auto = false } = {}) {
   };
   let qr;
   try {
-    qr = build(auto ? 0 : SHARE_QR_TYPE); // auto = 中身に合う一番小さい型 (短縮リンク)
+    qr = build(SHARE_QR_TYPE);
   } catch {
     qr = build(0); // 入りきらない (code length overflow)
   }
@@ -5379,12 +5494,11 @@ const shareAuthor = (s) => String(s || '').replace(/\s+/g, ' ').trim().slice(0, 
  *   │ ▌名前 (大きく) / 本数 · レイアウト · 作者 (小さく)       QR  │
  *   └──────────────────────────┘
  */
-async function renderShareImage(set, { labels = false, author = '', qrText = '' } = {}) {
+async function renderShareImage(set, { labels = false, author = '' } = {}) {
   const filled = syncItems(set);
   const title = shareName(set.name) || `${SHARE_TAG} ${tr('shareImageTitle')}`;
   // QR にはコードと同じ中身のリンクを入れる (スマホのカメラで読むと YouTube で開ける)。
-  // qrText (Hakomado Feed の短縮リンク) を渡したときはそれを入れる (読むと Feed のページが開く)
-  const code = qrText || shareSetCode(set, (l, ids, o, r, n, mv, mk) => formatShareLink(l, ids, o, r, n, title, false, mv, mk));
+  const code = shareSetCode(set, (l, ids, o, r, n, mv, mk) => formatShareLink(l, ids, o, r, n, title, false, mv, mk));
   const canvas = document.createElement('canvas');
   canvas.width = SHARE_W;
   canvas.height = SHARE_H;
@@ -5430,7 +5544,7 @@ async function renderShareImage(set, { labels = false, author = '', qrText = '' 
   });
 
   // QR はいつも右下の角に、同じ大きさで (空き枠があっても合わせない)
-  const qr = makeShareQr(code, { auto: !!qrText });
+  const qr = makeShareQr(code);
   const qx = SHARE_W - M - qr.size;
   const qy = SHARE_H - M - qr.size;
   // 名前と説明は QR の左まで
@@ -5554,6 +5668,9 @@ async function readQrFromImage(blob) {
 // (人が画像を選んだときと同じ)。x.com の権限は任意の権限で、初めて押したときに聞く。
 // 許可されなかったとき・X の画面が変わって入れられなかったときは、クリップボードの画像を Ctrl+V で貼ってもらう
 const X_ORIGIN = 'https://x.com/*';
+// Hakomado のサイト (Hakomado Feed。web/) の投稿画面。拡張機能からは送らず、コードを # の後ろに入れて開くだけ
+// (# の後ろはサーバーに送られない。投稿は X でログインした利用者がサイトの画面で押す)
+const FEED_POST_URL = 'https://hakomado.contee.net/post';
 
 /** タブの読み込みが終わるのを待つ (最大 ms。終わらなくても進む) */
 function waitTabComplete(tabId, ms) {
@@ -5641,13 +5758,12 @@ function setupShare() {
   const nameEl = document.getElementById('shareName');
   const status = document.getElementById('shareStatus');
   const imgEl = document.getElementById('shareImg');
-  const codeEl = document.getElementById('shareCode');
   const textEl = document.getElementById('shareText');
   const linkEl = document.getElementById('shareLink');
-  const xCountEl = document.getElementById('shareXCount');
   const tabs = dialog.querySelectorAll('[data-stab]');
   const imgBtns = ['shareToX', 'shareImgCopy', 'shareImgSave'].map((id) => document.getElementById(id));
-  const outBtns = [...imgBtns, ...['shareAltCopy', 'shareCopyCode', 'shareCopyText', 'shareCopyLink'].map((id) => document.getElementById(id))];
+  const feedBtn = document.getElementById('shareToFeed');
+  const outBtns = [...imgBtns, feedBtn, ...['shareAltCopy', 'shareCopyText', 'shareCopyLink'].map((id) => document.getElementById(id))];
   const TAB_KEY = 'hakomado.shareTab';
   const LABELS_KEY = 'hakomado.shareImgLabels'; // 画像の各枠に枠の名前を入れるか (既定は入れない)
   const labelsEl = document.getElementById('shareImgLabels');
@@ -5663,22 +5779,6 @@ function setupShare() {
   let renderSeq = 0;
   let refreshSeq = 0;
   let nameTimer = 0;
-  // Hakomado Feed の短縮リンク (sets-link.js の機能フラグがオンのときだけ)。作ったときのコードと同じ間だけ使う
-  // (名前や中身を変えたら作り直してもらう。押したときだけ送る)
-  let short = null; // { code, url }
-  const shortEl = document.getElementById('shareShort');
-  const shortCopyBtn = document.getElementById('shareShortCopy');
-  const shortState = document.getElementById('shareImgShortState');
-  const shortBtns = ['shareShortMake', 'shareImgShort'].map((id) => document.getElementById(id));
-  for (const el of dialog.querySelectorAll('[data-sets-link]')) el.hidden = !SetsLink.enabled;
-  const shortUrl = () => (short && set && short.code === shareSetCode(set) ? short.url : '');
-  const showShort = () => {
-    const url = shortUrl();
-    shortEl.value = url;
-    shortEl.hidden = shortCopyBtn.hidden = !url;
-    shortState.textContent = url ? tr('shortQrOn') : '';
-    for (const b of shortBtns) b.disabled = !set || !!url;
-  };
   closeOnBackdrop(dialog);
 
   const setStatus = (text, isError = false) => {
@@ -5729,19 +5829,14 @@ function setupShare() {
     set = next?.items.length ? next : null;
     const n = set?.items.length || 0;
     const count = (max) => (n > max ? tr('shareFirstN', max, n) : tr('shareAllN', n));
-    codeEl.value = set ? shareSetCode(set) : '';
-    // X の本文に入るか (入らなければ画像で共有してもらう)
-    const xLen = set ? xLength(codeEl.value) : 0;
-    xCountEl.textContent = set ? tr(xLen > X_TEXT_MAX ? 'shareXOver' : 'shareXCount', xLen, X_TEXT_MAX) : '';
-    xCountEl.classList.toggle('share-error', xLen > X_TEXT_MAX);
     textEl.value = set ? playlistText(set) : '';
-    linkEl.value = set ? playlistImportLink(set) : '';
+    // リンクは画像の QR と同じ中身。DM・チャットなどに貼るので名前も % にする (日本語でリンクが切れるアプリがある)
+    const title = set ? shareName(set.name) || `${SHARE_TAG} ${tr('shareImageTitle')}` : '';
+    linkEl.value = set ? shareSetCode(set, (l, ids, o, r, nm, mv, mk) => formatShareLink(l, ids, o, r, nm, title, true, mv, mk)) : '';
     document.getElementById('shareNoteImage').textContent = tr('shareNoteImage', count(SHARE_MAX));
-    document.getElementById('shareNoteCode').textContent = tr('shareNoteCode', count(SHARE_MAX));
     document.getElementById('shareNoteText').textContent = tr('shareNoteText', count(Infinity));
-    document.getElementById('shareNoteLink').textContent = tr('shareNoteLink', count(IMPORT_LINK_MAX));
+    document.getElementById('shareNoteLink').textContent = tr('shareNoteLink', count(SHARE_MAX));
     for (const b of outBtns) b.disabled = !set;
-    showShort();
     setStatus(set ? '' : tr(source === 'tiles' ? 'shareEmpty' : 'shareEmptyPl'));
     imageStale = true;
     if (!set) clearImage();
@@ -5756,7 +5851,7 @@ function setupShare() {
     setStatus(tr('shareImageMaking'));
     for (const b of imgBtns) b.disabled = true;
     try {
-      const blob = await renderShareImage(set, { labels: labelsEl.checked, author: authorEl.value, qrText: shortUrl() });
+      const blob = await renderShareImage(set, { labels: labelsEl.checked, author: authorEl.value });
       if (seq !== renderSeq) return;
       imageBlob = blob;
       if (imageUrl) URL.revokeObjectURL(imageUrl);
@@ -5845,29 +5940,7 @@ function setupShare() {
     await copyField(el);
     setStatus(tr(msg));
   };
-  // 短縮リンクを作る (リンクのタブ・画像のタブのどちらからでも。作ったら画像の QR もそれにする)
-  const makeShort = async () => {
-    if (!set || !SetsLink.enabled) return;
-    const code = shareSetCode(set);
-    for (const b of shortBtns) b.disabled = true;
-    setStatus(tr('shortMaking'));
-    try {
-      const url = await SetsLink.create(code);
-      if (!set || shareSetCode(set) !== code) return; // 作っている間に中身が変わった
-      short = { code, url };
-      showShort();
-      setStatus(tr('shortMade'));
-      if (tab === 'image') makeImage();
-      else imageStale = true;
-    } catch (e) {
-      setStatus(tr('shortFail', e.message || e), true);
-      showShort();
-    }
-  };
-  for (const b of shortBtns) b.addEventListener('click', makeShort);
-  shortCopyBtn.addEventListener('click', () => copy(shortEl, 'shortCopied'));
 
-  document.getElementById('shareCopyCode').addEventListener('click', () => copy(codeEl, 'shareCopied'));
   document.getElementById('shareCopyText').addEventListener('click', () => copy(textEl, 'plShareCopiedText'));
   document.getElementById('shareCopyLink').addEventListener('click', () => copy(linkEl, 'plShareCopiedLink'));
   document.getElementById('shareImgCopy').addEventListener('click', async () => {
@@ -5878,6 +5951,11 @@ function setupShare() {
     } catch (e) {
       setStatus(tr('shareImageFail', e.message || e), true);
     }
+  });
+  // サイトに投稿: コードを入れた投稿画面を新しいタブで開く (送るのは利用者がサイトで「投稿する」を押したとき)
+  feedBtn.addEventListener('click', () => {
+    const code = set ? shareSetCode(set) : '';
+    if (code) window.open(`${FEED_POST_URL}#text=${encodeURIComponent(code)}`, '_blank', 'noopener,noreferrer');
   });
   document.getElementById('shareToX').addEventListener('click', async () => {
     if (!imageBlob || !set) return;
@@ -5990,7 +6068,7 @@ function setupRead() {
     const parts = [];
     if (set.name) parts.push(tr('readName', set.name));
     parts.push(tr('readCount', set.items.length));
-    const layout = set.layoutId && LAYOUTS.find((l) => l.id === set.layoutId);
+    const layout = set.layoutId && LAYOUTS.find((l) => l.id === layoutIdOf(set.layoutId));
     if (layout) parts.push(tr('readLayout', layout.name));
     if (set.sync) parts.push(tr(set.items.some((h) => h.offset) ? 'readSyncOffsets' : 'readSync'));
     if (set.movie) parts.push(tr('readMovie'));
@@ -6015,8 +6093,8 @@ function setupRead() {
       return;
     }
     try {
-      const set = await parseIncoming(text, (done, total, what) => {
-        if (seq === parseSeq) setSummary(what === 'short' ? tr('shortResolving') : tr('shareLoading', done, total));
+      const set = await parseIncoming(text, (done, total) => {
+        if (seq === parseSeq) setSummary(tr('shareLoading', done, total));
       });
       if (seq !== parseSeq) return;
       if (!set.items.length) {
@@ -6055,7 +6133,7 @@ function setupRead() {
       /* 画像として読めない */
     }
     if (seq !== parseSeq) return;
-    if (!text || !(SHARE_CODE_RE.test(text) || parseShareLink(text) || SetsLink.isLink(text))) {
+    if (!text || !(SHARE_CODE_RE.test(text) || parseShareLink(text))) {
       setSummary(tr('shareImageNoQr'), true);
       return;
     }
@@ -9435,15 +9513,16 @@ function loadPicked(i, videoId, input, label, live) {
   showToast(i, tr(live ? 'pickedLive' : 'pickedArchive', label));
 }
 
-/** 中身のある枠だけを今の並び順のまま残し、その件数に合ったレイアウトにする */
+/** 中身のある枠の件数に合ったレイアウトにする (枠の番号はなるべく変えない。keepNumbersOrder) */
 function compactToContent() {
   const filled = visibleIndexes().filter((i) => state.tiles[i].videoId);
   if (filled.length === 0) {
     layout();
     return;
   }
-  state.layoutId = chooseLayoutFor(filled.length).id;
-  state.order = [...filled, ...state.order.filter((j) => !filled.includes(j))];
+  const l = chooseLayoutFor(filled.length);
+  state.order = keepNumbersOrder(l.slots.length);
+  state.layoutId = l.id;
   renderAll();
   save();
 }
