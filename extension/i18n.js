@@ -1083,7 +1083,7 @@ const HTML_EN = {
 <li>Playback speed: tiles in a synced group can’t change speed on their own. Changing it on any tile in the group (its 1× button, the < > keys, or the player’s ⚙) changes the whole group, and the sync clock moves at that speed. A group with a live stream stays at normal speed</li>
 <li>Choosing the reference: make the tile you mainly listen to the reference, so its sound stays the most natural (the others change speed slightly or jump to keep up). If one tile needs a much larger offset than the rest, don’t make it the reference, so the other videos keep small offsets (offsets are remembered per video and reused in other sets)</li>
 </ul>`,
-  'helpPage.share': `<p>“🔗 Share” turns the current tiles or a playlist into one of three forms, depending on who you give it to.</p>
+  'helpPage.share': `<p>“🔗 Share” and “📥 Import” are one screen; switch between them at the top. “🔗 Share” turns the current tiles or a playlist into one of three forms, depending on who you give it to.</p>
 <ul>
 <li><b>Image</b>: attach it to a post on X or elsewhere. Scanning the QR opens it on YouTube, and Hakomado opens the same arrangement. You can also copy ALT text for the image. “𝕏 Post” opens the X post screen with the image, the name and the link filled in (you press Post yourself; the first time, it asks for access to x.com)</li>
 <li><b>Link</b>: send it directly, such as in a DM. It holds the same as the QR on the image (up to 16, the layout, offsets and the name). With Hakomado, opening it gives the same arrangement; without it, it opens as a YouTube playlist</li>

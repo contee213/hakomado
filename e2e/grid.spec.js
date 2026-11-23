@@ -85,8 +85,8 @@ test.describe('ツールバー', () => {
     ['openHelp', '#help'],
     ['openChannels', '#favorites'],
     ['openFavorites', '#favorites'],
-    ['openShare', '#shareDialog'],
-    ['openRead', '#readDialog'],
+    ['openShare', '#xferDialog #sharePane'],
+    ['openRead', '#xferDialog #readPane'],
     ['openNotices', '#notices'],
   ];
   for (const [button, dialog] of DIALOGS) {
@@ -205,7 +205,7 @@ test.describe('共有', () => {
     await input.fill('dQw4w9WgXcQ');
     await input.press('Enter');
     await page.locator('#openShare').click();
-    await page.locator('#shareDialog [data-stab="image"]').click();
+    await page.locator('#xferDialog [data-stab="image"]').click();
     const labels = page.locator('#shareImgLabels');
     const img = page.locator('#shareImg');
     await expect(labels).not.toBeChecked();
@@ -228,7 +228,7 @@ test.describe('共有', () => {
     await input.fill('dQw4w9WgXcQ');
     await input.press('Enter');
     await page.locator('#openShare').click();
-    await page.locator('#shareDialog [data-stab="image"]').click();
+    await page.locator('#xferDialog [data-stab="image"]').click();
     const img = page.locator('#shareImg');
     await expect(img).toHaveAttribute('src', /^blob:/);
     const before = await img.getAttribute('src');
@@ -240,6 +240,28 @@ test.describe('共有', () => {
     await expect(second.locator('#shareAuthor')).toHaveValue('@someone');
   });
 
+  test('共有と読み込むは同じ画面の 2 つの側: 🔗 と 📥 でそれぞれの側が開き、上の 2 択で切り替えられる', async ({ openGrid }) => {
+    const page = await openGrid();
+    await skipTour(page);
+    const share = page.locator('#sharePane');
+    const read = page.locator('#readPane');
+    await page.locator('#openRead').click();
+    await expect(read).toBeVisible();
+    await expect(share).toBeHidden();
+    await page.locator('#xferDialog [data-xfer="share"]').click();
+    await expect(share).toBeVisible();
+    await expect(read).toBeHidden();
+    await expect(page.locator('#xferDialog [data-xfer="share"]')).toHaveAttribute('aria-selected', 'true');
+    await page.locator('#xferDialog [data-xfer="read"]').click();
+    await expect(read).toBeVisible();
+    await expect(page.locator('#readIn')).toBeFocused();
+    // 左上は動かない (側を変えて高さが変わっても)
+    const box1 = await page.locator('#xferDialog').boundingBox();
+    await page.locator('#xferDialog [data-xfer="share"]').click();
+    const box2 = await page.locator('#xferDialog').boundingBox();
+    expect([box2.x, box2.y]).toEqual([box1.x, box1.y]);
+  });
+
   test('共有画面は 画像・リンク・テキスト の 3 タブ。リンクは QR と同じ形 (レイアウト入り)', async ({ openGrid }) => {
     const page = await openGrid();
     await skipTour(page);
@@ -247,8 +269,8 @@ test.describe('共有', () => {
     await input.fill('dQw4w9WgXcQ');
     await input.press('Enter');
     await page.locator('#openShare').click();
-    await expect(page.locator('#shareDialog [data-stab]')).toHaveText(['🖼 画像', '🌐 リンク', '📝 テキスト']);
-    await page.locator('#shareDialog [data-stab="link"]').click();
+    await expect(page.locator('#xferDialog [data-stab]')).toHaveText(['🖼 画像', '🌐 リンク', '📝 テキスト']);
+    await page.locator('#xferDialog [data-stab="link"]').click();
     await expect(page.locator('#shareLink')).toHaveValue(/^https:\/\/www\.youtube\.com\/watch_videos\?video_ids=dQw4w9WgXcQ&hkl=u2x2&title=.+&hakomado=$/);
   });
 
