@@ -3,14 +3,16 @@
 // slots の並び順 = 枠の番号。メイン枠を先に並べるので、1 番から順にメイン → サブになる。
 // 種類 (group):
 //  - uniform: 均等 (全部同じ大きさ)
-//  - main: メイン + サブ。tools/gen-layouts.js が計算した形 (layouts-generated.js)
+//  - main: メイン + サブ。tools/layout-picks.json の形 (tools/gen-layouts.js が layouts-generated.js に書き出す)
 //  - pip: PinP。メイン 1 枠の中に小窓 (メインの 1/5) を 1〜3 個重ねる
 // main と pip は、基準位置 (anchor: tl / bl / tr / br = メインを置く角) ごとにある。
 // 計算した形は左上 (tl) が基準で、他は反転して作る。サブ・小窓はメインと反対側に来る
 // (PinP は基準が左上なら小窓が右下)
-// kind: uniform = 均等 / pip = PinP / main は focus = メイン重視 (サブが小さい)・balance = バランス (サブが大きい)・single = 1 種類だけ
-/* exported LAYOUTS, ANCHORS, DEFAULT_LAYOUT_ID, MAX_SLOTS, getLayout, layoutFor, solveTracks */
-/* global GENERATED_LAYOUTS */
+// kind: uniform = 均等 / pip = PinP / main は focus = メイン重視 (サブが小さい)・balance = バランス (サブが大きい)・single = それ以外
+// recommended = 枠数 × メインの数ごとのおすすめ (本数が決まったときに自動で選ぶ。RECOMMENDED_LAYOUT_KEYS)
+// tab = レイアウト画面の「おすすめ」タブに出す (TAB_LAYOUT_KEYS)
+/* exported LAYOUTS, ANCHORS, DEFAULT_LAYOUT_ID, MAX_SLOTS, getLayout, layoutFor, layoutIdOf, solveTracks */
+/* global GENERATED_LAYOUTS, RECOMMENDED_LAYOUT_KEYS, TAB_LAYOUT_KEYS */
 'use strict';
 
 const ANCHORS = ['tl', 'bl', 'tr', 'br'];
@@ -18,13 +20,17 @@ const ANCHORS = ['tl', 'bl', 'tr', 'br'];
 const LAYOUTS = (() => {
   const list = [];
 
+  const rec = new Set(RECOMMENDED_LAYOUT_KEYS);
+  const tab = new Set(TAB_LAYOUT_KEYS);
+
   // ---- 均等 (縦 × 横)
-  // 16:9 の画面で映像が画面の半分程度以下になるもの (1×3・1×4・2×1・3×1・4×1・2×4・4×2) は使わないので入れない。
-  // 1×2 (約 52%) は 2 本を並べるのに必要なので残す
-  for (const [r, c] of [[1, 1], [1, 2], [2, 2], [2, 3], [3, 2], [3, 3], [3, 4], [4, 3], [4, 4]]) {
+  // 16:9 の画面を 50% 以上使うもの (1×3・2×4 などの細長いものは入れない)。
+  // 2×4・4×2 は 2+6 にどの枠も負けるので入れない
+  for (const [r, c] of [[1, 1], [1, 2], [2, 1], [2, 2], [2, 3], [3, 2], [3, 3], [3, 4], [4, 3], [3, 5], [5, 3], [4, 4]]) {
     const slots = [];
     for (let y = 0; y < r; y++) for (let x = 0; x < c; x++) slots.push([x, y, 1, 1]);
-    list.push({ id: `u${r}x${c}`, key: `u${r}x${c}`, group: 'uniform', kind: 'uniform', name: `${r}×${c}`, cols: c, rows: r, mains: 0, slots });
+    const key = `u${r}x${c}`;
+    list.push({ id: key, key, group: 'uniform', kind: 'uniform', name: `${r}×${c}`, cols: c, rows: r, mains: 0, recommended: rec.has(key), tab: tab.has(key), slots });
   }
 
   // ---- 左上を基準にした形 (メイン + サブ と PinP)。これを反転して 4 つの基準位置を作る
@@ -52,6 +58,8 @@ const LAYOUTS = (() => {
         rows: g.rows,
         mains: g.mains,
         overlap: g.group === 'pip', // 枠が重なる (小窓をメインの上に出す)
+        recommended: rec.has(g.key),
+        tab: tab.has(g.key),
         slots,
       });
     }
@@ -62,8 +70,21 @@ const LAYOUTS = (() => {
 const DEFAULT_LAYOUT_ID = 'u2x2';
 const MAX_SLOTS = Math.max(...LAYOUTS.map((l) => l.slots.length));
 
+// 今は無いレイアウトの置き換え先 (形の key → 置き換え先の id)。共有コード・保存したセッションに残っている id を読むため
+// m8s8-sw (2026-11 に外した 8+8): どの枠も 4×4 の均等より小さい
+const RETIRED_LAYOUTS = { 'm8s8-sw': 'u4x4' };
+
+/** 今使える id (今は無いものは置き換え先)。分からなければ null */
+function layoutIdOf(id) {
+  if (typeof id !== 'string') return null;
+  if (LAYOUTS.some((l) => l.id === id)) return id;
+  const key = id.replace(/^(tl|bl|tr|br)-/, '');
+  return Object.hasOwn(RETIRED_LAYOUTS, key) ? RETIRED_LAYOUTS[key] : null;
+}
+
 function getLayout(id) {
-  return LAYOUTS.find((l) => l.id === id) || LAYOUTS.find((l) => l.id === DEFAULT_LAYOUT_ID);
+  const found = layoutIdOf(id);
+  return LAYOUTS.find((l) => l.id === found) || LAYOUTS.find((l) => l.id === DEFAULT_LAYOUT_ID);
 }
 
 /** 同じ形 (key) で基準位置 anchor のレイアウト。均等など基準位置の無いものはそのまま */

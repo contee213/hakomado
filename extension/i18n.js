@@ -89,9 +89,13 @@ const MESSAGES = {
 
   // レイアウト
   layoutTab_recommend: ['おすすめ', 'Recommended'],
-  layoutTab_uniform: ['均等', 'Uniform'],
-  layoutTab_main1: ['メイン + サブ①', 'Main + sub 1'],
-  layoutTab_main2: ['メイン + サブ②', 'Main + sub 2'],
+  layoutTab_fav: ['お気に入り', 'Favorites'],
+  layoutFavAdd: ['お気に入りに入れる', 'Add to favorites'],
+  layoutFavRemove: ['お気に入りから外す', 'Remove from favorites'],
+  layoutFavEmpty: ['☆ を押したレイアウトがここに出ます', 'Layouts you star (☆) appear here'],
+  layoutTab_n1: ['1〜8 枠', '1–8 tiles'],
+  layoutTab_n2: ['9〜12 枠', '9–12 tiles'],
+  layoutTab_n3: ['13〜16 枠', '13–16 tiles'],
   layoutTab_pip: ['PinP', 'PinP'],
   anchor_tl: ['左上', 'Top left'],
   anchor_bl: ['左下', 'Bottom left'],

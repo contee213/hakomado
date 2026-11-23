@@ -135,8 +135,8 @@ A pack is a JSON file like the one below. Besides submitting it to `packs/`, you
 
 - `extension/` is the extension itself. Main files: `grid.*` (multi-view page), `favorites.js` (channels and live status),
   `layouts.js` (layouts), `content/` (scripts that run in the YouTube pages inside tiles)
-- Main + sub layouts are computed by `tools/gen-layouts.js` and written to `extension/layouts-generated.js`.
-  After changing the rules, regenerate them with `node tools/gen-layouts.js`
+- Main + sub layouts and the recommended ones are listed in `tools/layout-picks.json`; `tools/gen-layouts.js` writes them to `extension/layouts-generated.js`.
+  After changing the list, regenerate them with `node tools/gen-layouts.js` (keep existing keys: they appear in share codes)
 - Versions: `version` in `manifest.json` is the release version (the only version shown in `chrome://extensions` and the store).
   The build number (the commit count) and the date live in `extension/build.js` and are shown at the bottom of the help (?) and settings (⚙) windows,
   like "0.2.0 · build 120 (2026-11-22)". A hook (`.githooks/pre-commit` → `tools/stamp-version.js`) writes `build.js` only on commits that change files in `extension/`

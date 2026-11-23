@@ -1,5 +1,5 @@
 // Worker の中身のうち、D1 や fetch に触らない部分 (tests/web.test.js から試せるように分けてある)
-import { getLayout, LAYOUTS, formatShareCode, formatShareLink, parseShareCode, parseShareLink, shareName, videoIdFromUrl } from './gen/ext.mjs';
+import { getLayout, LAYOUTS, layoutIdOf, formatShareCode, formatShareLink, parseShareCode, parseShareLink, shareName, videoIdFromUrl } from './gen/ext.mjs';
 
 export const AUTHOR_MAX = 30;
 export const TEXT_MAX = 2000; // 貼られたテキストの上限 (コード・リンクは長くても 1000 文字ほど)
@@ -14,20 +14,24 @@ export function parseSubmission(text) {
   const s = String(text ?? '').slice(0, TEXT_MAX);
   const got = parseShareCode(s) || parseShareLink(s);
   if (!got || !got.ids.length) return { ok: false, error: 'not_found' };
-  // 知らないレイアウトは受け付けない (拡張機能は既定のレイアウトに置き換えて読むが、一覧の形が描けないため)
-  if (!LAYOUTS.some((l) => l.id === got.layoutId)) return { ok: false, error: 'bad_layout' };
+  // 知らないレイアウトは受け付けない (拡張機能は既定のレイアウトに置き換えて読むが、一覧の形が描けないため)。
+  // 今は無いレイアウト (外した形) は、拡張機能と同じ置き換え先にする
+  const layoutId = layoutIdOf(got.layoutId);
+  if (!layoutId) return { ok: false, error: 'bad_layout' };
   const ref = Math.min(Math.max(0, got.ref | 0), got.ids.length - 1);
   const movie = got.movie || null;
   const main = movie && Number.isInteger(got.main) && got.main >= 0 && got.main < got.ids.length ? got.main : null;
-  return { ok: true, set: { layoutId: got.layoutId, ids: got.ids, offsets: got.offsets, ref, name: shareName(got.name), movie, main } };
+  return { ok: true, set: { layoutId, ids: got.ids, offsets: got.offsets, ref, name: shareName(got.name), movie, main } };
 }
 
 export const MAX_VIDEOS = 16; // コードに入る本数 (拡張機能の共有と同じ)
 const OFFSET_MAX = 86400; // 同期のずれ (秒) の上限
 
-/** 本数に合う均等のレイアウト (layoutId を指定されなかったとき) */
+/** 本数に合う均等のレイアウト (layoutId を指定されなかったとき)。枠数が同じならおすすめ (1×2 と 2×1 なら 1×2) */
 export function chooseLayout(n) {
-  const uniform = LAYOUTS.filter((l) => l.group === 'uniform').sort((a, b) => a.slots.length - b.slots.length);
+  const uniform = LAYOUTS.filter((l) => l.group === 'uniform').sort(
+    (a, b) => a.slots.length - b.slots.length || Number(b.recommended) - Number(a.recommended),
+  );
   return (uniform.find((l) => l.slots.length >= n) || uniform[uniform.length - 1]).id;
 }
 
