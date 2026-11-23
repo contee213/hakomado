@@ -577,7 +577,7 @@ const MESSAGES = {
   archiveError: ['最近の配信を取得できませんでした', 'Could not get recent streams'],
   archiveNone: ['終わった配信はありません', 'No past streams'],
   archiveProgress: ['取得中 {0} / {1}', 'Loading {0} / {1}'],
-  archiveEmpty: ['最近 {0} 日に終わった配信はありません。', 'No streams ended in the last {0} days.'],
+  archiveEmpty: ['最近 {0} 日に終わった配信・公開された動画はありません。', 'No streams or videos in the last {0} days.'],
   archiveNoMatch: ['「{0}」に一致する配信はありません。', 'No streams match "{0}".'],
   archiveNoPick: ['ピックアップ (📌) のチャンネルがありません。「すべて」に切り替えるか、チャンネルを 📌 でピックアップに入れてください。', 'No channels in pickup (📌). Switch to "All", or pick up channels with 📌.'],
   scopeNoPicked: ['ピックアップ (📌) のチャンネルのものはありません。「📺 すべて」に切り替えると、全部見られます。', 'Nothing from your pickup (📌) channels. Switch to "📺 All" to see everything.'],
@@ -1054,7 +1054,7 @@ const HTML_EN = {
 <li><b>Export a channel pack</b>: save the bundled Hololive pack, an imported pack, the channels you added, or all of them as a pack (JSON) to give to others or publish</li>
 </ul>`,
   'helpPage.library': `<ul>
-<li>“📚 Library” (<kbd>B</kbd>): 🎞 Recent streams (ended in the last 7 days) / 🕘 Watch history (100) / 🔖 Watch later (100) / 📃 Playlists</li>
+<li>“📚 Library” (<kbd>B</kbd>): 🎞 Recent streams (streams ended and videos published in the last 7 days) / 🕘 Watch history (100) / 🔖 Watch later (100) / 📃 Playlists</li>
 <li><b>Watch later</b>: add with 🔖 on tile bars and lists. “▶ Play in current tiles” fills the tiles you have in order and puts the next one in each tile that finishes. Items watched to the end are removed</li>
 <li><b>Playlists</b>: named lists (up to 30, 200 items each). Make one with “+ New”, “▦ From current tiles” or “📥 Import”, and add with the URL box or 📃 on tile bars and lists. Drag ⠿ to reorder; a row’s name is what its tile shows</li>
 <li>“▶ In order” fills the current tiles from the top and puts the next one in each tile that finishes (items watched to the end get ✓ and it continues from there next time). “⏱ All at once, in sync” lays out all of them and plays the archives in step (up to 16)</li>
@@ -1147,7 +1147,7 @@ const HTML_EN = {
   'settings.resetTitle': 'Reset all danmaku, outline, chat and auto play settings (the display language and channels are kept)',
   'fav.history': '🕘 Watch history',
   'fav.archive': '🎞 Recent streams',
-  'fav.archiveTitle': 'Streams from your channels that ended in the last 7 days (newest first)',
+  'fav.archiveTitle': 'Streams from your channels that ended, and videos (premieres etc.) published, in the last 7 days (newest first)',
   'scope.star': '📌 Pickup',
   'scope.all': '📺 All',
   'fav.playlists': '📃 Playlists',

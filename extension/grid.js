@@ -6852,7 +6852,7 @@ function isPickedEntry(h) {
   return [h.channelId, h.handle, h.input].filter(Boolean).some((k) => favKeyToId.has(favKey(k)));
 }
 
-/** 「最近の配信」タブ: 対象のチャンネルの直近 7 日に終わった配信を、新しい順に 1 つの一覧で */
+/** 「最近の配信」タブ: 対象のチャンネルの直近 7 日に終わった配信と公開された動画を、新しい順に 1 つの一覧で */
 async function renderArchiveTab({ force = false } = {}) {
   if (favMode !== 'archive') return;
   const favs = await Favorites.list();
