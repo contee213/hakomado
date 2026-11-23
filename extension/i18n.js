@@ -915,6 +915,8 @@ const HTML_EN = {
   'hl.width': 'Line width',
   'hl.glow': 'Glow',
   'hl.animate': 'Slowly animate the gradient',
+  'tile.verticalFit': 'Make the tile tall when it turns out to be a vertical stream',
+  'tile.verticalFitNote': 'The tile changes size after the video loads (Shorts tiles are tall from the start regardless of this setting)',
   'chat.note': 'Look of the chat panel opened with 💬 (applies to open panels right away)',
   'chat.zoom': 'Text size',
   'chat.width': 'Width (relative to the tile)',

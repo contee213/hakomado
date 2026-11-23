@@ -21,6 +21,8 @@ const DEFAULT_SETTINGS = {
   hlWidth: 2,
   hlGlow: 0.3,
   hlAnimate: false,
+  // 縦型の配信と分かったら (読み込んでから)、枠を縦長 (9:16) に寄せる。読み込んだ後に枠の大きさが変わるので既定は OFF
+  verticalLiveFit: false,
   // チャット欄
   chatZoom: 0.9,
   chatWidth: 0.3,
@@ -268,6 +270,7 @@ function replaceSettings(next) {
   applyHighlight();
   applyChatLook();
   syncSettingsInputs();
+  relayoutIfVerticalChanged();
   if (state.settings.cruiseSec !== cruiseBefore) restartCruise();
 }
 
@@ -478,9 +481,13 @@ function autoLayoutFor(n) {
 
 const VERTICAL = 9 / 16;
 
-/** 枠 i を縦長の枠で見せるか (読み込む前にショートと分かった枠。isShortHint) */
+/**
+ * 枠 i を縦長の枠で見せるか: 読み込む前にショートと分かった枠 (isShortHint)。
+ * 設定「縦型の配信と分かったら、枠を縦長にする」が ON なら、読み込んで縦長と分かった枠も
+ */
 function isVerticalTile(i) {
-  return !!state.tiles[i].videoId && !!state.tiles[i].short;
+  if (!state.tiles[i].videoId) return false;
+  return !!state.tiles[i].short || (!!state.settings.verticalLiveFit && views[i].info?.vertical === true);
 }
 
 /**
@@ -514,7 +521,7 @@ function verticalKey() {
   return visibleIndexes().map((i) => (isVerticalTile(i) ? 1 : 0)).join('');
 }
 
-/** 枠の中身が変わったとき、ショートの枠の並びが変わっていれば並べ直す */
+/** 枠の中身・映像の縦横・設定が変わったとき、縦長の枠の並びが変わっていれば並べ直す */
 let verticalRelayoutQueued = false;
 function relayoutIfVerticalChanged() {
   if (verticalRelayoutQueued) return;
@@ -4274,6 +4281,7 @@ window.addEventListener('message', (e) => {
     };
     Sync.refresh();
     TileInfo.update();
+    relayoutIfVerticalChanged(); // 縦型の配信と分かった (設定が ON のときだけ形が変わる)
   } else if (data.hakomado === 'ended') {
     onEnded(i, data.reason === 'played' ? 'played' : 'already');
   } else if (data.hakomado === 'social') {
@@ -6197,7 +6205,7 @@ function stepIndex(key, v) {
   return best;
 }
 
-const SETTING_CHECKBOXES = ['showPaid', 'chatHideAvatars', 'hlAnimate', 'skipMembersOnly', 'autoArchive', 'autoArchiveVideos', 'autoArchiveShorts', 'autoPickupMain'];
+const SETTING_CHECKBOXES = ['showPaid', 'chatHideAvatars', 'hlAnimate', 'verticalLiveFit', 'skipMembersOnly', 'autoArchive', 'autoArchiveVideos', 'autoArchiveShorts', 'autoPickupMain'];
 const SETTING_SELECTS = ['dmFont', 'dmWeight', 'authorName', 'autoTarget', 'noticeTarget'];
 
 /** 設定画面の入力欄を state.settings に合わせる (他のタブで設定が変わったときも呼ぶ) */
@@ -6431,6 +6439,7 @@ function setupToolbar() {
       flashDanmakuArea();
     }
     if (key === 'cruiseSec') restartCruise();
+    if (key === 'verticalLiveFit') relayoutIfVerticalChanged();
     if (dmLookKeys.has(key)) applyDanmakuLook();
     saveSettings(key);
   };
