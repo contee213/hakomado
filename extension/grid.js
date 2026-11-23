@@ -71,7 +71,16 @@ function newTileState() {
   // (アーカイブの同期再生のずれは、枠ではなく動画ごとに記録する: SyncOffsets)
   // pan = 音の左右 (-1 = 左・0 = 真ん中・1 = 右)、gain = 音量 (1 = 元のまま、0〜2)。枠の中の Web Audio で変える (content/watch.js)
   // speed = 再生速度 (1 = 等速)。同期中のグループの枠は、グループの速度にそろえる (Sync)。ライブ配信では使わない (等速)
-  return { input: '', videoId: null, chat: false, danmaku: null, muted: true, auto: false, queue: false, fill: false, label: '', pan: 0, gain: 1, delay: 0, speed: 1 };
+  // short = ショートとして縦長 (9:16) の枠で見せる。読み込む前に、タイトルの #shorts か URL (/shorts/) で決める (isShortHint)
+  return { input: '', videoId: null, chat: false, danmaku: null, muted: true, auto: false, queue: false, fill: false, label: '', pan: 0, gain: 1, delay: 0, speed: 1, short: false };
+}
+
+/**
+ * 読み込む前に分かる「ショート」の手がかり: タイトルのハッシュタグ #short / #shorts、または /shorts/ の URL。
+ * 読み込んでから枠の形が変わらないよう、縦長の枠にするかはこれだけで決める (プレイヤーが知らせる縦横は使わない)
+ */
+function isShortHint(title, input) {
+  return /[#＃]shorts?(?![\p{L}\p{N}_])/iu.test(String(title || '')) || /youtube\.com\/shorts\//i.test(String(input || ''));
 }
 
 const gridEl = document.getElementById('grid');
@@ -463,13 +472,13 @@ function autoLayoutFor(n) {
 
 const VERTICAL = 9 / 16;
 
-/** 枠 i に縦長の映像 (ショート・縦型の配信) が入っているか (読み込んだプレイヤーが知らせてくる) */
+/** 枠 i を縦長の枠で見せるか (読み込む前にショートと分かった枠。isShortHint) */
 function isVerticalTile(i) {
-  return !!state.tiles[i].videoId && views[i].info?.vertical === true;
+  return !!state.tiles[i].videoId && !!state.tiles[i].short;
 }
 
 /**
- * 標準表示で、縦長の映像の枠を 9:16 に寄せた列幅・行高。縦長の枠が無いとき・PinP (枠が重なる) のときは null。
+ * 標準表示で、ショートの枠を 9:16 に寄せた列幅・行高。縦長の枠が無いとき・PinP (枠が重なる) のときは null。
  * 同じ列・行に横長の枠があると間の比で止まるので、映像が画面に出る広さの合計が今 (どれも 16:9) より広くなるときだけ使う
  */
 function verticalFit(l) {
@@ -499,7 +508,7 @@ function verticalKey() {
   return visibleIndexes().map((i) => (isVerticalTile(i) ? 1 : 0)).join('');
 }
 
-/** 枠の映像の縦横が分かった・変わったとき、縦長の枠の並びが変わっていれば並べ直す */
+/** 枠の中身が変わったとき、ショートの枠の並びが変わっていれば並べ直す */
 let verticalRelayoutQueued = false;
 function relayoutIfVerticalChanged() {
   if (verticalRelayoutQueued) return;
@@ -519,7 +528,7 @@ function layout() {
     gridEl.style.gridTemplateRows = `repeat(${l.rows}, minmax(0, 1fr))`;
   } else {
     // 標準: どの枠もちょうど 16:9 になる列幅・行高を、画面に収まる最大の大きさで。
-    // 縦長の映像の枠があれば、その枠を 9:16 に寄せる (そのほうが映像が広く出るとき)
+    // ショートの枠があれば、その枠を 9:16 に寄せる (そのほうが映像が広く出るとき)
     const { colW, rowH, scale } = verticalFit(l) || fitScale(l);
     gridEl.style.gridTemplateColumns = colW.map((v) => `${(v * scale).toFixed(2)}px`).join(' ');
     gridEl.style.gridTemplateRows = rowH.map((v) => `${(v * scale).toFixed(2)}px`).join(' ');
@@ -686,14 +695,14 @@ async function loadInput(i, raw) {
   }
 }
 
-function setTileVideo(i, videoId, input) {
+function setTileVideo(i, videoId, input, title = '') {
   const prev = state.tiles[i].videoId;
   if (prev && prev !== videoId) WatchHistory.removed(prev, 'replaced');
   views[i].el.querySelector('.error').textContent = '';
   views[i].danmaku.clear();
   // 手で読み込んだ枠は自動再生でも消さない
   // 音の遅延はその配信のずれに合わせた値なので、別の動画にしたら戻す。速度もその動画のために決めたものなので戻す
-  Object.assign(state.tiles[i], { input, videoId, auto: false, queue: false, fill: false, label: '', delay: 0, ...(prev !== videoId ? { speed: 1 } : {}) });
+  Object.assign(state.tiles[i], { input, videoId, auto: false, queue: false, fill: false, label: '', delay: 0, short: isShortHint(title, input), ...(prev !== videoId ? { speed: 1 } : {}) });
   // 新しく読み込んだ枠は、他に音の出ている枠が無ければ音を出す
   const anyAudible = state.tiles.some((t, j) => j !== i && isVisible(j) && t.videoId && !t.muted);
   state.tiles[i].muted = anyAudible;
@@ -859,7 +868,7 @@ function renderTile(i, { reloadPlayer = false, reloadChat = false } = {}) {
     v.playStatus = ''; // 見られるか (playabilityStatus.status)
   }
 
-  relayoutIfVerticalChanged(); // 縦長の映像の枠が空いた・入れ替わった
+  relayoutIfVerticalChanged(); // ショートの枠が空いた・入れ替わった
 
   // --- chat (チャット欄 表示中 or 弾幕 ON のときだけ読み込む)
   if (!needChat) {
@@ -4259,7 +4268,6 @@ window.addEventListener('message', (e) => {
     };
     Sync.refresh();
     TileInfo.update();
-    relayoutIfVerticalChanged();
     if (views[i].info.vertical) onVertical(i);
   } else if (data.hakomado === 'ended') {
     onEnded(i, data.reason === 'played' ? 'played' : 'already');
@@ -7183,7 +7191,7 @@ function loadFromHistory(h) {
 /** 履歴などの 1 件を枠 target に入れる (画面は閉じない) */
 function putHistoryInto(target, h) {
   forgetAutoMarks(h.videoId);
-  setTileVideo(target, h.videoId, h.input || `https://www.youtube.com/watch?v=${h.videoId}`);
+  setTileVideo(target, h.videoId, h.input || `https://www.youtube.com/watch?v=${h.videoId}`, h.title);
   const t = state.tiles[target];
   t.label = h.label || '';
   const st = [...favStatus.values()].find(
@@ -7509,7 +7517,7 @@ function loadSelection() {
     if (e.load.st) {
       const { f, st } = e.load;
       forgetAutoMarks(st.videoId);
-      setTileVideo(target, st.videoId, f.handle || `${YT}/channel/${f.channelId}`);
+      setTileVideo(target, st.videoId, f.handle || `${YT}/channel/${f.channelId}`, st.title);
     } else putHistoryInto(target, e.load.h);
     favSel.delete(e.id);
     n++;
@@ -8605,7 +8613,7 @@ function pickFavorite(f, st) {
     favErrorEl.textContent = tr('noEmptyTile');
     return;
   }
-  setTileVideo(target, st.videoId, f.handle || `https://www.youtube.com/channel/${f.channelId}`);
+  setTileVideo(target, st.videoId, f.handle || `https://www.youtube.com/channel/${f.channelId}`, st.title);
   favDialog.close();
 }
 
@@ -8843,7 +8851,7 @@ async function startAllLiveInner() {
   lives.forEach(({ f, st }, k) => {
     const i = assigned[k];
     if (state.tiles[i].videoId !== st.videoId) {
-      Object.assign(state.tiles[i], { ...newTileState(), input: f.handle || f.channelId, videoId: st.videoId });
+      Object.assign(state.tiles[i], { ...newTileState(), input: f.handle || f.channelId, videoId: st.videoId, short: isShortHint(st.title) });
       views[i].danmaku.clear();
       renderTile(i, { reloadPlayer: true, reloadChat: true });
     }
@@ -9040,7 +9048,7 @@ function stopQueue() {
 }
 
 function queueLoad(i, h) {
-  setTileVideo(i, h.videoId, h.input || `${YT}/watch?v=${h.videoId}`);
+  setTileVideo(i, h.videoId, h.input || `${YT}/watch?v=${h.videoId}`, h.title);
   Object.assign(state.tiles[i], { queue: true, label: h.label || h.channel || '' });
   updateTileName(i);
   save();
@@ -9123,7 +9131,7 @@ async function pickAnything(i) {
       const { ok } = await filterAccessible(shuffled, { limit: 1, onProgress: step('progressAccess', 0.55, 0.7) });
       if (ok.length) {
         const { f, st } = ok[0];
-        loadPicked(i, st.videoId, f.handle || f.channelId, f.name, true);
+        loadPicked(i, st.videoId, f.handle || f.channelId, f.name, true, st.title);
         return;
       }
     }
@@ -9138,7 +9146,7 @@ async function pickAnything(i) {
       const picks = (await archiveCandidates(chs, { onProgress: step('progressArchive', from, to) })).filter(usable);
       if (picks.length) {
         const { v, f } = random(picks);
-        loadPicked(i, v.videoId, `${YT}/watch?v=${v.videoId}`, f.name, false);
+        loadPicked(i, v.videoId, `${YT}/watch?v=${v.videoId}`, f.name, false, v.title);
         return;
       }
     }
@@ -9167,8 +9175,8 @@ function pickProgress(i) {
   };
 }
 
-function loadPicked(i, videoId, input, label, live) {
-  setTileVideo(i, videoId, input);
+function loadPicked(i, videoId, input, label, live, title = '') {
+  setTileVideo(i, videoId, input, title);
   state.tiles[i].label = label;
   updateTileName(i);
   updateFavButton(i);
@@ -9292,6 +9300,7 @@ async function autoTickOnceInner() {
         label: l.f.name,
         videoId: l.st.videoId,
         auto: true,
+        short: isShortHint(l.st.title),
       });
       views[i].danmaku.clear();
       return i;
@@ -9439,7 +9448,7 @@ async function refillArchives({ lock = true } = {}) {
         if (i == null) break;
         busy.add(f.name);
         added++;
-        Object.assign(state.tiles[i], { ...newTileState(), input: `${YT}/watch?v=${v.videoId}`, videoId: v.videoId, label: f.name, fill: true });
+        Object.assign(state.tiles[i], { ...newTileState(), input: `${YT}/watch?v=${v.videoId}`, videoId: v.videoId, label: f.name, fill: true, short: isShortHint(v.title) });
         views[i].danmaku.clear();
         renderTile(i, { reloadPlayer: true, reloadChat: true });
         fills.push(i);
