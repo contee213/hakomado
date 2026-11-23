@@ -1514,7 +1514,7 @@ body.grid-fs .sync-dock { top: 0; }
 .dg-actions button { padding: 0 6px; font-size: 12px; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .dg-seek { display: flex; align-items: center; gap: 4px; }
 .dg-range { flex: 1 1 auto; min-width: 40px; margin: 0; }
-/* 図: 各枠の開始のあたりを拡大。横棒 = 配信の実際の開始から右へ、補正の分は濃淡で (下の .tl-corr)、縦の白線 = 今。左に基準との開始の差、右に状態 */
+/* 図: 各枠の開始のあたりを拡大。横棒 = 配信の実際の開始から右へ、補正の分は水色 (下の .tl-corr)、縦の白線 = 今。左に基準との開始の差、右に状態 */
 .dg-tl { display: flex; flex-direction: column; gap: 2px; padding: 2px 0 4px; font-size: 11px; font-variant-numeric: tabular-nums; }
 /* 目盛り: 棒と同じ横の範囲に、両端の開始の時刻と切れ目の ≈ を、その位置に置く */
 .tl-axis-row { display: flex; gap: 4px; }
@@ -1530,12 +1530,8 @@ body.grid-fs .sync-dock { top: 0; }
 .tl-track { position: relative; flex: 1 1 auto; min-width: 60px; height: 8px; border-radius: 2px; background: #ffffff10; }
 /* 棒は青 (グループの色 = 黄・緑・紫・橙 に使わない色) */
 .tl-bar { position: absolute; top: 1px; bottom: 1px; right: 0; border-radius: 2px 0 0 2px; background: #4a86e8; }
-/* 補正の分: 早めた (左へ延びた) 分は濃く、遅らせた (右へ縮んだ) 分は薄く。小さな補正も見えるよう、少なくとも 2px */
-.tl-corr { position: absolute; top: 1px; bottom: 1px; min-width: 2px; }
-.tl-corr.is-earlier { background: #a9cbff; }
-.tl-corr.is-later { background: #4a86e8; opacity: .35; }
-/* 基準の開始の位置で見せるとき (棒の途中): 早めた分は明るく、遅らせた分は暗く重ねる */
-.tl-corr.on-bar.is-later { background: #0b0d14; opacity: .65; }
+/* 補正の分: 早めても遅らせても同じ水色 (向きは細い線との位置で分かる)。小さな補正も見えるよう、少なくとも 2px */
+.tl-corr { position: absolute; top: 1px; bottom: 1px; min-width: 2px; background: #a9cbff; }
 .tl-corr[hidden] { display: none; }
 /* 配信が実際に始まった時刻の細い線 (補正を入れると、棒の左端がここから離れる) */
 .tl-raw { position: absolute; top: -3px; bottom: -3px; width: 1px; background: var(--text); opacity: .7; z-index: 1; }

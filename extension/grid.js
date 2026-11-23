@@ -2744,7 +2744,7 @@ const Sync = (() => {
 
     // ---- 図: 各枠の開始のあたりを拡大して並べる (何時間もの配信の全体では、数十秒や 0.1 秒の違いが見えないため。全体はつまみで見る)。
     // 開始どうしが 1 分より離れていれば、間を詰めて切れ目 (≈) にする (SyncChart。10 分・30 分の差が混ざっても見分けられるように)。
-    // 横棒 = 配信の実際の開始から右へ。補正の分は濃淡で: 早めた (左へ延びた) 分は濃く、遅らせた (右へ縮んだ) 分は薄く。
+    // 横棒 = 配信の実際の開始から右へ。補正の分は水色で (早めたか遅らせたかは、補正前の位置の細い線との位置で分かる)。
     // 今の時刻が拡大した範囲に入っていれば縦の線を引く。左に基準との開始の差、右に状態 (✓ 設定どおり / ↻ あと何秒 / 基準 / 待機中)
     /** 秒 → 「36秒」「2分10秒」「1時間5分」 */
     function spanLabel(sec) {
@@ -2836,7 +2836,7 @@ const Sync = (() => {
         if (m) {
           const p = corrected ? corrAt(i, m) : null;
           // 補正を自分の開始で見せる (基準・基準より後に始まった枠) ときは、棒は遅いほうの開始から (早めた分は空いたところへ延びる)。
-          // 基準の開始で見せるときは、棒は補正を入れた開始からそのまま、その途中に濃淡を重ねる
+          // 基準の開始で見せるときは、棒は補正を入れた開始からそのまま、その途中に補正の分を重ねる
           const atOwnStart = corrected && p === m.raw;
           x.bar.style.left = pct(atOwnStart ? Math.max(m.at, m.raw) : m.at) + '%';
           if (corrected) {
@@ -2846,9 +2846,6 @@ const Sync = (() => {
             x.raw.style.left = pct(p) + '%';
             x.corr.style.left = a + '%';
             x.corr.style.width = b - a + '%';
-            x.corr.classList.toggle('is-earlier', earlier);
-            x.corr.classList.toggle('is-later', !earlier);
-            x.corr.classList.toggle('on-bar', !atOwnStart);
             x.corr.title = tr(earlier ? 'syncTlCorrEarlier' : 'syncTlCorrLater', signedSec(off(i)));
           }
         }
