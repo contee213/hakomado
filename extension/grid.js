@@ -68,7 +68,8 @@ function newTileState() {
   // fill = 自動再生で、ライブの代わりに最近の配信を入れた枠
   // (アーカイブの同期再生のずれは、枠ではなく動画ごとに記録する: SyncOffsets)
   // pan = 音の左右 (-1 = 左・0 = 真ん中・1 = 右)、gain = 音量 (1 = 元のまま、0〜2)。枠の中の Web Audio で変える (content/watch.js)
-  return { input: '', videoId: null, chat: false, danmaku: null, muted: true, auto: false, queue: false, fill: false, label: '', pan: 0, gain: 1, delay: 0 };
+  // speed = 再生速度 (1 = 等速)。同期中のグループの枠は、グループの速度にそろえる (Sync)。ライブ配信では使わない (等速)
+  return { input: '', videoId: null, chat: false, danmaku: null, muted: true, auto: false, queue: false, fill: false, label: '', pan: 0, gain: 1, delay: 0, speed: 1 };
 }
 
 const gridEl = document.getElementById('grid');
@@ -122,6 +123,7 @@ function applySession(saved = {}) {
       if ('pan' in picked) picked.pan = clampPan(picked.pan);
       if ('gain' in picked) picked.gain = clampGain(picked.gain);
       if ('delay' in picked) picked.delay = clampDelay(picked.delay);
+      if ('speed' in picked) picked.speed = clampSpeed(picked.speed);
       // 以前の版は弾幕の初期値が「表示」だったので、そのときの true は自動 (メイン枠だけ) として扱う
       if (!saved.dmAuto && picked.danmaku === true) picked.danmaku = null;
       // あとで見るの再生中かどうかは保存しない (開き直したら、ふつうの枠として扱う)
@@ -634,8 +636,8 @@ function setTileVideo(i, videoId, input) {
   views[i].el.querySelector('.error').textContent = '';
   views[i].danmaku.clear();
   // 手で読み込んだ枠は自動再生でも消さない
-  // 音の遅延はその配信のずれに合わせた値なので、別の動画にしたら戻す
-  Object.assign(state.tiles[i], { input, videoId, auto: false, queue: false, fill: false, label: '', delay: 0 });
+  // 音の遅延はその配信のずれに合わせた値なので、別の動画にしたら戻す。速度もその動画のために決めたものなので戻す
+  Object.assign(state.tiles[i], { input, videoId, auto: false, queue: false, fill: false, label: '', delay: 0, ...(prev !== videoId ? { speed: 1 } : {}) });
   // 新しく読み込んだ枠は、他に音の出ている枠が無ければ音を出す
   const anyAudible = state.tiles.some((t, j) => j !== i && isVisible(j) && t.videoId && !t.muted);
   state.tiles[i].muted = anyAudible;
@@ -781,6 +783,7 @@ function renderTile(i, { reloadPlayer = false, reloadChat = false } = {}) {
       Diagnose.playerLoaded(i, f);
       setTimeout(() => {
         applyAudio(i);
+        applySpeed(i, true);
         postToFrame(f, { hakomado: 'away', on: !el.matches(':hover') });
         // まとめて一時停止の間に読み込んだ枠も止めておく
         if (pausedAll) postToFrame(f, { hakomado: 'playback', play: false });
@@ -828,6 +831,8 @@ function renderTile(i, { reloadPlayer = false, reloadChat = false } = {}) {
   el.classList.toggle('audible', visible && !!t.videoId && !t.muted && state.count > 1);
   setToggle(el.querySelector('.bar [data-act="chat"]'), t.chat);
   setToggle(el.querySelector('.bar [data-act="danmaku"]'), tileDanmaku(i));
+  renderSpeedButton(i);
+  renderSpeedAll();
   renderMix(i);
   updateSocialButtons(i);
   updateFavButton(i);
@@ -1042,6 +1047,185 @@ function applyAudio(i) {
   postToFrame(views[i].player, { hakomado: 'audio', muted: t.muted });
   postToFrame(views[i].player, { hakomado: 'mix', pan: t.pan, gain: t.gain, delay: t.delay });
 }
+
+// ---- 再生速度 (枠のバーの速度ボタン・上部バーの ⏩・< > キー・枠の中のプレイヤーの ⚙)
+// - ふつうの枠は枠ごとの速度 (state.tiles[i].speed)。ライブ配信は等速のまま (変えられない)
+// - アーカイブ同期で同期しているグループの枠は、枠だけでは変えられない。どこで変えてもグループ全部の速度になる (Sync.setGroupSpeed)。
+//   ライブの入ったグループ (🎬 本編モード) は等速のまま
+// - 上部バーの ⏩ は、表示中の全部の枠 (同期しているグループはグループごと) をまとめて同じ速度にする
+const SPEEDS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
+// 枠の中のプレイヤーで細かく決めた速度 (YouTube の「カスタム」) も受け取れるように、範囲と刻みだけそろえる
+const clampSpeed = (v) => (Number.isFinite(v) && v > 0 ? Math.max(0.25, Math.min(4, Math.round(v * 20) / 20)) : 1);
+const speedText = (r) => `${Number(r.toFixed(2))}×`;
+const isLiveTile = (i) => !!views[i]?.el.classList.contains('is-live');
+/** 枠の速度を変えられるか (動画が入っていて、ライブ配信でない) */
+const speedAdjustable = (i) => isVisible(i) && !!state.tiles[i].videoId && !isLiveTile(i);
+/** 枠の今の速度 (ライブは等速) */
+const speedOf = (i) => (isLiveTile(i) ? 1 : state.tiles[i].speed);
+
+/** 枠のプレイヤーに速度を送る (同じ値は送り直さない。force = 読み込み直後などで必ず送る) */
+function applySpeed(i, force = false) {
+  const v = views[i];
+  const r = speedOf(i);
+  if (!v?.player || (!force && v.speedSent === r)) return;
+  v.speedSent = r;
+  postToFrame(v.player, { hakomado: 'speed', r });
+}
+
+/** 枠 i の速度を変える。同期しているグループの枠なら、グループ全部の速度にする。fromPlayer = 枠の中のプレイヤーで変えた */
+function setTileSpeed(i, r, { fromPlayer = false } = {}) {
+  r = clampSpeed(r);
+  if (!speedAdjustable(i)) {
+    if (fromPlayer) applySpeed(i, true); // ライブで変えられた → 等速に戻す
+    return;
+  }
+  const g = Sync.speedGroupOf(i);
+  if (g) {
+    if (g.locked) {
+      showToast(i, tr('speedGroupLocked'));
+      applySpeed(i, true);
+      return;
+    }
+    Sync.setGroupSpeed(i, r);
+    for (const j of g.tiles) showToast(j, tr('speedGroupToast', g.g, speedText(r)));
+  } else {
+    state.tiles[i].speed = r;
+    applySpeed(i, fromPlayer);
+    showToast(i, tr('speedToast', speedText(r)));
+  }
+  speedChanged();
+}
+
+/** 全部の枠 (同期しているグループはグループごと) を同じ速度にする */
+function setAllSpeed(r) {
+  r = clampSpeed(r);
+  const doneGroups = new Set();
+  for (const i of visibleIndexes()) {
+    if (!speedAdjustable(i)) continue;
+    const g = Sync.speedGroupOf(i);
+    if (g) {
+      if (!g.locked && !doneGroups.has(g.g)) Sync.setGroupSpeed(i, r);
+      doneGroups.add(g.g);
+      continue;
+    }
+    state.tiles[i].speed = r;
+    applySpeed(i);
+  }
+  speedChanged();
+}
+
+/** < > キー: 音の出ている枠 (無ければ先頭の枠) の速度を 1 段上げる / 下げる */
+function stepSpeed(dir) {
+  const filled = visibleIndexes().filter((i) => state.tiles[i].videoId);
+  const i = audibleTiles()[0] ?? filled[0];
+  if (i == null) return;
+  if (!speedAdjustable(i)) {
+    showToast(i, tr('speedLive'));
+    return;
+  }
+  const cur = speedOf(i);
+  const next = dir > 0 ? SPEEDS.find((s) => s > cur + 0.001) : [...SPEEDS].reverse().find((s) => s < cur - 0.001);
+  if (next != null) setTileSpeed(i, next);
+}
+
+function speedChanged() {
+  renderSpeeds();
+  save();
+}
+function renderSpeeds() {
+  for (const i of visibleIndexes()) renderSpeedButton(i);
+  renderSpeedAll();
+}
+
+function renderSpeedButton(i) {
+  const btn = views[i]?.el.querySelector('.bar [data-act="speed"]');
+  if (!btn) return;
+  const r = speedOf(i);
+  const g = Sync.speedGroupOf(i);
+  // 同期中は 0.5 秒ごとに呼ばれるので、変わったところだけ書き換える
+  setIfChanged(btn, 'textContent', speedText(r));
+  setIfChanged(btn, 'title', isLiveTile(i) ? tr('speedLive') : g ? tr(g.locked ? 'speedGroupLocked' : 'speedGroupTitle', g.g) : tr('speedTitle'));
+  btn.classList.toggle('on', r !== 1);
+  btn.classList.toggle('grouped', !!g);
+  btn.disabled = !speedAdjustable(i);
+}
+function setIfChanged(el, key, value) {
+  if (el[key] !== value) el[key] = value;
+}
+
+/** 上部バーの ⏩: 全部の枠が同じ速度ならその速度、ばらばらなら「混在」 */
+function renderSpeedAll() {
+  const btn = document.getElementById('speedAll');
+  if (!btn) return;
+  const list = [...new Set(visibleIndexes().filter(speedAdjustable).map(speedOf))];
+  setIfChanged(btn.querySelector('.tb-label'), 'textContent', list.length > 1 ? tr('speedMixed') : speedText(list[0] ?? 1));
+  btn.classList.toggle('on', list.some((r) => r !== 1));
+  btn.disabled = !list.length;
+}
+
+/** 速度を選ぶ小さな画面 (枠のバーの速度ボタン・上部バーの ⏩ の下に出す) */
+const SpeedMenu = (() => {
+  let el = null;
+  let target = null; // {kind: 'tile', i} | {kind: 'all'}
+  let anchorBtn = null;
+
+  function setup() {
+    el = document.getElementById('speedMenu');
+    const list = el.querySelector('.speed-list');
+    for (const r of SPEEDS) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.dataset.speed = String(r);
+      b.textContent = speedText(r);
+      list.appendChild(b);
+    }
+    list.addEventListener('click', (e) => {
+      const b = e.target.closest('button[data-speed]');
+      if (!b || !target) return;
+      const r = Number(b.dataset.speed);
+      if (target.kind === 'all') setAllSpeed(r);
+      else setTileSpeed(target.i, r);
+      el.hidePopover();
+    });
+    el.addEventListener('toggle', (e) => {
+      if (e.newState === 'closed') {
+        anchorBtn?.style.removeProperty('anchor-name');
+        anchorBtn = null;
+        target = null;
+      }
+    });
+  }
+
+  function open(btn, t) {
+    if (!el) return;
+    if (el.matches(':popover-open')) {
+      const same = anchorBtn === btn;
+      el.hidePopover();
+      if (same) return; // もう一度押したら閉じる
+    }
+    target = t;
+    anchorBtn = btn;
+    btn.style.setProperty('anchor-name', '--speed-anchor');
+    let head;
+    let cur;
+    if (t.kind === 'all') {
+      head = tr('speedAllHead');
+      const list = [...new Set(visibleIndexes().filter(speedAdjustable).map(speedOf))];
+      cur = list.length === 1 ? list[0] : null;
+    } else {
+      const g = Sync.speedGroupOf(t.i);
+      head = g ? tr('speedGroupHead', g.g, g.tiles.length) : tr('speedTileHead', displayNumber(t.i));
+      cur = speedOf(t.i);
+    }
+    el.querySelector('.speed-head').textContent = head;
+    for (const b of el.querySelectorAll('button[data-speed]')) {
+      b.setAttribute('aria-pressed', String(cur != null && Math.abs(Number(b.dataset.speed) - cur) < 0.001));
+    }
+    el.showPopover();
+  }
+
+  return { setup, open };
+})();
 
 // ---- 音の左右 (パン)・音量・遅延 (枠のバーの 🎚)
 // 遅延はライブ配信の音ずれ用: 映像はそのまま、音だけ遅らせる (進んでいる配信の声を、ほかの配信に合わせる)。
@@ -1346,6 +1530,9 @@ function onBarAction(i, act, e) {
     case 'syncAdj':
       Sync.openFor(i);
       break;
+    case 'speed':
+      SpeedMenu.open(e.target.closest('button'), { kind: 'tile', i });
+      return;
     case 'mix': {
       const panel = views[i].el.querySelector('.mix-panel');
       panel.hidden = !panel.hidden;
@@ -1527,7 +1714,8 @@ const Sync = (() => {
    *   holdUntil: number, paused: boolean, init: boolean, lo: number, hi: number, dragging: boolean}} Group
    * mode: 'time' = 実際の時刻 / 'movie' = 🎬 本編。clock の R = 実際の時刻か本編の時刻 (ミリ秒)。
    * holdUntil: つまみで動かした直後は、基準の枠が追いつくまで時計を基準に合わせない。paused: パネルの ⏸ で止めた。
-   * init: 時計をまだ基準の枠に合わせていない。lo / hi: つまみの範囲
+   * init: 時計をまだ基準の枠に合わせていない。lo / hi: つまみの範囲。
+   * speed: グループの再生速度 (時計もこの速さで進む。グループの枠はみなこの速度にそろえる)。null = まだ決めていない (基準の枠の速度で始める)
    */
   /** @type {Map<number, Group>} */
   const groups = new Map();
@@ -1541,8 +1729,8 @@ const Sync = (() => {
   const driftSec = new Map(); // i -> 設定の位置との差 (秒。+ = 進んでいる)。'fix' の間の「あと何秒」に使う
 
   const now = () => performance.now();
-  const newGroup = (g, mode = 'time') => ({ g, mode, ref: null, clock: { R0: 0, at: 0, playing: true }, holdUntil: 0, paused: false, init: true, lo: 0, hi: 1000, dragging: false });
-  const nowR = (G) => (G.clock.playing ? G.clock.R0 + (now() - G.clock.at) : G.clock.R0);
+  const newGroup = (g, mode = 'time') => ({ g, mode, ref: null, clock: { R0: 0, at: 0, playing: true }, holdUntil: 0, paused: false, init: true, lo: 0, hi: 1000, dragging: false, speed: null });
+  const nowR = (G) => (G.clock.playing ? G.clock.R0 + (now() - G.clock.at) * (G.speed ?? 1) : G.clock.R0);
   const setClock = (G, R, playing) => (G.clock = { R0: R, at: now(), playing });
   const off = (i) => SyncOffsets.get(state.tiles[i].videoId);
   const anchor = (i) => MovieAnchors.get(state.tiles[i].videoId);
@@ -1738,6 +1926,41 @@ const Sync = (() => {
     updateTop();
     updateMarks();
     Dock.update();
+    renderSpeeds();
+  }
+
+  /**
+   * グループの速度を決めて、グループの枠をみなその速度にする。グループができたときは基準の枠の速度で始める。
+   * ライブの入ったグループ (🎬 本編モード) は等速のまま (ライブは速さを変えられないため)
+   */
+  function groupSpeed(G, list, ref) {
+    if (list.some(liveTile)) G.speed = 1;
+    else if (G.speed == null) G.speed = clampSpeed(state.tiles[ref]?.speed ?? 1);
+    let changed = false;
+    for (const i of list) {
+      if (!movable(i)) continue;
+      if (state.tiles[i].speed !== G.speed) {
+        state.tiles[i].speed = G.speed;
+        changed = true;
+      }
+      applySpeed(i);
+    }
+    if (changed) speedChanged();
+  }
+  /** 同期しているグループの枠なら、そのグループ ({g, tiles, locked}。locked = ライブが入っていて速さを変えられない) */
+  function speedGroupOf(i) {
+    const G = on ? groupOfTile(i) : null;
+    if (!G || !active(G)) return null;
+    const tiles = membersOf(G.g);
+    return { g: G.g, tiles, locked: tiles.some(liveTile) };
+  }
+  /** 枠 i のグループの速度を変える (時計は今の時刻から新しい速さで進める) */
+  function setGroupSpeed(i, r) {
+    const G = on ? groupOfTile(i) : null;
+    if (!G || !active(G) || membersOf(G.g).some(liveTile)) return;
+    setClock(G, nowR(G), G.clock.playing);
+    G.speed = clampSpeed(r);
+    tick();
   }
 
   /** 時計を基準の枠に合わせ直す (グループができたとき・そろえ方を変えたとき) */
@@ -1768,6 +1991,7 @@ const Sync = (() => {
     const list = membersOf(G.g);
     const ref = reference(G);
     zeroRef(G);
+    groupSpeed(G, list, ref);
     if (G.init) initClock(G);
     const movie = isMovie(G);
     // 時計を基準の枠に合わせる (基準の枠が配信の時間帯の中で、知らせが新しく、広告中でないとき)
@@ -1875,7 +2099,7 @@ const Sync = (() => {
       if (ad > SEEK_DRIFT || (forceSeek.has(i) && ad > FORCE_SEEK_DRIFT)) {
         forceSeek.delete(i);
         rate(i, 1);
-        seek(i, target + 0.2); // 読み込みに掛かる分、少し先へ (速度で詰め始めるずれより小さく)
+        seek(i, target + 0.2 * G.speed); // 読み込みに掛かる分、少し先へ (速度で詰め始めるずれより小さく)
         drift.set(i, 'fix');
         driftSec.set(i, d);
       } else if (ad > RATE_DRIFT || (correcting && ad > RATE_STOP)) {
@@ -2057,6 +2281,7 @@ const Sync = (() => {
     sent.clear();
     Dock.hide();
     refresh();
+    renderSpeeds();
   }
 
   /** ボタン・つまみ・枠の印の表示を今の状態に合わせる (枠の中身が変わったとき・アーカイブだと分かったとき) */
@@ -3079,6 +3304,8 @@ const Sync = (() => {
     resumePoint,
     isWaiting: (i) => on && waiting.has(i),
     groupInfo,
+    speedGroupOf,
+    setGroupSpeed,
     offOf: off,
     applyOffsets,
     dockChanged: () => Dock.update(),
@@ -3595,6 +3822,10 @@ window.addEventListener('message', (e) => {
   if (data.hakomado === 'userAudio') {
     // 枠内のプレイヤーのスピーカーで切り替え → この枠だけ切り替える (他の枠はそのまま。複数枠の同時再生用)
     setAudio(i, { on: !data.muted });
+  } else if (data.hakomado === 'userSpeed') {
+    // 枠内のプレイヤーの ⚙ やキーで速度を変えた → この枠の速度にする (同期中ならグループ全部)
+    views[i].speedSent = clampSpeed(Number(data.r));
+    setTileSpeed(i, Number(data.r), { fromPlayer: true });
   } else if (data.hakomado === 'mix') {
     // 枠の中で左右・音量の経路を作れなかった (AudioContext が動かない)
     if (data.ok === false) showToast(i, tr('mixBlocked'));
@@ -3604,6 +3835,9 @@ window.addEventListener('message', (e) => {
     if (data.ok === false) AudioSync.blocked(i);
   } else if (data.hakomado === 'live') {
     views[i].el.classList.toggle('is-live', !!data.on);
+    applySpeed(i); // ライブは等速
+    renderSpeedButton(i);
+    renderSpeedAll();
     renderMix(i);
     Sync.refresh();
     TileInfo.update();
@@ -5731,6 +5965,8 @@ function setupToolbar() {
     e.currentTarget.blur(); // Space キーでボタンが押し直されないように
     togglePauseAll();
   });
+  SpeedMenu.setup();
+  document.getElementById('speedAll').addEventListener('click', (e) => SpeedMenu.open(e.currentTarget, { kind: 'all' }));
 
   const dialog = document.getElementById('settings');
   document.getElementById('openSettings').addEventListener('click', () => {
@@ -5897,6 +6133,8 @@ function setupToolbar() {
       toggleMuteAll();
     } else if (e.key === 'd' || e.key === 'D') {
       toggleDanmakuAll();
+    } else if (e.key === '>' || e.key === '<') {
+      stepSpeed(e.key === '>' ? 1 : -1);
     } else if (e.key === '?') {
       openHelp();
     } else if (e.key === 'f' || e.key === 'F') {

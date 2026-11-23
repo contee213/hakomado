@@ -1450,6 +1450,35 @@ code { font-size: 12px; background: #222228; padding: 0 4px; border-radius: 3px;
 .mix-delay { width: 4.5em; }
 .mix-btn { font-variant-numeric: tabular-nums; }
 .mix-btn.on { color: #8fd3ff; border-color: #8fd3ff; }
+/* 再生速度: 枠のバーのボタンは今の速度を出す (等速のときは控えめに)。同期しているグループの枠は点線 */
+.bar-buttons button.speed-btn { width: auto; min-width: 32px; padding: 0 5px; font-size: 12px; font-variant-numeric: tabular-nums; }
+.bar-buttons button.speed-btn:not(.on) { color: var(--muted); }
+.bar-buttons button.speed-btn.grouped { border-style: dashed; }
+.bar-buttons button.speed-btn:disabled { opacity: .35; cursor: default; }
+.toolbar .speed-all .tb-label { font-variant-numeric: tabular-nums; }
+.toolbar .speed-all.on { color: #fff; border-color: var(--on); background: var(--on-bg); }
+.speed-menu {
+  padding: 6px;
+  color: var(--text);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, .5);
+}
+/* 押したボタンのすぐ下に出す (入りきらなければ上・左右へ)。使えないブラウザでは画面の真ん中 */
+@supports (position-area: block-end) {
+  .speed-menu {
+    position-anchor: --speed-anchor;
+    inset: auto;
+    margin: 4px 0;
+    position-area: block-end;
+    position-try-fallbacks: block-end span-inline-start, block-end span-inline-end, flip-block, block-start span-inline-start, block-start span-inline-end;
+  }
+}
+.speed-head { margin: 0 2px 6px; font-size: 12px; color: var(--muted); white-space: nowrap; }
+.speed-list { display: grid; grid-template-columns: repeat(4, auto); gap: 4px; }
+.speed-list button { min-width: 52px; height: 28px; font-variant-numeric: tabular-nums; }
+.speed-list button[aria-pressed="true"] { color: #fff; border-color: var(--on); background: var(--on-bg); }
 .sync-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
 .sync-row[hidden] { display: none; }
 .sync-input { width: 6.5em; padding: 1px 4px; background: #000; color: var(--text); border: 1px solid var(--line); border-radius: 6px; font-size: 12px; font-variant-numeric: tabular-nums; }

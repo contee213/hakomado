@@ -422,6 +422,23 @@ const MESSAGES = {
     'この枠では左右・音量・遅延を変えられませんでした (ブラウザが音の処理を止めています)。枠をクリックしてから、もう一度試してください',
     "Couldn't change left/right, volume or delay in this tile (the browser is holding back audio processing). Click the tile and try again",
   ],
+  // 再生速度
+  speedTitle: ['この枠の再生速度 (< > キーでも。音の出ている枠)', 'Playback speed of this tile (< > keys work on the tile playing audio)'],
+  speedGroupTitle: [
+    'グループ {0} の再生速度 (アーカイブ同期中は、グループの全部の枠が同じ速度になります)',
+    'Playback speed of group {0} (while archive sync is on, every tile in the group plays at the same speed)',
+  ],
+  speedGroupLocked: [
+    'ライブ配信の入った同期グループは、等速のままです (ライブは速度を変えられないため)',
+    'A sync group with a live stream stays at normal speed (live streams can’t change speed)',
+  ],
+  speedLive: ['ライブ配信は等速で再生します (速度は変えられません)', 'Live streams play at normal speed (the speed can’t be changed)'],
+  speedToast: ['再生速度 {0}', 'Speed {0}'],
+  speedGroupToast: ['グループ {0} の再生速度 {1}', 'Group {0} speed {1}'],
+  speedMixed: ['混在', 'Mixed'],
+  speedAllHead: ['全部の枠の再生速度', 'Speed of all tiles'],
+  speedTileHead: ['枠 {0} の再生速度', 'Speed of tile {0}'],
+  speedGroupHead: ['同期グループ {0} ({1} 枠) の再生速度', 'Speed of sync group {0} ({1} tiles)'],
   mixNeed2: ['音の出ている枠を 2 つにしてから押してください (いま {0} 枠)', 'Make exactly 2 tiles play audio first (now {0})'],
   mixLeft: ['左から聞こえます', 'Heard from the left'],
   mixRight: ['右から聞こえます', 'Heard from the right'],
@@ -969,7 +986,7 @@ const HTML_EN = {
   'helpPage.tiles': `<ul>
 <li>Choose a layout with “▦” on the top bar. The darker tile is the main one, and loaded streams fill tiles from 1 (main) on. “+” / “−” add or remove a tile</li>
 <li>Hover over a tile with a stream to show its control bar. Drag ⠿ at the left to swap tiles</li>
-<li>Tile bar: audio button (play audio from this tile) / 🎚 left/right, volume and delay / 💬 chat / ≋ danmaku / 📌 pickup / 🔖 watch later / 📃 add to a playlist / ⏱ sync offset (for archives) / ⟳ reload / ⛶ fullscreen this tile / ✕ close</li>
+<li>Tile bar: audio button (play audio from this tile) / 🎚 left/right, volume and delay / 1× playback speed / 💬 chat / ≋ danmaku / 📌 pickup / 🔖 watch later / 📃 add to a playlist / ⏱ sync offset (for archives) / ⟳ reload / ⛶ fullscreen this tile / ✕ close</li>
 <li>🎚 makes that tile heard from the left, center or right and changes its volume (0–200%). “⇆ Split 2 tiles left/right” sends the 2 tiles playing audio left and right by their position on screen. On a live stream, “Audio delay” delays only that tile’s audio (the picture stays as it is; for a collab whose voices come earlier than the other tiles)</li>
 <li>“⛶” (<kbd>Shift</kbd> + <kbd>F</kbd>) goes fullscreen with all tiles. Move the mouse to the top edge to show the bar</li>
 <li>“ℹ️” (<kbd>I</kbd>) lists each tile’s type (live, archive, video), stream times, current viewers, views and whether it can be archive-synced</li>
@@ -1020,6 +1037,7 @@ const HTML_EN = {
 <li>The sync panel (☰ on the top bar, or ⏱ on a tile) floats over the tiles, semi-transparent (drag its header to move it; ⇲ docks it on the right). Per group: what to align on (🕒 real time / 🎬 movie), ⏸, ✨ auto-correct and a slider. Per tile: the reference (🔒; ◉ in 🎬 groups), the offset and ⏸ pause and wait. Each group’s chart zooms in on where the streams start (gaps of more than a minute between starts are cut short, with each tile’s start time shown above where it fits): each bar runs from the actual stream start, the offset shows as a light-blue stretch (which side of the thin line tells earlier or later) where it starts playing alongside the reference (at the reference’s start for tiles that started earlier), with a thin line at the uncorrected position (also drawn on the other tiles already playing then, to compare against), plus how much earlier or later it started than the reference and how far it still has to move. Collapse groups you are not adjusting with ▾</li>
 <li>You adjust the tiles other than the reference. The reference (🔒 at the start of its row) always has offset 0; when you change the reference, the offsets move to the other tiles and the alignment stays the same. Move an offset with −0.1, −0.01, +0.01 and +0.1 (hold to keep going). ⏸ pauses just that tile to wait, ▶ matches it there. Select a row and ← → also move the offset by 0.1 s (Shift: 0.01 s). ✓ on a row means it plays at the position the offset says, ↻ that it is still moving there (whether voices line up is up to your ears). If adjusting by hand went wrong, ↺ on the row (↺ in the header for the whole group) goes back to real time. Offsets are remembered per video and go into playlists and share codes</li>
 <li>The slider on the top bar moves the group of the tile playing audio</li>
+<li>Playback speed: tiles in a synced group can’t change speed on their own. Changing it on any tile in the group (its 1× button, the < > keys, or the player’s ⚙) changes the whole group, and the sync clock moves at that speed. A group with a live stream stays at normal speed</li>
 <li>Choosing the reference: make the tile you mainly listen to the reference, so its sound stays the most natural (the others change speed slightly or jump to keep up). If one tile needs a much larger offset than the rest, don’t make it the reference, so the other videos keep small offsets (offsets are remembered per video and reused in other sets)</li>
 </ul>`,
   'helpPage.share': `<p>“🔗 Share” turns the current tiles or a playlist into one of four forms.</p>
@@ -1053,6 +1071,8 @@ const HTML_EN = {
   'key.fav': 'Open channels',
   'key.lib': 'Open the library',
   'key.info': 'Open the tile info',
+  'key.speed': 'Lower / raise the playback speed of the tile playing audio by one step (for a tile synced by archive sync, the whole group)',
+  'speedAll.title': 'Change the playback speed of all tiles at once (synced groups change together; live streams stay at normal speed)',
   'key.danmaku': 'Hide / show danmaku on all tiles for now (unless set with ≋ on a tile, danmaku shows only on main tiles)',
   'tour.replay': '▶ Replay the tour',
   'helpNav.report': 'Report a problem',
