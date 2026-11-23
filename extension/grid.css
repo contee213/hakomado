@@ -1559,7 +1559,7 @@ body.grid-fs .sync-dock { top: 0; }
 .dr-line { display: flex; align-items: center; gap: 4px; min-width: 0; }
 .dr-line button { padding: 0 4px; font-size: 12px; }
 .dr-ref { flex: none; padding: 0 3px !important; border: none; background: none; color: var(--muted); }
-.dr-ref.on { color: var(--text); }
+.dr-ref.on { color: var(--text); font-size: 11px; }
 .dr-num { flex: none; min-width: 1.2em; color: var(--muted); font-variant-numeric: tabular-nums; }
 .dr-name { flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .dr-ref-tag { flex: none; padding: 0 4px; border-radius: 3px; background: var(--g, #ffffff30); color: #111; font-size: 10px; font-weight: 700; line-height: 1.5; }
@@ -1575,9 +1575,8 @@ body.grid-fs .sync-dock { top: 0; }
 .dr-sub:has(.dr-step) { gap: 3px; }
 .dr-val { width: 4em; text-align: right; }
 .dr-line .dr-step { padding: 0 3px; font-size: 11px; font-variant-numeric: tabular-nums; touch-action: none; user-select: none; }
-/* 基準の行: 補正は 0 に固定 (🔒)。操作は押せない形で薄く */
-.dr-line.is-locked > :not(.dr-lock) { opacity: .4; }
-.dr-lock { flex: none; font-size: 11px; }
+/* 基準の行: 補正は 0 に固定 (行の頭の 🔒)。操作は押せない形で薄く */
+.dr-line.is-locked > * { opacity: .4; }
 .dr-val::placeholder { color: var(--text); opacity: 1; }
 .dr-wait.is-waiting { color: #8fd3ff; border-color: #8fd3ff; }
 .dr-reset[hidden] { display: none; }

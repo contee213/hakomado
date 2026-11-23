@@ -2542,8 +2542,9 @@ const Sync = (() => {
           ? mk('button', {
               type: 'button',
               class: 'dr-ref' + (isRef ? ' on' : ''),
-              textContent: isRef ? '◉' : '○',
-              title: tr(isRef ? 'syncRefBadgeTitle' : 'syncSetRefTitle'),
+              // 実際の時刻の基準は 🔒 (補正が 0 に固定)。本編の基準は本編の位置を決めるので ◉
+              textContent: isRef ? (movie ? '◉' : '🔒') : '○',
+              title: tr(isRef ? (movie ? 'syncRefBadgeTitle' : 'syncRefLockTitle') : 'syncSetRefTitle'),
               disabled: isRef || (movie && !liveTile(i) && membersOf(G.g).some(liveTile)),
               onclick: () => setReference(i),
             })
@@ -2606,7 +2607,6 @@ const Sync = (() => {
             : mk(
                 'div',
                 { class: 'dr-line dr-sub' + (r.locked ? ' is-locked' : '') },
-                r.locked ? mk('span', { class: 'dr-lock', title: tr('syncRefLockTitle') }, '🔒') : null,
                 m1,
                 m2,
                 r.val,
