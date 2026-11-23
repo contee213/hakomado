@@ -2768,6 +2768,7 @@ const Sync = (() => {
         }
         const st = wait ? 'wait' : drift.get(i) || 'none';
         r.dot.className = 'dr-dot is-' + st;
+        r.dot.textContent = st === 'ok' ? '✓' : st === 'fix' ? '↻' : '';
         r.dot.title = tr('syncDot_' + st);
         if (r.trim) r.trim.disabled = off(i) === -trimmedOf(i);
         if (r.reset) r.reset.hidden = !movable(i) || off(i) === 0 || !!wait;
@@ -2795,7 +2796,8 @@ const Sync = (() => {
       });
       document.getElementById('syncUndo').addEventListener('click', undo);
       document.getElementById('syncLegend').replaceChildren(
-        ...['ok', 'fix', 'ref', 'wait'].map((st) => mk('span', { class: 'dock-legend-item' }, mk('span', { class: 'dr-dot is-' + st }), tr('syncDot_' + st))),
+        mk('span', { class: 'dock-legend-item' }, mk('span', { class: 'dr-dot is-ok' }, '✓'), tr('syncLegendOk')),
+        mk('span', { class: 'dock-legend-item' }, mk('span', { class: 'dr-dot' }, '↻'), tr('syncLegendFix')),
       );
       document.getElementById('syncDockFloat').addEventListener('click', () => setFloating(!floating));
       setupDrag();

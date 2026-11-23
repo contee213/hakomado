@@ -1531,11 +1531,11 @@ body.grid-fs .sync-dock { top: 0; }
 .dr-name { flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .dr-ref-tag { flex: none; padding: 0 4px; border-radius: 3px; background: var(--g, var(--accent)); color: #111; font-size: 10px; font-weight: 700; line-height: 1.5; }
 .dr-short { flex: none; color: var(--muted); font-variant-numeric: tabular-nums; display: none; }
-.dr-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: #555; }
-.dr-dot.is-ok { background: #4cd38a; }
-.dr-dot.is-fix { background: #f0c36d; }
-.dr-dot.is-ref { background: none; box-shadow: inset 0 0 0 2px var(--text); } /* 基準: グループの色によらず同じ形 (凡例と合わせる) */
-.dr-dot.is-wait { background: #8fd3ff; }
+/* 設定したずれどおりの位置か (✓) / その位置へ寄せている途中か (↻)。グループの色と混ざらないよう、色ではなく記号で見せる */
+.dr-dot { flex: none; width: 1.1em; text-align: center; color: var(--muted); font-size: 11px; line-height: 1; }
+.dr-dot.is-fix { color: var(--text); display: inline-block; animation: dr-spin 1.2s linear infinite; }
+@keyframes dr-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .dr-dot.is-fix { animation: none; } }
 .dr-group { flex: none; max-width: 92px; font-size: 11px; }
 .dr-sub { padding-left: 18px; flex-wrap: wrap; }
 .dr-val { width: 6.5em; text-align: right; }
