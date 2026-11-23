@@ -1513,6 +1513,26 @@ body.grid-fs .sync-dock { top: 0; }
 .dg-actions button { padding: 0 6px; font-size: 12px; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .dg-seek { display: flex; align-items: center; gap: 4px; }
 .dg-range { flex: 1 1 auto; min-width: 40px; margin: 0; }
+/* 図: 各枠の開始のあたりを拡大。横棒の左端 = 補正を入れた開始 (右へ続く)、細い線 = 配信の実際の開始、縦の白線 = 今。左に基準との開始の差、右に状態 */
+.dg-tl { display: flex; flex-direction: column; gap: 2px; padding: 2px 0 4px; font-size: 11px; font-variant-numeric: tabular-nums; }
+.tl-axis { display: flex; justify-content: space-between; margin: 0 72px 0 76px; color: var(--muted); font-size: 10px; }
+.tl-row { display: flex; align-items: center; gap: 4px; }
+.tl-no { flex: none; width: 12px; color: var(--muted); text-align: right; }
+.tl-diff { flex: none; width: 56px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tl-track { position: relative; flex: 1 1 auto; min-width: 60px; height: 8px; border-radius: 2px; background: #ffffff10; }
+.tl-bar { position: absolute; top: 1px; bottom: 1px; right: 0; border-radius: 2px 0 0 2px; background: var(--g, #888); opacity: .75; }
+.tl-raw { position: absolute; top: -3px; bottom: -3px; width: 1px; background: var(--muted); }
+.tl-raw[hidden], .tl-now[hidden] { display: none; }
+.tl-bar[hidden] { display: none; }
+.tl-now { position: absolute; top: -2px; bottom: -2px; width: 2px; margin-left: -1px; background: var(--text); }
+.tl-st { flex: none; width: 68px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tl-st.is-fix { color: var(--text); }
+/* たためるグループ: たたんだら見出しだけ */
+.dg-fold { flex: none; padding: 0 4px !important; border: none; background: none; color: var(--muted); }
+.dg-count { flex: none; color: var(--muted); font-size: 11px; }
+.sync-dock:not(.mini) .dock-group.is-folded > :not(.dg-head) { display: none; }
+/* 状態は図に出すので、行の ✓ / ↻ はたたんだパネル (図が無い) のときだけ */
+.sync-dock:not(.mini) .dock-row .dr-dot { display: none; }
 .dg-note { color: #f0c36d; font-size: 11px; }
 .dg-note:empty { display: none; }
 .sync-audio.is-measuring { color: #8fd3ff; border-color: #8fd3ff; }
@@ -1551,7 +1571,7 @@ body.grid-fs .sync-dock { top: 0; }
 /* たたんだとき: 番号・ずれ・点だけ */
 .sync-dock.mini .dock-title, .sync-dock.mini .dock-keys, .sync-dock.mini .dock-legend, .sync-dock.mini .dg-actions, .sync-dock.mini .dr-ref-tag, .sync-dock.mini .dr-sub, .sync-dock.mini .dr-name,
 .sync-dock.mini .dr-group, .sync-dock.mini .dr-ref, .sync-dock.mini .dg-seek, .sync-dock.mini .dg-head select,
-.sync-dock.mini .dg-head button, .sync-dock.mini .dg-note, .sync-dock.mini .dg-audio-result { display: none; }
+.sync-dock.mini .dg-head button, .sync-dock.mini .dg-note, .sync-dock.mini .dg-audio-result, .sync-dock.mini .dg-tl, .sync-dock.mini .dg-count { display: none; }
 .sync-dock.mini .dr-short { display: inline; flex: 1 1 auto; text-align: right; }
 .sync-dock.mini .dock-body { padding: 4px; }
 

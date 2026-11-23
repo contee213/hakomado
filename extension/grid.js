@@ -1525,6 +1525,7 @@ const Sync = (() => {
   const waiting = new Map(); // i -> {paused} 「止めて待つ」中の枠 (paused = 止まったのを確かめた)
   const seenSeeks = new Map(); // i -> 最後に見た、枠の中でユーザーがシークした回数
   const drift = new Map(); // i -> 'ok' | 'fix' | 'ref' 追いつき具合 (パネルの点)
+  const driftSec = new Map(); // i -> 設定の位置との差 (秒。+ = 進んでいる)。'fix' の間の「あと何秒」に使う
   let lastChange = null; // 元に戻せる、直前のずれの変更: [{vid, movie, prev, at}]
   const UNDO_MERGE_MS = 5000; // 同じ枠をこの間隔より短く続けて動かしたら、1 回の変更にまとめる
 
@@ -1838,6 +1839,7 @@ const Sync = (() => {
         if (ss.ps === 1 || ss.ps === 3) cmd(i, 'pause');
         if (Math.abs(d) > 0.5) seek(i, target);
         drift.set(i, Math.abs(d) > 0.5 ? 'fix' : 'ok');
+        driftSec.set(i, d);
         continue;
       }
       if (ss.ps !== 1 && ss.ps !== 3) cmd(i, 'play');
@@ -1848,12 +1850,14 @@ const Sync = (() => {
         rate(i, 1);
         seek(i, target + 0.2); // 読み込みに掛かる分、少し先へ (速度で詰め始めるずれより小さく)
         drift.set(i, 'fix');
+        driftSec.set(i, d);
       } else if (ad > RATE_DRIFT || (correcting && ad > RATE_STOP)) {
         // 3 秒ほどで詰め終わる速さ (1〜10% 速く / 遅く。0.5% 単位で丸めて、指示を送り直しすぎないように)
         forceSeek.delete(i);
         const k = Math.round(Math.min(0.1, Math.max(0.01, ad / 3)) * 200) / 200;
         rate(i, d > 0 ? 1 - k : 1 + k);
         drift.set(i, 'fix');
+        driftSec.set(i, d);
       } else {
         forceSeek.delete(i);
         rate(i, 1);
@@ -2384,6 +2388,7 @@ const Sync = (() => {
     let sel = null; // 選んでいる枠
     let hl = null; // 枠の並びで光らせている枠 (行にマウスを乗せた・行を選んだ)
     let structKey = '';
+    const folded = new Set(); // たたんだグループの番号 (調整しているグループだけ開いておけるように)
     const rows = new Map(); // i -> {row, val, wait, cand, dot, short, now, minus, plus}
     const heads = new Map(); // g -> {play, audio, range, now, end, note}
 
@@ -2395,7 +2400,11 @@ const Sync = (() => {
       document.body.classList.toggle('sync-dock-mini', mini);
       document.getElementById('syncDockToggle').classList.add('on');
       place();
-      if (i != null) sel = i;
+      if (i != null) {
+        sel = i;
+        const g = groupOfTile(i)?.g;
+        if (g != null) folded.delete(g); // 選んだ枠のグループは開く
+      }
       structKey = '';
       update();
       if (i != null) rows.get(i)?.row.focus({ preventScroll: false });
@@ -2661,7 +2670,7 @@ const Sync = (() => {
         const step = e.shiftKey ? 0.01 : e.ctrlKey ? 1 : 0.1;
         nudge(i, e.key === 'ArrowLeft' ? -step : step);
       } else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
-        const list = [...body().querySelectorAll('.dock-row')];
+        const list = [...body().querySelectorAll('.dock-row')].filter((r) => r.offsetParent); // たたんだグループの行は飛ばす
         const k = list.indexOf(e.currentTarget) + (e.key === 'ArrowUp' ? -1 : 1);
         list[Math.max(0, Math.min(list.length - 1, k))]?.focus();
       } else if (e.key === 'Enter') {
@@ -2695,16 +2704,134 @@ const Sync = (() => {
       bindSeek(h.range, h.now);
       h.note = mk('div', { class: 'dg-note' });
       const ok = active(G);
+      const fold = mk('button', {
+        type: 'button',
+        class: 'dg-fold',
+        textContent: folded.has(G.g) ? '▸' : '▾',
+        title: tr(folded.has(G.g) ? 'syncGroupUnfold' : 'syncGroupFold'),
+        'aria-expanded': String(!folded.has(G.g)),
+        onclick: () => {
+          if (folded.has(G.g)) folded.delete(G.g);
+          else folded.add(G.g);
+          structKey = '';
+          update();
+        },
+      });
+      h.tl = ok ? timelineEl(G, list) : null;
       const kids = [
-        mk('div', { class: 'dg-head' }, mk('span', { class: 'dg-num', title: tr('syncGroupN', G.g) }, String(G.g)), modeSel),
+        mk(
+          'div',
+          { class: 'dg-head' },
+          fold,
+          mk('span', { class: 'dg-num', title: tr('syncGroupN', G.g) }, String(G.g)),
+          modeSel,
+          folded.has(G.g) ? mk('span', { class: 'dg-count' }, tr('syncGroupCount', list.length)) : null,
+        ),
         ok ? mk('div', { class: 'dg-actions' }, h.play, !isMovie(G) ? h.audio : null, !isMovie(G) ? h.reset : null) : null,
         ok ? mk('div', { class: 'dg-seek' }, h.now, h.range, h.end) : null,
+        h.tl?.el,
         h.note,
         ok ? AudioSync.resultEl(G.g) : null,
         ...list.map((i) => rowEl(i, G)),
       ];
       heads.set(G.g, h);
-      return mk('section', { class: 'dock-group' + (ok ? '' : ' is-idle'), style: `--g: ${colorOf(G.g)}`, dataset: { g: String(G.g) } }, kids);
+      return mk(
+        'section',
+        { class: 'dock-group' + (ok ? '' : ' is-idle') + (folded.has(G.g) ? ' is-folded' : ''), style: `--g: ${colorOf(G.g)}`, dataset: { g: String(G.g) } },
+        kids,
+      );
+    }
+
+    // ---- 図: 各枠の開始のあたりを拡大して並べる (何時間もの配信の全体では、数十秒や 0.1 秒の違いが見えないため。全体はつまみで見る)。
+    // 横棒の左端 = 補正を入れた開始 (この位置でそろえている)、細い線 = 配信の実際の開始 (補正が 0 なら左端と重なる)。
+    // 今の時刻が拡大した範囲に入っていれば縦の線を引く。左に基準との開始の差、右に状態 (✓ 設定どおり / ↻ あと何秒 / 基準 / 待機中)
+    /** 秒 → 「36秒」「2分10秒」「1時間5分」 */
+    function spanLabel(sec) {
+      const s = Math.round(Math.abs(sec));
+      if (s < 60) return tr('syncTlSec', s);
+      if (s < 3600) return s % 60 ? tr('syncTlMinSec', Math.floor(s / 60), s % 60) : tr('syncTlMin', s / 60);
+      return tr('syncTlHour', Math.floor(s / 3600), Math.round((s % 3600) / 60));
+    }
+    /** 枠 i の開始 (時計の上の時刻): {at: 補正を入れた開始, raw: 配信の実際の開始 (本編モードは null)}。分からなければ null */
+    function startMarks(G, i) {
+      if (!views[i].archive) return null; // ライブ (本編モードの基準) は 0 秒が無いので、図には出さない
+      if (isMovie(G)) {
+        const a = anchor(i);
+        return a == null ? null : { at: -a * 1000, raw: null };
+      }
+      return { at: realOf(G, i, 0), raw: views[i].archive.start };
+    }
+    function timelineEl(G, list) {
+      const t = { rows: new Map() };
+      t.lo = mk('span');
+      t.hi = mk('span');
+      const rowsEl = list.map((i) => {
+        const x = {
+          bar: mk('div', { class: 'tl-bar' }),
+          raw: mk('div', { class: 'tl-raw', title: tr('syncTlRawTitle') }),
+          now: mk('div', { class: 'tl-now', title: tr('syncTlNowTitle') }),
+          diff: mk('span', { class: 'tl-diff' }),
+          st: mk('span', { class: 'tl-st' }),
+        };
+        t.rows.set(i, x);
+        return mk(
+          'div',
+          { class: 'tl-row', title: tileName(i) || '' },
+          mk('span', { class: 'tl-no' }, String(tileNo(i))),
+          x.diff,
+          mk('div', { class: 'tl-track' }, x.bar, x.raw, x.now),
+          x.st,
+        );
+      });
+      t.el = mk('div', { class: 'dg-tl' }, mk('div', { class: 'tl-axis' }, t.lo, t.hi), ...rowsEl);
+      return t;
+    }
+    /** 図を今に合わせる (同期の処理のたび) */
+    function updateTimeline(G, t) {
+      const marks = new Map([...t.rows.keys()].map((i) => [i, startMarks(G, i)]));
+      const pts = [...marks.values()].filter(Boolean).flatMap((m) => (m.raw == null ? [m.at] : [m.at, m.raw]));
+      if (!pts.length) return;
+      // 開始どうしの差がちょうど見える広さ (少なくとも前後 3 秒)
+      const min = Math.min(...pts);
+      const max = Math.max(...pts);
+      const pad = Math.max(3000, (max - min) * 0.25);
+      const lo = min - pad;
+      const hi = max + pad * 2;
+      const pct = (v) => Math.max(0, Math.min(100, ((v - lo) / (hi - lo)) * 100));
+      const fmt = isMovie(G) ? (ms) => movieText(ms).replace(/^\S+\s/, '') : clockText;
+      t.lo.textContent = fmt(lo);
+      t.hi.textContent = fmt(hi);
+      const R = nowR(G);
+      const ref = G.ref;
+      // 開始の差: 実際の時刻は配信が始まった時刻どうし (補正は含めない)、本編は本編 0:00 の位置どうし
+      const startOf = (i) => (marks.get(i) ? (marks.get(i).raw ?? marks.get(i).at) : null);
+      for (const [i, x] of t.rows) {
+        const m = marks.get(i);
+        x.bar.hidden = !m;
+        x.raw.hidden = !m || m.raw == null || Math.abs(m.raw - m.at) < 5;
+        if (m) {
+          x.bar.style.left = pct(m.at) + '%';
+          if (m.raw != null) x.raw.style.left = pct(m.raw) + '%';
+        }
+        x.now.hidden = R < lo || R > hi;
+        x.now.style.left = pct(R) + '%';
+        const d = i === ref || startOf(i) == null || startOf(ref) == null ? null : (startOf(i) - startOf(ref)) / 1000;
+        x.diff.textContent =
+          i === ref ? tr('syncTlBase') : d == null ? '' : Math.abs(d) < 0.5 ? tr('syncTlSame') : tr(d < 0 ? 'syncTlEarlier' : 'syncTlLater', spanLabel(d));
+        const st = waiting.has(i) ? 'wait' : drift.get(i);
+        x.st.textContent =
+          st === 'ref'
+            ? tr('syncTlRef')
+            : st === 'wait'
+              ? tr('syncTlWait')
+              : st === 'ok'
+                ? '✓'
+                : st === 'fix'
+                  ? tr('syncTlFix', Math.abs(driftSec.get(i) ?? 0).toFixed(2))
+                  : '—';
+        x.st.classList.toggle('is-fix', st === 'fix');
+        x.st.title = tr('syncDot_' + (st || 'none'));
+      }
     }
 
     function render() {
@@ -2745,6 +2872,7 @@ const Sync = (() => {
         h.play.textContent = tr(playing ? 'syncGroupPauseLabel' : 'syncGroupPlayLabel');
         h.play.title = tr(playing ? 'syncGroupPause' : 'syncGroupPlay');
         fillSeek(h.range, h.now, h.end, G);
+        if (h.tl) updateTimeline(G, h.tl);
         const a = AudioSync.progressText(g);
         h.audio.textContent = a || tr('syncAudioLabel');
         h.audio.classList.toggle('is-measuring', !!a);
