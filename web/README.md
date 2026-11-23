@@ -30,7 +30,7 @@ Cloudflare Workers (静的アセット付き) と D1 で動く。拡張機能 (`
   見つからない動画に印を付け、ページとカードに「消えた動画 n 本」と出す。全部消えたセットは一覧に出さない
 - **英語の画面** (`en`): ブラウザの言語に合わせて英語で出し、下の「English / 日本語」で切り替えられる
 
-「Hakomado で開く」は取り込み用リンク (`https://www.youtube.com/watch_videos?…&hakomado=`) を開くだけ。
+「Hakomado で開く」は取り込み用リンク (`https://www.youtube.com/watch_videos?…&hakomado=1` か `0`。1 なら `title=` が名前) を開くだけ。
 Hakomado を入れていればマルチビュー画面で開き、入れていなければ YouTube の一時的な再生リストとして開く。
 
 ## 仕組み
