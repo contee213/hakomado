@@ -648,17 +648,35 @@ function updateSlotButtons() {
 
 /**
  * 空き枠を消して、枠数の少ないレイアウトにする (上部バーの「−」と、空き枠の ✕)。
- * 読み込んだ配信は並び順のまま残す。prefer を渡すとその空き枠を先に消し、残りは後ろの空き枠から消す
+ * 枠の番号はなるべく変えない (keepNumbersOrder)。prefer = ✕ を押した空き枠 (はみ出す配信を先にここへ移す)
  */
 function removeEmptySlot(prefer = null) {
   const l = shrinkTarget();
   if (!l) return;
-  const shown = visibleIndexes();
-  const empties = shown.filter((j) => !state.tiles[j].videoId).reverse();
-  const pick = empties.includes(prefer) ? [prefer, ...empties.filter((j) => j !== prefer)] : empties;
-  const removed = pick.slice(0, shown.length - l.slots.length);
-  state.order = [...shown.filter((j) => !removed.includes(j)), ...removed, ...state.order.slice(state.count)];
+  state.order = keepNumbersOrder(l.slots.length, prefer);
   setLayout(l.id);
+}
+
+/**
+ * 表示する枠を n 個にするときの並び順。新しいレイアウトにもある番号 (n 番まで) の枠は中身をそのまま (番号を変えない)。
+ * はみ出す番号 (n 番より後ろ) の配信は空き枠に移す。移す先は prefer を先に、残りは番号の大きい空き枠から
+ * (元の番号に近いところ)。今より増やすときは、隠れている空き枠を後ろに足す。
+ * 表示している配信の数が n 以下のときだけ使う (はみ出す配信が必ず空き枠に入るように)
+ */
+function keepNumbersOrder(n, prefer = null) {
+  const shown = visibleIndexes();
+  const hiddenEmpty = state.order.slice(state.count).filter((j) => !state.tiles[j].videoId);
+  const next = [...shown, ...hiddenEmpty].slice(0, n);
+  const holes = next.map((j, k) => k).filter((k) => !state.tiles[next[k]].videoId).reverse();
+  const at = next.indexOf(prefer);
+  if (at >= 0 && holes.includes(at)) {
+    holes.splice(holes.indexOf(at), 1);
+    holes.unshift(at);
+  }
+  for (const j of shown.slice(n)) {
+    if (state.tiles[j].videoId) next[holes.shift()] = j;
+  }
+  return [...next, ...state.order.filter((j) => !next.includes(j))];
 }
 
 /**
@@ -9541,15 +9559,16 @@ function loadPicked(i, videoId, input, label, live) {
   showToast(i, tr(live ? 'pickedLive' : 'pickedArchive', label));
 }
 
-/** 中身のある枠だけを今の並び順のまま残し、その件数に合ったレイアウトにする */
+/** 中身のある枠の件数に合ったレイアウトにする (枠の番号はなるべく変えない。keepNumbersOrder) */
 function compactToContent() {
   const filled = visibleIndexes().filter((i) => state.tiles[i].videoId);
   if (filled.length === 0) {
     layout();
     return;
   }
-  state.layoutId = chooseLayoutFor(filled.length).id;
-  state.order = [...filled, ...state.order.filter((j) => !filled.includes(j))];
+  const l = chooseLayoutFor(filled.length);
+  state.order = keepNumbersOrder(l.slots.length);
+  state.layoutId = l.id;
   renderAll();
   save();
 }
