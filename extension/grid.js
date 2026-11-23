@@ -5013,9 +5013,9 @@ const SHARE_MAX = MAX_TILES;
 
 /**
  * 共有セット: 共有するもの (今の枠 / 再生リスト) と、読み込んだものの共通の形
- * movie = 🎬 本編モード (items の anchor = 本編の位置。sync は false)
+ * movie = 🎬 本編モード (items の anchor = 本編の位置。sync は false)。main = 本編モードで、使う人が 🎬 で「本編にした」動画 (無ければ null)
  * @typedef {{name: string, items: {videoId: string, label?: string, channel?: string, offset?: number, anchor?: number|null}[],
- *   sync: boolean, movie?: boolean, layoutId: string|null, ref: string|null}} ShareSet
+ *   sync: boolean, movie?: boolean, main?: string|null, layoutId: string|null, ref: string|null}} ShareSet
  */
 // コードの読み書き (formatShareCode / parseShareCode / shareName)・取り込み用リンク・1 行 1 本のテキストの読み取りは share-code.js
 
@@ -5028,7 +5028,10 @@ function tilesShareSet(name = '') {
   const refTile = Sync.refIfOn();
   if (Sync.isMovie()) {
     const withAnchor = items.map((h) => ({ ...h, anchor: MovieAnchors.get(h.videoId) }));
-    return { name, items: withAnchor, sync: false, movie: true, layoutId: state.layoutId, ref: refTile != null ? state.tiles[refTile].videoId : null };
+    // 「本編にした」印 (1 本だけのとき。本編の枠の決め方 mainOf と同じ)。プレミア公開でない本編も、受け取った側で本編の枠になるように
+    const marked = items.filter((h) => MovieAnchors.isMain(h.videoId));
+    const main = marked.length === 1 ? marked[0].videoId : null;
+    return { name, items: withAnchor, sync: false, movie: true, main, layoutId: state.layoutId, ref: refTile != null ? state.tiles[refTile].videoId : null };
   }
   const sync = Sync.isOn() || items.some((x) => x.offset);
   return { name, items, sync, layoutId: state.layoutId, ref: sync && refTile != null ? state.tiles[refTile].videoId : null };
@@ -5058,7 +5061,8 @@ async function parseIncoming(text, onProgress) {
   const code = parseShareCode(text) || parseShareLink(text);
   if (code?.movie) {
     const items = code.ids.map((videoId, k) => ({ videoId, anchor: code.movie[k] }));
-    return { name: code.name, items, sync: false, movie: true, layoutId: code.layoutId, ref: code.ids[code.ref], bad: 0, tooMany: false };
+    const main = code.main != null ? code.ids[code.main] : null;
+    return { name: code.name, items, sync: false, movie: true, main, layoutId: code.layoutId, ref: code.ids[code.ref], bad: 0, tooMany: false };
   }
   if (code) {
     const sync = !!code.offsets;
@@ -5114,7 +5118,8 @@ function playlistLayoutId(pl) {
 
 /**
  * 共有セットをコードにする (先頭から 16 本。同期再生ならずれと基準も入れる。名前も入れる)。format = formatShareLink なら QR 用のリンクにする。
- * format は (レイアウト, 動画, ずれ, 基準, 名前, 本編の位置) を受け取る (本編モードでなければ本編の位置は null)
+ * format は (レイアウト, 動画, ずれ, 基準, 名前, 本編の位置, 本編にした動画の番号) を受け取る
+ * (本編モードでなければ本編の位置は null。本編にした動画が無ければ番号は -1)
  */
 function shareSetCode(pl, format = formatShareCode) {
   const items = syncItems(pl);
@@ -5128,6 +5133,7 @@ function shareSetCode(pl, format = formatShareCode) {
     keepRef ? Math.max(0, ids.indexOf(pl.ref)) : 0,
     pl.name,
     pl.movie ? items.map((h) => h.anchor ?? null) : null,
+    pl.movie && pl.main ? ids.indexOf(pl.main) : -1,
   );
 }
 
@@ -5172,6 +5178,7 @@ async function applyShareSet(set) {
   await applyViewingSet(ids, set.layoutId, {
     offsets: set.sync ? items.map((h) => h.offset || 0) : null,
     anchors: set.movie ? items.map((h) => h.anchor ?? null) : null,
+    main: set.movie && ids.includes(set.main) ? set.main : null,
     ref: Math.max(0, ids.indexOf(set.ref)),
     labels: items.map((h) => h.label || ''),
   });
@@ -5179,9 +5186,10 @@ async function applyShareSet(set) {
 
 /**
  * 視聴セットで今の枠を置き換える (同じ配信を表示中の枠はそのまま使い、読み込み直さない)。
- * offsets (動画ごとの同期のずれ) があれば記録し、アーカイブだと分かりしだい ref 番目の動画を基準に同期を始める
+ * offsets (動画ごとの同期のずれ) があれば記録し、アーカイブだと分かりしだい ref 番目の動画を基準に同期を始める。
+ * main (🎬 本編モードで「本編にした」動画) があれば、その動画に「本編にした」印を付ける
  */
-async function applyViewingSet(ids, layoutId, { offsets = null, anchors = null, ref = 0, labels = [], resumeAt = null } = {}) {
+async function applyViewingSet(ids, layoutId, { offsets = null, anchors = null, main = null, ref = 0, labels = [], resumeAt = null } = {}) {
   playlistSyncSession = null;
   if (state.autoMode) await setAutoMode(false); // 自動再生が枠を入れ替えないように
   stopQueue();
@@ -5218,6 +5226,9 @@ async function applyViewingSet(ids, layoutId, { offsets = null, anchors = null, 
   if (offsets) offsets.forEach((o, k) => SyncOffsets.set(ids[k], o));
   // 🎬 本編モード: 本編の位置を記録して、本編モードで同期を始める (決めていない動画の位置は消さない)
   if (anchors) anchors.forEach((a, k) => a != null && MovieAnchors.set(ids[k], a));
+  // 「本編にした」印: 渡された動画に付け、セットのほかの動画からは外す (2 本に付いていると本編の枠が決まらないため)。
+  // 印の入っていないコード (以前の版で作ったものなど) では、こちらで付けた印をそのままにする
+  if (anchors && main) for (const id of ids) if (id === main || MovieAnchors.isMain(id)) MovieAnchors.setMain(id, id === main);
   renderAll();
   save();
   if (offsets) Sync.startWhenReady(assigned, assigned[refK], { at: resumeAt });
@@ -5373,7 +5384,7 @@ async function renderShareImage(set, { labels = false, author = '', qrText = '' 
   const title = shareName(set.name) || `${SHARE_TAG} ${tr('shareImageTitle')}`;
   // QR にはコードと同じ中身のリンクを入れる (スマホのカメラで読むと YouTube で開ける)。
   // qrText (Hakomado Feed の短縮リンク) を渡したときはそれを入れる (読むと Feed のページが開く)
-  const code = qrText || shareSetCode(set, (l, ids, o, r, n, mv) => formatShareLink(l, ids, o, r, n, title, false, mv));
+  const code = qrText || shareSetCode(set, (l, ids, o, r, n, mv, mk) => formatShareLink(l, ids, o, r, n, title, false, mv, mk));
   const canvas = document.createElement('canvas');
   canvas.width = SHARE_W;
   canvas.height = SHARE_H;
@@ -5875,7 +5886,7 @@ function setupShare() {
     const blob = imageBlob;
     const title = shareName(set.name) || `${SHARE_TAG} ${tr('shareImageTitle')}`;
     // X の本文に入れるリンクは名前も % にする (X は URL の途中の日本語でリンクを切る)
-    const url = formatXPostUrl(`${title} #${SHARE_TAG}`, shareSetCode(set, (l, ids, o, r, n, mv) => formatShareLink(l, ids, o, r, n, title, true, mv)));
+    const url = formatXPostUrl(`${title} #${SHARE_TAG}`, shareSetCode(set, (l, ids, o, r, n, mv, mk) => formatShareLink(l, ids, o, r, n, title, true, mv, mk)));
     const allowed = await asked;
     // 入れられなかったときのために、画像はいつもクリップボードにも入れておく
     let copied = false;
