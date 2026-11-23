@@ -70,3 +70,34 @@ test('ほかのタブで変わったら、変わった動画だけを知らせ�
   await env.chrome.storage.local.set({ other: 1 });
   assert.equal(got.length, 1);
 });
+
+test('見当の印: guess で記録すると見当、ふつうに記録し直すと決めた値。消しても「本編にした」の印は残る', async () => {
+  const { M, env } = setup();
+  await M.load();
+  await M.set(vid(1), 10, { guess: true });
+  assert.equal(M.get(vid(1)), 10);
+  assert.equal(M.isGuess(vid(1)), true);
+  await M.set(vid(1), 12.5);
+  assert.equal(M.isGuess(vid(1)), false, '使う人が決めた値は見当ではない');
+  await M.setMain(vid(1), true);
+  assert.equal(M.isMain(vid(1)), true);
+  assert.equal(M.get(vid(1)), 12.5, '本編にしても位置はそのまま');
+  await M.remove(vid(1));
+  assert.equal(M.get(vid(1)), null);
+  assert.equal(M.isMain(vid(1)), true, '位置を消しても本編の印は残る');
+  assert.ok(env.chrome.storage.local._dump().movieAnchors[vid(1)]);
+  await M.setMain(vid(1), false);
+  assert.equal(M.isMain(vid(1)), false);
+  assert.equal(env.chrome.storage.local._dump().movieAnchors[vid(1)], undefined, '何も無くなったら消える');
+});
+
+test('読み込むとき: 本編の印だけの項目も読む。見当の印は位置があるときだけ', async () => {
+  const { M } = setup({ movieAnchors: { [vid(1)]: { m: 1, at: 1 }, [vid(2)]: { g: 1, at: 1 }, [vid(3)]: { s: 5, g: 1, m: 1 } } });
+  await M.load();
+  assert.equal(M.isMain(vid(1)), true);
+  assert.equal(M.get(vid(1)), null);
+  assert.equal(M.isGuess(vid(2)), false);
+  assert.equal(M.get(vid(2)), null);
+  assert.equal(M.isGuess(vid(3)), true);
+  assert.equal(M.isMain(vid(3)), true);
+});
