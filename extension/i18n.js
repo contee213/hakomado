@@ -991,6 +991,8 @@ const HTML_EN = {
   'share.tabLink': '🌐 Link',
   'share.toX': '𝕏 Post',
   'share.toXTitle': 'Open the X post screen with the image, the name and the link filled in (you press Post yourself)',
+  'share.toFeed': '📮 Post to the site',
+  'share.toFeedTitle': 'Open the post screen of the Hakomado site with this set’s code filled in (sign in with X and press Post yourself; the extension sends nothing)',
   'share.imgCopy': '🖼 Copy image',
   'share.imgSave': '⬇ Save image',
   'share.authorLabel': 'Author',

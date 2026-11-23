@@ -239,6 +239,28 @@ test.describe('共有', () => {
     await second.locator('#openShare').click();
     await expect(second.locator('#shareAuthor')).toHaveValue('@someone');
   });
+
+  test('「サイトに投稿」はコードを # の後ろに入れた投稿画面をタブで開くだけで、拡張機能からは送らない', async ({ openGrid, context }) => {
+    const page = await openGrid();
+    await skipTour(page);
+    const input = visibleTiles(page).first().locator('.url-input');
+    await input.fill('dQw4w9WgXcQ');
+    await input.press('Enter');
+    // サイトへの通信は止めずに、記録して空のページを返す (後から足した route が先に効く)
+    const sent = [];
+    await context.route('https://hakomado.contee.net/**', (route) => {
+      sent.push(`${route.request().method()} ${route.request().url()}`);
+      return route.fulfill({ status: 200, contentType: 'text/html', body: '<!doctype html><title>feed</title>' });
+    });
+    await page.locator('#openShare').click();
+    await page.locator('#shareDialog [data-stab="code"]').click();
+    const code = await page.locator('#shareCode').inputValue();
+    const [tab] = await Promise.all([context.waitForEvent('page'), page.locator('#shareCodeToFeed').click()]);
+    await tab.waitForLoadState();
+    expect(tab.url()).toBe(`https://hakomado.contee.net/post#text=${encodeURIComponent(code)}`);
+    // 開いたタブがページを読みに行くだけ (# の後ろは送られない)。POST はしない
+    expect(sent).toEqual(['GET https://hakomado.contee.net/post']);
+  });
 });
 
 test.describe('ライブラリの複数選択', () => {

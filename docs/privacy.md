@@ -43,6 +43,10 @@ Hakomado (以下「この拡張機能」) は、YouTube の配信・動画を 1 
 画像を入れるために、初めて押したときに `x.com` へのアクセスの許可を求めます (許可しなくても、画像を貼り付けて使えます)。
 この拡張機能は投稿しません。投稿するかどうか・何を投稿するかは、利用者が X の画面で確かめて決めます。
 
+共有画面の「📮 サイトに投稿」を押すと、共有用のサイト Hakomado (`hakomado.contee.net`。開発者が運営) の投稿画面を新しいタブで開き、そのセットのコードを入れます。
+コードは URL の「#」の後ろに入れるので、開いただけではサイトに送られません。投稿するかどうかは、利用者がサイトの画面で確かめて決めます (投稿には X でのログインが要ります)。
+サイトでの情報の扱いは、[サイトのプライバシーポリシー](privacy-feed.md) に書いています。
+
 これらのサービスでの情報の扱いは、それぞれのプライバシーポリシーに従います
 ([Google](https://policies.google.com/privacy) / [GitHub](https://docs.github.com/site-policy/privacy-policies/github-general-privacy-statement) / [X](https://x.com/ja/privacy))。
 
@@ -102,6 +106,10 @@ The extension itself sends nothing; you review the page on GitHub and decide whe
 When you press "𝕏 Post" on the share screen, the extension opens X's (`x.com`) post screen in a new tab and fills in the share image, the name and the import link.
 To add the image, it asks for permission to access `x.com` the first time you press it (without it, you can still paste the image yourself).
 The extension never posts; you review the post on X and decide whether and what to post.
+
+When you press "📮 Post to the site" on the share screen, the extension opens the post screen of the sharing site Hakomado (`hakomado.contee.net`, run by the developer) in a new tab with that set's code filled in.
+The code is placed after the "#" in the URL, so opening the page does not send it to the site. You review it on the site and decide whether to post (posting requires signing in with X).
+How the site handles information is described in [the site's privacy policy](privacy-feed.md).
 
 Information on those services is handled under their own privacy policies
 ([Google](https://policies.google.com/privacy) / [GitHub](https://docs.github.com/site-policy/privacy-policies/github-general-privacy-statement) / [X](https://x.com/en/privacy)).

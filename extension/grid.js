@@ -5668,6 +5668,9 @@ async function readQrFromImage(blob) {
 // (人が画像を選んだときと同じ)。x.com の権限は任意の権限で、初めて押したときに聞く。
 // 許可されなかったとき・X の画面が変わって入れられなかったときは、クリップボードの画像を Ctrl+V で貼ってもらう
 const X_ORIGIN = 'https://x.com/*';
+// Hakomado のサイト (Hakomado Feed。web/) の投稿画面。拡張機能からは送らず、コードを # の後ろに入れて開くだけ
+// (# の後ろはサーバーに送られない。投稿は X でログインした利用者がサイトの画面で押す)
+const FEED_POST_URL = 'https://hakomado.contee.net/post';
 
 /** タブの読み込みが終わるのを待つ (最大 ms。終わらなくても進む) */
 function waitTabComplete(tabId, ms) {
@@ -5761,7 +5764,8 @@ function setupShare() {
   const xCountEl = document.getElementById('shareXCount');
   const tabs = dialog.querySelectorAll('[data-stab]');
   const imgBtns = ['shareToX', 'shareImgCopy', 'shareImgSave'].map((id) => document.getElementById(id));
-  const outBtns = [...imgBtns, ...['shareAltCopy', 'shareCopyCode', 'shareCopyText', 'shareCopyLink'].map((id) => document.getElementById(id))];
+  const feedBtns = ['shareToFeed', 'shareCodeToFeed'].map((id) => document.getElementById(id));
+  const outBtns = [...imgBtns, ...feedBtns, ...['shareAltCopy', 'shareCopyCode', 'shareCopyText', 'shareCopyLink'].map((id) => document.getElementById(id))];
   const TAB_KEY = 'hakomado.shareTab';
   const LABELS_KEY = 'hakomado.shareImgLabels'; // 画像の各枠に枠の名前を入れるか (既定は入れない)
   const labelsEl = document.getElementById('shareImgLabels');
@@ -5955,6 +5959,13 @@ function setupShare() {
       setStatus(tr('shareImageFail', e.message || e), true);
     }
   });
+  // サイトに投稿: コードを入れた投稿画面を新しいタブで開く (送るのは利用者がサイトで「投稿する」を押したとき)
+  for (const b of feedBtns) {
+    b.addEventListener('click', () => {
+      const code = set ? shareSetCode(set) : '';
+      if (code) window.open(`${FEED_POST_URL}#text=${encodeURIComponent(code)}`, '_blank', 'noopener,noreferrer');
+    });
+  }
   document.getElementById('shareToX').addEventListener('click', async () => {
     if (!imageBlob || !set) return;
     // x.com の権限は、押した操作の中で最初に聞く (await の後では聞けない)。許可済みなら聞かずに true

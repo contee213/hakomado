@@ -10,6 +10,44 @@ const POST_VIEW = (() => {
   let needTurnstile = false;
   let sending = false;
 
+  // 拡張機能の「Hakomado Feed に投稿」は、/post#text=<コード> を開く (# の後ろはサーバーに送られない)。
+  // X でログインして戻るとき # の後ろは無くなるので、このタブの sessionStorage に預けておき、投稿できるようになったら欄に入れる。
+  // 自動では送らない (利用者が中身を見て「投稿する」を押す)
+  const DRAFT = 'hakomado-feed:draft';
+  let draft = '';
+  try {
+    draft = sessionStorage.getItem(DRAFT) || '';
+  } catch {
+    // 預けられなくても、ログインしていればそのまま使える
+  }
+  function takeHashDraft() {
+    const m = location.hash.match(/^#text=([^]*)$/);
+    if (!m) return;
+    history.replaceState(history.state, '', location.pathname + location.search);
+    let text = '';
+    try {
+      text = decodeURIComponent(m[1]).slice(0, 2000);
+    } catch {
+      return; // 壊れた %
+    }
+    if (!text.trim()) return;
+    draft = text;
+    try {
+      sessionStorage.setItem(DRAFT, text);
+    } catch {
+      // 何もしない
+    }
+  }
+  function clearDraft() {
+    draft = '';
+    try {
+      sessionStorage.removeItem(DRAFT);
+    } catch {
+      // 何もしない
+    }
+  }
+  takeHashDraft();
+
   /** 貼られたテキストを読む (サーバーと同じ読み方。送る前に形を見せるため) */
   function parse(text) {
     const got = parseShareCode(text) || parseShareLink(text);
@@ -138,6 +176,7 @@ const POST_VIEW = (() => {
       if (FEAT.tags) body.tags = $('tagsIn').value;
       if (FEAT.unlisted) body.unlisted = $('unlisted').checked;
       const r = await api('/api/sets', body);
+      clearDraft();
       if (r.existed) {
         APP.go(`/s/${r.id}?existed=1`);
         return;
@@ -185,6 +224,10 @@ const POST_VIEW = (() => {
     $('postLead').hidden = !user; // コードの貼り方の説明は、投稿できるときだけ
     if (user) {
       $('authorX').textContent = t('authorX', user.username);
+      if (draft && !$('text').value.trim()) {
+        $('text').value = draft;
+        update();
+      }
       return;
     }
     $('postLoginMsg').textContent = t(FEAT.xLogin ? 'postLoginNeeded' : 'postClosed');
@@ -197,6 +240,7 @@ const POST_VIEW = (() => {
     /** 投稿の画面を出す。前の投稿が済んでいたら、新しく書ける状態に戻す */
     enter() {
       document.title = t('titlePost');
+      takeHashDraft();
       if (!$('done').hidden) {
         $('done').hidden = true;
         $('text').value = '';
