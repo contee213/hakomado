@@ -160,6 +160,14 @@ test('配信の遅れの差が 1 分を超える枠も合わせる (実測: 5 �
   near(r.deltas[2], -63.3, 0.02, '枠 2');
 });
 
+test('7 枠 (スペクトルを持っておかず、基準との組と隣どうしの組だけ): 全部の枠を合わせる', async () => {
+  const D = [0, 1200, -800, 2500, 400, -1900, 3100];
+  const r = await A.analyze(scenario({ n: 7, D, callMs: 250 }), 0);
+  assert.equal(r.ok, true);
+  for (let k = 1; k < 7; k++) near(r.deltas[k], D[k] / 1000, 0.02, `枠 ${k}`);
+  assert.ok(r.pairs.length < 21, '全部の組 (21) は突き合わせない');
+});
+
 test('サンプルが抜けても、再生位置の読み取りが揺れても合う', async () => {
   const items = scenario({ n: 2, D: [0, 2500], callMs: 280, drop: 0.005, jitter: 0.006, seed: 11 });
   const r = await A.analyze(items, 0);

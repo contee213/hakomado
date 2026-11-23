@@ -406,21 +406,26 @@ const AudioAlign = (() => {
     const none = (reason) => ({ ok: false, reason, deltas, z: zs, grade: new Array(n).fill(null), two: null, pairs: [] });
     const usable = R.map((r) => !!r && validMs(r) >= MIN_TRACK_MS);
     if (!usable[ref]) return none('short');
-    // スペクトルは枠ごとに 1 回だけ作って、組ごとに使い回す (全体・前半・後半)
+    // スペクトルは枠ごとに 1 回だけ作って、組ごとに使い回す (全体・前半・後半)。
+    // 枠が多いときは持っておかず、組ごとに作る (180 秒分だと 1 枠 16 MB ほどになり、16 枠では Worker のメモリが足りなくなる)
     const maxLen = Math.max(...R.filter(Boolean).map((r) => r.x.length));
     const N = sizeFor(2 * maxLen);
     const Nh = sizeFor(2 * (maxLen - (maxLen >> 1)));
-    const S = R.map((r, k) => (usable[k] ? { full: spectra(r, N), h: [spectra(half(r, 0), Nh), spectra(half(r, 1), Nh)] } : null));
+    const make = (k) => ({ full: spectra(R[k], N), h: [spectra(half(R[k], 0), Nh), spectra(half(R[k], 1), Nh)] });
+    const cached = n <= PAIRS_ALL_MAX ? R.map((r, k) => (usable[k] ? make(k) : null)) : null;
+    const specOf = (k) => (cached ? cached[k] : make(k));
     const want = (i, j) => n <= PAIRS_ALL_MAX || i === ref || j === ref || j === i + 1;
     const pairs = [];
     for (let i = 0; i < n; i++) {
       for (let j = i + 1; j < n; j++) {
-        if (!S[i] || !S[j] || !want(i, j)) continue;
-        const pk = pick(correlateSpectra(S[i].full, S[j].full), n >= 3);
+        if (!usable[i] || !usable[j] || !want(i, j)) continue;
+        const Si = specOf(i);
+        const Sj = specOf(j);
+        const pk = pick(correlateSpectra(Si.full, Sj.full), n >= 3);
         if (!pk) continue;
         // 前半と後半で別々に測って、強いのに全体の答えと食い違うなら採らない (声の少ない区間の偽のピーク)。
         // 前半はおもに A が、後半はおもに B が話していれば、半分ずつではそれぞれの声のピーク (lo / hi) が出るので、それは食い違いとしない
-        const h = [0, 1].map((w) => pick(correlateSpectra(S[i].h[w], S[j].h[w], { minOverlap: MIN_OVERLAP_MS / 2 }), n >= 3));
+        const h = [0, 1].map((w) => pick(correlateSpectra(Si.h[w], Sj.h[w], { minOverlap: MIN_OVERLAP_MS / 2 }), n >= 3));
         const split = h.some((x) => x && x.z >= Z_OK * 0.8 && !agrees(pk, x));
         const ok = pk.z >= Z_OK && !split;
         const w = !ok ? 0 : n >= 3 && pk.kind === 'single' ? pk.z * SINGLE_WEIGHT : pk.z;
