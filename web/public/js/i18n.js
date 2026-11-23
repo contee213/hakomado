@@ -104,7 +104,7 @@ const STR = {
   notFoundGone: ['セットが見つかりません (削除されたか、非公開になっています)', 'Set not found (it was deleted or hidden)'],
   syncPlay: ['同期再生', 'Synced'],
   syncRef: ['同期の基準', 'Sync reference'],
-  syncOffset: ['ずれ {0} 秒', 'offset {0}s'],
+  syncOffset: ['補正 {0} 秒', 'offset {0}s'],
   moviePlay: ['🎬 本編でそろえる', '🎬 Aligned on the movie'],
   movieAt: ['本編 0:00 = {0}', 'Movie 0:00 at {0}'],
   goneVideo: ['見つからない動画 (削除・非公開)', 'Unavailable (removed or private)'],

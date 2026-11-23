@@ -25,17 +25,13 @@
     <button id="pauseAll" class="toggle" type="button" aria-pressed="false" data-i18n-title="pauseAll.title" title="全部の枠をまとめて一時停止 / 再開 (Space)。再開するとき、ライブ配信は最新の位置に戻ります"><span class="tb-icon">⏸</span><span class="tb-label" data-i18n="pauseAll.label">一時停止</span></button>
     <button id="nowPlaying" class="now-playing" type="button" data-i18n="nowPlaying">🔇 ミュート中</button>
     <button id="syncToggle" class="toggle unavailable" type="button" aria-pressed="false" aria-disabled="true" data-i18n-title="sync.title" title="アーカイブ同期: 配信のアーカイブを、配信していた実際の時刻でそろえて再生する"><span class="tb-icon">⏱</span><span class="tb-label" data-i18n="sync.label">アーカイブ同期</span></button>
+    <!-- 同期中だけ: 音を出している枠のグループの時刻とつまみ (グループが 2 つ以上なら、その番号と色)。☰ = 同期の調整パネル (画面の右の列) -->
     <div id="syncBar" class="sync-bar" hidden>
-      <select id="syncMode" class="sync-mode" data-i18n-title="sync.modeTitle" title="何でそろえるか: 🕒 実際の時刻 (同じ時間に配信していたコラボの各視点) / 🎬 本編 (時間のずれた同時視聴を、見ている作品の同じ場面で)">
-        <option value="time" data-i18n="sync.modeTime">🕒 実際の時刻</option>
-        <option value="movie" data-i18n="sync.modeMovie">🎬 本編</option>
-      </select>
-      <select id="syncRef" class="sync-ref" data-i18n-title="sync.refTitle" title="同期の基準の枠 (ほかの枠がこの枠に合わせる)。音を切り替えても変わりません"></select>
+      <span id="syncGroupDot" class="sync-group-dot" hidden></span>
       <span id="syncNow" class="sync-time"></span>
       <input type="range" id="syncSeek" min="0" max="1" step="1" value="0" data-i18n-title="sync.seekTitle" title="同期している全部のアーカイブを、この時刻に動かす">
       <span id="syncEnd" class="sync-time"></span>
-      <button id="syncAudio" type="button" class="sync-audio" data-i18n-title="sync.audioTitle" title="🎧 音で合わせる: 同期している枠の音 (コラボの通話の声) を 90 秒聞いて、ずれを測ります。今の位置から再生したまま測り、結果を確かめてから反映できます。もう一度押すとやめます">🎧</button>
-      <div id="syncAudioPanel" class="sync-audio-panel" role="dialog" hidden></div>
+      <button id="syncDockToggle" type="button" class="sync-dock-toggle" data-i18n-title="sync.dockTitle" title="同期の調整パネル (グループ・基準・補正・✨ 自動補正) を出す / しまう">☰</button>
     </div>
 
     <span class="spacer"></span>
@@ -52,6 +48,16 @@
   </header>
 
   <main id="grid" class="grid"></main>
+  <!-- 同期の調整パネル (アーカイブ同期中。枠の上に浮かぶ半透明の小窓か、画面の右の列 (枠の並びはこの分だけ横に縮む))。中身は grid.js (Sync の Dock) が作る -->
+  <aside id="syncDock" class="sync-dock" hidden>
+    <div class="dock-head">
+      <span class="dock-title" data-i18n="sync.dockHead">⏱ 同期の調整</span>
+      <button type="button" id="syncDockFloat" class="dock-float">⇲</button>
+      <button type="button" id="syncDockMini" class="dock-mini">⇥</button>
+      <button type="button" id="syncDockClose" class="dock-close" data-i18n-title="close" title="閉じる">✕</button>
+    </div>
+    <div id="syncDockBody" class="dock-body"></div>
+  </aside>
   <div id="globalToast" class="toast global-toast" role="status"></div>
 
   <dialog id="startDialog" class="start-dialog">
@@ -292,7 +298,7 @@
             <ul>
               <li>上のバーの「▦」でレイアウトを選びます。濃い枠がメインで、読み込んだ配信は 1 番 (メイン) から順に入ります。「＋」「−」で枠を増やす・減らす</li>
               <li>配信の入った枠にマウスを乗せると、操作バーが出ます。左端の ⠿ をドラッグすると、枠を入れ替えます</li>
-              <li>枠のバー: 音のボタン (この枠の音を出す) / 🎚 音の左右・音量・遅延 / 💬 チャット欄 / ≋ 弾幕 / 📌 ピックアップ / 🔖 あとで見る / 📃 再生リストに入れる / ⏱ 同期のずれ (アーカイブのとき) / ⟳ 読み込み直し / ⛶ その枠だけ全画面 / ✕ 閉じる</li>
+              <li>枠のバー: 音のボタン (この枠の音を出す) / 🎚 音の左右・音量・遅延 / 💬 チャット欄 / ≋ 弾幕 / 📌 ピックアップ / 🔖 あとで見る / 📃 再生リストに入れる / ⏱ 同期の調整 (アーカイブのとき) / ⟳ 読み込み直し / ⛶ その枠だけ全画面 / ✕ 閉じる</li>
               <li>🎚 では、その枠の音を左・真ん中・右から聞こえるようにしたり、音量 (0〜200%) を変えたりできます。「⇆ 2 枠を左右に分ける」で、音の出ている 2 枠を画面の位置どおり左右に分けます。ライブ配信では「音の遅延」で、その枠の音だけを遅らせられます (映像はそのまま。コラボで、ほかの枠より声が先に聞こえるときに)</li>
               <li>「⛶」(<kbd>Shift</kbd> + <kbd>F</kbd>) で、分割したまま全画面にします。上端にマウスを寄せるとバーが出ます</li>
               <li>「ℹ️」(<kbd>I</kbd>) で、各枠の種類 (ライブ・アーカイブ・動画)・配信の時間・今の視聴者数・再生数・アーカイブ同期できるかを一覧で見られます</li>
@@ -349,9 +355,11 @@
           <section class="help-page" data-help-page="sync" role="tabpanel" data-i18n-html="helpPage.sync" hidden>
             <ul>
               <li>上のバーの「⏱ アーカイブ同期」を押すと、配信の時間帯が重なるアーカイブを、配信していた実際の時刻でそろえて再生します。アーカイブが 2 本そろっていないときは薄く出ていて、押すと使えない理由 (ライブ配信中・ふつうの動画など) が出ます</li>
-              <li>ほかの枠は「基準」の枠 (始めたときに音を出している枠) に合わせます。上のバーや枠の ⏱ で選び直せます</li>
-              <li>声や画面の出来事で合わない分は、枠の ⏱ でずれを足し引きします。ずれは動画ごとに覚え、再生リストや共有するコードにも入ります</li>
-              <li>上のバーのつまみで、同期している全部のアーカイブを同じ時刻に動かせます</li>
+              <li>時間帯が重なるアーカイブどうしを自動でグループにまとめるので、別々のコラボの A・B と C・D を別々にそろえられます (4 組まで。枠に色と番号が出ます)。グループは同期の調整パネルの各行で付け替えられます</li>
+              <li>同期の調整パネル (上のバーの ☰ か、枠の ⏱) は、枠の上に浮かぶ半透明の小窓で出ます (見出しをつかんで動かせます。⇲ で画面の右の列にもできます)。グループごとに、そろえ方 (🕒 実際の時刻 / 🎬 本編)・⏸・✨ 自動補正・つまみ、枠ごとに、基準 (🔒。🎬 本編のグループでは ◉)・補正・⏸ 止めて待つ があります。グループごとの図は、各枠の開始のあたりを拡大したものです (開始どうしが 1 分より離れていれば、間を詰めて棒に切れ目を入れます。上に各枠の開始の時刻を出せるだけ出します)。横棒は配信の実際の開始から右へ続き、補正の分は水色で出ます (早めたか遅らせたかは、細い線との位置で分かります)。出す位置は基準と一緒に流れ始めるところ (基準より前に始まった枠は基準の開始) で、細い線が補正を入れる前の位置です。そのとき既に流れているほかの枠の行にも同じ時刻に細い線が出るので、見比べられます。基準との開始の差と、設定の位置まであと何秒かも出ます。調整しないグループは ▾ でたためます</li>
+              <li>合わせるのは基準でない枠です。基準の枠 (行の頭が 🔒) の補正はいつも 0 で、基準を変えると、そろい方はそのままで補正をほかの枠に移します。補正は −0.1・−0.01・+0.01・+0.1 のボタンで動かし、押し続けると続けて動きます。⏸ はこの枠だけ止めて待ち、▶ でそこに合わせます。行を選んで ← → でも補正を 0.1 秒ずつ動かせます (Shift で 0.01 秒)。行の ✓ は設定した補正どおりの位置で再生中、↻ はその位置へ寄せている途中です (声が合っているかは、聞いて確かめます)。手で合わせてうまくいかなかったときは、行の ↺ (グループ全部なら見出しの ↺) で実際の時刻に戻せます。補正は動画ごとに覚え、再生リストや共有するコードにも入ります</li>
+              <li>上のバーのつまみは、音を出している枠のグループを動かします</li>
+              <li>基準の選び方: 主に音を聞く枠を基準にすると、その音がいちばん自然に聞こえます (ほかの枠は合わせるために少し速さを変えたり飛んだりします)。1 本だけ補正が大きくなる枠があれば、その枠は基準にしないほうが、ほかの動画の補正が小さく済みます (補正は動画ごとに覚えるので、ほかの組み合わせでもそのまま使えます)</li>
             </ul>
           </section>
           <section class="help-page" data-help-page="share" role="tabpanel" data-i18n-html="helpPage.share" hidden>
@@ -359,7 +367,7 @@
             <ul>
               <li><b>画像</b>: X などに添えて投稿します。QR を読むと YouTube で開け、Hakomado では同じ並びで開けます。画像に付ける説明 (ALT) の文もコピーできます。「𝕏 に投稿」で、画像・名前・リンクを入れた X の投稿画面を開きます (投稿ボタンは自分で押します。初めてのときは x.com へのアクセスの許可を聞きます)</li>
               <li><b>コード</b>: <code>#Hakomado …</code> の 1 行 (16 本まで)。X での文字数も出します</li>
-              <li><b>テキスト</b>: 1 行に 1 本。名前・同期・レイアウト・ずれ・枠の名前まで全部入ります。AI チャットに渡して直してもらうこともできます</li>
+              <li><b>テキスト</b>: 1 行に 1 本。名前・同期・レイアウト・補正・枠の名前まで全部入ります。AI チャットに渡して直してもらうこともできます</li>
               <li><b>取り込み用リンク</b>: Hakomado が無い人も YouTube の再生リストとして見られます (50 本まで)</li>
             </ul>
             <p>受け取ったものは「📥 読み込む」に貼ります (画像はドロップでも。入力欄の外で <kbd>Ctrl</kbd> + <kbd>V</kbd> しても開きます)。読み取った内容を確かめて、「▦ 枠に並べる」か「📃 再生リストとして保存」を選びます。取り込み用リンクを開いたときもここに来ます。</p>
@@ -451,7 +459,7 @@
           <p class="settings-note" id="shareNoteImage"></p>
           <!-- 短縮リンク (sets-link.js の機能フラグがオンのときだけ出す) -->
           <div class="share-short" data-sets-link hidden>
-            <button type="button" id="shareImgShort" data-i18n="share.imgShort" data-i18n-title="share.imgShortTitle" title="このセット (動画・レイアウト・同期のずれ・名前) を Hakomado のサイトに送って短いリンクを作り、QR の中身をそのリンクにする (QR が小さく読み取りやすくなる)">✂ QR を短縮リンクにする</button>
+            <button type="button" id="shareImgShort" data-i18n="share.imgShort" data-i18n-title="share.imgShortTitle" title="このセット (動画・レイアウト・同期の補正・名前) を Hakomado のサイトに送って短いリンクを作り、QR の中身をそのリンクにする (QR が小さく読み取りやすくなる)">✂ QR を短縮リンクにする</button>
             <span id="shareImgShortState" class="share-status"></span>
           </div>
           <div class="share-buttons">
@@ -484,7 +492,7 @@
           </div>
           <!-- 短縮リンク (sets-link.js の機能フラグがオンのときだけ出す) -->
           <div class="share-short" data-sets-link hidden>
-            <p class="settings-note" data-i18n="share.shortNote">「短縮リンクを作る」を押すと、このセット (動画・レイアウト・同期のずれ・名前) を Hakomado のサイトに送り、短いリンクを作ります。リンクを知っている人だけが見られます (サイトの一覧には載りません)</p>
+            <p class="settings-note" data-i18n="share.shortNote">「短縮リンクを作る」を押すと、このセット (動画・レイアウト・同期の補正・名前) を Hakomado のサイトに送り、短いリンクを作ります。リンクを知っている人だけが見られます (サイトの一覧には載りません)</p>
             <div class="share-buttons">
               <button type="button" id="shareShortMake" data-i18n="share.shortMake">✂ 短縮リンクを作る</button>
               <input type="text" id="shareShort" class="share-short-url" readonly spellcheck="false" hidden>
@@ -589,7 +597,7 @@
         </span>
         <select id="plSelect" class="pl-select" data-i18n-title="pl.selectTitle" title="表示する再生リスト" hidden></select>
         <button type="button" id="plNew" class="pl-new" data-i18n="pl.new" data-i18n-title="pl.newTitle" title="空の再生リストを作る。下の欄や、枠・一覧の 📃 で中身を入れる" hidden>＋ 新規</button>
-        <button type="button" id="plFromTiles" class="pl-new" data-i18n="pl.fromTiles" data-i18n-title="pl.fromTilesTitle" title="表示中の枠の配信を、並び順・レイアウト・同期のずれごと新しい再生リストにする" hidden>▦ 今の枠から作る</button>
+        <button type="button" id="plFromTiles" class="pl-new" data-i18n="pl.fromTiles" data-i18n-title="pl.fromTilesTitle" title="表示中の枠の配信を、並び順・レイアウト・同期の補正ごと新しい再生リストにする" hidden>▦ 今の枠から作る</button>
         <button type="button" id="plImport" class="pl-new" data-i18n="pl.import" data-i18n-title="pl.importTitle" title="共有された画像・コード・テキスト・リンクや URL のリストを貼って、再生リストとして保存する。AI チャットに作ってもらうこともできる" hidden>📥 読み込む</button>
         <input type="search" id="favFilter" data-i18n-placeholder="fav.filter" placeholder="名前・@チャンネル名で絞り込み" spellcheck="false">
         <!-- 件数は一覧のすぐ上 (絞り込み欄の右) に。タブの横に出すとタブの位置と紛らわしいので -->
@@ -691,36 +699,8 @@
         <div class="toast" role="status"></div>
         <!-- アーカイブの同期再生: この枠の配信がまだ始まっていない / もう終わっている時刻のときの表示 -->
         <div class="sync-overlay" hidden></div>
-        <!-- 同期のずれの微調整 (枠のバーの ⏱ で開く) -->
-        <div class="sync-panel" hidden>
-          <div class="sync-row">
-            <span class="sync-panel-label"></span>
-            <input type="number" class="sync-input" step="0.01" data-i18n-title="sync.inputTitle" title="ずらす秒数を直接入れる (+ = 先へ進める、− = 戻す)。Enter で決定" />
-            <button type="button" data-sync="wait" class="sync-wait" data-i18n-title="sync.waitTitle" title="この枠だけ止めて、ほかが追いつくのを待つ。合ったところで再生すると、そこでずれが決まります (基準でない枠は、枠の中のプレイヤーで一時停止してもできます)"></button>
-            <button type="button" data-sync="0" class="sync-reset" data-i18n="sync.reset">0 に戻す</button>
-            <button type="button" data-sync="ref" class="sync-set-ref" data-i18n="sync.setRef">この枠を基準にする</button>
-          </div>
-          <!-- 🎬 本編モード: 本編の位置 (本編 0:00 に当たる、この動画の再生位置) を決める -->
-          <div class="sync-row sync-movie" hidden>
-            <button type="button" data-sync="here" data-i18n="sync.movieHere" data-i18n-title="sync.movieHereTitle" title="今、この枠で本編 (映画など) が 0:00 のところ。押した瞬間の再生位置を、この動画の本編の位置にします">▶ ここが本編 0:00</button>
-            <label class="movie-now"><span data-i18n="sync.movieNow">今は本編の</span> <input type="text" class="movie-now-input" inputmode="numeric" placeholder="0:47:12" size="8" data-i18n-title="sync.movieNowTitle" title="今この枠で、本編が何分何秒のところか (h:mm:ss / m:ss / 秒)。Enter で決定。始まりを見逃したとき用"></label>
-          </div>
-          <div class="sync-row">
-            <button type="button" data-sync="-1">−1s</button>
-            <button type="button" data-sync="-0.1">−0.1s</button>
-            <button type="button" data-sync="-0.01">−0.01s</button>
-            <button type="button" data-sync="0.01">+0.01s</button>
-            <button type="button" data-sync="0.1">+0.1s</button>
-            <button type="button" data-sync="1">+1s</button>
-          </div>
-          <!-- 追いつき具合: 設定したずれどおりの位置と、実際の再生位置の差 (同期が追いついたかの目安。ずれの設定値ではない) -->
-          <div class="sync-row sync-drift" data-i18n-title="sync.driftTitle" title="設定したずれのとおりの位置と、実際の再生位置との差 (+ = 進んでいる)。追いついたかの目安で、ずれの設定値ではありません"></div>
-          <!-- アーカイブが配信より短い (冒頭か末尾が切られている) ときの知らせ -->
-          <div class="sync-row sync-trim" hidden>
-            <span class="sync-trim-text"></span>
-            <button type="button" class="sync-trim-head"></button>
-          </div>
-        </div>
+        <!-- 同期グループの色の線・調整パネルで選んだ枠の点線 -->
+        <div class="sync-mark" aria-hidden="true"></div>
         <!-- 音の左右・音量・遅延 (枠のバーの 🎚 で開く。遅延はライブ配信のときだけ) -->
         <div class="mix-panel" hidden>
           <div class="sync-row">
@@ -776,8 +756,8 @@
           <span class="index"></span>
           <!-- ライブ配信中の枠の印 (アーカイブ・動画には出さない) -->
           <span class="live-badge" aria-hidden="true">LIVE</span>
-          <!-- アーカイブの同期再生の基準の枠 (ほかの枠がこの枠に合わせる) -->
-          <span class="sync-ref-badge" hidden data-i18n="sync.refBadge" data-i18n-title="sync.refBadgeTitle" title="同期の基準の枠 (ほかの枠がこの枠に合わせる)">基準</span>
+          <!-- アーカイブの同期再生の基準の枠 (ほかの枠がこの枠に合わせる)。グループが 2 つ以上なら、ほかの枠にもグループの番号を出す -->
+          <span class="sync-ref-badge" hidden>基準</span>
           <!-- 自己診断: 枠の中で動いていない機能がある (YouTube 側の変更など) -->
           <span class="diag-badge" hidden>⚠</span>
           <span class="tile-name"></span>
@@ -791,7 +771,7 @@
             <button type="button" data-act="playlist" class="toggle" title="この配信を再生リストに入れる">📃</button>
             <button type="button" data-act="subscribe" class="toggle social" disabled><svg class="sub-icon" viewBox="0 0 16 16" aria-hidden="true"><circle cx="6" cy="4.6" r="2.8"/><path d="M0.8 14.2c0-3.1 2.3-5.4 5.2-5.4s5.2 2.3 5.2 5.4z"/><path d="M12.25 5.5h1.5v2.25H16v1.5h-2.25v2.25h-1.5V9.25H10v-1.5h2.25z"/></svg></button>
             <button type="button" data-act="like" class="toggle social" disabled>👍</button>
-            <button type="button" data-act="syncAdj" class="sync-adj" hidden data-i18n-title="sync.adjTitle" title="同期のずれを微調整する (声や画面の出来事で、ほかの枠と合わせる)">⏱</button>
+            <button type="button" data-act="syncAdj" class="sync-adj" hidden data-i18n-title="sync.adjTitle" title="同期の調整パネルを出して、この枠を選ぶ (補正・基準・グループ)">⏱</button>
             <button type="button" data-act="reload" data-i18n-title="tile.reload" title="再読み込み (映像やチャットの調子が悪いとき)">⟳</button>
             <button type="button" data-act="max" data-i18n-title="tile.max" title="この枠を全画面で見る (Shift+数字キーでも可。Esc で戻る)">⛶</button>
             <button type="button" data-act="clear" class="close" data-i18n-title="tile.clear" title="この枠を閉じる">✕</button>
@@ -813,6 +793,8 @@
   <script src="history.js"></script>
   <script src="playlists.js"></script>
   <script src="sync-offsets.js"></script>
+  <script src="sync-groups.js"></script>
+  <script src="sync-chart.js"></script>
   <script src="audio-align.js"></script>
   <script src="movie-anchors.js"></script>
   <script src="tour.js"></script>
