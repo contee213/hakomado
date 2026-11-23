@@ -71,16 +71,22 @@ function newTileState() {
   // (アーカイブの同期再生のずれは、枠ではなく動画ごとに記録する: SyncOffsets)
   // pan = 音の左右 (-1 = 左・0 = 真ん中・1 = 右)、gain = 音量 (1 = 元のまま、0〜2)。枠の中の Web Audio で変える (content/watch.js)
   // speed = 再生速度 (1 = 等速)。同期中のグループの枠は、グループの速度にそろえる (Sync)。ライブ配信では使わない (等速)
-  // short = ショートとして縦長 (9:16) の枠で見せる。読み込む前に、タイトルの #shorts か URL (/shorts/) で決める (isShortHint)
+  // short = ショートとして縦長 (9:16) の枠で見せる。読み込む前に、URL (/shorts/) で決める (isShortHint)
   return { input: '', videoId: null, chat: false, danmaku: null, muted: true, auto: false, queue: false, fill: false, label: '', pan: 0, gain: 1, delay: 0, speed: 1, short: false };
 }
 
 /**
- * 読み込む前に分かる「ショート」の手がかり: タイトルのハッシュタグ #short / #shorts、または /shorts/ の URL。
+ * 読み込む前に分かる「ショート」の手がかり: /shorts/ の URL。ショートの再生リスト (UUSH) から入れる動画は、
+ * この URL で入れる (videoInput)。縦型の配信はショートではない (UULV に入り、/shorts/ の URL にもならない) のでふつうの枠。
  * 読み込んでから枠の形が変わらないよう、縦長の枠にするかはこれだけで決める (プレイヤーが知らせる縦横は使わない)
  */
-function isShortHint(title, input) {
-  return /[#＃]shorts?(?![\p{L}\p{N}_])/iu.test(String(title || '')) || /youtube\.com\/shorts\//i.test(String(input || ''));
+function isShortHint(input) {
+  return /youtube\.com\/shorts\//i.test(String(input || ''));
+}
+
+/** 最近の動画 (fetchArchives の 1 件) を枠に入れるときの URL。ショートの再生リスト (UUSH) の分は /shorts/ の URL にする */
+function videoInput(v) {
+  return v.list === 'UUSH' ? `${YT}/shorts/${v.videoId}` : `${YT}/watch?v=${v.videoId}`;
 }
 
 const gridEl = document.getElementById('grid');
@@ -695,14 +701,14 @@ async function loadInput(i, raw) {
   }
 }
 
-function setTileVideo(i, videoId, input, title = '') {
+function setTileVideo(i, videoId, input) {
   const prev = state.tiles[i].videoId;
   if (prev && prev !== videoId) WatchHistory.removed(prev, 'replaced');
   views[i].el.querySelector('.error').textContent = '';
   views[i].danmaku.clear();
   // 手で読み込んだ枠は自動再生でも消さない
   // 音の遅延はその配信のずれに合わせた値なので、別の動画にしたら戻す。速度もその動画のために決めたものなので戻す
-  Object.assign(state.tiles[i], { input, videoId, auto: false, queue: false, fill: false, label: '', delay: 0, short: isShortHint(title, input), ...(prev !== videoId ? { speed: 1 } : {}) });
+  Object.assign(state.tiles[i], { input, videoId, auto: false, queue: false, fill: false, label: '', delay: 0, short: isShortHint(input), ...(prev !== videoId ? { speed: 1 } : {}) });
   // 新しく読み込んだ枠は、他に音の出ている枠が無ければ音を出す
   const anyAudible = state.tiles.some((t, j) => j !== i && isVisible(j) && t.videoId && !t.muted);
   state.tiles[i].muted = anyAudible;
@@ -7191,7 +7197,7 @@ function loadFromHistory(h) {
 /** 履歴などの 1 件を枠 target に入れる (画面は閉じない) */
 function putHistoryInto(target, h) {
   forgetAutoMarks(h.videoId);
-  setTileVideo(target, h.videoId, h.input || `https://www.youtube.com/watch?v=${h.videoId}`, h.title);
+  setTileVideo(target, h.videoId, h.input || `https://www.youtube.com/watch?v=${h.videoId}`);
   const t = state.tiles[target];
   t.label = h.label || '';
   const st = [...favStatus.values()].find(
@@ -7517,7 +7523,7 @@ function loadSelection() {
     if (e.load.st) {
       const { f, st } = e.load;
       forgetAutoMarks(st.videoId);
-      setTileVideo(target, st.videoId, f.handle || `${YT}/channel/${f.channelId}`, st.title);
+      setTileVideo(target, st.videoId, f.handle || `${YT}/channel/${f.channelId}`);
     } else putHistoryInto(target, e.load.h);
     favSel.delete(e.id);
     n++;
@@ -8613,7 +8619,7 @@ function pickFavorite(f, st) {
     favErrorEl.textContent = tr('noEmptyTile');
     return;
   }
-  setTileVideo(target, st.videoId, f.handle || `https://www.youtube.com/channel/${f.channelId}`, st.title);
+  setTileVideo(target, st.videoId, f.handle || `https://www.youtube.com/channel/${f.channelId}`);
   favDialog.close();
 }
 
@@ -8851,7 +8857,7 @@ async function startAllLiveInner() {
   lives.forEach(({ f, st }, k) => {
     const i = assigned[k];
     if (state.tiles[i].videoId !== st.videoId) {
-      Object.assign(state.tiles[i], { ...newTileState(), input: f.handle || f.channelId, videoId: st.videoId, short: isShortHint(st.title) });
+      Object.assign(state.tiles[i], { ...newTileState(), input: f.handle || f.channelId, videoId: st.videoId });
       views[i].danmaku.clear();
       renderTile(i, { reloadPlayer: true, reloadChat: true });
     }
@@ -9048,7 +9054,7 @@ function stopQueue() {
 }
 
 function queueLoad(i, h) {
-  setTileVideo(i, h.videoId, h.input || `${YT}/watch?v=${h.videoId}`, h.title);
+  setTileVideo(i, h.videoId, h.input || `${YT}/watch?v=${h.videoId}`);
   Object.assign(state.tiles[i], { queue: true, label: h.label || h.channel || '' });
   updateTileName(i);
   save();
@@ -9131,7 +9137,7 @@ async function pickAnything(i) {
       const { ok } = await filterAccessible(shuffled, { limit: 1, onProgress: step('progressAccess', 0.55, 0.7) });
       if (ok.length) {
         const { f, st } = ok[0];
-        loadPicked(i, st.videoId, f.handle || f.channelId, f.name, true, st.title);
+        loadPicked(i, st.videoId, f.handle || f.channelId, f.name, true);
         return;
       }
     }
@@ -9146,7 +9152,7 @@ async function pickAnything(i) {
       const picks = (await archiveCandidates(chs, { onProgress: step('progressArchive', from, to) })).filter(usable);
       if (picks.length) {
         const { v, f } = random(picks);
-        loadPicked(i, v.videoId, `${YT}/watch?v=${v.videoId}`, f.name, false, v.title);
+        loadPicked(i, v.videoId, videoInput(v), f.name, false);
         return;
       }
     }
@@ -9175,8 +9181,8 @@ function pickProgress(i) {
   };
 }
 
-function loadPicked(i, videoId, input, label, live, title = '') {
-  setTileVideo(i, videoId, input, title);
+function loadPicked(i, videoId, input, label, live) {
+  setTileVideo(i, videoId, input);
   state.tiles[i].label = label;
   updateTileName(i);
   updateFavButton(i);
@@ -9300,7 +9306,6 @@ async function autoTickOnceInner() {
         label: l.f.name,
         videoId: l.st.videoId,
         auto: true,
-        short: isShortHint(l.st.title),
       });
       views[i].danmaku.clear();
       return i;
@@ -9448,7 +9453,7 @@ async function refillArchives({ lock = true } = {}) {
         if (i == null) break;
         busy.add(f.name);
         added++;
-        Object.assign(state.tiles[i], { ...newTileState(), input: `${YT}/watch?v=${v.videoId}`, videoId: v.videoId, label: f.name, fill: true, short: isShortHint(v.title) });
+        Object.assign(state.tiles[i], { ...newTileState(), input: videoInput(v), videoId: v.videoId, label: f.name, fill: true, short: v.list === 'UUSH' }); // = isShortHint(videoInput(v))
         views[i].danmaku.clear();
         renderTile(i, { reloadPlayer: true, reloadChat: true });
         fills.push(i);

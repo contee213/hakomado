@@ -1129,7 +1129,7 @@ const HTML_EN = {
   'progress.title': 'Preparing auto play',
   'layout.anchor': 'Placement',
   'fit.fit': 'Standard',
-  'fit.fitTitle': 'Make every tile exactly 16:9 (Shorts tagged #shorts in the title lean toward 9:16). If the screen ratio differs, the leftover space goes to the outer margins',
+  'fit.fitTitle': 'Make every tile exactly 16:9 (Shorts tiles lean toward 9:16). If the screen ratio differs, the leftover space goes to the outer margins',
   'fit.fill': 'Stretch',
   'fit.fillTitle': 'Fill the screen with no margins. Videos are zoomed to fit their tiles and the edges are cropped (vertical videos are not cropped)',
   'layout.note': 'Darker tiles are main tiles. Streams fill tile 1 (main) first. Drag ⠿ on a tile to swap.',
