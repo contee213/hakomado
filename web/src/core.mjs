@@ -6,8 +6,9 @@ export const TEXT_MAX = 2000; // 貼られたテキストの上限 (コード・
 
 /**
  * 貼られたテキスト (コード #Hakomado … か取り込み用リンク) を読む。
- * movie = 「🎬 本編」モードの本編の位置 (動画ごとの秒か null。本編モードでなければ null。そのとき offsets は null)
- * @returns {{ok: true, set: {layoutId: string, ids: string[], offsets: number[]|null, ref: number, name: string, movie: (number|null)[]|null}} | {ok: false, error: string}}
+ * movie = 「🎬 本編」モードの本編の位置 (動画ごとの秒か null。本編モードでなければ null。そのとき offsets は null)、
+ * main = 本編モードで、使う人が「本編にした」動画の番号 (無ければ null)
+ * @returns {{ok: true, set: {layoutId: string, ids: string[], offsets: number[]|null, ref: number, name: string, movie: (number|null)[]|null, main: number|null}} | {ok: false, error: string}}
  */
 export function parseSubmission(text) {
   const s = String(text ?? '').slice(0, TEXT_MAX);
@@ -16,7 +17,9 @@ export function parseSubmission(text) {
   // 知らないレイアウトは受け付けない (拡張機能は既定のレイアウトに置き換えて読むが、一覧の形が描けないため)
   if (!LAYOUTS.some((l) => l.id === got.layoutId)) return { ok: false, error: 'bad_layout' };
   const ref = Math.min(Math.max(0, got.ref | 0), got.ids.length - 1);
-  return { ok: true, set: { layoutId: got.layoutId, ids: got.ids, offsets: got.offsets, ref, name: shareName(got.name), movie: got.movie || null } };
+  const movie = got.movie || null;
+  const main = movie && Number.isInteger(got.main) && got.main >= 0 && got.main < got.ids.length ? got.main : null;
+  return { ok: true, set: { layoutId: got.layoutId, ids: got.ids, offsets: got.offsets, ref, name: shareName(got.name), movie, main } };
 }
 
 export const MAX_VIDEOS = 16; // コードに入る本数 (拡張機能の共有と同じ)
@@ -64,7 +67,7 @@ export function buildSubmission(input) {
 }
 
 /** 同じセットかどうかを見るための形 (名前は入れない: 名前だけ違うものは同じセットとして 1 件にまとめる) */
-export const canonical = (set) => formatShareCode(set.layoutId, set.ids, set.offsets || [], set.ref, '', set.movie || null);
+export const canonical = (set) => formatShareCode(set.layoutId, set.ids, set.offsets || [], set.ref, '', set.movie || null, set.main ?? -1);
 
 /**
  * D1 の canon (UNIQUE) に入れる値。公開のものは名前を除いて 1 件にまとめる。
@@ -72,14 +75,18 @@ export const canonical = (set) => formatShareCode(set.layoutId, set.ids, set.off
  * 公開のものとは混ぜないので、限定公開のつもりで作ったものが一覧に出ることも無い)
  */
 export const canonKey = (set, listed) =>
-  listed ? canonical(set) : `u:${formatShareCode(set.layoutId, set.ids, set.offsets || [], set.ref, set.name || '', set.movie || null)}`;
+  listed ? canonical(set) : `u:${formatShareCode(set.layoutId, set.ids, set.offsets || [], set.ref, set.name || '', set.movie || null, set.main ?? -1)}`;
 
 /**
- * D1 の offsets 列に入れる値。同期のずれは配列、「🎬 本編」モードの本編の位置は {movie: [...]} (列を増やさずに入れる)。
- * どちらも無ければ null
+ * D1 の offsets 列に入れる値。同期のずれは配列、「🎬 本編」モードの本編の位置は {movie: [...]} (列を増やさずに入れる。
+ * 「本編にした」動画があれば {movie: [...], main: 番号})。どちらも無ければ null
  */
 export const offsetsColumn = (set) =>
-  set.movie ? JSON.stringify({ movie: set.movie }) : set.offsets ? JSON.stringify(set.offsets) : null;
+  set.movie
+    ? JSON.stringify(set.main != null ? { movie: set.movie, main: set.main } : { movie: set.movie })
+    : set.offsets
+      ? JSON.stringify(set.offsets)
+      : null;
 
 export const TAGS_MAX = 5;
 export const TAG_LEN = 20;
@@ -159,6 +166,7 @@ export function rowToSet(row) {
   const col = row.offsets ? JSON.parse(row.offsets) : null;
   const movie = col && !Array.isArray(col) && Array.isArray(col.movie) ? col.movie : null;
   const offsets = Array.isArray(col) ? col : null;
+  const main = movie && Number.isInteger(col.main) && col.main >= 0 && col.main < ids.length ? col.main : null;
   return {
     id: row.id,
     layoutId: row.layout,
@@ -166,6 +174,7 @@ export function rowToSet(row) {
     ids,
     offsets,
     movie, // 「🎬 本編」モードの本編の位置 (動画ごとの秒か null)。本編モードでなければ null
+    main, // 本編モードで「本編にした」動画の番号 (無ければ null)
     ref: row.ref,
     name: row.name,
     author: row.author,
@@ -176,7 +185,7 @@ export function rowToSet(row) {
     dead: row.dead || 0, // 見直しで見つからなかった動画の数 (videos の該当するものに gone: true)
     source: row.source || 'web', // web = 投稿フォーム / api = トークンを使った API・MCP / ext = 拡張機能の短縮リンク
     createdAt: row.created_at,
-    code: formatShareCode(row.layout, ids, offsets || [], row.ref, row.name, movie),
-    link: formatShareLink(row.layout, ids, offsets || [], row.ref, row.name, 'Hakomado', false, movie),
+    code: formatShareCode(row.layout, ids, offsets || [], row.ref, row.name, movie, main ?? -1),
+    link: formatShareLink(row.layout, ids, offsets || [], row.ref, row.name, 'Hakomado', false, movie, main ?? -1),
   };
 }

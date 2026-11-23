@@ -88,7 +88,7 @@ test('🎬 本編モード: 本編の位置 (決めていない動画は空) と
   const get = setup();
   const code = get('formatShareCode')('u2x2', [A, B, C], [9, 9, 9], 1, 'コマンドー', [754.234, null, -3]);
   assert.equal(code, `#Hakomado u2x2.${A}${B}${C} "コマンドー" ~!754.23,*,-3`, 'ずれ (~…) は入れず、名前の後ろに ~!… (0.01 秒単位)');
-  assert.deepEqual(plain(get('parseShareCode')(code)), { ids: [A, B, C], layoutId: 'u2x2', offsets: null, ref: 1, name: 'コマンドー', movie: [754.23, null, -3] });
+  assert.deepEqual(plain(get('parseShareCode')(code)), { ids: [A, B, C], layoutId: 'u2x2', offsets: null, ref: 1, name: 'コマンドー', movie: [754.23, null, -3], main: null });
   const noName = get('formatShareCode')('u2x2', [A, B], [], 0, '', [0, 12.5]);
   assert.equal(noName, `#Hakomado u2x2.${A}${B} ~!0,12.5`);
   assert.deepEqual(plain(get('parseShareCode')(noName)).movie, [0, 12.5]);
@@ -106,8 +106,60 @@ test('🎬 本編モードのリンク: hkm= に入れて読み戻せる。以�
   const link = get('formatShareLink')('u2x2', [A, B], [], 1, '名前', '', false, [754.2, null]);
   assert.match(link, /&hkm=754\.2,\*&/);
   assert.doesNotMatch(link, /hks=/);
-  assert.deepEqual(plain(get('parseShareLink')(link)), { ids: [A, B], layoutId: 'u2x2', offsets: null, ref: 1, name: '名前', movie: [754.2, null] });
+  assert.deepEqual(plain(get('parseShareLink')(link)), { ids: [A, B], layoutId: 'u2x2', offsets: null, ref: 1, name: '名前', movie: [754.2, null], main: null });
   assert.equal(get('parseShareLink')(link.replace('hkm=754.2', 'hkm=x')), null, '壊れた hkm= は読まない');
+});
+
+test('🎬 「本編にした」動画: 最後に「,*番号」を足して読み戻せる (基準とは別)', () => {
+  const get = setup();
+  const code = get('formatShareCode')('u2x2', [A, B, C], [], 1, 'コマンドー', [0, null, -3], 0);
+  assert.equal(code, `#Hakomado u2x2.${A}${B}${C} "コマンドー" ~!0,*,-3,*0`);
+  assert.deepEqual(plain(get('parseShareCode')(code)), { ids: [A, B, C], layoutId: 'u2x2', offsets: null, ref: 1, name: 'コマンドー', movie: [0, null, -3], main: 0 });
+  // 基準と同じ動画を本編にしても読める
+  const same = get('formatShareCode')('u2x2', [A, B], [], 1, '', [3, 0], 1);
+  assert.equal(same, `#Hakomado u2x2.${A}${B} ~!3,*0,*1`);
+  assert.deepEqual([plain(get('parseShareCode')(same)).ref, plain(get('parseShareCode')(same)).main], [1, 1]);
+  // 本編の位置が 1 つも無くても、本編にした動画があればコードにする
+  assert.equal(get('formatShareCode')('u2x2', [A, B], [], 0, '', [null, null], 1), `#Hakomado u2x2.${A}${B} ~!,,*1`);
+  // 範囲外の番号は入れない
+  assert.equal(get('formatShareCode')('u2x2', [A, B], [], 0, '', [1, 2], 5), `#Hakomado u2x2.${A}${B} ~!1,2`);
+});
+
+test('🎬 「本編にした」印の入ったコードも、以前の版の本編の位置の読み方で読める (印は無視)', () => {
+  // 以前の版の movieIds (動画の数までしか読まない)
+  const oldMovieIds = (list, text) => {
+    const tail = text.split(',');
+    const anchors = [];
+    let ref = 0;
+    list.forEach((id, k) => {
+      const t = tail[k] ?? '';
+      if (t.startsWith('*')) ref = k;
+      const v = t.replace('*', '');
+      anchors.push(v !== '' && Number.isFinite(Number(v)) ? Number(v) : null);
+    });
+    return { anchors, ref };
+  };
+  const OLD = /#?Hakomado\s+([a-z0-9-]{1,24})\.((?:[A-Za-z0-9_-]{11}){1,16})(?:~([-+*\d.,]{1,240}))?(?![A-Za-z0-9_-])(?: "([^"\r\n]{1,40})")?(?: ~!([-*\d.,]{1,240}))?/i;
+  const get = setup();
+  const m = get('formatShareCode')('u2x2', [A, B, C], [], 1, 'コマンドー', [754.2, null, -3], 2).match(OLD);
+  assert.deepEqual([m[1], m[2], m[4]], ['u2x2', A + B + C, 'コマンドー']);
+  assert.deepEqual(oldMovieIds([A, B, C], m[5]), { anchors: [754.2, null, -3], ref: 1 });
+  // リンクの hkm= も、以前の版の確かめ方 (使える文字) に合う
+  const link = get('formatShareLink')('u2x2', [A, B], [], 0, '', '', false, [1, 2], 0);
+  const hkm = new URL(link).searchParams.get('hkm');
+  assert.equal(hkm, '1,2,*0');
+  assert.match(hkm, /^[-*\d.,]{1,240}$/);
+  assert.deepEqual(plain(get('parseShareLink')(link)).main, 0);
+});
+
+test('🎬 以前の版で作った本編モードのコードは「本編にした」印なし (main = null)。壊れた印も無視', () => {
+  const parse = setup()('parseShareCode');
+  assert.equal(parse(`#Hakomado u2x2.${A}${B} ~!754.2,*`).main, null);
+  assert.equal(parse(`#Hakomado u2x2.${A}${B} ~!754.2,*,*7`).main, null, '範囲外');
+  assert.equal(parse(`#Hakomado u2x2.${A}${B} ~!754.2,*,5`).main, null, '「*」が無い');
+  assert.equal(parse(`#Hakomado u2x2.${A}${B} ~!754.2,*,*0,*1`).main, null, '項目が多すぎる');
+  // 同じ動画が 2 回ある並びでは、同じ動画を除いた番号にする
+  assert.equal(parse(`#Hakomado u2x2.${A}${A}${B} ~!1,1,2,*2`).main, 1);
 });
 
 test('同じ動画が 2 回あれば 1 回目だけ (ずれも 1 回目のもの)', () => {
