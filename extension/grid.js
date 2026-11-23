@@ -1738,9 +1738,26 @@ const Sync = (() => {
     G.init = false;
   }
 
+  /**
+   * 基準の枠の補正をいつも 0 にする (実際の時刻のグループ)。基準を変えたとき・基準の補正が 0 でないまま始めたときに、
+   * グループの全部の枠の補正から基準の補正を引く。そろい方は補正どうしの差で決まるので、見え方は変わらない
+   * (どの枠も同じ位置のまま。シークもしない)。元に戻すは取り消す (基準を変える前の値に戻すと、また 0 に寄せ直すため)
+   */
+  function zeroRef(G) {
+    const ref = G.ref;
+    if (isMovie(G) || ref == null || !movable(ref)) return;
+    const r = off(ref);
+    if (!r) return;
+    for (const j of membersOf(G.g)) {
+      if (movable(j)) storeOffset(false, j, Math.round((off(j) - r) * 100) / 100);
+    }
+    lastChange = null;
+  }
+
   function tickGroup(G) {
     const list = membersOf(G.g);
     const ref = reference(G);
+    zeroRef(G);
     if (G.init) initClock(G);
     const movie = isMovie(G);
     // 時計を基準の枠に合わせる (基準の枠が配信の時間帯の中で、知らせが新しく、広告中でないとき)
@@ -2571,8 +2588,10 @@ const Sync = (() => {
         // 基準の枠は時計を動かす側なので、ずれは見せるだけ (動かすと、基準ではなくほかの枠が逆向きにずれるため)。
         // 合わせるのはほかの枠で。基準の動画そのものの直し (冒頭が切られた場合・0 に戻す) だけ残す
         if (isRef && !live) {
-          r.refVal = mk('span', { class: 'dr-ref-val', title: tr(movie ? 'syncRefAnchorTitle' : 'syncRefValTitle') });
+          // 実際の時刻: 基準の補正はいつも 0 (zeroRef) なので値も ↺ も出さない。本編: 本編の位置を出す
+          r.refVal = movie ? mk('span', { class: 'dr-ref-val', title: tr('syncRefAnchorTitle') }) : null;
           r.minus = r.plus = r.val = r.wait = null;
+          if (!movie) r.reset = null;
         }
         const line2 = live
           ? mk('div', { class: 'dr-line dr-sub' }, mk('span', { class: 'dr-note' }, tr(isRef ? 'syncLiveRef' : 'movieLiveRefOnly')))
@@ -2623,7 +2642,8 @@ const Sync = (() => {
         }
         // 切られたアーカイブ: 自動では直さず (冒頭か末尾かわからないため)、冒頭が切られた場合の値をワンクリックで出す
         const trimmed = trimmedOf(i);
-        if (!movie && trimmed >= TRIM_MIN) {
+        // 基準の行には出さない (基準の補正はいつも 0 に寄せ直すので、押すたびにほかの枠がずれてしまう)
+        if (!movie && !isRef && trimmed >= TRIM_MIN) {
           r.trim = mk('button', { type: 'button', class: 'dr-trim-head', textContent: tr('syncTrimHead', -trimmed), onclick: () => setOffset(i, -trimmed) });
           parts.push(mk('div', { class: 'dr-line dr-sub dr-trim' }, mk('span', { class: 'dr-trim-text' }, tr('syncTrimmed', approxText(trimmed))), r.trim));
         }
@@ -2937,7 +2957,7 @@ const Sync = (() => {
         if (G && active(G)) v = (wait ? offsetAt(G, i, nowR(G)) : null) ?? (movie ? anchor(i) : off(i));
         const txt = v == null ? (movie ? tr('syncAnchorUnset') : '') : movie ? anchorText(v) : signedSec(v);
         r.short.textContent = G && active(G) && !liveTile(i) ? txt || '—' : '';
-        if (r.refVal) r.refVal.textContent = movie ? tr('syncRefAnchor', txt) : tr('syncRefOffset', txt);
+        if (r.refVal) r.refVal.textContent = tr('syncRefAnchor', txt); // 本編モードの基準だけ (実際の時刻の基準の補正はいつも 0)
         if (r.val && document.activeElement !== r.val) {
           r.val.placeholder = txt;
           r.val.dataset.shown = txt;
