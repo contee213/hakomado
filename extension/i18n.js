@@ -104,6 +104,7 @@ const MESSAGES = {
   kindFocus: ['メイン重視', 'Main focus'],
   kindBalance: ['バランス', 'Balanced'],
   layoutTitle: ['{0} ({1} 枠)', '{0} ({1} tiles)'],
+  tileCorner: ['ストレッチで切るとき、{0}の角を残す (押すと切り替え。配信者が映っている角に)', 'When stretching crops the video, keep the {0} corner (click to change; pick the corner where the streamer appears)'],
   tileClear: ['この枠を閉じる', 'Close this tile'],
   tileRemove: ['この空き枠を消す (枠の数に合ったレイアウトに変わります)', 'Remove this empty tile (the layout changes to fit the number of tiles)'],
   ytLogin: ['YouTube にログインすると使えます', 'Sign in to YouTube to use this'],
