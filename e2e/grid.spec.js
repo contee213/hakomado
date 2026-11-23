@@ -210,3 +210,52 @@ test.describe('共有', () => {
     await expect(second.locator('#shareAuthor')).toHaveValue('@someone');
   });
 });
+
+test.describe('ライブラリの複数選択', () => {
+  // 既定のチャンネル (ときのそら・ロボ子さん) どうしのコラボ 2 本と、関係の無い 1 本
+  const SORA = 'UCp6993wxpyDPHUpavwDFqgg';
+  const ROBO = 'UCDqI2jOz0weumE8s7paEk6g';
+  const now = Date.now();
+  const HISTORY = [
+    { videoId: 'aaaaaaaaaa1', title: '【マイクラ】ロボ子さんと建築するよ！', channelId: SORA, label: 'ときのそら', at: now },
+    { videoId: 'bbbbbbbbbb2', title: '【マイクラ】そらちゃんと建築！', channelId: ROBO, label: 'ロボ子さん', at: now - 60e3 },
+    { videoId: 'ccccccccccc', title: '朝の雑談', channelId: 'UCzzzzzzzzzzzzzzzzzzzzzz', label: 'ほかの人', at: now - 5 * 86400e3 },
+  ];
+
+  async function openHistory(page) {
+    await page.evaluate((h) => chrome.storage.local.set({ history: h }), HISTORY);
+    await page.locator('#openFavorites').click();
+    await page.locator('[data-favtab="history"]').click();
+    await expect(page.locator('#favList .fav-item')).toHaveCount(3);
+  }
+
+  test('🤝 でコラボをまとめて選び、☐ で足して、まとめて枠に入れる', async ({ openGrid }) => {
+    const page = await openGrid();
+    await skipTour(page);
+    await openHistory(page);
+    const collab = page.locator('#favList .fav-collab');
+    await expect(collab).toHaveCount(2);
+    await expect(collab.first()).toHaveText('🤝 2');
+    await collab.first().click();
+    await expect(page.locator('#favSelBar')).toBeVisible();
+    await expect(page.locator('#favSelCount')).toHaveText('2 本を選択中');
+    // 選んでいる間は、行のクリックも選ぶ (枠には入れない)
+    await page.locator('#favList .fav-item[data-sel="ccccccccccc"] .fav-title').click();
+    await expect(page.locator('#favSelCount')).toHaveText('3 本を選択中');
+    await page.locator('#favSelLoad').click();
+    await expect(page.locator('#favorites')).toBeHidden();
+    const ids = await visibleTiles(page).locator('.url-input').evaluateAll((els) => els.map((e) => e.value).join(' '));
+    for (const h of HISTORY) expect(ids).toContain(h.videoId);
+  });
+
+  test('🔖 を押しても一覧を描き直さない (カードが動かない)', async ({ openGrid }) => {
+    const page = await openGrid();
+    await skipTour(page);
+    await openHistory(page);
+    const card = page.locator('#favList .fav-item[data-sel="bbbbbbbbbb2"]');
+    await card.evaluate((el) => (el.dataset.mark = '1'));
+    await card.locator('.fav-star').click();
+    await expect(card.locator('.fav-star')).toHaveClass(/\bon\b/);
+    await expect(card).toHaveAttribute('data-mark', '1'); // 同じ要素のまま
+  });
+});

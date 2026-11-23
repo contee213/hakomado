@@ -556,6 +556,8 @@ dialog.fav-dialog.tour-preview {
   padding: 6px;
   overflow-y: auto;
   flex: 1;
+  /* 描き直すたびに中身を入れ替えるので、ブラウザのスクロール位置の自動補正で数 px ずれないようにする */
+  overflow-anchor: none;
 }
 /* 一覧が空のときの説明は、一覧の場所 (上) に出す */
 .fav-empty { color: var(--muted); padding: 16px 14px; margin: 0; }
@@ -734,6 +736,23 @@ dialog.fav-dialog.tour-preview {
   padding: 5px 8px;
 }
 .fav-error { width: 100%; color: #ff8a80; font-size: 12px; }
+
+/* ---------- 複数選択 (☐) とコラボの一括選択 (🤝) ---------- */
+.fav-check { flex: none; width: 16px; height: 16px; margin: 0; accent-color: var(--accent); cursor: pointer; }
+/* 選んでいないときは控えめに。行にカーソルを乗せたとき・選んでいる間ははっきり出す */
+.fav-item .fav-check:not(:checked) { opacity: .35; }
+.fav-item:hover .fav-check, .fav-list.selecting .fav-check { opacity: 1; }
+.fav-item.selected { background: color-mix(in srgb, var(--accent) 18%, transparent); outline: 1px solid color-mix(in srgb, var(--accent) 60%, transparent); }
+.fav-collab { flex: none; padding: 0 6px; font-size: 11px; line-height: 18px; }
+.fav-selbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-top: 1px solid var(--line);
+  background: color-mix(in srgb, var(--accent) 12%, var(--bg));
+}
+.fav-selcount { font-size: 13px; font-weight: 700; }
 .fav-error:empty { display: none; }
 
 /* ---------- 自動再生を始めるときの進み具合 (画面中央。大きさを固定して、文字が変わっても動かない) ---------- */
