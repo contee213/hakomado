@@ -406,7 +406,9 @@
       const id = videoData().video_id || '';
       if (!Number.isFinite(start) || !(dur > 0) || (id && id !== myVideoId)) return;
       archiveSent = true;
-      const detail = JSON.stringify({ start, end: Number.isFinite(end) ? end : start + dur * 1000, dur });
+      // premiere = プレミア公開 (配信ではない動画。🎬 本編モードで本編の枠として扱う。開始時刻は待機のカウントダウンの始まり)
+      const premiere = window.ytInitialPlayerResponse?.videoDetails?.isLiveContent === false;
+      const detail = JSON.stringify({ start, end: Number.isFinite(end) ? end : start + dur * 1000, dur, premiere });
       document.dispatchEvent(new CustomEvent('hakomado:archive', { detail }));
     }
     if (!Number.isFinite(t)) return;

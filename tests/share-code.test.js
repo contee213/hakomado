@@ -86,9 +86,9 @@ test('名前入りのコードも、以前の版の読み方 (名前の前で止
 
 test('🎬 本編モード: 本編の位置 (決めていない動画は空) と基準をコードに入れて読み戻せる', () => {
   const get = setup();
-  const code = get('formatShareCode')('u2x2', [A, B, C], [9, 9, 9], 1, 'コマンドー', [754.23, null, -3]);
-  assert.equal(code, `#Hakomado u2x2.${A}${B}${C} "コマンドー" ~!754.2,*,-3`, 'ずれ (~…) は入れず、名前の後ろに ~!…');
-  assert.deepEqual(plain(get('parseShareCode')(code)), { ids: [A, B, C], layoutId: 'u2x2', offsets: null, ref: 1, name: 'コマンドー', movie: [754.2, null, -3] });
+  const code = get('formatShareCode')('u2x2', [A, B, C], [9, 9, 9], 1, 'コマンドー', [754.234, null, -3]);
+  assert.equal(code, `#Hakomado u2x2.${A}${B}${C} "コマンドー" ~!754.23,*,-3`, 'ずれ (~…) は入れず、名前の後ろに ~!… (0.01 秒単位)');
+  assert.deepEqual(plain(get('parseShareCode')(code)), { ids: [A, B, C], layoutId: 'u2x2', offsets: null, ref: 1, name: 'コマンドー', movie: [754.23, null, -3] });
   const noName = get('formatShareCode')('u2x2', [A, B], [], 0, '', [0, 12.5]);
   assert.equal(noName, `#Hakomado u2x2.${A}${B} ~!0,12.5`);
   assert.deepEqual(plain(get('parseShareCode')(noName)).movie, [0, 12.5]);

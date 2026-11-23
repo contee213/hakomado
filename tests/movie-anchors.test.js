@@ -15,10 +15,10 @@ function setup(seed) {
 
 test('読み込むときは正しい形のものだけ。決めていない動画は null (0 とは区別する)', async () => {
   const { M } = setup({
-    movieAnchors: { [vid(1)]: { s: 754.23, at: 5 }, [vid(2)]: { s: 0 }, bad: { s: 3 }, [vid(3)]: { s: 'x' }, [vid(4)]: null, [vid(5)]: { s: 1e9 } },
+    movieAnchors: { [vid(1)]: { s: 754.234, at: 5 }, [vid(2)]: { s: 0 }, bad: { s: 3 }, [vid(3)]: { s: 'x' }, [vid(4)]: null, [vid(5)]: { s: 1e9 } },
   });
   await M.load();
-  assert.equal(M.get(vid(1)), 754.2, '0.1 秒単位');
+  assert.equal(M.get(vid(1)), 754.23, '0.01 秒単位');
   assert.equal(M.get(vid(2)), 0, '0 も意味のある値 (配信の始まりと同時に本編が始まった)');
   assert.equal(M.get('bad'), null);
   assert.equal(M.get(vid(3)), null);
@@ -31,11 +31,11 @@ test('読み込むときは正しい形のものだけ。決めていない動�
 test('記録する・消す: 負の値も入る。おかしな ID は無視', async () => {
   const { M, env } = setup();
   await M.load();
-  await M.set(vid(1), 12.34);
+  await M.set(vid(1), 12.345);
   await M.set(vid(2), -3);
   await M.set(vid(3), 0);
   await M.set('bad', 5);
-  assert.equal(M.get(vid(1)), 12.3);
+  assert.equal(M.get(vid(1)), 12.35, '0.01 秒単位');
   assert.equal(M.get(vid(2)), -3);
   assert.equal(M.get(vid(3)), 0);
   let saved = env.chrome.storage.local._dump().movieAnchors;

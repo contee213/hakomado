@@ -14,7 +14,7 @@ const MovieAnchors = (() => {
   let cache = {}; // videoId -> {s: 秒, at: 決めた時刻}
   const listeners = new Set();
 
-  const clean = (v) => Math.round(Math.max(-LIMIT, Math.min(LIMIT, Number(v))) * 10) / 10; // 0.1 秒単位
+  const clean = (v) => Math.round(Math.max(-LIMIT, Math.min(LIMIT, Number(v))) * 100) / 100; // 0.01 秒単位 (✨ 自動補正・± 0.01 で合わせられるように)
 
   function adopt(raw) {
     const next = {};
