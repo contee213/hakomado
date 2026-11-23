@@ -14,5 +14,9 @@
   "menuAddToTile": {
     "message": "Add to an empty Hakomado tile",
     "description": "Right-click menu (YouTube links and watch pages)"
+  },
+  "cmdScreenshot": {
+    "message": "Screenshot (capture all the tiles on the multiview screen)",
+    "description": "Keyboard shortcut description (chrome://extensions/shortcuts)"
   }
 }

@@ -19,6 +19,12 @@
       "32": "icons/icon-32.png"
     }
   },
+  "commands": {
+    "screenshot": {
+      "suggested_key": { "default": "Alt+Shift+S" },
+      "description": "__MSG_cmdScreenshot__"
+    }
+  },
   "background": {
     "service_worker": "background.js"
   },
@@ -26,7 +32,8 @@
     "storage",
     "declarativeNetRequestWithHostAccess",
     "contextMenus",
-    "scripting"
+    "scripting",
+    "activeTab"
   ],
   "host_permissions": [
     "https://www.youtube.com/*",

@@ -3,6 +3,7 @@
 // - マルチビュー画面のタブだけに、YouTube を iframe 表示するためのヘッダー書き換えルールを適用する
 //   (他のサイトには一切影響させないよう tabIds で限定する)
 // - 右クリックのメニュー「Hakomado の空き枠に追加」(YouTube のリンク・動画のページ)
+// - ショートカットキーで、マルチビュー画面のスクリーンショット
 
 importScripts('errlog.js'); // ErrLog (エラーの記録。最初に始めて、ほかのファイルのエラーも記録する)
 ErrLog.install('background');
@@ -13,6 +14,14 @@ const RULE_IDS = [1, 2];
 // アイコンを押すたびに新しいタブを開く (タブごとに別の視聴セッションになるので、いくつ開いてもよい)
 chrome.action.onClicked.addListener((current) => {
   chrome.tabs.create({ url: chrome.runtime.getURL('grid.html'), windowId: current.windowId });
+});
+
+// ショートカットキー (既定 Alt+Shift+S): マルチビュー画面のタブで押すと、そのタブにスクリーンショットを頼む。
+// 押したときにそのタブへ activeTab が付くので、画面の側で captureVisibleTab を確認なしで使える (タブを閉じる・移動するまで続く)
+chrome.commands.onCommand.addListener(async (command, tab) => {
+  if (command !== 'screenshot' || tab?.id == null) return;
+  if (!(await getGridTabs()).includes(tab.id)) return;
+  chrome.runtime.sendMessage({ type: 'screenshot', tabId: tab.id }).catch(() => {});
 });
 
 async function getGridTabs() {

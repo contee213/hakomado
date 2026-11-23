@@ -372,6 +372,9 @@ body.hl-animate .tile.audible::before { animation: hl-flow 6s ease-in-out infini
   transition: opacity .15s;
 }
 .tile:hover .bar, .tile:focus-within .bar { opacity: 1; }
+/* スクリーンショットを撮っている間は、マウスが乗っている枠の操作バーを写さない */
+body.shooting .tile:is(:hover, :focus-within) .bar { opacity: 0; transition: none; }
+body.shooting .global-toast { visibility: hidden; }
 /* ライブ配信中の印: 操作バーの、チャンネル名の前に小さく */
 .live-badge {
   flex: none;
@@ -1367,6 +1370,10 @@ dialog.help-dialog { width: min(880px, calc(100% - 32px)); }
 }
 /* 🔗 共有 / 📥 読み込む */
 dialog.share-dialog { width: min(600px, calc(100% - 32px)); }
+/* 受け渡しの画面の 2 つの側 (🔗 共有 / 📥 読み込む)。中は .help-form と同じ縦の並び */
+.xfer-pane { display: flex; flex-direction: column; gap: 10px; }
+.xfer-pane[hidden] { display: none; }
+.xfer-switch button { font-weight: 600; }
 .share-name select { flex: 1 1 auto; min-width: 0; }
 /* 形式のタブ: 中身は同じ場所に重ね、見せていないものは見えなくするだけにする (高さがいちばん高いタブに合い、切り替えても画面が動かない) */
 .share-panels { display: grid; grid-template-columns: minmax(0, 1fr); }

@@ -16,7 +16,7 @@
   <!-- 全画面のとき、ここにマウスを寄せると上部バーが出る -->
   <div class="toolbar-hotzone" aria-hidden="true"></div>
   <header class="toolbar">
-    <button id="brandHome" class="brand" type="button" data-i18n-title="brand.title" title="起動したときの画面を出す (ほかの保存内容で再開 / 新しく始める / 自動再生で始める)。キャンセルすれば今のまま"><img class="brand-logo" src="icons/icon.svg" alt=""><span class="brand-name">Hakomado</span></button>
+    <button id="brandHome" class="brand" type="button" data-i18n-title="brand.title" title="起動したときの画面を出す (ほかの保存内容で再開 / 新しく始める / 読み込んで始める / 自動再生で始める)。キャンセルすれば今のまま"><img class="brand-logo" src="icons/icon.svg" alt=""><span class="brand-name">Hakomado</span></button>
     <button id="openLayout" type="button" data-i18n-title="layout.title" title="レイアウトを選ぶ"><span class="tb-icon">▦</span><span id="layoutName" class="tb-label"></span></button>
     <button id="addTile" type="button" data-i18n-title="addTile.title" title="枠を 1 つ増やす (枠の数に合ったレイアウトに変わります)"><span class="tb-icon">＋</span></button>
     <button id="removeTile" type="button" data-i18n-title="removeTile.title" title="空き枠を 1 つ減らす (枠の数に合ったレイアウトに変わります)。配信を読み込んだ枠は消しません"><span class="tb-icon">−</span></button>
@@ -379,7 +379,7 @@
             </ul>
           </section>
           <section class="help-page" data-help-page="share" role="tabpanel" data-i18n-html="helpPage.share" hidden>
-            <p>「🔗 共有」で、今の枠か再生リストを選んで、渡す相手に合わせた 3 つの形式にできます。</p>
+            <p>「🔗 共有」と「📥 読み込む」は同じ画面で、上の切り替えで行き来できます。「🔗 共有」で、今の枠か再生リストを選んで、渡す相手に合わせた 3 つの形式にできます。</p>
             <ul>
               <li><b>画像</b>: X などに添えて見せます。QR を読むと YouTube で開け、Hakomado では同じ並びで開けます。画像に付ける説明 (ALT) の文もコピーできます。「𝕏 に投稿」で、画像・名前・リンクを入れた X の投稿画面を開きます (投稿ボタンは自分で押します。初めてのときは x.com へのアクセスの許可を聞きます)</li>
               <li><b>リンク</b>: DM などで直接送ります。中身は画像の QR と同じ (16 本まで・レイアウト・補正・名前)。Hakomado が入っていれば開くだけで同じ並びになり、入っていない人も YouTube の再生リストとして見られます</li>
@@ -417,6 +417,7 @@
               <tr><th><kbd>I</kbd></th><td data-i18n="key.info">枠の情報を開く</td></tr>
               <tr><th><kbd>&lt;</kbd> <kbd>&gt;</kbd></th><td data-i18n="key.speed">音の出ている枠の再生速度を 1 段下げる / 上げる (アーカイブ同期で同期している枠は、グループ全部)</td></tr>
               <tr><th><kbd>D</kbd></th><td data-i18n="key.danmaku">全部の枠の弾幕を一時的に消す ⇄ 戻す (弾幕は、枠の ≋ で決めていなければメイン枠だけに出ます)</td></tr>
+              <tr><th><kbd>Alt</kbd> + <kbd>Shift</kbd> + <kbd>S</kbd></th><td data-i18n="key.shot">枠の並び全体のスクリーンショットを撮る (PNG で保存し、クリップボードにもコピー。キーは chrome://extensions/shortcuts で変えられます)</td></tr>
               <tr><th><kbd>?</kbd></th><td data-i18n="key.help">この画面を開く</td></tr>
             </table>
           </section>
@@ -446,91 +447,89 @@
     </form>
   </dialog>
 
-  <!-- 🔗 共有: 共有するもの (今の枠 / 再生リスト) を選び、渡す相手で選ぶ 3 つの形式 (画像・リンク・テキスト) のどれかにして渡す。
-       サイトに投稿はタブの外に 1 つだけ。タブの中身は同じ場所に重ね、切り替えても画面の大きさを変えない -->
-  <dialog id="shareDialog" class="share-dialog">
+  <!-- 🔗 共有 / 📥 読み込む: 受け渡しの画面は 1 つ。上の 2 択 (🔗 共有 / 📥 読み込む) で切り替え、上部バーの 🔗・📥 はそれぞれの側で開く。
+       左上は動かさず (dialog[open] の margin)、側を変えて高さが変わっても下に伸び縮みするだけ。
+       共有: 共有するもの (今の枠 / 再生リスト) を選び、渡す相手で選ぶ 3 つの形式 (画像・リンク・テキスト) のどれかにして渡す。
+       サイトに投稿はタブの外に 1 つだけ。タブの中身は同じ場所に重ね、切り替えても画面の大きさを変えない。
+       読み込む: 画像・コード・テキスト・リンク・URL のどれでも貼る (画像はドロップでも) とすぐ読み取り、内容を確かめてから
+       「枠に並べる」か「再生リストとして保存」を選ぶ。取り込み用リンクから開いたときもここ。AI チャットに作ってもらう頼み文は、折りたたみの中 -->
+  <dialog id="xferDialog" class="share-dialog">
     <form method="dialog" class="help-form share-form">
       <div class="settings-title">
-        <h2 data-i18n="share.h">🔗 共有</h2>
+        <span class="seg xfer-switch" role="tablist">
+          <button type="button" role="tab" data-xfer="share" data-i18n="share.h">🔗 共有</button><button type="button" role="tab" data-xfer="read" data-i18n="read.h">📥 読み込む</button>
+        </span>
         <button value="close" class="dialog-close" data-i18n-title="close" title="閉じる (Esc)">✕</button>
       </div>
-      <label class="share-name"><span data-i18n="share.sourceLabel">共有するもの</span>
-        <select id="shareSource"></select>
-      </label>
-      <label class="share-name"><span data-i18n="share.nameLabel">名前</span>
-        <input type="text" id="shareName" maxlength="40" spellcheck="false" data-i18n-placeholder="share.namePlaceholder" placeholder="なくてもよい (画像には「Hakomado 視聴セット」と出ます)">
-      </label>
-      <div class="settings-tabs share-tabs" role="tablist">
-        <button type="button" role="tab" data-stab="image" data-i18n="share.tabImage">🖼 画像</button>
-        <button type="button" role="tab" data-stab="link" data-i18n="share.tabLink">🌐 リンク</button>
-        <button type="button" role="tab" data-stab="text" data-i18n="share.tabText">📝 テキスト</button>
-      </div>
-      <div class="share-panels">
-        <section class="share-panel" data-spanel="image" role="tabpanel">
-          <div class="share-preview"><img id="shareImg" alt=""></div>
-          <label class="share-name"><span data-i18n="share.authorLabel">作者名</span>
-            <input type="text" id="shareAuthor" maxlength="30" spellcheck="false" data-i18n-placeholder="share.authorPlaceholder" placeholder="なくてもよい (画像の本数の後ろに「作: …」と出ます)">
-          </label>
-          <label class="share-check"><input type="checkbox" id="shareImgLabels"> <span data-i18n="share.imgLabels">各枠にチャンネル名・タイトルを描く</span></label>
-          <p class="settings-note" id="shareNoteImage"></p>
-          <div class="share-buttons">
-            <button type="button" id="shareToX" data-i18n="share.toX" data-i18n-title="share.toXTitle" title="X の投稿画面を開いて、画像・名前・リンクを入れます (投稿ボタンは自分で押します)">𝕏 に投稿</button>
-            <button type="button" id="shareImgCopy" data-i18n="share.imgCopy">🖼 画像をコピー</button>
-            <button type="button" id="shareImgSave" data-i18n="share.imgSave">⬇ 画像を保存</button>
-            <button type="button" id="shareAltCopy" data-i18n="share.altCopy" data-i18n-title="share.altCopyTitle" title="X などで画像に付ける説明 (ALT) の文をコピーする (読み込み用のコード入り)">📋 ALT 用の文をコピー</button>
-          </div>
-        </section>
-        <section class="share-panel" data-spanel="text" role="tabpanel" hidden>
-          <textarea id="shareText" class="share-text" rows="9" readonly spellcheck="false"></textarea>
-          <p class="settings-note" id="shareNoteText"></p>
-          <div class="share-buttons">
-            <button type="button" id="shareCopyText" data-i18n="share.copyText">📋 テキストをコピー</button>
-          </div>
-        </section>
-        <section class="share-panel" data-spanel="link" role="tabpanel" hidden>
-          <textarea id="shareLink" class="share-text share-wrap" rows="3" readonly spellcheck="false"></textarea>
-          <p class="settings-note" id="shareNoteLink"></p>
-          <div class="share-buttons">
-            <button type="button" id="shareCopyLink" data-i18n="share.copyLink">📋 リンクをコピー</button>
-          </div>
-        </section>
-      </div>
-      <div class="share-buttons share-feed">
-        <button type="button" id="shareToFeed" data-i18n="share.toFeed" data-i18n-title="share.toFeedTitle" title="このセットを入れた Hakomado のサイトの投稿画面を開きます (X でログインして、投稿ボタンは自分で押します。拡張機能からは送りません)">📮 サイトに投稿</button>
-      </div>
-      <span id="shareStatus" class="share-status" role="status"></span>
-    </form>
-  </dialog>
-
-  <!-- 📥 読み込む: 画像・コード・テキスト・リンク・URL のどれでも貼る (画像はドロップでも) とすぐ読み取り、内容を確かめてから
-       「枠に並べる」か「再生リストとして保存」を選ぶ。取り込み用リンクから開いたときもここ。
-       AI チャットに作ってもらう頼み文は、折りたたみの中 -->
-  <dialog id="readDialog" class="share-dialog">
-    <form method="dialog" class="help-form share-form">
-      <div class="settings-title">
-        <h2 data-i18n="read.h">📥 読み込む</h2>
-        <button value="close" class="dialog-close" data-i18n-title="close" title="閉じる (Esc)">✕</button>
-      </div>
-      <p class="settings-note" data-i18n="read.note">共有された画像 (Ctrl+V で貼るか、ドロップ)・コード (#Hakomado …)・テキスト・取り込み用リンク、YouTube の URL (1 行に 1 つ) や再生リストの URL を貼れます。投稿の文をまるごと貼っても読めます</p>
-      <textarea id="readIn" class="share-text" rows="6" spellcheck="false" data-i18n-placeholder="read.placeholder" placeholder="画像 / #Hakomado … / https://www.youtube.com/watch?v=..."></textarea>
-      <p id="readSummary" class="read-summary" role="status"></p>
-      <label class="share-name"><span data-i18n="read.nameLabel">名前</span>
-        <input type="text" id="readName" maxlength="40" spellcheck="false" data-i18n-placeholder="read.namePlaceholder" placeholder="空のときは読み取った名前か、今の日時">
-      </label>
-      <div class="share-buttons">
-        <button type="button" id="readApply" data-i18n="read.apply" data-i18n-title="read.applyTitle" title="今の枠を置き換えて並べる (先頭から 16 本。自動再生は OFF になります)" disabled>▦ 枠に並べる</button>
-        <button type="button" id="readSave" data-i18n="read.save" data-i18n-title="read.saveTitle" title="名前を付けて再生リストに保存し、ライブラリで開く (200 本まで。同じ名前の再生リストは置き換えます)" disabled>📃 再生リストとして保存</button>
-      </div>
-      <details class="pl-ai">
-        <summary data-i18n="read.aiH">🤖 AI チャットに作ってもらう</summary>
-        <p class="settings-note" data-i18n="read.aiNote">見たいものを書いて頼み文 (見たいもの・書き方の説明・登録しているチャンネルの一覧) をコピーし、Claude などの AI チャット (Web 検索が使えるもの) に貼って送ります。返ってきたリストを上に貼るか、取り込み用リンクを開くと読み込めます</p>
-        <label class="field-label" for="readAiWant" data-i18n="read.aiWantLabel">見たいもの</label>
-        <textarea id="readAiWant" class="share-text" rows="3" maxlength="1000" data-i18n-placeholder="read.aiWantPlaceholder" placeholder="例: 昨日の配信で話題になっていたものを 10 本 / 今週のコラボ企画を参加者全員の視点で / 明日の夜に見られる歌枠"></textarea>
-        <div class="share-buttons">
-          <button type="button" id="readAi" data-i18n="read.ai">📋 頼み文をコピー</button>
-          <span id="readAiCopied" class="share-status" role="status"></span>
+      <div id="sharePane" class="xfer-pane" data-xpane="share" role="tabpanel">
+        <label class="share-name"><span data-i18n="share.sourceLabel">共有するもの</span>
+          <select id="shareSource"></select>
+        </label>
+        <label class="share-name"><span data-i18n="share.nameLabel">名前</span>
+          <input type="text" id="shareName" maxlength="40" spellcheck="false" data-i18n-placeholder="share.namePlaceholder" placeholder="なくてもよい (画像には「Hakomado 視聴セット」と出ます)">
+        </label>
+        <div class="settings-tabs share-tabs" role="tablist">
+          <button type="button" role="tab" data-stab="image" data-i18n="share.tabImage">🖼 画像</button>
+          <button type="button" role="tab" data-stab="link" data-i18n="share.tabLink">🌐 リンク</button>
+          <button type="button" role="tab" data-stab="text" data-i18n="share.tabText">📝 テキスト</button>
         </div>
-      </details>
+        <div class="share-panels">
+          <section class="share-panel" data-spanel="image" role="tabpanel">
+            <div class="share-preview"><img id="shareImg" alt=""></div>
+            <label class="share-name"><span data-i18n="share.authorLabel">作者名</span>
+              <input type="text" id="shareAuthor" maxlength="30" spellcheck="false" data-i18n-placeholder="share.authorPlaceholder" placeholder="なくてもよい (画像の本数の後ろに「作: …」と出ます)">
+            </label>
+            <label class="share-check"><input type="checkbox" id="shareImgLabels"> <span data-i18n="share.imgLabels">各枠にチャンネル名・タイトルを描く</span></label>
+            <p class="settings-note" id="shareNoteImage"></p>
+            <div class="share-buttons">
+              <button type="button" id="shareToX" data-i18n="share.toX" data-i18n-title="share.toXTitle" title="X の投稿画面を開いて、画像・名前・リンクを入れます (投稿ボタンは自分で押します)">𝕏 に投稿</button>
+              <button type="button" id="shareImgCopy" data-i18n="share.imgCopy">🖼 画像をコピー</button>
+              <button type="button" id="shareImgSave" data-i18n="share.imgSave">⬇ 画像を保存</button>
+              <button type="button" id="shareAltCopy" data-i18n="share.altCopy" data-i18n-title="share.altCopyTitle" title="X などで画像に付ける説明 (ALT) の文をコピーする (読み込み用のコード入り)">📋 ALT 用の文をコピー</button>
+            </div>
+          </section>
+          <section class="share-panel" data-spanel="text" role="tabpanel" hidden>
+            <textarea id="shareText" class="share-text" rows="9" readonly spellcheck="false"></textarea>
+            <p class="settings-note" id="shareNoteText"></p>
+            <div class="share-buttons">
+              <button type="button" id="shareCopyText" data-i18n="share.copyText">📋 テキストをコピー</button>
+            </div>
+          </section>
+          <section class="share-panel" data-spanel="link" role="tabpanel" hidden>
+            <textarea id="shareLink" class="share-text share-wrap" rows="3" readonly spellcheck="false"></textarea>
+            <p class="settings-note" id="shareNoteLink"></p>
+            <div class="share-buttons">
+              <button type="button" id="shareCopyLink" data-i18n="share.copyLink">📋 リンクをコピー</button>
+            </div>
+          </section>
+        </div>
+        <div class="share-buttons share-feed">
+          <button type="button" id="shareToFeed" data-i18n="share.toFeed" data-i18n-title="share.toFeedTitle" title="このセットを入れた Hakomado のサイトの投稿画面を開きます (X でログインして、投稿ボタンは自分で押します。拡張機能からは送りません)">📮 サイトに投稿</button>
+        </div>
+        <span id="shareStatus" class="share-status" role="status"></span>
+      </div>
+      <div id="readPane" class="xfer-pane" data-xpane="read" role="tabpanel" hidden>
+        <p class="settings-note" data-i18n="read.note">共有された画像 (Ctrl+V で貼るか、ドロップ)・コード (#Hakomado …)・テキスト・取り込み用リンク、YouTube の URL (1 行に 1 つ) や再生リストの URL を貼れます。投稿の文をまるごと貼っても読めます</p>
+        <textarea id="readIn" class="share-text" rows="6" spellcheck="false" data-i18n-placeholder="read.placeholder" placeholder="画像 / #Hakomado … / https://www.youtube.com/watch?v=..."></textarea>
+        <p id="readSummary" class="read-summary" role="status"></p>
+        <label class="share-name"><span data-i18n="read.nameLabel">名前</span>
+          <input type="text" id="readName" maxlength="40" spellcheck="false" data-i18n-placeholder="read.namePlaceholder" placeholder="空のときは読み取った名前か、今の日時">
+        </label>
+        <div class="share-buttons">
+          <button type="button" id="readApply" data-i18n="read.apply" data-i18n-title="read.applyTitle" title="今の枠を置き換えて並べる (先頭から 16 本。自動再生は OFF になります)" disabled>▦ 枠に並べる</button>
+          <button type="button" id="readSave" data-i18n="read.save" data-i18n-title="read.saveTitle" title="名前を付けて再生リストに保存し、ライブラリで開く (200 本まで。同じ名前の再生リストは置き換えます)" disabled>📃 再生リストとして保存</button>
+        </div>
+        <details class="pl-ai">
+          <summary data-i18n="read.aiH">🤖 AI チャットに作ってもらう</summary>
+          <p class="settings-note" data-i18n="read.aiNote">見たいものを書いて頼み文 (見たいもの・書き方の説明・登録しているチャンネルの一覧) をコピーし、Claude などの AI チャット (Web 検索が使えるもの) に貼って送ります。返ってきたリストを上に貼るか、取り込み用リンクを開くと読み込めます</p>
+          <label class="field-label" for="readAiWant" data-i18n="read.aiWantLabel">見たいもの</label>
+          <textarea id="readAiWant" class="share-text" rows="3" maxlength="1000" data-i18n-placeholder="read.aiWantPlaceholder" placeholder="例: 昨日の配信で話題になっていたものを 10 本 / 今週のコラボ企画を参加者全員の視点で / 明日の夜に見られる歌枠"></textarea>
+          <div class="share-buttons">
+            <button type="button" id="readAi" data-i18n="read.ai">📋 頼み文をコピー</button>
+            <span id="readAiCopied" class="share-status" role="status"></span>
+          </div>
+        </details>
+      </div>
     </form>
   </dialog>
 
