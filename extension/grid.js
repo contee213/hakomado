@@ -10199,9 +10199,10 @@ const SESSION_LOCK_PREFIX = 'hakomado-session:';
 const START_CHOICE_KEY = 'hakomado.startChoice'; // sessionStorage: 開き直したときに始める内容 (ロゴのボタンで選んだもの)
 
 let choosingStart = false;
+let startWithRead = false; // 「読み込んで始める」を選んだ: 空の枠で始めて、起動し終えたら 📥 読み込むの側を開く
 
 /**
- * ロゴのボタン: 起動時と同じ選択画面 (ほかの保存内容で再開 / 新しく / 自動再生で) を出す。
+ * ロゴのボタン: 起動時と同じ選択画面 (ほかの保存内容で再開 / 新しく / 読み込んで / 自動再生で) を出す。
  * キャンセル (Esc) なら何もしない。選んだら今の内容を保存してから開き直し、選んだ内容で始める
  * (今の内容は残るので、あとでまた選べる)
  */
@@ -10217,6 +10218,7 @@ async function backToStart() {
     const choices = resumable.map((s) => ({ value: 'resume:' + s.id, label: tr('resumeThis'), note: describeSession(s.data).lines }));
     choices.push(
       { value: 'new', label: tr('startNew'), note: tr('startNewNote') },
+      { value: 'read', label: tr('startRead'), note: tr('startReadNote') },
       { value: 'auto', label: tr('startAuto'), note: tr('startAutoNote') },
     );
     const choice = await askChoice({ title: tr('chooseTitle'), body: [], choices, cancelValue: 'cancel' });
@@ -10476,8 +10478,9 @@ async function chooseSession() {
     applySession(pickedSession.data);
     return false;
   }
-  if (picked === 'new' || picked === 'auto') {
+  if (picked === 'new' || picked === 'auto' || picked === 'read') {
     startNew();
+    startWithRead = picked === 'read';
     return picked === 'auto';
   }
 
@@ -10493,6 +10496,7 @@ async function chooseSession() {
   }));
   choices.push(
     { value: 'new', label: tr('startNew'), note: tr('startNewNote') },
+    { value: 'read', label: tr('startRead'), note: tr('startReadNote') },
     { value: 'auto', label: tr('startAuto'), note: tr('startAutoNote') },
   );
   const body = document.createElement('p');
@@ -10505,6 +10509,7 @@ async function chooseSession() {
     return false;
   }
   startNew();
+  startWithRead = choice === 'read';
   return choice === 'auto';
 }
 
@@ -10547,6 +10552,7 @@ async function chooseSession() {
   startNoticeWatch();
   handleImportLink();
   handleAddLink();
+  if (startWithRead) openReadDialog({ primary: 'apply' });
   // 右クリックのメニューからの追加を受け取る (起動し終えてから。それまでに押されたものは新しいタブで開く)
   chrome.tabs
     .getCurrent()

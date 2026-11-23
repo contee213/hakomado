@@ -183,6 +183,27 @@ test.describe('視聴セッション', () => {
     await expect(visibleTiles(next).first().locator('.url-input')).toHaveValue('dQw4w9WgXcQ');
   });
 
+  test('開き直したときの「読み込んで始める」は、空の枠で始めて 📥 読み込むの側を開く', async ({ openGrid }) => {
+    const page = await openGrid();
+    await skipTour(page);
+    const input = visibleTiles(page).first().locator('.url-input');
+    await input.fill('dQw4w9WgXcQ');
+    await input.press('Enter');
+    await expect
+      .poll(() => page.evaluate(async () => JSON.stringify(await chrome.storage.local.get(null)).includes('dQw4w9WgXcQ')))
+      .toBe(true);
+    await page.close();
+
+    const next = await openGrid();
+    const start = next.locator('#startDialog');
+    await expect(start).toBeVisible();
+    await start.locator('#startChoices button[value="read"]').click();
+    await expect(start).toBeHidden();
+    await expect(next.locator('#readPane')).toBeVisible();
+    await expect(next.locator('#readIn')).toBeFocused();
+    await expect(visibleTiles(next).first().locator('.url-input')).toHaveValue('');
+  });
+
   test('2 つ目のタブは別の視聴セッションになる (同じものを取り合わない)', async ({ openGrid }) => {
     const first = await openGrid();
     await skipTour(first);
