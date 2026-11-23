@@ -1516,7 +1516,14 @@ body.grid-fs .sync-dock { top: 0; }
 .dg-range { flex: 1 1 auto; min-width: 40px; margin: 0; }
 /* 図: 各枠の開始のあたりを拡大。横棒 = 配信の実際の開始から右へ、補正の分は濃淡で (下の .tl-corr)、縦の白線 = 今。左に基準との開始の差、右に状態 */
 .dg-tl { display: flex; flex-direction: column; gap: 2px; padding: 2px 0 4px; font-size: 11px; font-variant-numeric: tabular-nums; }
-.tl-axis { display: flex; justify-content: space-between; margin: 0 72px 0 76px; color: var(--muted); font-size: 10px; }
+/* 目盛り: 棒と同じ横の範囲に、両端の開始の時刻と切れ目の ≈ を、その位置に置く */
+.tl-axis-row { display: flex; gap: 4px; }
+.tl-axis { position: relative; flex: 1 1 auto; height: 13px; margin: 0 72px 0 76px; color: var(--muted); font-size: 10px; }
+.tl-axis > span { position: absolute; top: 0; white-space: nowrap; }
+.tl-lo { transform: translateX(-30%); }
+.tl-hi { transform: translateX(-70%); }
+.tl-break-mark { transform: translateX(-50%); }
+.tl-break { position: absolute; top: -1px; bottom: -1px; width: 4px; margin-left: -2px; background: var(--panel); transform: skewX(-20deg); z-index: 1; }
 .tl-row { display: flex; align-items: center; gap: 4px; }
 .tl-no { flex: none; width: 12px; color: var(--muted); text-align: right; }
 .tl-diff { flex: none; width: 56px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

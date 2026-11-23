@@ -1,4 +1,4 @@
-/* global SyncGroups, Danmaku, LAYOUTS, ANCHORS, DEFAULT_LAYOUT_ID, MAX_SLOTS, getLayout, layoutFor, solveTracks, LANG, LANG_PREF, tr, setLangPref, Backup, UpdateCheck, qrcode, jsQR, ChannelPack, SyncOffsets, MovieAnchors, AudioAlign */
+/* global SyncGroups, SyncChart, Danmaku, LAYOUTS, ANCHORS, DEFAULT_LAYOUT_ID, MAX_SLOTS, getLayout, layoutFor, solveTracks, LANG, LANG_PREF, tr, setLangPref, Backup, UpdateCheck, qrcode, jsQR, ChannelPack, SyncOffsets, MovieAnchors, AudioAlign */
 'use strict';
 
 const MAX_TILES = MAX_SLOTS;
@@ -2743,6 +2743,7 @@ const Sync = (() => {
     }
 
     // ---- 図: 各枠の開始のあたりを拡大して並べる (何時間もの配信の全体では、数十秒や 0.1 秒の違いが見えないため。全体はつまみで見る)。
+    // 開始どうしが 1 分より離れていれば、間を詰めて切れ目 (≈) にする (SyncChart。10 分・30 分の差が混ざっても見分けられるように)。
     // 横棒 = 配信の実際の開始から右へ。補正の分は濃淡で: 早めた (左へ延びた) 分は濃く、遅らせた (右へ縮んだ) 分は薄く。
     // 今の時刻が拡大した範囲に入っていれば縦の線を引く。左に基準との開始の差、右に状態 (✓ 設定どおり / ↻ あと何秒 / 基準 / 待機中)
     /** 秒 → 「36秒」「2分10秒」「1時間5分」 */
@@ -2763,8 +2764,9 @@ const Sync = (() => {
     }
     function timelineEl(G, list) {
       const t = { rows: new Map() };
-      t.lo = mk('span');
-      t.hi = mk('span');
+      t.lo = mk('span', { class: 'tl-lo' });
+      t.hi = mk('span', { class: 'tl-hi' });
+      t.breakKey = '';
       const rowsEl = list.map((i) => {
         const x = {
           bar: mk('div', { class: 'tl-bar' }),
@@ -2779,28 +2781,41 @@ const Sync = (() => {
           { class: 'tl-row', title: tileName(i) || '' },
           mk('span', { class: 'tl-no' }, String(tileNo(i))),
           x.diff,
-          mk('div', { class: 'tl-track' }, x.bar, x.corr, x.now),
+          (x.track = mk('div', { class: 'tl-track' }, x.bar, x.corr, x.now)),
           x.st,
         );
       });
-      t.el = mk('div', { class: 'dg-tl' }, mk('div', { class: 'tl-axis' }, t.lo, t.hi), ...rowsEl);
+      t.axis = mk('div', { class: 'tl-axis' }, t.lo, t.hi);
+      t.el = mk('div', { class: 'dg-tl' }, mk('div', { class: 'tl-axis-row' }, t.axis), ...rowsEl);
       return t;
     }
     /** 図を今に合わせる (同期の処理のたび) */
     function updateTimeline(G, t) {
       const marks = new Map([...t.rows.keys()].map((i) => [i, startMarks(G, i)]));
       const pts = [...marks.values()].filter(Boolean).flatMap((m) => (m.raw == null ? [m.at] : [m.at, m.raw]));
-      if (!pts.length) return;
-      // 開始どうしの差がちょうど見える広さ (少なくとも前後 3 秒)
-      const min = Math.min(...pts);
-      const max = Math.max(...pts);
-      const pad = Math.max(3000, (max - min) * 0.25);
-      const lo = min - pad;
-      const hi = max + pad * 2;
-      const pct = (v) => Math.max(0, Math.min(100, ((v - lo) / (hi - lo)) * 100));
+      const sc = SyncChart.scale(pts);
+      if (!sc) return;
+      const pct = sc.pos;
       const fmt = isMovie(G) ? (ms) => movieText(ms).replace(/^\S+\s/, '') : clockText;
-      t.lo.textContent = fmt(lo);
-      t.hi.textContent = fmt(hi);
+      // 目盛りの両端: 一番早い開始と一番遅い開始 (その位置に置く)
+      // 時刻の文字が、ほかの時刻や切れ目の ≈ と重なるなら出さない (差は左の文字で分かる)
+      const room = (at, others) => others.every((o) => Math.abs(o - at) >= 40);
+      t.lo.textContent = room(pct(sc.first), sc.breaks) ? fmt(sc.first) : '';
+      t.lo.style.left = pct(sc.first) + '%';
+      t.hi.textContent = room(pct(sc.last), [pct(sc.first), ...sc.breaks]) ? fmt(sc.last) : '';
+      t.hi.style.left = pct(sc.last) + '%';
+      // 切れ目 (≈): 目盛りと各枠の棒に入れる (位置が変わったときだけ作り直す)
+      const breakKey = sc.breaks.map((b) => b.toFixed(1)).join(',');
+      if (breakKey !== t.breakKey) {
+        t.breakKey = breakKey;
+        const cut = (cls, text = '') => sc.breaks.map((b) => mk('span', { class: cls, style: `left: ${b}%` }, text));
+        t.axis.querySelectorAll('.tl-break-mark').forEach((e) => e.remove());
+        t.axis.append(...cut('tl-break-mark', '≈'));
+        for (const x of t.rows.values()) {
+          x.track.querySelectorAll('.tl-break').forEach((e) => e.remove());
+          x.track.append(...cut('tl-break'));
+        }
+      }
       const R = nowR(G);
       const ref = G.ref;
       // 開始の差: 実際の時刻は配信が始まった時刻どうし (補正は含めない)、本編は本編 0:00 の位置どうし
@@ -2822,8 +2837,10 @@ const Sync = (() => {
           x.corr.classList.toggle('is-later', !earlier);
           x.corr.title = tr(earlier ? 'syncTlCorrEarlier' : 'syncTlCorrLater', signedSec(off(i)));
         }
-        x.now.hidden = R < lo || R > hi;
-        x.now.style.left = pct(R) + '%';
+        // 今の時刻: 図に入っていれば縦の線 (ずっと後なら出さない)
+        const nowX = pct(R);
+        x.now.hidden = nowX <= 0 || nowX >= 100;
+        x.now.style.left = nowX + '%';
         const d = i === ref || startOf(i) == null || startOf(ref) == null ? null : (startOf(i) - startOf(ref)) / 1000;
         x.diff.textContent =
           i === ref ? tr('syncTlBase') : d == null ? '' : Math.abs(d) < 0.5 ? tr('syncTlSame') : tr(d < 0 ? 'syncTlEarlier' : 'syncTlLater', spanLabel(d));
