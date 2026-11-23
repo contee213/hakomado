@@ -261,11 +261,6 @@ const MESSAGES = {
   infoLiveNow: ['配信中', 'Live now'],
   infoPlanned: ['{0} (予定)', '{0} (planned)'],
   syncRefMoved: ['基準の枠が無くなったので、{0} を基準にしました', 'The reference tile is gone, so {0} is now the reference'],
-  syncTrimmed: [
-    'アーカイブが配信より約 {0} 短くなっています (冒頭か末尾が切られている可能性)',
-    'This archive is about {0} shorter than the stream (the start or end may have been cut)',
-  ],
-  syncTrimHead: ['冒頭が切られた場合: {0} 秒にする', 'If the start was cut: set to {0}s'],
   syncWaitStart: [
     'この枠だけ止めています。ほかが追いついたら再生すると、そこで補正が決まります',
     'Only this tile is paused. Play it when the others catch up, and the offset is set there',
@@ -410,8 +405,6 @@ const MESSAGES = {
   movieClear: ['本編の位置を消す', 'Clear movie start'],
   movieBadClock: ['h:mm:ss・m:ss・秒のどれかで入れてください', 'Enter h:mm:ss, m:ss or seconds'],
   readMovie: ['🎬 本編でそろえる', '🎬 aligned on the movie'],
-  approxMin: ['{0} 分', '{0} min'],
-  approxSec: ['{0} 秒', '{0} s'],
   packConfirm: [
     'チャンネルパック「{0}」を読み込みますか？\n{1} 件を追加します (登録済みの {2} 件はそのまま)',
     'Import the channel pack “{0}”?\n{1} channels will be added ({2} you already have stay as they are)',

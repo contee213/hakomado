@@ -1466,8 +1466,6 @@ window.addEventListener('message', (e) => {
 // - そろえる基準は実際の時刻: 各アーカイブの 0 秒 = その配信が始まった時刻 (動画の liveBroadcastDetails.startTimestamp)。
 //   ずれ (配信の遅延の違いなど) は、同期の調整パネル (画面の右の列) で直せる (← → キー・◀ ▶・0.01 秒単位で秒数を直接入れる)。
 //   ずれは動画ごとに記録する (SyncOffsets)。別の枠に入れても、次に開いても、視聴セットで人に渡しても同じ値を使う
-// - アーカイブは冒頭 (開始前の待機画面など) が切られていることがあり、そのときは「0 秒 = 開始時刻」がずれる。
-//   配信していた時間 (end − start) よりアーカイブが短ければパネルに知らせ、冒頭が切られた場合の値を候補として出す
 // - 同期グループ: A・B と C・D のように、別々の組でそろえられる (最大 4 組)。時間帯が重なるアーカイブどうしを自動でまとめ
 //   (SyncGroups)、パネルの各行で手で付け替えられる (手で決めた分は、その枠の中身が変わるまで保つ)。
 //   グループごとに、そろえ方 (🕒 実際の時刻 / 🎬 本編)・基準の枠・「同期の時計」・一時停止・つまみを持つ
@@ -2141,11 +2139,10 @@ const Sync = (() => {
     } else if (movable(i)) {
       const v = (wait && G ? offsetAt(G, i, nowR(G)) : null) ?? off(i);
       text = wait ? `⏸ ${signedSec(v)}` : v ? `⏱ ${signedSec(v)}` : '⏱';
-      warn = trimmedOf(i) >= TRIM_MIN && v === 0; // 切られたアーカイブで、まだずらしていなければ知らせる
     }
     if (adj.textContent !== text) adj.textContent = text;
     adj.classList.toggle('is-waiting', !!wait);
-    adj.classList.toggle('has-trim', warn);
+    adj.classList.toggle('needs-set', warn);
   }
 
   /** 「止めて待つ」を始める (paused = もう止まっている。パネルのボタンからなら、止める指示を送る) */
@@ -2284,14 +2281,6 @@ const Sync = (() => {
   /** +1.25 / -300.00 のような符号付きの秒 (0.01 秒単位) */
   const signedSec = (v) => (v > 0 ? '+' : '') + v.toFixed(2);
 
-  const TRIM_MIN = 30; // アーカイブが配信よりこれ以上 (秒) 短ければ、切られていると知らせる
-  /** アーカイブが配信していた時間より何秒短いか (冒頭か末尾が切られたぶん。どちらかはわからない) */
-  function trimmedOf(i) {
-    const a = views[i].archive;
-    if (!a || !(a.end > a.start)) return 0;
-    return Math.round((a.end - a.start) / 1000 - a.dur);
-  }
-  const approxText = (sec) => (sec >= 120 ? tr('approxMin', Math.round(sec / 60)) : tr('approxSec', sec));
 
   /** 「今は本編の h:mm:ss」(h:mm:ss / m:ss / 秒。頭に − も可) を秒に。読めなければ null */
   function parseClock(text) {
@@ -2554,8 +2543,7 @@ const Sync = (() => {
         // 実際の時刻に戻す (ずれを 0 に。手で合わせてうまくいかなかったとき)。本編モードは ✕ (本編の位置を消す) がその代わり
         if (!movie) r.reset = mk('button', { type: 'button', class: 'dr-reset', textContent: '↺', title: tr('syncResetTitle'), onclick: () => setOffset(i, 0) });
         const live = liveTile(i);
-        // 基準の枠は時計を動かす側なので、ずれは見せるだけ (動かすと、基準ではなくほかの枠が逆向きにずれるため)。
-        // 合わせるのはほかの枠で。基準の動画そのものの直し (冒頭が切られた場合・0 に戻す) だけ残す
+        // 基準の枠は時計を動かす側なので、補正は動かさない (動かすと、基準ではなくほかの枠が逆向きにずれるため)。合わせるのはほかの枠で
         // 実際の時刻の基準: 補正はいつも 0 (zeroRef)。ほかの枠と同じ操作を、押せない形で 🔒 と並べる (固定されていると分かるように)
         // 本編の基準: 本編の位置は決める必要があるので、位置だけ出す (下に「▶ ここが 0:00」など)
         if (isRef && !live && !movie) {
@@ -2624,13 +2612,6 @@ const Sync = (() => {
             },
           });
           parts.push(mk('div', { class: 'dr-line dr-sub' }, here));
-        }
-        // 切られたアーカイブ: 自動では直さず (冒頭か末尾かわからないため)、冒頭が切られた場合の値をワンクリックで出す
-        const trimmed = trimmedOf(i);
-        // 基準の行には出さない (基準の補正はいつも 0 に寄せ直すので、押すたびにほかの枠がずれてしまう)
-        if (!movie && !isRef && trimmed >= TRIM_MIN) {
-          r.trim = mk('button', { type: 'button', class: 'dr-trim-head', textContent: tr('syncTrimHead', -trimmed), onclick: () => setOffset(i, -trimmed) });
-          parts.push(mk('div', { class: 'dr-line dr-sub dr-trim' }, mk('span', { class: 'dr-trim-text' }, tr('syncTrimmed', approxText(trimmed))), r.trim));
         }
       } else {
         const reason = assigned.excluded.get(i) || (G ? 'wait' : 'alone');
@@ -2960,7 +2941,7 @@ const Sync = (() => {
         [...groups.values()].map((G) => [G.g, G.mode, G.ref, active(G), membersOf(G.g)]),
         [...assigned.excluded],
         [...manual].map(([i, m]) => [i, m.g]),
-        visibleIndexes().map((i) => [i, tileName(i), trimmedOf(i) >= TRIM_MIN, liveTile(i)]),
+        visibleIndexes().map((i) => [i, tileName(i), liveTile(i)]),
         AudioSync.resultKey(),
       ]);
       if (key !== structKey) {
@@ -3012,7 +2993,6 @@ const Sync = (() => {
         r.dot.className = 'dr-dot is-' + st;
         r.dot.textContent = st === 'ok' ? '✓' : st === 'fix' ? '↻' : '';
         r.dot.title = tr('syncDot_' + st);
-        if (r.trim) r.trim.disabled = off(i) === -trimmedOf(i);
         if (r.reset) r.reset.hidden = !movable(i) || off(i) === 0 || !!wait;
       }
     }

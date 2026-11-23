@@ -1434,7 +1434,8 @@ code { font-size: 12px; background: #222228; padding: 0 4px; border-radius: 3px;
 .sync-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
 .sync-row[hidden] { display: none; }
 .sync-input { width: 6.5em; padding: 1px 4px; background: #000; color: var(--text); border: 1px solid var(--line); border-radius: 6px; font-size: 12px; font-variant-numeric: tabular-nums; }
-.sync-adj.has-trim { color: #f0c36d; border-color: #f0c36d; }
+/* 🎬 本編モードで、まだ本編の位置を決めていない枠の ⏱ */
+.sync-adj.needs-set { color: #f0c36d; border-color: #f0c36d; }
 .sync-adj.is-waiting, .sync-wait.is-waiting { color: #8fd3ff; border-color: #8fd3ff; }
 /* 使えないとき (同期できるアーカイブが 2 本ない) も出しておき、薄くする。押すと理由が出る */
 #syncToggle.unavailable { opacity: .5; }
@@ -1584,7 +1585,6 @@ body.grid-fs .sync-dock { top: 0; }
 .dr-note { color: var(--muted); }
 .dr-movie-label { display: inline-flex; align-items: center; gap: 4px; }
 .dr-movie-now { width: 6em; }
-.dr-trim-text { color: #f0c36d; }
 /* たたんだとき: 番号・ずれ・点だけ */
 .sync-dock.mini .dock-title, .sync-dock.mini .dg-actions, .sync-dock.mini .dr-ref-tag, .sync-dock.mini .dr-sub, .sync-dock.mini .dr-name,
 .sync-dock.mini .dr-group, .sync-dock.mini .dr-ref, .sync-dock.mini .dg-seek, .sync-dock.mini .dg-head select,
