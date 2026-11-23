@@ -1018,23 +1018,26 @@ function renderTile(i, { reloadPlayer = false, reloadChat = false } = {}) {
 }
 
 /**
- * 枠のバーの「チャンネル登録」「高評価」ボタン。状態は枠のプレイヤー (YouTube のページ) が知らせてくる。
+ * 「チャンネル登録」(枠の情報) /「高評価」(枠のバーと枠の情報) のボタンの状態。状態は枠のプレイヤー (YouTube のページ) が知らせてくる。
  * 済んでいれば隠す。YouTube にログインしていない / まだ分からない / 操作中は押せない
  */
-function updateSocialButtons(i) {
+function socialButtonState(i, act) {
   const v = views[i];
   const s = v.social;
-  for (const [act, key, offTitle] of [
-    ['subscribe', 'subscribed', 'ytSubscribe'],
-    ['like', 'liked', 'ytLike'],
-  ]) {
-    const btn = v.el.querySelector(`.bar [data-act="${act}"]`);
-    const known = !!s?.loggedIn && typeof s[key] === 'boolean';
+  const key = act === 'like' ? 'liked' : 'subscribed';
+  const known = !!s?.loggedIn && typeof s[key] === 'boolean';
+  return {
     // 済んでいるときはボタンを出さない (解除・取り消しはしない)
-    btn.hidden = known && s[key];
-    btn.disabled = !known || !!v.socialBusy;
-    btn.title = !s ? tr('ytChecking') : !s.loggedIn ? tr('ytLogin') : !known ? tr('ytChecking') : tr(offTitle);
-  }
+    hidden: known && s[key],
+    disabled: !known || !!v.socialBusy,
+    title: !s ? tr('ytChecking') : !s.loggedIn ? tr('ytLogin') : !known ? tr('ytChecking') : tr(act === 'like' ? 'ytLike' : 'ytSubscribe'),
+  };
+}
+
+function updateSocialButtons(i) {
+  const btn = views[i].el.querySelector('.bar [data-act="like"]');
+  Object.assign(btn, socialButtonState(i, 'like'));
+  TileInfo.update();
 }
 
 /** チャンネル登録 / 高評価を、枠のプレイヤー (YouTube のページ) に頼む。済んでいるときは何もしない (解除・取り消しはしない) */
@@ -1083,20 +1086,23 @@ function pickedChannelOf(i) {
   return null;
 }
 
+/** 枠の 📌 (枠の情報)・🔖 (枠のバーと枠の情報)・📃 (枠の情報) が点いているか */
+function tileMarks(i) {
+  const id = state.tiles[i].videoId;
+  return {
+    picked: !!id && pickedChannelOf(i) != null,
+    saved: !!id && savedIds.has(id),
+    listed: !!id && playlistIds.has(id),
+  };
+}
+
 function updateFavButton(i) {
-  const btn = views[i].el.querySelector('[data-act="fav"]');
-  const picked = !!state.tiles[i].videoId && pickedChannelOf(i) != null;
-  btn.classList.toggle('on', picked);
-  btn.title = tr(picked ? 'tilePickOff' : 'tilePickOn');
-  // 🔖 (この配信をあとで見るに入れているか)
-  const save = views[i].el.querySelector('[data-act="save"]');
-  const saved = !!state.tiles[i].videoId && savedIds.has(state.tiles[i].videoId);
+  // 🔖 (この配信をあとで見るに入れているか)。📌・📃 は「ℹ 枠の情報」にだけある
+  const save = views[i].el.querySelector('.bar [data-act="save"]');
+  const { saved } = tileMarks(i);
   save.classList.toggle('on', saved);
   save.title = tr(saved ? 'tileSaveOff' : 'tileSaveOn');
-  // 📃 (この配信をどれかの再生リストに入れているか)
-  const pl = views[i].el.querySelector('[data-act="playlist"]');
-  pl.classList.toggle('on', !!state.tiles[i].videoId && playlistIds.has(state.tiles[i].videoId));
-  pl.title = tr('tilePlaylist');
+  TileInfo.update();
 }
 
 // あとで見るに入れた配信の動画 ID (枠の 🔖 と、ライブラリの一覧の 🔖 の表示用)
@@ -1416,10 +1422,11 @@ function setMix(i, { pan, gain, delay } = {}) {
   if (delay != null) t.delay = clampDelay(delay);
   applyAudio(i);
   renderMix(i);
+  TileInfo.update();
   save();
 }
 
-/** バーの 🎚 (L / R の印) と、開いていればパネルの表示 */
+/** バーの 🎚 (L / R の印) と、開いていればパネルの表示 (左右は「ℹ 枠の情報」でも変えられる) */
 function renderMix(i) {
   const t = state.tiles[i];
   const el = views[i].el;
@@ -1440,33 +1447,13 @@ function renderMix(i) {
   panel.querySelector('.mix-gain-value').textContent = `${Math.round(t.gain * 100)}%`;
 }
 
-/** 音の出ている 2 枠を、画面の左にあるほうを左・右にあるほうを右へ (コラボの 2 視点の聞き分け用) */
-function splitStereo() {
-  const audible = audibleTiles();
-  if (audible.length !== 2) {
-    notify(tr('mixNeed2', audible.length));
-    return;
-  }
-  const pos = (i) => {
-    const r = views[i].el.getBoundingClientRect();
-    return r.left + r.width / 2;
-  };
-  const [left, right] = audible.sort((a, b) => pos(a) - pos(b));
-  setMix(left, { pan: -1 });
-  setMix(right, { pan: 1 });
-  showToast(left, tr('mixLeft'));
-  showToast(right, tr('mixRight'));
-}
-
 function setupMixPanel(i, el) {
   const panel = el.querySelector('.mix-panel');
   panel.addEventListener('click', (e) => {
     const b = e.target.closest('button');
     if (!b) return;
     if (b.dataset.pan != null) setMix(i, { pan: Number(b.dataset.pan) });
-    else if (b.dataset.mix === 'split') splitStereo();
     else if (b.dataset.delay != null) setMix(i, { delay: state.tiles[i].delay + Number(b.dataset.delay) });
-    else if (b.dataset.mix === 'reset') setMix(i, { pan: 0, gain: 1, delay: 0 });
   });
   const range = panel.querySelector('.mix-gain');
   range.addEventListener('input', () => setMix(i, { gain: Number(range.value) / 100 }));
@@ -1704,9 +1691,9 @@ function onBarAction(i, act, e) {
       renderTile(i);
       layout();
       break;
-    case 'syncAdj':
-      Sync.openFor(i);
-      break;
+    case 'pan':
+      setMix(i, { pan: Number(e.target.closest('button').dataset.pan) });
+      return;
     case 'speed':
       SpeedMenu.open(e.target.closest('button'), { kind: 'tile', i });
       return;
@@ -2689,7 +2676,7 @@ const Sync = (() => {
   }
 
   let marksKey = '';
-  /** 枠の印: 「基準」(グループが 2 つ以上なら、グループの番号と色も) と、バーの ⏱ (同期の処理のたびにも呼ぶ。変わったときだけ書き換える) */
+  /** 枠の印: 「基準」(グループが 2 つ以上なら、グループの番号と色も) (同期の処理のたびにも呼ぶ。変わったときだけ書き換える) */
   function updateMarks() {
     const act = activeGroups();
     const multi = act.length > 1;
@@ -2708,31 +2695,9 @@ const Sync = (() => {
         if (inSync && multi) views[i].el.style.setProperty('--g', colorOf(G.g));
         else views[i].el.style.removeProperty('--g');
         views[i].el.classList.toggle('sync-grouped', inSync && multi);
-        views[i].el.querySelector('.sync-adj').hidden = !(on && candidate(i));
         if (!on || !candidate(i)) overlay(i, '');
       }
     }
-    for (let i = 0; i < MAX_TILES; i++) if (on && candidate(i)) updateChip(i);
-  }
-
-  /** 枠のバーの ⏱ (ずれか本編の位置を短く。押すとパネルでこの枠を選ぶ) */
-  function updateChip(i) {
-    const adj = views[i].el.querySelector('.sync-adj');
-    const G = groupOfTile(i);
-    const wait = waiting.get(i);
-    let text = '⏱';
-    let warn = false;
-    if (G && isMovie(G)) {
-      const a = (wait ? offsetAt(G, i, nowR(G)) : null) ?? anchor(i);
-      text = wait ? '⏸ 🎬' : a == null ? '🎬' : '🎬 ✓';
-      warn = a == null && !liveTile(i); // まだ決めていなければ目立たせる
-    } else if (movable(i)) {
-      const v = (wait && G ? offsetAt(G, i, nowR(G)) : null) ?? off(i);
-      text = wait ? `⏸ ${signedSec(v)}` : v ? `⏱ ${signedSec(v)}` : '⏱';
-    }
-    if (adj.textContent !== text) adj.textContent = text;
-    adj.classList.toggle('is-waiting', !!wait);
-    adj.classList.toggle('needs-set', warn);
   }
 
   /** 「止めて待つ」を始める (paused = もう止まっている。パネルのボタンからなら、止める指示を送る) */
@@ -3718,7 +3683,7 @@ const Sync = (() => {
       setFloating(floating);
     }
 
-    /** 自分で出した (枠の ⏱ など): 次に同期を始めたときも出す */
+    /** 自分で出した (上部バーの ☰): 次に同期を始めたときも出す */
     function open(i) {
       wanted = true;
       show(i);
@@ -3749,8 +3714,6 @@ const Sync = (() => {
   return {
     setup,
     refresh,
-    /** 枠のバーの ⏱: パネルを出して、この枠を選ぶ */
-    openFor: (i) => Dock.show(i),
     startWhenReady,
     offsetsChanged,
     isOn: () => on,
@@ -4324,11 +4287,57 @@ const TileInfo = (() => {
     return info?.dur ? `${hms(t)} / ${hms(info.dur)}` : hms(t);
   }
 
+  const SUB_ICON =
+    '<svg class="sub-icon" viewBox="0 0 16 16" aria-hidden="true"><circle cx="6" cy="4.6" r="2.8"/><path d="M0.8 14.2c0-3.1 2.3-5.4 5.2-5.4s5.2 2.3 5.2 5.4z"/><path d="M12.25 5.5h1.5v2.25H16v1.5h-2.25v2.25h-1.5V9.25H10v-1.5h2.25z"/></svg>';
+
+  /** 枠ごとの操作: 音の左右 (L / C / R)・📌・🔖・📃・チャンネル登録・高評価。押すと枠のバーと同じ動き (onBarAction) */
+  function opsCell(i) {
+    const c = document.createElement('td');
+    c.className = 'info-ops';
+    const btn = (act, { text = '', html = '', title = '', on = false, cls = '' } = {}) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.dataset.act = act;
+      if (cls) b.className = cls;
+      if (html) b.innerHTML = html;
+      else b.textContent = text;
+      b.title = title;
+      b.classList.toggle('on', on);
+      return b;
+    };
+    const pan = document.createElement('span');
+    pan.className = 'info-pan';
+    pan.title = tr('mixPanTitle');
+    const p = state.tiles[i].pan;
+    for (const [v, text, key] of [
+      [-1, 'L', 'mixLeftTitle'],
+      [0, 'C', 'mixCenterTitle'],
+      [1, 'R', 'mixRightTitle'],
+    ]) {
+      const b = btn('pan', { text, title: tr(key), on: p === v });
+      b.dataset.pan = String(v);
+      pan.append(b);
+    }
+    const m = tileMarks(i);
+    const fav = btn('fav', { text: '📌', title: tr(m.picked ? 'tilePickOff' : 'tilePickOn'), on: m.picked, cls: 'mark' });
+    fav.disabled = !!views[i].favBusy;
+    const save = btn('save', { text: '🔖', title: tr(m.saved ? 'tileSaveOff' : 'tileSaveOn'), on: m.saved, cls: 'mark' });
+    const pl = btn('playlist', { text: '📃', title: tr('tilePlaylist'), on: m.listed, cls: 'mark' });
+    const social = ['subscribe', 'like'].map((act) => {
+      const b = btn(act, { text: '👍', html: act === 'subscribe' ? SUB_ICON : '', cls: 'social' });
+      Object.assign(b, socialButtonState(i, act));
+      return b;
+    });
+    c.append(pan, fav, save, pl, ...social);
+    return c;
+  }
+
   function row(i, n) {
     const kind = tileKind(i);
     const info = views[i].info;
     const meta = views[i].meta;
     const tr_ = document.createElement('tr');
+    tr_.dataset.i = String(i);
     const td = (text, cls) => {
       const c = document.createElement('td');
       if (cls) c.className = cls;
@@ -4343,12 +4352,17 @@ const TileInfo = (() => {
     const ch = document.createElement('div');
     ch.className = 'info-channel';
     ch.textContent = meta?.channel || tileName(i) || '—';
-    const ti = document.createElement('div');
+    // タイトルを押すと、その動画を YouTube の新しいタブで開く
+    const ti = document.createElement('a');
     ti.className = 'info-title';
-    ti.textContent = meta?.title || '';
-    ti.title = meta?.title || '';
+    ti.href = `${YT}/watch?v=${encodeURIComponent(state.tiles[i].videoId)}`;
+    ti.target = '_blank';
+    ti.rel = 'noopener noreferrer';
+    ti.textContent = meta?.title || ti.href;
+    ti.title = tr('infoOpenYouTube', meta?.title || ti.href);
     v.append(ch, ti);
     tr_.append(v);
+    tr_.append(opsCell(i));
     for (const text of timeCells(kind, info)) td(text, 'info-time');
     td(kind === 'live' ? numText(info?.viewers) : '—', 'info-n');
     td(numText(info?.views), 'info-n');
@@ -4364,7 +4378,16 @@ const TileInfo = (() => {
     const list = visibleIndexes()
       .map((i, k) => [i, k + 1])
       .filter(([i]) => state.tiles[i].videoId);
-    document.getElementById('infoRows').replaceChildren(...list.map(([i, n]) => row(i, n)));
+    // 数秒ごとに書き直すので、操作のボタンに当たっていたキーボードの位置を戻す
+    const rowsEl = document.getElementById('infoRows');
+    const f = rowsEl.contains(document.activeElement) ? document.activeElement : null;
+    const focusKey = f?.dataset.act ? [f.closest('tr')?.dataset.i, f.dataset.act, f.dataset.pan ?? ''] : null;
+    rowsEl.replaceChildren(...list.map(([i, n]) => row(i, n)));
+    if (focusKey) {
+      const [i, act, p] = focusKey;
+      const sel = `tr[data-i="${i}"] button[data-act="${act}"]` + (p ? `[data-pan="${p}"]` : '');
+      rowsEl.querySelector(sel)?.focus();
+    }
     document.getElementById('infoEmpty').hidden = list.length > 0;
     dialog.querySelector('.info-scroll').hidden = !list.length;
   }
@@ -4391,6 +4414,13 @@ const TileInfo = (() => {
   function setup() {
     document.getElementById('openInfo').addEventListener('click', open);
     document.getElementById('infoClose').addEventListener('click', () => dialog.close());
+    document.getElementById('infoRows').addEventListener('click', (e) => {
+      const b = e.target.closest('button[data-act]');
+      const i = Number(b?.closest('tr')?.dataset.i);
+      if (!b || b.disabled || !Number.isInteger(i) || !state.tiles[i].videoId) return;
+      onBarAction(i, b.dataset.act, e);
+      update();
+    });
     dialog.addEventListener('close', () => {
       clearInterval(timer);
       timer = 0;
@@ -10114,8 +10144,9 @@ async function addTileToFavorites(i) {
   // 枠のバーの 📌: ピックアップに入っていれば外す、入っていなければ入れる (チャンネル一覧にも登録)
   const t = state.tiles[i];
   if (!t.videoId) return;
-  const btn = views[i].el.querySelector('[data-act="fav"]');
-  btn.disabled = true;
+  if (views[i].favBusy) return;
+  views[i].favBusy = true;
+  TileInfo.update();
   try {
     const picked = pickedChannelOf(i);
     if (picked) {
@@ -10132,7 +10163,8 @@ async function addTileToFavorites(i) {
   } catch (e) {
     showToast(i, tr('favAddFailed', e.message || e));
   } finally {
-    btn.disabled = false;
+    views[i].favBusy = false;
+    TileInfo.update();
   }
 }
 

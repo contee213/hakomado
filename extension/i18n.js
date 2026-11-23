@@ -237,6 +237,7 @@ const MESSAGES = {
   syncWhyVideo: ['ふつうの動画: {0} 本 (配信の時刻が無いので同期できません)', 'Regular videos: {0} (they have no stream times, so they cannot be synced)'],
   syncWhyBlocked: ['見られない動画: {0} 本', 'Not viewable: {0}'],
   syncWhyLoading: ['確認中: {0} 本 (アーカイブだと分かりしだい使えます)', 'Checking: {0} (usable once recognized as archives)'],
+  infoOpenYouTube: ['YouTube で開く: {0}', 'Open on YouTube: {0}'],
   infoKind_live: ['ライブ', 'Live'],
   infoKind_upcoming: ['配信前', 'Upcoming'],
   infoKind_archive: ['アーカイブ', 'Archive'],
@@ -488,9 +489,10 @@ const MESSAGES = {
   speedAllHead: ['全部の枠の再生速度', 'Speed of all tiles'],
   speedTileHead: ['枠 {0} の再生速度', 'Speed of tile {0}'],
   speedGroupHead: ['同期グループ {0} ({1} 枠) の再生速度', 'Speed of sync group {0} ({1} tiles)'],
-  mixNeed2: ['音の出ている枠を 2 つにしてから押してください (いま {0} 枠)', 'Make exactly 2 tiles play audio first (now {0})'],
-  mixLeft: ['左から聞こえます', 'Heard from the left'],
-  mixRight: ['右から聞こえます', 'Heard from the right'],
+  mixPanTitle: ['この枠の音の左右', 'Left/right of this tile’s audio'],
+  mixLeftTitle: ['左から聞こえるようにする', 'Hear it from the left'],
+  mixCenterTitle: ['真ん中 (元のまま)', 'Center (as it is)'],
+  mixRightTitle: ['右から聞こえるようにする', 'Hear it from the right'],
   catalogEmpty: ['一覧にパックがありません', 'There are no packs in the list'],
   catalogBad: ['パックの一覧として読めませんでした', 'This could not be read as a pack list'],
   catalogBy: ['作成: {0}', 'By {0}'],
@@ -636,12 +638,12 @@ const MESSAGES = {
   ],
   plSyncCut: ['{0} 本を外して同期再生にしました', 'Removed {0} and switched to sync'],
   plEmpty: [
-    '再生リストはまだありません。上の「＋ 新規」で空の再生リストを作るか、「▦ 今の枠から作る」で表示中の枠をそのまま再生リストにできます。枠のバーや、最近の動画・視聴履歴・あとで見るの 📃 からも作れます。',
-    'No playlists yet. Use "+ New" above to make an empty one, or "▦ From current tiles" to turn the shown tiles into a playlist. You can also make one with 📃 on a tile bar or in recent videos, watch history and Watch later.',
+    '再生リストはまだありません。上の「＋ 新規」で空の再生リストを作るか、「▦ 今の枠から作る」で表示中の枠をそのまま再生リストにできます。「ℹ️ 枠の情報」や、最近の動画・視聴履歴・あとで見るの 📃 からも作れます。',
+    'No playlists yet. Use "+ New" above to make an empty one, or "▦ From current tiles" to turn the shown tiles into a playlist. You can also make one with 📃 in “ℹ️ Tile info” or in recent videos, watch history and Watch later.',
   ],
   plNoItems: [
-    'この再生リストは空です。下の欄に URL を入れるか、「▦ 今の枠を追加」、枠のバーや最近の動画・視聴履歴・あとで見るの 📃 で入れられます。',
-    'This playlist is empty. Enter a URL in the box below, use "▦ Add current tiles", or 📃 on a tile bar or in recent videos, watch history and Watch later.',
+    'この再生リストは空です。下の欄に URL を入れるか、「▦ 今の枠を追加」、「ℹ️ 枠の情報」や最近の動画・視聴履歴・あとで見るの 📃 で入れられます。',
+    'This playlist is empty. Enter a URL in the box below, use "▦ Add current tiles", or 📃 in “ℹ️ Tile info” or in recent videos, watch history and Watch later.',
   ],
   plAddTitle: ['再生リストに入れる / 外す', 'Add to or remove from a playlist'],
   tilePlaylist: ['この配信を再生リストに入れる / 外す', 'Add this stream to a playlist, or remove it'],
@@ -761,7 +763,7 @@ const MESSAGES = {
   reasonClosed: ['✕ で閉じた', 'Closed'],
   reasonMembers: ['メンバー限定', 'Members-only'],
   reasonReplaced: ['入れ替え', 'Replaced'],
-  starEmpty: ['ピックアップはまだありません。「📺 すべて」に切り替えてチャンネルの 📌 を押すか、枠のバーの 📌 を押すと入ります。箱企画などで注目したいチャンネルを入れて、自動再生の対象を「ピックアップ (📌) だけ」にすると、その配信だけを並べられます。', 'Nothing picked up yet. Switch to "📺 All" and press 📌 on a channel, or press 📌 on a tile bar. Pick the channels you want to follow (e.g. a group event) and set auto play to "Pickup (📌) only" to show just those streams.'],
+  starEmpty: ['ピックアップはまだありません。「📺 すべて」に切り替えてチャンネルの 📌 を押すか、「ℹ️ 枠の情報」の 📌 を押すと入ります。箱企画などで注目したいチャンネルを入れて、自動再生の対象を「ピックアップ (📌) だけ」にすると、その配信だけを並べられます。', 'Nothing picked up yet. Switch to "📺 All" and press 📌 on a channel, or press 📌 in “ℹ️ Tile info”. Pick the channels you want to follow (e.g. a group event) and set auto play to "Pickup (📌) only" to show just those streams.'],
   starOn: ['ピックアップに入れる', 'Pick up'],
   starOff: ['ピックアップから外す (チャンネル一覧には残ります)', 'Remove from pickup (stays in channels)'],
   tilePickOn: ['この枠のチャンネルをピックアップに入れる', "Pick up this tile's channel"],
@@ -953,11 +955,12 @@ const HTML_EN = {
   'help.h': '? Help',
   'sync.title': 'Archive sync: play stream archives aligned to when they were actually streamed',
   'sync.label': 'Archive sync',
-  'info.title': 'Tile info (I): the type (live, archive, video), stream times, viewers, views and more for each tile',
+  'info.title': 'Tile info (I): the type (live, archive, video), stream times, viewers and views for each tile, plus left/right audio, 📌 pickup, 📃 playlists and subscribing. Click a title to open it on YouTube',
   'info.h': 'ℹ️ Tile info',
   'info.colTile': 'Tile',
   'info.colKind': 'Type',
   'info.colVideo': 'Channel / title',
+  'info.colOps': 'Actions',
   'info.colStart': 'Start / published',
   'info.colEnd': 'End',
   'info.colLen': 'Length',
@@ -970,7 +973,6 @@ const HTML_EN = {
   'sync.seekTitle': 'Move all synced archives to this time',
   'sync.dockTitle': 'Show / hide the sync panel (groups, reference, offsets, ✨ auto-correct)',
   'sync.dockHead': '⏱ Sync',
-  'sync.adjTitle': 'Open the sync panel with this tile selected (offset, reference, group)',
   'share.title': 'Share: turn the current tiles or a playlist into an image, a link or text to give to others',
   'share.h': '🔗 Share',
   'share.sourceLabel': 'What to share',
@@ -1028,8 +1030,9 @@ const HTML_EN = {
   'helpPage.tiles': `<ul>
 <li>Choose a layout with “▦” on the top bar. The darker tile is the main one, and loaded streams fill tiles from 1 (main) on. “+” / “−” add or remove a tile</li>
 <li>Hover over a tile with a stream to show its control bar. Drag ⠿ at the left to swap tiles</li>
-<li>Tile bar: audio button (play audio from this tile) / 🎚 left/right, volume and delay / 1× playback speed / 💬 chat / ≋ danmaku / 📌 pickup / 🔖 watch later / 📃 add to a playlist / ⏱ sync offset (for archives) / ⟳ reload / ⛶ fullscreen this tile / ✕ close</li>
-<li>🎚 makes that tile heard from the left, center or right and changes its volume (0–200%). “⇆ Split 2 tiles left/right” sends the 2 tiles playing audio left and right by their position on screen. On a live stream, “Audio delay” delays only that tile’s audio (the picture stays as it is; for a collab whose voices come earlier than the other tiles)</li>
+<li>Tile bar: audio button (play audio from this tile) / 🎚 left/right, volume and delay / 1× playback speed / 💬 chat / ≋ danmaku / 🔖 watch later / 👍 like / ⟳ reload / ⛶ fullscreen this tile / ✕ close</li>
+<li>Each row of “ℹ️ Tile info” (<kbd>I</kbd>): left/right audio (L / C / R) / 📌 pickup / 🔖 watch later / 📃 add to a playlist / subscribe / 👍 like. Click a title to open that video on YouTube in a new tab</li>
+<li>🎚 makes that tile heard from the left, center or right and changes its volume (0–200%). You can also change left/right with L / C / R in “ℹ️ Tile info”. On a live stream, “Audio delay” delays only that tile’s audio (the picture stays as it is; for a collab whose voices come earlier than the other tiles)</li>
 <li>“⛶” (<kbd>Shift</kbd> + <kbd>F</kbd>) goes fullscreen with all tiles. Move the mouse to the top edge to show the bar</li>
 <li>“ℹ️” (<kbd>I</kbd>) lists each tile’s type (live, archive, video), stream times, current viewers, views and whether it can be archive-synced</li>
 </ul>`,
@@ -1070,13 +1073,13 @@ const HTML_EN = {
   'helpPage.library': `<ul>
 <li>“📚 Library” (<kbd>B</kbd>): 🎞 Recent videos (streams ended and videos published in the last 7 days) / 🕘 Watch history (100) / 🔖 Watch later (100) / 📃 Playlists</li>
 <li><b>Watch later</b>: add with 🔖 on tile bars and lists. “▶ Play in current tiles” fills the tiles you have in order and puts the next one in each tile that finishes. Items watched to the end are removed</li>
-<li><b>Playlists</b>: named lists (up to 30, 200 items each). Make one with “+ New”, “▦ From current tiles” or “📥 Import”, and add with the URL box or 📃 on tile bars and lists. Drag ⠿ to reorder; a row’s name is what its tile shows</li>
+<li><b>Playlists</b>: named lists (up to 30, 200 items each). Make one with “+ New”, “▦ From current tiles” or “📥 Import”, and add with the URL box or 📃 in “ℹ️ Tile info” and lists. Drag ⠿ to reorder; a row’s name is what its tile shows</li>
 <li>“▶ In order” fills the current tiles from the top and puts the next one in each tile that finishes (items watched to the end get ✓ and it continues from there next time). “⏱ All at once, in sync” lays out all of them and plays the archives in step (up to 16)</li>
 </ul>`,
   'helpPage.sync': `<ul>
 <li>Press “⏱ Archive sync” on the top bar to play stream archives that overlap in time, aligned to when they were actually streamed. Until 2 such archives are shown it is dimmed, and pressing it tells you why (live now, a regular video, and so on)</li>
 <li>Archives streamed at overlapping times are grouped automatically, so A·B and C·D from different collabs sync separately (up to 4 groups, shown by color and number on the tiles). Change a tile’s group on its row in the sync panel</li>
-<li>The sync panel (☰ on the top bar, or ⏱ on a tile) floats over the tiles, semi-transparent (drag its header to move it; ⇲ docks it on the right). Per group: what to align on (🕒 Collab / 🎬 Watch-along), ⏸, ✨ auto-correct and a slider. Per tile: the reference (🔒; ◉ in 🎬 Watch-along groups), the offset and ⏸ pause and wait. Each group’s chart zooms in on where the streams start (gaps of more than a minute between starts are cut short, with each tile’s start time shown above where it fits): each bar runs from the actual stream start, the offset shows as a light-blue stretch (which side of the thin line tells earlier or later) where it starts playing alongside the reference (at the reference’s start for tiles that started earlier), with a thin line at the uncorrected position (also drawn on the other tiles already playing then, to compare against), plus how much earlier or later it started than the reference and how far it still has to move. Collapse groups you are not adjusting with ▾</li>
+<li>The sync panel (☰ on the top bar) floats over the tiles, semi-transparent (drag its header to move it; ⇲ docks it on the right). Per group: what to align on (🕒 Collab / 🎬 Watch-along), ⏸, ✨ auto-correct and a slider. Per tile: the reference (🔒; ◉ in 🎬 Watch-along groups), the offset and ⏸ pause and wait. Each group’s chart zooms in on where the streams start (gaps of more than a minute between starts are cut short, with each tile’s start time shown above where it fits): each bar runs from the actual stream start, the offset shows as a light-blue stretch (which side of the thin line tells earlier or later) where it starts playing alongside the reference (at the reference’s start for tiles that started earlier), with a thin line at the uncorrected position (also drawn on the other tiles already playing then, to compare against), plus how much earlier or later it started than the reference and how far it still has to move. Collapse groups you are not adjusting with ▾</li>
 <li>✨ Auto-correct listens to the group’s tiles (the shared call voices in a collab) for up to 180 seconds and works out each tile’s offset. After 35 seconds a provisional result appears, showing the best value found so far for each tile. Once every tile is ◎ it suggests stopping (“Decide now”); otherwise it uses the best value found by 180 seconds. Check the result on each row (“✨ −1.61 ◎”) and the ◆ in the chart (where it goes once applied), then press Apply. ◎ sure / ○ likely / △ doubtful. If it can’t decide or shows many △, press “Measure again” where people are talking</li>
 <li>🕒 Collab aligns viewpoints streamed at the same time by when they were streamed. 🎬 Watch-along aligns streams that watched the same movie on the same scene of it, even from different times (switch it in the group header). Put the movie (a premiere) next to archives of streams that watched it, and the group switches to 🎬 Watch-along by itself (also when you add the movie later; remove it to go back to 🕒 Collab). The movie tile (marked “🎬 Movie” in its row) sets movie 0:00 at its own 0:00, and the other tiles’ movie starts are estimated from the stream times. Set each movie start (to 0.01 s) by reading the watch-along’s timer or similar into “⏲ On-screen timer” (✨ auto-correct is for 🕒 Collab only, since watch-alongs usually don’t carry the movie’s sound). Without a movie tile, set each one with “🚩 Start point” or “⏲ On-screen timer”. A movie that is not a premiere (e.g. a live archive) can be made the movie with 🎬 in its row. Streams from other days that join no group also join the movie’s group. Typing the watch-along’s timer into “⏲ On-screen timer” uses the position at the moment you clicked the box (while the box is in use, that tile is out of sync, so you can move it to where the timer is visible). For tiles streamed at the same time, setting one tile’s movie start also estimates the other’s (marked “≈” in its row)</li>
 <li>You adjust the tiles other than the reference. The reference (🔒 at the start of its row) always has offset 0; when you change the reference, the offsets move to the other tiles and the alignment stays the same. Move an offset with −0.1, −0.01, +0.01 and +0.1 (hold to keep going). ⏸ pauses just that tile to wait, ▶ matches it there. Select a row and ← → also move the offset by 0.1 s (Shift: 0.01 s). ✓ on a row means it plays at the position the offset says, ↻ that it is still moving there (whether voices line up is up to your ears). If adjusting by hand went wrong, ↺ on the row (↺ in the header for the whole group) goes back to real time. Offsets are remembered per video and go into playlists and share codes</li>
@@ -1209,9 +1212,6 @@ const HTML_EN = {
   'mix.gainTitle': 'Volume of this tile (100% = as it is). Use it to even out loud and quiet streams',
   'mix.delay': 'Audio delay',
   'mix.delayTitle': 'Delay only the audio of this tile by this many seconds (the picture stays as it is). For a live stream whose voices come earlier than the other tiles. Enter to apply',
-  'mix.split': '⇆ Split 2 tiles left/right',
-  'mix.splitTitle': 'Of the 2 tiles playing audio, the one on the left of the screen is heard from the left and the other from the right (to tell two views of a collab apart; for headphones)',
-  'mix.reset': 'Reset',
   'tile.audio': 'Play audio only from this tile (others are muted). To listen to several tiles at once, use the speaker in each player',
   'tile.chat': 'Show the chat panel',
   'tile.danmaku': 'Danmaku on this tile',
