@@ -2341,7 +2341,7 @@ const Sync = (() => {
   /** ← → キー・◀ ▶: ずれ (本編の位置) を d 秒動かす */
   function nudge(i, d) {
     const G = groupOfTile(i);
-    if (!G || !active(G)) return;
+    if (!G || !active(G) || i === G.ref) return; // 基準の枠は動かさない (ほかの枠で合わせる)
     if (isMovie(G)) {
       if (anchor(i) != null && !liveTile(i)) setOffset(i, Math.round((anchor(i) + d) * 100) / 100);
       return;
@@ -2559,9 +2559,17 @@ const Sync = (() => {
         // 実際の時刻に戻す (ずれを 0 に。手で合わせてうまくいかなかったとき)。本編モードは ✕ (本編の位置を消す) がその代わり
         if (!movie) r.reset = mk('button', { type: 'button', class: 'dr-reset', textContent: '↺', title: tr('syncResetTitle'), onclick: () => setOffset(i, 0) });
         const live = liveTile(i);
+        // 基準の枠は時計を動かす側なので、ずれは見せるだけ (動かすと、基準ではなくほかの枠が逆向きにずれるため)。
+        // 合わせるのはほかの枠で。基準の動画そのものの直し (冒頭が切られた場合・0 に戻す) だけ残す
+        if (isRef && !live) {
+          r.refVal = mk('span', { class: 'dr-ref-val', title: tr(movie ? 'syncRefAnchorTitle' : 'syncRefValTitle') });
+          r.minus = r.plus = r.val = r.wait = null;
+        }
         const line2 = live
           ? mk('div', { class: 'dr-line dr-sub' }, mk('span', { class: 'dr-note' }, tr(isRef ? 'syncLiveRef' : 'movieLiveRefOnly')))
-          : mk('div', { class: 'dr-line dr-sub' }, r.minus, r.val, r.plus, r.wait, r.reset, r.cand);
+          : isRef
+            ? mk('div', { class: 'dr-line dr-sub' }, r.refVal, r.reset, mk('span', { class: 'dr-note' }, tr('syncRefRowNote')))
+            : mk('div', { class: 'dr-line dr-sub' }, r.minus, r.val, r.plus, r.wait, r.reset, r.cand);
         parts.push(line2);
         if (movie && !live) {
           const nowIn = mk('input', { type: 'text', class: 'dr-movie-now sync-input', inputMode: 'numeric', placeholder: '0:47:12', title: tr('syncMovieNowTitle') });
@@ -2752,6 +2760,7 @@ const Sync = (() => {
         if (G && active(G)) v = (wait ? offsetAt(G, i, nowR(G)) : null) ?? (movie ? anchor(i) : off(i));
         const txt = v == null ? (movie ? tr('syncAnchorUnset') : '') : movie ? anchorText(v) : signedSec(v);
         r.short.textContent = G && active(G) && !liveTile(i) ? txt || '—' : '';
+        if (r.refVal) r.refVal.textContent = movie ? tr('syncRefAnchor', txt) : tr('syncRefOffset', txt);
         if (r.val && document.activeElement !== r.val) {
           r.val.placeholder = txt;
           r.val.dataset.shown = txt;
