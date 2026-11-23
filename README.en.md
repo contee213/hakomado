@@ -14,6 +14,7 @@ This is an unofficial tool made by an individual. Please read the [Disclaimer](#
 - **Danmaku / chat panel**: show each tile's live chat as scrolling comments, or open it next to the video to post
 - **Channels**: lists live and upcoming streams and recently ended streams of the channels you added (some channels are included as initial data. You can remove or restore them all at once in ⚙ Settings)
 - **Auto play**: lays out live channels automatically and adds / removes tiles as streams start and end
+- **Select several / 🤝 collabs**: tick ☐ on streams in Channels (live and upcoming) or the library (recent streams, watch history, watch later) to pick as many as you like on that screen, then “▦ Load into tiles” puts them all into empty tiles at once (adding tiles up to 16 if needed). Streams that start around the same time and whose titles name each other or share a hashtag get “🤝 N”, which selects the whole collab at once
 - **🎲 Surprise me**: a button on empty tiles adds one stream not shown yet (pickup live → other live → recent streams). Auto play can also play recent streams when nothing is live
 - **Pickup**: limit auto play and notifications to the channels you are following right now (e.g. the members of a group event)
 - **Notifications / watch history / watch later**: notifications when streams start, a history of what you watched, and streams to watch later (🔖; play them in order in the current tiles, removed once watched to the end)

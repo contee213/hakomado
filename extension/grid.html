@@ -599,6 +599,13 @@
 
       <div id="favList" class="fav-list"></div>
       <p id="favEmpty" class="fav-empty" data-i18n="fav.empty">まだチャンネルがありません。下の欄にチャンネルを入力して追加してください。</p>
+      <!-- 複数選択 (行の ☐ / 🤝 で選ぶ) をしている間だけ出す -->
+      <div id="favSelBar" class="fav-selbar" hidden>
+        <span id="favSelCount" class="fav-selcount"></span>
+        <span class="spacer"></span>
+        <button type="button" id="favSelClear" data-i18n="sel.clear">選択を外す</button>
+        <button type="button" id="favSelLoad" class="primary-action" data-i18n="sel.load" data-i18n-title="sel.loadTitle" title="選んだ配信を、空いている枠に選んだ順に入れる (足りなければ 16 枠まで枠を足す。もう枠にある配信は飛ばす)">▦ まとめて枠に入れる</button>
+      </div>
 
       <footer class="fav-foot">
         <form id="favAdd" class="fav-add">
