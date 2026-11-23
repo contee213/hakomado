@@ -1534,6 +1534,8 @@ body.grid-fs .sync-dock { top: 0; }
 .tl-corr { position: absolute; top: 1px; bottom: 1px; min-width: 2px; }
 .tl-corr.is-earlier { background: #a9cbff; }
 .tl-corr.is-later { background: #4a86e8; opacity: .35; }
+/* 基準の開始の位置で見せるとき (棒の途中): 早めた分は明るく、遅らせた分は暗く重ねる */
+.tl-corr.on-bar.is-later { background: #0b0d14; opacity: .65; }
 .tl-corr[hidden] { display: none; }
 /* 配信が実際に始まった時刻の細い線 (補正を入れると、棒の左端がここから離れる) */
 .tl-raw { position: absolute; top: -3px; bottom: -3px; width: 1px; background: var(--text); opacity: .7; z-index: 1; }

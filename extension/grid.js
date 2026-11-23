@@ -2793,7 +2793,12 @@ const Sync = (() => {
     /** 図を今に合わせる (同期の処理のたび) */
     function updateTimeline(G, t) {
       const marks = new Map([...t.rows.keys()].map((i) => [i, startMarks(G, i)]));
-      const pts = [...marks.values()].filter(Boolean).flatMap((m) => (m.raw == null ? [m.at] : [m.at, m.raw]));
+      // 補正を見せる位置: 基準と一緒に流れ始めるところ (基準より前に始まった枠は基準の開始、後に始まった枠と基準は自分の開始)
+      const refRaw = marks.get(G.ref)?.raw ?? null;
+      const corrAt = (i, m) => (i !== G.ref && refRaw != null ? Math.max(m.raw, refRaw) : m.raw);
+      const pts = [...marks.entries()]
+        .filter(([, m]) => m)
+        .flatMap(([i, m]) => (m.raw == null ? [m.at] : [m.at, m.raw, corrAt(i, m), corrAt(i, m) - (m.raw - m.at)]));
       const sc = SyncChart.scale(pts);
       if (!sc) return;
       const pct = sc.pos;
@@ -2824,21 +2829,28 @@ const Sync = (() => {
       for (const [i, x] of t.rows) {
         const m = marks.get(i);
         x.bar.hidden = !m;
-        const corrected = !!m && m.raw != null && Math.abs(m.raw - m.at) >= 5;
+        const shift = m && m.raw != null ? m.raw - m.at : 0; // 補正 (ミリ秒。+ = 早めた)
+        const corrected = Math.abs(shift) >= 5;
         x.corr.hidden = !corrected;
         x.raw.hidden = !corrected;
-        if (corrected) x.raw.style.left = pct(m.raw) + '%';
         if (m) {
-          // 濃淡のどちらでも、ふつうの色の棒は遅いほうの開始から
-          x.bar.style.left = pct(corrected ? Math.max(m.at, m.raw) : m.at) + '%';
-        }
-        if (corrected) {
-          const earlier = m.at < m.raw;
-          x.corr.style.left = pct(Math.min(m.at, m.raw)) + '%';
-          x.corr.style.width = pct(Math.max(m.at, m.raw)) - pct(Math.min(m.at, m.raw)) + '%';
-          x.corr.classList.toggle('is-earlier', earlier);
-          x.corr.classList.toggle('is-later', !earlier);
-          x.corr.title = tr(earlier ? 'syncTlCorrEarlier' : 'syncTlCorrLater', signedSec(off(i)));
+          const p = corrected ? corrAt(i, m) : null;
+          // 補正を自分の開始で見せる (基準・基準より後に始まった枠) ときは、棒は遅いほうの開始から (早めた分は空いたところへ延びる)。
+          // 基準の開始で見せるときは、棒は補正を入れた開始からそのまま、その途中に濃淡を重ねる
+          const atOwnStart = corrected && p === m.raw;
+          x.bar.style.left = pct(atOwnStart ? Math.max(m.at, m.raw) : m.at) + '%';
+          if (corrected) {
+            const earlier = shift > 0;
+            const a = pct(Math.min(p, p - shift));
+            const b = pct(Math.max(p, p - shift));
+            x.raw.style.left = pct(p) + '%';
+            x.corr.style.left = a + '%';
+            x.corr.style.width = b - a + '%';
+            x.corr.classList.toggle('is-earlier', earlier);
+            x.corr.classList.toggle('is-later', !earlier);
+            x.corr.classList.toggle('on-bar', !atOwnStart);
+            x.corr.title = tr(earlier ? 'syncTlCorrEarlier' : 'syncTlCorrLater', signedSec(off(i)));
+          }
         }
         // 今の時刻: 図に入っていれば縦の線 (ずっと後なら出さない)
         const nowX = pct(R);

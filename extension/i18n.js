@@ -352,7 +352,10 @@ const MESSAGES = {
   syncTlRef: ['基準', 'Ref'],
   syncTlWait: ['⏸ 待機中', '⏸ Waiting'],
   syncTlFix: ['↻ あと {0}秒', '↻ {0}s to go'],
-  syncTlRawTitle: ['配信が実際に始まった時刻 (補正を入れると、棒の左端がここから離れる)', 'When the stream actually started (with a correction, the left end of the bar moves away from here)'],
+  syncTlRawTitle: [
+    '補正を入れる前の位置 (基準より前に始まった枠は基準の開始のところ、ほかは配信が実際に始まったところ)',
+    'Where it would be without the correction (at the reference’s start for tiles that started earlier, otherwise at the actual stream start)',
+  ],
   syncTlCorrEarlier: ['補正 {0} 秒: 配信の実際の開始より、この分だけ早めてそろえています', 'Correction {0}s: aligned this much earlier than the actual stream start'],
   syncTlCorrLater: ['補正 {0} 秒: 配信の実際の開始より、この分だけ遅らせてそろえています', 'Correction {0}s: aligned this much later than the actual stream start'],
   syncTlNowTitle: ['今の時刻', 'Now'],
@@ -1027,7 +1030,7 @@ const HTML_EN = {
   'helpPage.sync': `<ul>
 <li>Press “⏱ Archive sync” on the top bar to play stream archives that overlap in time, aligned to when they were actually streamed. Until 2 such archives are shown it is dimmed, and pressing it tells you why (live now, a regular video, and so on)</li>
 <li>Archives streamed at overlapping times are grouped automatically, so A·B and C·D from different collabs sync separately (up to 4 groups, shown by color and number on the tiles). Change a tile’s group on its row in the sync panel</li>
-<li>The sync panel (☰ on the top bar, or ⏱ on a tile) floats over the tiles, semi-transparent (drag its header to move it; ⇲ docks it on the right). Per group: what to align on (🕒 real time / 🎬 movie), ⏸, 🎧 match by sound and a slider. Per tile: the reference (◉), the offset and ⏸ pause and wait. Each group’s chart zooms in on where the streams start (gaps of more than a minute between starts are cut short, marked ≈): each bar runs from the actual stream start, the offset shows as a brighter stretch (started earlier) or a fainter one (started later), plus how much earlier or later it started than the reference and how far it still has to move. Collapse groups you are not adjusting with ▾</li>
+<li>The sync panel (☰ on the top bar, or ⏱ on a tile) floats over the tiles, semi-transparent (drag its header to move it; ⇲ docks it on the right). Per group: what to align on (🕒 real time / 🎬 movie), ⏸, 🎧 match by sound and a slider. Per tile: the reference (◉), the offset and ⏸ pause and wait. Each group’s chart zooms in on where the streams start (gaps of more than a minute between starts are cut short, marked ≈): each bar runs from the actual stream start, the offset shows as a brighter stretch (moved earlier) or a darker one (moved later) where it starts playing alongside the reference (at the reference’s start for tiles that started earlier), with a thin line at the uncorrected position, plus how much earlier or later it started than the reference and how far it still has to move. Collapse groups you are not adjusting with ▾</li>
 <li>You adjust the tiles other than the reference (the reference drives the clock, so its offset is only shown). Select a row and use ← → to move the offset by 0.1 s (Shift: 0.01 s / Ctrl: 1 s). ✓ on a row means it plays at the position the offset says, ↻ that it is still moving there (whether voices line up is up to your ears). “↶ Undo” restores the last change. If adjusting by hand went wrong, ↺ on the row (↺ in the header for the whole group) goes back to real time. Offsets are remembered per video and go into playlists and share codes</li>
 <li>The slider on the top bar moves the group of the tile playing audio</li>
 </ul>`,
