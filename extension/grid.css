@@ -1540,6 +1540,8 @@ body.grid-fs .sync-dock { top: 0; }
 /* 配信が実際に始まった時刻の細い線 (補正を入れると、棒の左端がここから離れる) */
 .tl-raw { position: absolute; top: -3px; bottom: -3px; width: 1px; background: var(--text); opacity: .7; z-index: 1; }
 .tl-raw[hidden] { display: none; }
+/* 基準の行の目印: ほかの枠の補正を見比べる時刻 (基準より後に始まった枠の開始) */
+.tl-guide { position: absolute; top: -3px; bottom: -3px; width: 1px; background: var(--text); opacity: .7; z-index: 1; }
 .tl-now[hidden] { display: none; }
 .tl-bar[hidden] { display: none; }
 .tl-now { position: absolute; top: -2px; bottom: -2px; width: 2px; margin-left: -1px; background: var(--text); }

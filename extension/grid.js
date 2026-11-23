@@ -2873,6 +2873,17 @@ const Sync = (() => {
         x.st.classList.toggle('is-fix', st === 'fix');
         x.st.title = tr('syncDot_' + (st || 'none'));
       }
+      // 見比べる目印: 補正を見せている時刻に、そのとき既に流れているほかの枠の行にも線を引く
+      // (基準より前に始まった枠の補正は、基準の棒の左端が目印になるので要らない。基準より後に始まった枠や、基準そのものの補正のため)
+      const corrPts = [...t.rows.keys()]
+        .filter((i) => marks.get(i)?.raw != null && Math.abs(marks.get(i).raw - marks.get(i).at) >= 5)
+        .map((i) => [i, corrAt(i, marks.get(i))]);
+      for (const [j, x] of t.rows) {
+        const mj = marks.get(j);
+        const guides = mj ? corrPts.filter(([i, p]) => i !== j && Math.min(mj.at, mj.raw ?? mj.at) < p - 5).map(([, p]) => p) : [];
+        x.track.querySelectorAll('.tl-guide').forEach((e) => e.remove());
+        x.track.append(...guides.map((p) => mk('div', { class: 'tl-guide', style: `left: ${pct(p)}%`, title: tr('syncTlGuideTitle') })));
+      }
     }
 
     function render() {
