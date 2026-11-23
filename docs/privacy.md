@@ -2,18 +2,18 @@
 
 [日本語](#日本語) | [English](#english)
 
-最終更新 / Last updated: 2026-11-23
+最終更新 / Last updated: 2026-11-24
 
 ---
 
 ## 日本語
 
 Hakomado (以下「この拡張機能」) は、YouTube の配信・動画を 1 つの画面に並べて同時に視聴するための Chrome / Edge 拡張機能です。
-個人が作った非公式のツールです。開発者が運営するサーバーは、共有用のサイト Hakomado (`hakomado.contee.net`) だけで、利用者が短縮リンクを作ったときだけ使います (下の「通信する相手と内容」)。
+個人が作った非公式のツールです。この拡張機能は、開発者が運営するサーバーとは通信しません。
 
 ### 集める情報
 
-開発者は、利用者の情報を集めません。アクセス解析・広告・利用状況の送信はしていません。利用者が短縮リンクを作ったときに送る、共有するセットの中身だけを受け取ります (下の表)。
+開発者は、利用者の情報を集めません。アクセス解析・広告・利用状況の送信はしていません。
 
 ### ブラウザの中に保存する情報
 
@@ -35,7 +35,6 @@ Hakomado (以下「この拡張機能」) は、YouTube の配信・動画を 1 
 | GitHub (`api.github.com`) | 新しい版が出ていないかの確認 (1 日 1 回まで。Chrome ウェブストアから入れた版では行いません)。Cookie は送りません |
 | GitHub (`raw.githubusercontent.com`) | 「パックを探す」を押したときだけ、チャンネルパックの一覧と選んだパック。Cookie は送りません |
 | 利用者が指定した URL | 利用者が URL を入れて読み込んだチャンネルパックや画像。Cookie は送りません |
-| Hakomado のサイト (`hakomado.contee.net`。開発者が運営) | 共有画面で「短縮リンクを作る」「QR を短縮リンクにする」を押したときだけ、そのセットの中身 (動画 ID・レイアウト・同期のずれ・名前) を送り、短いリンクを作ります。視聴履歴・設定などほかの情報は送りません。Cookie は送りません。読み込む画面に短縮リンクを貼った・QR で読んだときは、そのセットの中身を取ってきます |
 
 「不具合の報告」で「GitHub で報告」を押すと、エラーの記録と環境 (版・ブラウザ・OS) を書き込んだ GitHub の Issue 作成画面を新しいタブで開きます。
 この拡張機能からは送信しません。送るかどうか・何を送るかは、利用者が GitHub の画面で確かめて決めます。
@@ -43,10 +42,6 @@ Hakomado (以下「この拡張機能」) は、YouTube の配信・動画を 1 
 共有画面の「𝕏 に投稿」を押すと、X (`x.com`) の投稿画面を新しいタブで開き、共有画像・名前・取り込み用リンクを入れます。
 画像を入れるために、初めて押したときに `x.com` へのアクセスの許可を求めます (許可しなくても、画像を貼り付けて使えます)。
 この拡張機能は投稿しません。投稿するかどうか・何を投稿するかは、利用者が X の画面で確かめて決めます。
-
-短縮リンクで作ったページは「リンクを知っている人だけ」が見られるもので、サイトの一覧や検索には出ません。
-この拡張機能はそのページの削除用の合言葉を持たないので、消したいときは [GitHub の Issues](https://github.com/contee213/hakomado/issues) からお知らせください。
-サイトでの情報の扱い (不正な利用を防ぐための接続元の扱いなど) は、[サイトのプライバシーポリシー](privacy-feed.md) に書いています。
 
 これらのサービスでの情報の扱いは、それぞれのプライバシーポリシーに従います
 ([Google](https://policies.google.com/privacy) / [GitHub](https://docs.github.com/site-policy/privacy-policies/github-general-privacy-statement) / [X](https://x.com/ja/privacy))。
@@ -74,11 +69,11 @@ Hakomado (以下「この拡張機能」) は、YouTube の配信・動画を 1 
 ## English
 
 Hakomado ("the extension") is a Chrome / Edge extension for watching several YouTube streams and videos side by side on one screen.
-It is an unofficial tool made by an individual. The only server the developer runs is the sharing site Hakomado (`hakomado.contee.net`), used only when you create a short link (see "Who the extension talks to").
+It is an unofficial tool made by an individual. The extension does not connect to any server run by the developer.
 
 ### Information we collect
 
-The developer collects no information about you. The extension has no analytics, no ads, and sends no usage data. The only thing received is the content of a set you choose to share when you create a short link (see the table below).
+The developer collects no information about you. The extension has no analytics, no ads, and sends no usage data.
 
 ### Information stored in your browser
 
@@ -100,7 +95,6 @@ The extension only connects to the following. Each connection fetches what is ne
 | GitHub (`api.github.com`) | Checking for a newer version (at most once a day; not done in the version installed from the Chrome Web Store). No cookies are sent |
 | GitHub (`raw.githubusercontent.com`) | Only when you press "Find packs": the list of channel packs and the pack you choose. No cookies are sent |
 | URLs you enter | Channel packs or images you load from a URL. No cookies are sent |
-| The Hakomado site (`hakomado.contee.net`, run by the developer) | Only when you press "Make a short link" or "Use a short link in the QR code" on the share screen: sends that set's content (video IDs, layout, sync offsets and name) to create a short link. Nothing else, such as watch history or settings, is sent. No cookies are sent. When you paste a short link or scan it from a QR code on the import screen, the set's content is fetched |
 
 When you press "Report on GitHub" under "Report a problem", the extension opens GitHub's new-issue page in a new tab with the error record and your environment (version, browser, OS) filled in.
 The extension itself sends nothing; you review the page on GitHub and decide whether and what to submit.
@@ -108,10 +102,6 @@ The extension itself sends nothing; you review the page on GitHub and decide whe
 When you press "𝕏 Post" on the share screen, the extension opens X's (`x.com`) post screen in a new tab and fills in the share image, the name and the import link.
 To add the image, it asks for permission to access `x.com` the first time you press it (without it, you can still paste the image yourself).
 The extension never posts; you review the post on X and decide whether and what to post.
-
-A page created by a short link can be seen only by people with the link; it is not shown in the site's list or search.
-The extension does not keep a delete key for that page, so if you want it removed, please let us know via [GitHub Issues](https://github.com/contee213/hakomado/issues).
-How the site handles information (such as how connections are used to prevent misuse) is described in [the site's privacy policy](privacy-feed.md).
 
 Information on those services is handled under their own privacy policies
 ([Google](https://policies.google.com/privacy) / [GitHub](https://docs.github.com/site-policy/privacy-policies/github-general-privacy-statement) / [X](https://x.com/en/privacy)).

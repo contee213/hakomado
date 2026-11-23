@@ -198,21 +198,6 @@ test.describe('視聴セッション', () => {
 });
 
 test.describe('共有', () => {
-  test('短縮リンク (sets-link.js の機能フラグ) はオンで、共有画面に出る。開くだけでは Feed に送らない', async ({ openGrid }) => {
-    const page = await openGrid();
-    await skipTour(page);
-    expect(await page.evaluate(() => [SetsLink.enabled, SetsLink.origin])).toEqual([true, 'https://hakomado.contee.net']);
-    const sent = [];
-    page.on('request', (r) => r.url().startsWith('https://hakomado.contee.net/') && sent.push(r.url()));
-    await page.locator('#openShare').click();
-    await page.locator('#shareDialog [data-stab="link"]').click();
-    await expect(page.locator('#shareShortMake')).toBeVisible();
-    await page.locator('#shareDialog [data-stab="image"]').click();
-    await expect(page.locator('#shareImgShort')).toBeVisible();
-    // 送るのは利用者がボタンを押したときだけ
-    expect(sent).toEqual([]);
-  });
-
   test('画像の各枠の名前は既定で入れず、切り替えると作り直して、次に開いたときも覚えている', async ({ openGrid }) => {
     const page = await openGrid();
     await skipTour(page);

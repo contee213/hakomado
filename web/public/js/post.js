@@ -1,12 +1,11 @@
 // 投稿の画面 (/post): コード・リンクを貼る (または共有画像の QR を読む) → 形を確かめて見せる → 送る
 // 画面の切り替えは js/app.js が POST_VIEW.enter を呼ぶ
-/* global api, layoutPreview, errorText, saveKey, copyText, parseShareCode, parseShareLink, LAYOUTS, jsQR, turnstile, t, CONFIG, FEAT, APP, ACCOUNT */
+/* global api, layoutPreview, errorText, parseShareCode, parseShareLink, LAYOUTS, jsQR, turnstile, t, CONFIG, FEAT, APP, ACCOUNT */
 /* exported POST_VIEW */
 'use strict';
 
 const POST_VIEW = (() => {
   const $ = (x) => document.getElementById(x);
-  const AUTHOR = 'hakomado-feed:author';
   let turnstileToken = '';
   let needTurnstile = false;
   let sending = false;
@@ -133,14 +132,8 @@ const POST_VIEW = (() => {
     update();
     $('postMsg').textContent = t('sending');
     $('postMsg').classList.remove('bad');
-    const author = $('author').value.trim();
     try {
-      localStorage.setItem(AUTHOR, author);
-    } catch {
-      // 名前を覚えられなくても投稿はできる
-    }
-    try {
-      const body = { text: $('text').value, author, turnstile: turnstileToken };
+      const body = { text: $('text').value, turnstile: turnstileToken };
       if (FEAT.tags) body.tags = $('tagsIn').value;
       if (FEAT.unlisted) body.unlisted = $('unlisted').checked;
       const r = await api('/api/sets', body);
@@ -148,14 +141,17 @@ const POST_VIEW = (() => {
         APP.go(`/s/${r.id}?existed=1`);
         return;
       }
-      saveKey(r.id, r.deleteKey);
       $('form').hidden = true;
       $('done').hidden = false;
       $('doneLink').href = `/s/${r.id}`;
-      $('doneKey').value = r.deleteKey;
     } catch (err) {
       $('postMsg').textContent = errorText(err.message);
       $('postMsg').classList.add('bad');
+      // ログインが切れていた: ログインの案内に切り替える
+      if (err.message === 'login_required') {
+        ACCOUNT.reset();
+        showGate(null);
+      }
       if (needTurnstile && typeof turnstile !== 'undefined') {
         turnstileToken = '';
         turnstile.reset('#turnstile'); // 確認は 1 回しか使えない
@@ -180,13 +176,19 @@ const POST_VIEW = (() => {
     drop.classList.remove('over');
     useImage(e.dataTransfer.files[0]);
   });
-  $('copyKey').addEventListener('click', async () => {
-    if (!(await copyText($('doneKey').value))) $('doneKey').select();
-  });
-  try {
-    $('author').value = localStorage.getItem(AUTHOR) || '';
-  } catch {
-    // 何もしない
+
+  /** 投稿できるのは X でログインしている人だけ。user が null なら、フォームの代わりにログインの案内を出す */
+  function showGate(user) {
+    $('form').hidden = !user || !$('done').hidden;
+    $('postLogin').hidden = !!user;
+    $('postLead').hidden = !user; // コードの貼り方の説明は、投稿できるときだけ
+    if (user) {
+      $('authorX').textContent = t('authorX', user.username);
+      return;
+    }
+    $('postLoginMsg').textContent = t(FEAT.xLogin ? 'postLoginNeeded' : 'postClosed');
+    $('postLoginBtn').hidden = !FEAT.xLogin;
+    $('postLoginBtn').href = ACCOUNT.loginUrl();
   }
 
   let started = false;
@@ -196,20 +198,17 @@ const POST_VIEW = (() => {
       document.title = t('titlePost');
       if (!$('done').hidden) {
         $('done').hidden = true;
-        $('form').hidden = false;
         $('text').value = '';
         $('tagsIn').value = '';
         $('unlisted').checked = false;
         $('postMsg').textContent = '';
       }
       update();
-      // X でログインしていれば、投稿者は X の @ユーザー名 (名前の欄は出さない。サーバーも名前の欄を使わない)
-      ACCOUNT.me().then((user) => {
-        document.querySelector('label[for="author"]').hidden = !!user;
-        $('author').hidden = !!user;
-        $('authorX').hidden = !user;
-        if (user) $('authorX').textContent = t('authorX', user.username);
-      });
+      // 投稿者は X の @ユーザー名。ログインしていなければフォームを出さない (ログインの案内を出す)
+      $('form').hidden = true;
+      $('postLogin').hidden = true;
+      $('postLead').hidden = true;
+      ACCOUNT.me().then(showGate);
       if (!started) {
         started = true;
         setupTurnstile(); // 確認 (Turnstile) は投稿の画面を初めて出したときだけ読み込む

@@ -472,11 +472,6 @@
           </label>
           <label class="share-check"><input type="checkbox" id="shareImgLabels"> <span data-i18n="share.imgLabels">各枠にチャンネル名・タイトルを描く</span></label>
           <p class="settings-note" id="shareNoteImage"></p>
-          <!-- 短縮リンク (sets-link.js の機能フラグがオンのときだけ出す) -->
-          <div class="share-short" data-sets-link hidden>
-            <button type="button" id="shareImgShort" data-i18n="share.imgShort" data-i18n-title="share.imgShortTitle" title="このセット (動画・レイアウト・同期の補正・名前) を Hakomado のサイトに送って短いリンクを作り、QR の中身をそのリンクにする (QR が小さく読み取りやすくなる)">✂ QR を短縮リンクにする</button>
-            <span id="shareImgShortState" class="share-status"></span>
-          </div>
           <div class="share-buttons">
             <button type="button" id="shareToX" data-i18n="share.toX" data-i18n-title="share.toXTitle" title="X の投稿画面を開いて、画像・名前・リンクを入れます (投稿ボタンは自分で押します)">𝕏 に投稿</button>
             <button type="button" id="shareImgCopy" data-i18n="share.imgCopy">🖼 画像をコピー</button>
@@ -504,15 +499,6 @@
           <p class="settings-note" id="shareNoteLink"></p>
           <div class="share-buttons">
             <button type="button" id="shareCopyLink" data-i18n="share.copyLink">📋 リンクをコピー</button>
-          </div>
-          <!-- 短縮リンク (sets-link.js の機能フラグがオンのときだけ出す) -->
-          <div class="share-short" data-sets-link hidden>
-            <p class="settings-note" data-i18n="share.shortNote">「短縮リンクを作る」を押すと、このセット (動画・レイアウト・同期の補正・名前) を Hakomado のサイトに送り、短いリンクを作ります。リンクを知っている人だけが見られます (サイトの一覧には載りません)</p>
-            <div class="share-buttons">
-              <button type="button" id="shareShortMake" data-i18n="share.shortMake">✂ 短縮リンクを作る</button>
-              <input type="text" id="shareShort" class="share-short-url" readonly spellcheck="false" hidden>
-              <button type="button" id="shareShortCopy" data-i18n="share.shortCopy" hidden>📋 コピー</button>
-            </div>
           </div>
         </section>
       </div>
@@ -820,7 +806,6 @@
   <script src="packs.js"></script>
   <script src="update-check.js"></script>
   <script src="share-code.js"></script>
-  <script src="sets-link.js"></script>
   <!-- 再生速度を選ぶ (枠のバーの速度ボタン・上部バーの ⏩ の下に出す) -->
   <div id="speedMenu" class="speed-menu" popover>
     <div class="speed-head"></div>

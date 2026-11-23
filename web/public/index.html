@@ -79,8 +79,13 @@
   <!-- 投稿 (/post) -->
   <main id="viewPost" class="view wrap narrow" hidden>
     <h1 data-i18n="postH">セットを投稿</h1>
-    <p class="lead" data-i18n="leadPost">Hakomado の「🔗 共有」で作ったコード (#Hakomado …) かリンクを貼るか、共有画像を選んでください。</p>
-    <form id="form">
+    <p id="postLead" class="lead" data-i18n="leadPost">Hakomado の「🔗 共有」で作ったコード (#Hakomado …) かリンクを貼るか、共有画像を選んでください。</p>
+    <!-- X でログインしていないとき (投稿は X でログインした人だけ) -->
+    <section id="postLogin" hidden>
+      <p id="postLoginMsg" class="msg"></p>
+      <p><a id="postLoginBtn" class="btn primary"><img class="x-logo" src="/img/x-logo.svg" alt=""> <span data-i18n="loginX">X でログイン</span></a></p>
+    </section>
+    <form id="form" hidden>
       <label for="text" data-i18n="codeLabel">コード・リンク</label>
       <textarea id="text" rows="4" maxlength="2000" placeholder="#Hakomado u2x2.xxxxxxxxxxxyyyyyyyyyyy &quot;名前&quot;" required></textarea>
       <div id="drop" class="drop">
@@ -90,9 +95,7 @@
       <p id="parseMsg" class="msg" aria-live="polite"></p>
       <div id="postPreview" class="preview small" hidden></div>
 
-      <label for="author" data-i18n="authorLabel">投稿者の名前 (任意・30 文字まで)</label>
-      <input id="author" maxlength="30" autocomplete="nickname">
-      <p id="authorX" class="sub" hidden></p>
+      <p id="authorX" class="sub"></p>
 
       <div data-feature="tags">
         <label for="tagsIn" data-i18n="tagsInputLabel">タグ (任意・空白で区切って 5 個まで)</label>
@@ -101,7 +104,7 @@
       <label class="check" data-feature="unlisted"><input type="checkbox" id="unlisted"> <span data-i18n="unlistedLabel">リンクを知っている人だけに見せる (一覧・検索に載せない)</span></label>
 
       <div id="turnstile"></div>
-      <p class="hint" data-i18n="postHint">投稿したセット (動画・レイアウト・名前・投稿者の名前など) は、誰でも見られるページになります。</p>
+      <p class="hint" data-i18n="postHint">投稿したセット (動画・レイアウト・名前・X の @ユーザー名など) は、誰でも見られるページになります。</p>
       <button id="submit" class="btn primary big" disabled data-i18n="submit">投稿する</button>
       <p id="postMsg" class="msg" aria-live="polite"></p>
     </form>
@@ -109,8 +112,8 @@
     <section id="done" hidden>
       <h2 data-i18n="doneH">投稿しました</h2>
       <p><a id="doneLink" class="btn primary" data-i18n="doneLink">セットのページを見る</a></p>
-      <p data-i18n="doneKeyNote">削除用の合言葉 (このブラウザにも保存しました。ほかの端末から消すときに使います):</p>
-      <p class="row"><input id="doneKey" readonly><button type="button" id="copyKey" class="btn" data-i18n="copyKey">コピー</button></p>
+      <p data-i18n="doneNote">消したいときは「自分の投稿」から、いつでも消せます。</p>
+      <p><a class="btn" href="/me" data-i18n="meH">自分の投稿</a></p>
     </section>
   </main>
 
