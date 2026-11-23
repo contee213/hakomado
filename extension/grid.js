@@ -21,6 +21,8 @@ const DEFAULT_SETTINGS = {
   hlWidth: 2,
   hlGlow: 0.3,
   hlAnimate: false,
+  // 縦型の配信と分かったら (読み込んでから)、枠を縦長 (9:16) に寄せる。読み込んだ後に枠の大きさが変わるので既定は OFF
+  verticalLiveFit: false,
   // チャット欄
   chatZoom: 0.9,
   chatWidth: 0.3,
@@ -31,7 +33,7 @@ const DEFAULT_SETTINGS = {
   prestartMin: 10, // 開始の何分前から、配信予定の枠を用意しておくか (0 = しない)
   autoArchive: false, // 自動再生: 配信中が 1 本も無いときは、最近の動画 (配信のアーカイブなど) を流す
   autoArchiveVideos: true, // そのとき、動画 (プレミア公開・MV など) も流す
-  autoArchiveShorts: false, // そのとき、ショート (縦型の配信を含む) も流す
+  autoArchiveShorts: false, // そのとき、ショートも流す (縦型の配信はふつうの配信として流す)
   autoPickupMain: true, // 自動再生: ピックアップ (📌) のライブ配信をメイン枠に優先して置く
   autoMaxTiles: 8, // 自動再生で同時に再生する最大の枠数 (回線が細いときは少なく)
   autoTarget: 'all', // 自動再生の対象: 'all' = チャンネル全部 / 'fav' = ピックアップ (📌) だけ
@@ -71,7 +73,22 @@ function newTileState() {
   // (アーカイブの同期再生のずれは、枠ではなく動画ごとに記録する: SyncOffsets)
   // pan = 音の左右 (-1 = 左・0 = 真ん中・1 = 右)、gain = 音量 (1 = 元のまま、0〜2)。枠の中の Web Audio で変える (content/watch.js)
   // speed = 再生速度 (1 = 等速)。同期中のグループの枠は、グループの速度にそろえる (Sync)。ライブ配信では使わない (等速)
-  return { input: '', videoId: null, chat: false, danmaku: null, muted: true, auto: false, queue: false, fill: false, label: '', pan: 0, gain: 1, delay: 0, speed: 1 };
+  // short = ショートとして縦長 (9:16) の枠で見せる。読み込む前に、URL (/shorts/) で決める (isShortHint)
+  return { input: '', videoId: null, chat: false, danmaku: null, muted: true, auto: false, queue: false, fill: false, label: '', pan: 0, gain: 1, delay: 0, speed: 1, short: false };
+}
+
+/**
+ * 読み込む前に分かる「ショート」の手がかり: /shorts/ の URL。ショートの再生リスト (UUSH) から入れる動画は、
+ * この URL で入れる (videoInput)。縦型の配信はショートではない (UULV に入り、/shorts/ の URL にもならない) のでふつうの枠。
+ * 読み込んでから枠の形が変わらないよう、縦長の枠にするかはこれだけで決める (プレイヤーが知らせる縦横は使わない)
+ */
+function isShortHint(input) {
+  return /youtube\.com\/shorts\//i.test(String(input || ''));
+}
+
+/** 最近の動画 (fetchArchives の 1 件) を枠に入れるときの URL。ショートの再生リスト (UUSH) の分は /shorts/ の URL にする */
+function videoInput(v) {
+  return v.list === 'UUSH' ? `${YT}/shorts/${v.videoId}` : `${YT}/watch?v=${v.videoId}`;
 }
 
 const gridEl = document.getElementById('grid');
@@ -253,6 +270,7 @@ function replaceSettings(next) {
   applyHighlight();
   applyChatLook();
   syncSettingsInputs();
+  relayoutIfVerticalChanged();
   if (state.settings.cruiseSec !== cruiseBefore) restartCruise();
 }
 
@@ -341,9 +359,12 @@ const GRID_GAP = 4; // grid.css の --gap と同じ値
 
 const sumOf = (a) => a.reduce((s, v) => s + v, 0);
 
-/** 標準表示で、レイアウト l の列幅・行高 (相対値) と、今の画面に収まる倍率。W・H = 枠の間の隙間を除いた広さ */
-function fitScale(l) {
-  const { colW, rowH } = solveTracks(l);
+/**
+ * 標準表示で、レイアウト l の列幅・行高 (相対値) と、今の画面に収まる倍率。W・H = 枠の間の隙間を除いた広さ。
+ * aspects = 枠ごとの目標の横/縦 (省略時はどれも 16:9)
+ */
+function fitScale(l, aspects) {
+  const { colW, rowH } = solveTracks(l, aspects);
   const W = Math.max(1, gridEl.clientWidth - GRID_GAP * (l.cols + 1));
   const H = Math.max(1, gridEl.clientHeight - GRID_GAP * (l.rows + 1));
   return { colW, rowH, W, H, scale: Math.min(W / sumOf(colW), H / sumOf(rowH)) };
@@ -458,15 +479,70 @@ function autoLayoutFor(n) {
   return chooseLayoutFor(n, { mains, kind: n >= 3 ? 'focus' : 'single', group: 'main', anchor: state.anchor });
 }
 
+const VERTICAL = 9 / 16;
+
+/**
+ * 枠 i を縦長の枠で見せるか: 読み込む前にショートと分かった枠 (isShortHint)。
+ * 設定「縦型の配信と分かったら、枠を縦長にする」が ON なら、読み込んで縦長と分かった枠も
+ */
+function isVerticalTile(i) {
+  if (!state.tiles[i].videoId) return false;
+  return !!state.tiles[i].short || (!!state.settings.verticalLiveFit && views[i].info?.vertical === true);
+}
+
+/**
+ * 標準表示で、ショートの枠を 9:16 に寄せた列幅・行高。縦長の枠が無いとき・PinP (枠が重なる) のときは null。
+ * 同じ列・行に横長の枠があると間の比で止まるので、映像が画面に出る広さの合計が今 (どれも 16:9) より広くなるときだけ使う
+ */
+function verticalFit(l) {
+  if (l.overlap) return null;
+  const shown = visibleIndexes();
+  const aspects = l.slots.map((_, k) => (shown[k] != null && isVerticalTile(shown[k]) ? VERTICAL : 16 / 9));
+  if (!aspects.includes(VERTICAL)) return null;
+  const area = (fit) => {
+    const { colW, rowH, scale } = fit;
+    let sum = 0;
+    l.slots.forEach(([x, y, w, h], k) => {
+      if (shown[k] == null || !state.tiles[shown[k]].videoId) return;
+      const fw = sumOf(colW.slice(x, x + w)) * scale;
+      const fh = sumOf(rowH.slice(y, y + h)) * scale;
+      // 映像は枠の中に縦横比を保って収まる (残りは黒帯)
+      sum += fw / fh > aspects[k] ? fh * fh * aspects[k] : (fw * fw) / aspects[k];
+    });
+    return sum;
+  };
+  const fit = fitScale(l, aspects);
+  return area(fit) > area(fitScale(l)) * 1.02 ? fit : null;
+}
+
+// layout() で縦長の枠として並べた枠 (変わったときだけ並べ直す)
+let verticalShape = '';
+function verticalKey() {
+  return visibleIndexes().map((i) => (isVerticalTile(i) ? 1 : 0)).join('');
+}
+
+/** 枠の中身・映像の縦横・設定が変わったとき、縦長の枠の並びが変わっていれば並べ直す */
+let verticalRelayoutQueued = false;
+function relayoutIfVerticalChanged() {
+  if (verticalRelayoutQueued) return;
+  verticalRelayoutQueued = true;
+  queueMicrotask(() => {
+    verticalRelayoutQueued = false;
+    if (verticalKey() !== verticalShape) layout();
+  });
+}
+
 function layout() {
   const l = state.layout;
+  verticalShape = verticalKey();
   if (state.fit === 'fill') {
-    // ストレッチ: 格子を均等に割り、映像は枠に合わせて拡大 (端が切れる)
+    // ストレッチ: 格子を均等に割り、映像は枠に合わせて拡大 (端が切れる。縦長の映像は枠のプレイヤー側で切らずに収める)
     gridEl.style.gridTemplateColumns = `repeat(${l.cols}, minmax(0, 1fr))`;
     gridEl.style.gridTemplateRows = `repeat(${l.rows}, minmax(0, 1fr))`;
   } else {
-    // 標準: どの枠もちょうど 16:9 になる列幅・行高を、画面に収まる最大の大きさで
-    const { colW, rowH, scale } = fitScale(l);
+    // 標準: どの枠もちょうど 16:9 になる列幅・行高を、画面に収まる最大の大きさで。
+    // ショートの枠があれば、その枠を 9:16 に寄せる (そのほうが映像が広く出るとき)
+    const { colW, rowH, scale } = verticalFit(l) || fitScale(l);
     gridEl.style.gridTemplateColumns = colW.map((v) => `${(v * scale).toFixed(2)}px`).join(' ');
     gridEl.style.gridTemplateRows = rowH.map((v) => `${(v * scale).toFixed(2)}px`).join(' ');
   }
@@ -639,7 +715,7 @@ function setTileVideo(i, videoId, input) {
   views[i].danmaku.clear();
   // 手で読み込んだ枠は自動再生でも消さない
   // 音の遅延はその配信のずれに合わせた値なので、別の動画にしたら戻す。速度もその動画のために決めたものなので戻す
-  Object.assign(state.tiles[i], { input, videoId, auto: false, queue: false, fill: false, label: '', delay: 0, ...(prev !== videoId ? { speed: 1 } : {}) });
+  Object.assign(state.tiles[i], { input, videoId, auto: false, queue: false, fill: false, label: '', delay: 0, short: isShortHint(input), ...(prev !== videoId ? { speed: 1 } : {}) });
   // 新しく読み込んだ枠は、他に音の出ている枠が無ければ音を出す
   const anyAudible = state.tiles.some((t, j) => j !== i && isVisible(j) && t.videoId && !t.muted);
   state.tiles[i].muted = anyAudible;
@@ -804,6 +880,8 @@ function renderTile(i, { reloadPlayer = false, reloadChat = false } = {}) {
     v.info = null; // 種類・視聴者数など (「ℹ 枠の情報」・同期ボタン用)。読み込んだプレイヤーが知らせてくる
     v.playStatus = ''; // 見られるか (playabilityStatus.status)
   }
+
+  relayoutIfVerticalChanged(); // ショートの枠が空いた・入れ替わった
 
   // --- chat (チャット欄 表示中 or 弾幕 ON のときだけ読み込む)
   if (!needChat) {
@@ -4203,7 +4281,7 @@ window.addEventListener('message', (e) => {
     };
     Sync.refresh();
     TileInfo.update();
-    if (views[i].info.vertical) onVertical(i);
+    relayoutIfVerticalChanged(); // 縦型の配信と分かった (設定が ON のときだけ形が変わる)
   } else if (data.hakomado === 'ended') {
     onEnded(i, data.reason === 'played' ? 'played' : 'already');
   } else if (data.hakomado === 'social') {
@@ -4217,26 +4295,6 @@ window.addEventListener('message', (e) => {
     if (data.failed) notify(tr('ytFailed', tileName(i)));
   }
 });
-
-/**
- * 枠のプレイヤーが「縦長の映像 (ショート・縦型の配信)」と知らせてきたとき。覚えておき、自動再生で最近の動画として入れた枠で、
- * 設定「ショートも流す」が OFF なら、枠を空けて次の候補を入れる (RSS では縦型の配信を見分けられないので、読み込んでから判定する)
- */
-function onVertical(i) {
-  const t = state.tiles[i];
-  if (!t.videoId) return;
-  verticalIds.add(t.videoId);
-  if (!state.autoMode || !t.fill || state.settings.autoArchiveShorts) return;
-  // 流さなかったものなので、視聴履歴にも残さない
-  WatchHistory.remove(t.videoId);
-  state.tiles[i] = newTileState();
-  views[i].danmaku.clear();
-  if (document.fullscreenElement === views[i].el) document.exitFullscreen().catch(() => {});
-  renderTile(i);
-  if (state.settings.autoArchive) refillArchives();
-  else compactToContent();
-  save();
-}
 
 /**
  * 枠のプレイヤーが「配信・動画が終わった」と知らせてきたとき。終わった配信として覚え (自動再生で入れ直さない)、
@@ -6147,7 +6205,7 @@ function stepIndex(key, v) {
   return best;
 }
 
-const SETTING_CHECKBOXES = ['showPaid', 'chatHideAvatars', 'hlAnimate', 'skipMembersOnly', 'autoArchive', 'autoArchiveVideos', 'autoArchiveShorts', 'autoPickupMain'];
+const SETTING_CHECKBOXES = ['showPaid', 'chatHideAvatars', 'hlAnimate', 'verticalLiveFit', 'skipMembersOnly', 'autoArchive', 'autoArchiveVideos', 'autoArchiveShorts', 'autoPickupMain'];
 const SETTING_SELECTS = ['dmFont', 'dmWeight', 'authorName', 'autoTarget', 'noticeTarget'];
 
 /** 設定画面の入力欄を state.settings に合わせる (他のタブで設定が変わったときも呼ぶ) */
@@ -6381,6 +6439,7 @@ function setupToolbar() {
       flashDanmakuArea();
     }
     if (key === 'cruiseSec') restartCruise();
+    if (key === 'verticalLiveFit') relayoutIfVerticalChanged();
     if (dmLookKeys.has(key)) applyDanmakuLook();
     saveSettings(key);
   };
@@ -6924,12 +6983,9 @@ function inLibrary(v) {
   return v.list !== 'UUSH';
 }
 
-// 枠で読み込んで縦長と分かった動画 (ショート・縦型の配信)。ショートを流さない設定のとき、自動再生の候補から外す
-const verticalIds = new Set();
-
 /** 自動再生・おまかせで流してよい種類か (設定の「動画も流す」「ショートも流す」) */
 function autoKindAllowed(v) {
-  if (v.kind === 'short' || verticalIds.has(v.videoId)) return state.settings.autoArchiveShorts;
+  if (v.kind === 'short') return state.settings.autoArchiveShorts;
   if (v.kind === 'video') return state.settings.autoArchiveVideos;
   return true;
 }
@@ -9081,7 +9137,7 @@ async function pickAnything(i) {
       const picks = (await archiveCandidates(chs, { onProgress: step('progressArchive', from, to) })).filter(usable);
       if (picks.length) {
         const { v, f } = random(picks);
-        loadPicked(i, v.videoId, `${YT}/watch?v=${v.videoId}`, f.name, false);
+        loadPicked(i, v.videoId, videoInput(v), f.name, false);
         return;
       }
     }
@@ -9382,7 +9438,7 @@ async function refillArchives({ lock = true } = {}) {
         if (i == null) break;
         busy.add(f.name);
         added++;
-        Object.assign(state.tiles[i], { ...newTileState(), input: `${YT}/watch?v=${v.videoId}`, videoId: v.videoId, label: f.name, fill: true });
+        Object.assign(state.tiles[i], { ...newTileState(), input: videoInput(v), videoId: v.videoId, label: f.name, fill: true, short: v.list === 'UUSH' }); // = isShortHint(videoInput(v))
         views[i].danmaku.clear();
         renderTile(i, { reloadPlayer: true, reloadChat: true });
         fills.push(i);
