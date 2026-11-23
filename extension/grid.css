@@ -1630,6 +1630,10 @@ body.grid-fs .sync-dock { top: 0; }
 .dr-ref-tag { flex: none; padding: 0 4px; border-radius: 3px; background: var(--g, #ffffff30); color: #111; font-size: 11px; font-weight: 700; line-height: 1.5; }
 /* 🎬 本編の枠 (プレミア公開) の印 */
 .dr-main-tag { background: #9ad4ff; }
+button.dr-main-tag { border: 0; cursor: pointer; }
+/* 本編にする (🎬) */
+.dr-make-main { flex: none; padding: 0 4px; opacity: .55; }
+.dr-make-main:hover, .dr-make-main:focus-visible { opacity: 1; }
 .dr-short { flex: none; color: var(--muted); font-variant-numeric: tabular-nums; display: none; }
 /* 設定したずれどおりの位置か (✓) / その位置へ寄せている途中か (↻)。グループの色と混ざらないよう、色ではなく記号で見せる */
 .dr-dot { flex: none; width: 1.1em; text-align: center; color: var(--muted); font-size: 12px; line-height: 1; }
@@ -1656,7 +1660,7 @@ body.grid-fs .sync-dock { top: 0; }
 .dr-movie-label { display: inline-flex; align-items: center; gap: 4px; }
 .dr-movie-now { width: 6em; }
 /* たたんだとき: 番号・ずれ・点だけ */
-.sync-dock.mini .dock-title, .sync-dock.mini .dg-actions, .sync-dock.mini .dr-ref-tag, .sync-dock.mini .dr-sub, .sync-dock.mini .dr-name,
+.sync-dock.mini .dock-title, .sync-dock.mini .dg-actions, .sync-dock.mini .dr-ref-tag, .sync-dock.mini .dr-make-main, .sync-dock.mini .dr-sub, .sync-dock.mini .dr-name,
 .sync-dock.mini .dr-group, .sync-dock.mini .dr-ref, .sync-dock.mini .dg-seek, .sync-dock.mini .dg-head select,
 .sync-dock.mini .dg-head button, .sync-dock.mini .dg-mode-fixed, .sync-dock.mini .dg-note, .sync-dock.mini .dg-audio-result, .sync-dock.mini .dg-tl, .sync-dock.mini .dg-count { display: none; }
 .sync-dock.mini .dr-short { display: inline; flex: 1 1 auto; text-align: right; }

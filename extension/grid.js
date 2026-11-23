@@ -1806,6 +1806,10 @@ const Sync = (() => {
   const waiting = new Map(); // i -> {paused} 「止めて待つ」中の枠 (paused = 止まったのを確かめた)
   const seenSeeks = new Map(); // i -> 最後に見た、枠の中でユーザーがシークした回数
   const drift = new Map(); // i -> 'ok' | 'fix' | 'ref' 追いつき具合 (パネルの点)
+  // 「今は本編の」に値を入れようとしている枠: i -> {p: 入力欄を押した瞬間の再生位置 (秒), until: 同期に戻す時刻}
+  // 入力にかかった時間がずれにならないよう、値は欄を押した瞬間の位置に対して決める。読む間は (基準でなければ) 同期から外す
+  const reading = new Map();
+  const READ_MS = 5 * 60e3;
   const driftSec = new Map(); // i -> 設定の位置との差 (秒。+ = 進んでいる)。'fix' の間の「あと何秒」に使う
 
   const now = () => performance.now();
@@ -1823,32 +1827,63 @@ const Sync = (() => {
   const candidate = (i) => movable(i) || liveTile(i);
   /** グループ G に加われる枠 (実際の時刻: アーカイブ / 本編: アーカイブとライブ) */
   const fits = (G, i) => movable(i) || (isMovie(G) && liveTile(i));
-  /** 🎬 本編の枠: 枠の中のプレミア公開 (1 本だけのとき。同時視聴の配信が見ていた本編そのもの)。無ければ null */
+  const vidOf = (i) => state.tiles[i].videoId;
+  /**
+   * 🎬 本編の枠 (同時視聴の配信が見ていた本編そのもの): 使う人が「本編にする」と決めた枠 (1 本だけのとき)。
+   * 無ければ、枠の中のプレミア公開 (1 本だけのとき)。無ければ null
+   */
   const mainOf = (list) => {
-    const p = list.filter((i) => movable(i) && views[i].archive.premiere);
-    return p.length === 1 ? p[0] : null;
+    const one = (f) => {
+      const p = list.filter((i) => movable(i) && f(i));
+      return p.length === 1 ? p[0] : null;
+    };
+    return one((i) => MovieAnchors.isMain(vidOf(i))) ?? one((i) => views[i].archive.premiere);
   };
-  /** 本編の枠の本編の位置は 0 (動画の 0 秒が本編 0:00)。決めていなければ入れる */
+  /**
+   * 本編の枠の本編の位置: 決めていなければ 0 (動画の 0 秒が本編 0:00)。プレミア公開はそのとおりなので決めた値に、
+   * 手で本編にした枠 (ライブのアーカイブなど。始まる前の待機があることが多い) は見当にする
+   */
   function ensureMainAnchor(list) {
     const m = mainOf(list);
-    if (m != null && anchor(m) == null) MovieAnchors.set(state.tiles[m].videoId, 0);
+    if (m != null && anchor(m) == null) MovieAnchors.set(vidOf(m), 0, { guess: !views[m].archive.premiere });
   }
+  /** 枠 k で本編 0:00 が流れた実際の時刻 (ミリ秒) */
+  const movieZeroAt = (k) => views[k].archive.start + (anchor(k) - off(k)) * 1000;
+  /** 枠 k の本編 0:00 が流れた時刻から、時間帯が重なる枠 j の本編の位置を求める (同じ時に配信していたので、実際の時刻でつながる) */
+  const anchorVia = (k, j) => Math.round(((movieZeroAt(k) - views[j].archive.start) / 1000 + off(j)) * 100) / 100;
   /**
-   * 🕒 実際の時刻でのそろい方を、決めていない枠の本編の位置にする (本編の枠の本編 0:00 が流れた時刻を、各枠の位置に読み替える)。
+   * 🕒 コラボ配信でのそろい方を、決めていない枠の本編の位置 (見当) にする (本編の枠の本編 0:00 が流れた時刻を、各枠の位置に読み替える)。
    * 本編の枠と時間帯が重なる (= その時に本編を見ていた) アーカイブだけ。決めた枠の数を返す
    */
   function anchorsFromTime(list) {
     const m = mainOf(list);
     if (m == null) return 0;
-    const R0 = views[m].archive.start + ((anchor(m) ?? 0) - off(m)) * 1000;
+    ensureMainAnchor(list);
     let n = 0;
     for (const j of list) {
       if (j === m || !movable(j) || anchor(j) != null || !overlapsTime(j, m)) continue;
-      MovieAnchors.set(state.tiles[j].videoId, Math.round(((R0 - views[j].archive.start) / 1000 + off(j)) * 100) / 100);
+      MovieAnchors.set(vidOf(j), anchorVia(m, j), { guess: true });
       n++;
     }
-    ensureMainAnchor(list);
     return n;
+  }
+  /**
+   * 見当の本編の位置を、時間帯が重なる (同じ時に配信していた) 枠の、使う人が決めた本編の位置から付け直す。
+   * まだ位置の無い枠にも付ける。元にするのは本編の枠を優先 (無ければレイアウトで前の枠)。
+   * 例: 本編 (ライブのアーカイブ) と、それを同じ時間に見ていた配信。配信のタイマーで配信の本編の位置を決めたら、本編の枠の位置も決まる
+   */
+  function guessFromOverlap(list) {
+    const main = mainOf(list);
+    const firm = list.filter((k) => movable(k) && anchor(k) != null && !MovieAnchors.isGuess(vidOf(k)));
+    firm.sort((a, b) => (b === main) - (a === main));
+    for (const j of list) {
+      if (!movable(j) || firm.includes(j)) continue;
+      const k = firm.find((x) => overlapsTime(j, x));
+      if (k == null) continue;
+      const v = anchorVia(k, j);
+      const a = anchor(j);
+      if (a == null || Math.abs(a - v) >= 0.05) MovieAnchors.set(vidOf(j), v, { guess: true });
+    }
   }
   const timeRange = (i) => [views[i].archive.start, views[i].archive.start + views[i].archive.dur * 1000];
   const rangeOf = (G, i) => {
@@ -1891,6 +1926,7 @@ const Sync = (() => {
     const prev = new Map();
     for (const [g, list] of assigned.groups) for (const i of list) prev.set(i, g);
     const a = computeAssign(prev);
+    joinMainGroup(a);
     for (const [g, list] of [...a.groups]) {
       if (!groups.has(g)) groups.set(g, newGroup(g));
       const G = groups.get(g);
@@ -1902,6 +1938,32 @@ const Sync = (() => {
     }
     for (const g of [...groups.keys()]) if (!a.groups.has(g)) groups.delete(g);
     assigned = a;
+  }
+  /**
+   * 本編の枠のあるグループに、どのグループにも入らなかった枠 (時間のずれたアーカイブ・ライブ) を入れる
+   * (🎬 同時視聴: 同じ本編を見ていた、別の日の配信)。本編の枠がどのグループにも入っていなければ、それらで 1 つのグループを作る。
+   * 手で「同期しない」にした枠は入れない。本編の枠のあるグループが 2 つ以上なら、どこに入れるか決められないので入れない
+   */
+  function joinMainGroup(a) {
+    const loose = [...a.excluded].filter(([, why]) => why === 'alone' || why === 'live').map(([i]) => i);
+    if (!loose.length) return;
+    const withMain = [...a.groups].filter(([, list]) => mainOf(list) != null);
+    let target = null;
+    if (withMain.length === 1) target = withMain[0];
+    else if (!withMain.length && mainOf(loose) != null && loose.length >= 2) {
+      const g = [1, 2, 3, 4].find((x) => !a.groups.has(x));
+      if (g == null) return;
+      target = [g, []];
+      a.groups.set(g, target[1]);
+    }
+    if (!target) return;
+    const [, list] = target;
+    for (const i of loose) {
+      list.push(i);
+      a.excluded.delete(i);
+    }
+    const order = visibleIndexes();
+    list.sort((x, y) => order.indexOf(x) - order.indexOf(y));
   }
   const membersOf = (g) => assigned.groups.get(g) || [];
   /** 同期できるグループ (2 本以上で、動かせる枠がある) */
@@ -2105,7 +2167,10 @@ const Sync = (() => {
     zeroRef(G);
     groupSpeed(G, list, ref);
     const movie = isMovie(G);
-    if (movie) ensureMainAnchor(list);
+    if (movie) {
+      ensureMainAnchor(list);
+      guessFromOverlap(list);
+    }
     if (G.init) initClock(G);
     // 時計を基準の枠に合わせる (基準の枠が配信の時間帯の中で、知らせが新しく、広告中でないとき)
     const rs = views[ref].ss;
@@ -2131,6 +2196,17 @@ const Sync = (() => {
     // 本編モードで基準の枠の本編の位置がまだ無ければ、時計が決まらないので、ほかの枠も動かさない
     const idle = movie && anchor(ref) == null;
     for (const i of list) {
+      // 「今は本編の」に値を入れようとしている枠: 同期から外して、自由に動かせるようにする (タイマーなどが見える所まで)
+      if (movie && i !== ref && reading.has(i)) {
+        if (now() > reading.get(i).until) reading.delete(i);
+        else {
+          sawUserSeek(i); // 枠の中でシークしても、そこで位置を決めない
+          rate(i, 1);
+          overlay(i, tr('movieReadingOverlay'));
+          drift.delete(i);
+          continue;
+        }
+      }
       if (idle && i !== ref && anchor(i) != null) {
         overlay(i, tr('movieNeedRefAnchor'));
         if (!liveTile(i)) rate(i, 1);
@@ -2446,6 +2522,7 @@ const Sync = (() => {
     waiting.clear();
     seenSeeks.clear();
     drift.clear();
+    reading.clear();
     clearInterval(timer);
     timer = 0;
     for (let i = 0; i < MAX_TILES; i++) {
@@ -2715,6 +2792,37 @@ const Sync = (() => {
     return (a < 0 ? '−' : '') + hms(Math.floor(cs / 100)) + frac;
   };
 
+  /** 「今は本編の」の欄を押した: その瞬間の位置を覚え、(基準でなければ) この枠を同期から外す (タイマーなどが見える所まで動かせるように) */
+  function startReading(i) {
+    const p = posOf(i);
+    reading.set(i, { p, until: now() + READ_MS });
+    tick();
+  }
+  /** 読むのをやめる (値を入れた・Esc)。枠を同期に戻す */
+  function stopReading(i) {
+    if (!reading.delete(i)) return;
+    sent.delete(i);
+    forceSeek.add(i);
+    overlay(i, '');
+    tick();
+  }
+  /**
+   * 枠 i を本編にする / やめる (on)。本編にすると、同じグループのほかの枠の「本編にした」印は外し、グループを 🎬 同時視聴にして、
+   * 基準をこの枠にする (ライブがあればライブのまま)。ほかの枠の本編の位置の見当は、実際の時刻から付ける
+   */
+  function setMain(i, on) {
+    const G = on ? groupOfTile(i) : null;
+    MovieAnchors.setMain(vidOf(i), on);
+    if (!on) return tick();
+    for (const j of membersOf(G?.g)) if (j !== i && MovieAnchors.isMain(vidOf(j))) MovieAnchors.setMain(vidOf(j), false);
+    if (!G) return tick();
+    if (!isMovie(G)) return setMode(G, 'movie');
+    const filled = anchorsFromTime(membersOf(G.g));
+    notify(movieOnText(G, filled));
+    setReference(i);
+    tick();
+  }
+
   /** この枠のずれ (本編モードなら本編の位置) を v にして、すぐ合わせ直す */
   function setOffset(i, v) {
     const G = groupOfTile(i);
@@ -2901,6 +3009,21 @@ const Sync = (() => {
       return opts.map(([v, label]) => mk('option', { value: v, selected: v === cur }, label));
     };
 
+    /**
+     * 行の「🎬 本編」: 本編の枠なら印 (手で本編にした枠は、押すと本編をやめる)。本編でない、動かせる枠には
+     * 「🎬」(押すとこの枠を本編にする。ライブのアーカイブなど、プレミア公開でない本編のため)
+     */
+    function mainTagEl(i, G) {
+      if (!G || !movable(i)) return null;
+      const isMainTile = mainOf(membersOf(G.g)) === i;
+      const marked = MovieAnchors.isMain(vidOf(i));
+      if (isMainTile && isMovie(G)) {
+        return marked
+          ? mk('button', { type: 'button', class: 'dr-ref-tag dr-main-tag', title: tr('movieMainUnsetTitle'), onclick: () => setMain(i, false) }, '🎬 ' + tr('movieMainTag'))
+          : mk('span', { class: 'dr-ref-tag dr-main-tag', title: tr('movieMainTagTitle') }, '🎬 ' + tr('movieMainTag'));
+      }
+      return mk('button', { type: 'button', class: 'dr-make-main', textContent: '🎬', title: tr('movieMakeMainTitle'), onclick: () => setMain(i, true) });
+    }
     function rowEl(i, G) {
       const movie = !!G && isMovie(G);
       const isRef = !!G && i === G.ref;
@@ -2929,7 +3052,7 @@ const Sync = (() => {
         mk('span', { class: 'dr-num' }, String(tileNo(i))),
         mk('span', { class: 'dr-name', title: tileName(i) || '' }, tileName(i) || state.tiles[i].videoId),
         isRef ? mk('span', { class: 'dr-ref-tag', title: tr('syncRefBadgeTitle') }, tr('syncRefShort')) : null,
-        movie && mainOf(membersOf(G.g)) === i ? mk('span', { class: 'dr-ref-tag dr-main-tag', title: tr('movieMainTagTitle') }, '🎬 ' + tr('movieMainTag')) : null,
+        mainTagEl(i, G),
         r.short,
         r.dot,
         groupSel,
@@ -2996,16 +3119,26 @@ const Sync = (() => {
         parts.push(line2);
         if (movie && !live) {
           const nowIn = mk('input', { type: 'text', class: 'dr-movie-now sync-input', inputMode: 'numeric', placeholder: '0:47:12', title: tr('syncMovieNowTitle') });
+          // 欄を押した瞬間の位置で決める (入力にかかった時間がずれにならないように)。読む間は、この枠を同期から外す
+          nowIn.addEventListener('focus', () => startReading(i));
           nowIn.addEventListener('keydown', (e) => {
             e.stopPropagation();
+            if (e.key === 'Escape') {
+              e.preventDefault();
+              nowIn.value = '';
+              stopReading(i);
+              r.row.focus();
+              return;
+            }
             if (e.key !== 'Enter') return;
             e.preventDefault();
             const c = parseClock(nowIn.value);
-            const p = posOf(i);
+            const p = reading.get(i)?.p ?? posOf(i);
             if (c == null || p == null) {
               showToast(i, tr('movieBadClock'));
               return;
             }
+            stopReading(i);
             setOffset(i, Math.round((p - c) * 100) / 100);
             nowIn.value = '';
             r.row.focus();
@@ -3416,7 +3549,7 @@ const Sync = (() => {
         [...groups.values()].map((G) => [G.g, G.mode, G.ref, active(G), membersOf(G.g)]),
         [...assigned.excluded],
         [...manual].map(([i, m]) => [i, m.g]),
-        visibleIndexes().map((i) => [i, tileName(i), liveTile(i)]),
+        visibleIndexes().map((i) => [i, tileName(i), liveTile(i), MovieAnchors.isMain(state.tiles[i].videoId)]),
         AudioSync.resultKey(),
       ]);
       if (key !== structKey) {
@@ -3452,7 +3585,9 @@ const Sync = (() => {
         const movie = !!G && isMovie(G);
         let v = null;
         if (G && active(G)) v = (wait ? offsetAt(G, i, nowR(G)) : null) ?? (movie ? anchor(i) : off(i));
-        const txt = v == null ? (movie ? tr('syncAnchorUnset') : '') : movie ? anchorText(v) : signedSec(v);
+        // 本編の位置の見当 (配信の時刻から付けた値) は「≈」を付ける
+        const guess = movie && v != null && !wait && MovieAnchors.isGuess(vidOf(i));
+        const txt = v == null ? (movie ? tr('syncAnchorUnset') : '') : movie ? (guess ? '≈' : '') + anchorText(v) : signedSec(v);
         r.short.textContent = G && active(G) && !liveTile(i) ? txt || '—' : '';
         if (r.refVal) r.refVal.textContent = tr('syncRefAnchor', txt); // 本編モードの基準だけ (実際の時刻の基準の補正はいつも 0)
         if (r.val && document.activeElement !== r.val) {
