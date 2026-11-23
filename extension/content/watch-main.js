@@ -451,11 +451,68 @@
     else if (c.op === 'play') p.playVideo?.();
     else if (c.op === 'pause') p.pauseVideo?.();
     else if (c.op === 'rate' && Number.isFinite(c.r)) {
-      // 少しのずれは速度をわずかに変えて吸収する (シークすると読み込みで止まるため)。プレイヤーの速度設定は変えない
-      const v = video();
-      if (v) v.playbackRate = Math.min(1.25, Math.max(0.75, c.r));
+      // 少しのずれは速度をわずかに変えて吸収する (シークすると読み込みで止まるため)。
+      // 枠の速度 (base) に掛ける補正で、プレイヤーの速度設定は変えない
+      corr = Math.min(1.25, Math.max(0.75, c.r));
+      applyRate();
     }
   });
+
+  // ---- 再生速度 (枠のバーの速度ボタン・上部バーの ⏩・< > キー。同期中のグループはグループの速度)
+  //   watch.js → ここ : 'hakomado:speed'      detail '1.5' など (この枠の速度)
+  //   ここ → watch.js : 'hakomado:user-speed' detail '1.5' など (枠の中のプレイヤーの ⚙ やキーで変えたとき)
+  // 速度はプレイヤーの API で決め (YouTube の表示とそろえる)、同期の補正 (corr) は動画要素に直接掛ける
+  let base = 1;
+  let corr = 1;
+  let rateSelfUntil = 0;
+  const SPEED_MIN = 0.25;
+  const SPEED_MAX = 4;
+  const near = (a, b) => Math.abs(a - b) < 0.001;
+  let rateHooked = null;
+  // 少し前に自分で動画要素に掛けた速度 (補正の分も含む)。YouTube がそれを知らせてきても、ユーザーの操作と取り違えないように
+  let applied = [];
+  const mine = (r) => applied.some((a) => near(a.r, r) && performance.now() - a.at < 3000);
+  function applyRate() {
+    const p = player();
+    const v = video();
+    if (!p) return;
+    hookRate(p);
+    if (typeof p.setPlaybackRate === 'function' && !near(Number(p.getPlaybackRate?.()) || 1, base)) {
+      rateSelfUntil = performance.now() + 800;
+      p.setPlaybackRate(base);
+    }
+    if (v && !near(v.playbackRate, base * corr)) {
+      v.playbackRate = base * corr;
+      applied = [...applied.filter((a) => performance.now() - a.at < 3000), { r: base * corr, at: performance.now() }];
+    }
+  }
+  function hookRate(p) {
+    if (rateHooked === p) return;
+    rateHooked = p;
+    p.addEventListener('onPlaybackRateChange', (r) => {
+      r = Number(r);
+      if (!Number.isFinite(r) || near(r, base) || near(r, base * corr) || mine(r) || adShowing()) return;
+      if (performance.now() < rateSelfUntil || performance.now() - lastInput > 1500) {
+        // 操作していないのに変わった (YouTube が読み込み・広告のあとで戻した等) → 親の指定に戻す
+        applyRate();
+        return;
+      }
+      // 枠の中のプレイヤーで速度を変えた → 親に知らせる (同期中ならグループ全部の速度になる)
+      base = Math.min(SPEED_MAX, Math.max(SPEED_MIN, r));
+      document.dispatchEvent(new CustomEvent('hakomado:user-speed', { detail: String(base) }));
+    });
+  }
+  document.addEventListener('hakomado:speed', (e) => {
+    const r = Number(e.detail);
+    if (!Number.isFinite(r)) return;
+    base = Math.min(SPEED_MAX, Math.max(SPEED_MIN, r));
+    applyRate();
+  });
+  // 広告のあとや画質の切り替えで動画要素の速度が戻ることがあるので、ときどき確かめて直す (広告中はそのまま)
+  setInterval(() => {
+    const v = video();
+    if (v && !adShowing() && !near(v.playbackRate, base * corr) && performance.now() - lastInput > 1500) applyRate();
+  }, 1000);
 
   // ---- 枠の情報 (親の「ℹ 枠の情報」の一覧と、アーカイブ同期ボタンが使えない理由の表示用)
   //   ここ → watch.js : 'hakomado:info'     detail JSON {kind, viewers, views, start, end, publish, dur, t}

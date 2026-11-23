@@ -111,6 +111,51 @@ test.describe('ツールバー', () => {
 });
 
 test.describe('視聴セッション', () => {
+  test('再生速度: 枠の 1× で選び、< > キーで 1 段ずつ変え、上部バーの ⏩ でまとめて変える', async ({ openGrid }) => {
+    const page = await openGrid();
+    await skipTour(page);
+    const tile = visibleTiles(page).first();
+    const input = tile.locator('.url-input');
+    await input.fill('dQw4w9WgXcQ');
+    await input.press('Enter');
+    const btn = tile.locator('.bar [data-act="speed"]');
+    const all = page.locator('#speedAll');
+    const menu = page.locator('#speedMenu');
+    await expect(btn).toHaveText('1×');
+    await expect(all.locator('.tb-label')).toHaveText('1×');
+
+    await tile.hover();
+    await btn.click();
+    await expect(menu).toBeVisible();
+    await expect(menu.locator('.speed-head')).toContainText('枠 1');
+    await menu.locator('button[data-speed="1.5"]').click();
+    await expect(menu).toBeHidden();
+    await expect(btn).toHaveText('1.5×');
+    await expect(all.locator('.tb-label')).toHaveText('1.5×');
+
+    // 音の出ている枠 (読み込んだ枠) を 1 段ずつ
+    await page.mouse.move(0, 0);
+    await page.keyboard.press('<');
+    await expect(btn).toHaveText('1.25×');
+    await page.keyboard.press('>');
+    await page.keyboard.press('>');
+    await expect(btn).toHaveText('1.75×');
+
+    await all.click();
+    await expect(menu.locator('.speed-head')).toHaveText('全部の枠の再生速度');
+    await menu.locator('button[data-speed="0.5"]').click();
+    await expect(btn).toHaveText('0.5×');
+    // 視聴セッションに残る
+    await expect
+      .poll(() =>
+        page.evaluate(async () => {
+          const all = await chrome.storage.local.get(null);
+          return Object.values(all).some((v) => v?.tiles?.some?.((t) => t.videoId === 'dQw4w9WgXcQ' && t.speed === 0.5));
+        }),
+      )
+      .toBe(true);
+  });
+
   test('配信を入れた枠は、閉じて開き直すと再開を聞かれる', async ({ openGrid }) => {
     const page = await openGrid();
     await skipTour(page);

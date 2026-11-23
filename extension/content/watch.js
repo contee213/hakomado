@@ -28,6 +28,11 @@
     }
     window.parent.postMessage({ hakomado: 'userAudio', muted }, PARENT_ORIGIN);
   });
+  // 枠内のプレイヤーで速度を変えた → 親に知らせる (同期中ならグループ全部の速度にする)
+  document.addEventListener('hakomado:user-speed', (e) => {
+    const r = Number(e.detail);
+    if (Number.isFinite(r)) window.parent.postMessage({ hakomado: 'userSpeed', r }, PARENT_ORIGIN);
+  });
 
   // 見られるか (playabilityStatus) → 親に知らせる (メンバー限定の配信を自動再生から外すため)
   document.addEventListener('hakomado:playability', (e) => {
@@ -374,6 +379,8 @@
     } else if (e.data?.hakomado === 'sync' && ['seek', 'play', 'pause', 'rate'].includes(e.data.op)) {
       const detail = JSON.stringify({ op: e.data.op, t: Number(e.data.t), r: Number(e.data.r) });
       document.dispatchEvent(new CustomEvent('hakomado:sync', { detail }));
+    } else if (e.data?.hakomado === 'speed' && Number.isFinite(Number(e.data.r))) {
+      document.dispatchEvent(new CustomEvent('hakomado:speed', { detail: String(Number(e.data.r)) }));
     } else if (e.data?.hakomado === 'infoReq') {
       document.dispatchEvent(new CustomEvent('hakomado:info-req'));
     } else if (e.data?.hakomado === 'away') {
