@@ -290,12 +290,12 @@ const MESSAGES = {
   syncModeTime: ['🕒 コラボ配信', '🕒 Collab'],
   syncModeMovie: ['🎬 同時視聴', '🎬 Watch-along'],
   syncModeAutoTitle: [
-    '🎬 同時視聴: 本編の枠 (プレミア公開) の 0:00 でそろえています。本編を見ていた配信は配信の時刻から、時間のずれた配信は ✨ 自動補正か手で、本編の位置を決めます。本編の枠を外すと 🕒 コラボ配信に戻ります',
-    '🎬 Watch-along: aligned on the movie tile’s (premiere’s) 0:00. Streams that watched it get their movie start from the stream times; streams from other times use ✨ auto-correct or manual input. Remove the movie tile to go back to 🕒 Collab',
+    '🎬 同時視聴: 本編の枠 (プレミア公開) の 0:00 でそろえています。本編を見ていた配信は配信の時刻から見当を付け、同時視聴の配信のタイマーなどを見て「今は本編の」で本編の位置を決めます。本編の枠を外すと 🕒 コラボ配信に戻ります',
+    '🎬 Watch-along: aligned on the movie tile’s 0:00. Streams that watched it get an estimate from the stream times; set each movie start with “Movie now at”, reading the watch-along’s timer or similar. Remove the movie tile to go back to 🕒 Collab',
   ],
   syncAudioTitle: [
-    '✨ 自動補正: このグループの枠の音 (コラボの通話の声・🎬 同時視聴では本編の音) を最大 180 秒聞いて、各枠の補正 (同時視聴では本編の位置) を求めます。今の位置から再生したまま測り、35 秒を過ぎると途中の結果が出ます。どの枠も確かになったら、切り上げを提案します。結果を確かめてから反映できます。もう一度押すとやめます',
-    '✨ Auto-correct: listens to the tiles in this group (the shared call voices in a collab, or the movie’s sound in 🎬 Watch-along) for up to 180 seconds and works out each tile’s offset (movie start in Watch-along). It measures from the current position while playing and shows a provisional result after 35 seconds. Once every tile is certain, it suggests stopping early. You can check the result before applying it. Press again to stop',
+    '✨ 自動補正: このグループの枠の音 (コラボの通話の声) を最大 180 秒聞いて、各枠の補正を求めます。今の位置から再生したまま測り、35 秒を過ぎると途中の結果が出ます。どの枠も確かになったら、切り上げを提案します。結果を確かめてから反映できます。もう一度押すとやめます',
+    '✨ Auto-correct: listens to the tiles in this group (the shared call voices in a collab) for up to 180 seconds and works out each tile’s offset. It measures from the current position while playing and shows a provisional result after 35 seconds. Once every tile is certain, it suggests stopping early. You can check the result before applying it. Press again to stop',
   ],
   syncInputTitle: ['補正の秒数 (+ = 先へ進める、− = 戻す)。入れて Enter で決定', 'The offset in seconds (+ = move ahead, − = move back). Type and press Enter'],
   syncAnchorInputTitle: ['本編 0:00 に当たる、この動画の再生位置 (h:mm:ss・m:ss・秒)。入れて Enter で決定', 'Where the movie is at 0:00 in this video (h:mm:ss, m:ss or seconds). Type and press Enter'],
@@ -426,21 +426,13 @@ const MESSAGES = {
     '🎬 Aligning on the movie ({0} tiles). Set where the movie starts for each tile in the sync panel',
   ],
   movieOnMain: [
-    '🎬 同時視聴: 本編「{0}」でそろえます ({1} 枠)。✨ 自動補正で、各枠の本編の位置を音で細かく合わせられます',
-    '🎬 Aligning on the movie “{0}” ({1} tiles). ✨ Auto-correct can fine-tune each tile’s movie start by sound',
+    '🎬 同時視聴: 本編「{0}」でそろえます ({1} 枠)。各枠の本編の位置は、同時視聴の配信のタイマーなどを見て「今は本編の」で決めてください',
+    '🎬 Aligning on the movie “{0}” ({1} tiles). Set each tile’s movie start with “Movie now at”, reading the watch-along’s timer or similar',
   ],
   movieOnMainGuessed: [
-    '🎬 同時視聴: 本編「{0}」でそろえます ({1} 枠)。本編の位置は配信の時刻から見当を付けました。✨ 自動補正で、音で細かく合わせられます',
-    '🎬 Aligning on the movie “{0}” ({1} tiles). Movie starts were estimated from the stream times. ✨ Auto-correct can fine-tune them by sound',
+    '🎬 同時視聴: 本編「{0}」でそろえます ({1} 枠)。本編の位置は配信の時刻から見当 (≈) を付けました。同時視聴の配信のタイマーなどを見て「今は本編の」で決めてください',
+    '🎬 Aligning on the movie “{0}” ({1} tiles). Movie starts were estimated from the stream times (≈). Set them with “Movie now at”, reading the watch-along’s timer or similar',
   ],
-  movieAudioNeedAnchors: [
-    '🎬 ✨ 自動補正は、基準の枠と、ほかの 1 枠以上の本編の位置を決めてから使えます (ライブは除きます)',
-    '🎬 ✨ Auto-correct needs the movie start of the reference tile and at least one other tile (live streams are left out)',
-  ],
-  movieAudioCandTitle: ['✨ 自動補正の結果: 本編 0:00 = {0} (確かさ {1})。「反映」で入ります', '✨ Auto-correct result: movie 0:00 = {0} (confidence {1}). Press Apply to use it'],
-  movieAudioCandPrelimTitle: ['✨ 途中の結果: 本編 0:00 = {0} (確かさ {1})。まだ聞いています', '✨ Provisional result: movie 0:00 = {0} (confidence {1}). Still listening'],
-  movieTlCandTitle: ['✨ 反映したあとの本編 0:00 の位置 ({0}、確かさ {1})', '✨ Where movie 0:00 goes once applied ({0}, confidence {1})'],
-  movieTlCandPrelimTitle: ['✨ 途中の結果の本編 0:00 の位置 ({0}、確かさ {1})', '✨ Provisional movie 0:00 position ({0}, confidence {1})'],
   movieMainTag: ['本編', 'Movie'],
   movieMakeMainTitle: [
     'この枠を本編にする (同時視聴の配信が見ていた本編そのもの。プレミア公開でない、ライブのアーカイブなどのとき)。グループを 🎬 同時視聴にして、この枠を基準にします',
@@ -1103,7 +1095,7 @@ const HTML_EN = {
 <li>Archives streamed at overlapping times are grouped automatically, so A·B and C·D from different collabs sync separately (up to 4 groups, shown by color and number on the tiles). Change a tile’s group on its row in the sync panel</li>
 <li>The sync panel (☰ on the top bar, or ⏱ on a tile) floats over the tiles, semi-transparent (drag its header to move it; ⇲ docks it on the right). Per group: what to align on (🕒 Collab / 🎬 Watch-along), ⏸, ✨ auto-correct and a slider. Per tile: the reference (🔒; ◉ in 🎬 Watch-along groups), the offset and ⏸ pause and wait. Each group’s chart zooms in on where the streams start (gaps of more than a minute between starts are cut short, with each tile’s start time shown above where it fits): each bar runs from the actual stream start, the offset shows as a light-blue stretch (which side of the thin line tells earlier or later) where it starts playing alongside the reference (at the reference’s start for tiles that started earlier), with a thin line at the uncorrected position (also drawn on the other tiles already playing then, to compare against), plus how much earlier or later it started than the reference and how far it still has to move. Collapse groups you are not adjusting with ▾</li>
 <li>✨ Auto-correct listens to the group’s tiles (the shared call voices in a collab) for up to 180 seconds and works out each tile’s offset. After 35 seconds a provisional result appears, showing the best value found so far for each tile. Once every tile is ◎ it suggests stopping (“Decide now”); otherwise it uses the best value found by 180 seconds. Check the result on each row (“✨ −1.61 ◎”) and the ◆ in the chart (where it goes once applied), then press Apply. ◎ sure / ○ likely / △ doubtful. If it can’t decide or shows many △, press “Measure again” where people are talking</li>
-<li>🕒 Collab aligns viewpoints streamed at the same time by when they were streamed. 🎬 Watch-along aligns streams that watched the same movie on the same scene of it, even from different times (switch it in the group header). Put the movie (a premiere) next to archives of streams that watched it, and the group switches to 🎬 Watch-along by itself (also when you add the movie later; remove it to go back to 🕒 Collab). The movie tile (marked “🎬 Movie” in its row) sets movie 0:00 at its own 0:00, and the other tiles’ movie starts are estimated from the stream times. The streams carry the movie’s sound, so ✨ auto-correct can fine-tune them (to 0.01 s). Without a movie tile, set each one with “▶ 0:00 is here” or “Movie now at h:mm:ss”. A movie that is not a premiere (e.g. a live archive) can be made the movie with 🎬 in its row. Streams from other days that join no group also join the movie’s group. Typing the watch-along’s timer into “Movie now at h:mm:ss” uses the position at the moment you clicked the box (while the box is in use, that tile is out of sync, so you can move it to where the timer is visible). For tiles streamed at the same time, setting one tile’s movie start also estimates the other’s (marked “≈” in its row)</li>
+<li>🕒 Collab aligns viewpoints streamed at the same time by when they were streamed. 🎬 Watch-along aligns streams that watched the same movie on the same scene of it, even from different times (switch it in the group header). Put the movie (a premiere) next to archives of streams that watched it, and the group switches to 🎬 Watch-along by itself (also when you add the movie later; remove it to go back to 🕒 Collab). The movie tile (marked “🎬 Movie” in its row) sets movie 0:00 at its own 0:00, and the other tiles’ movie starts are estimated from the stream times. Set each movie start (to 0.01 s) by reading the watch-along’s timer or similar into “Movie now at” (✨ auto-correct is for 🕒 Collab only, since watch-alongs usually don’t carry the movie’s sound). Without a movie tile, set each one with “▶ 0:00 is here” or “Movie now at h:mm:ss”. A movie that is not a premiere (e.g. a live archive) can be made the movie with 🎬 in its row. Streams from other days that join no group also join the movie’s group. Typing the watch-along’s timer into “Movie now at h:mm:ss” uses the position at the moment you clicked the box (while the box is in use, that tile is out of sync, so you can move it to where the timer is visible). For tiles streamed at the same time, setting one tile’s movie start also estimates the other’s (marked “≈” in its row)</li>
 <li>You adjust the tiles other than the reference. The reference (🔒 at the start of its row) always has offset 0; when you change the reference, the offsets move to the other tiles and the alignment stays the same. Move an offset with −0.1, −0.01, +0.01 and +0.1 (hold to keep going). ⏸ pauses just that tile to wait, ▶ matches it there. Select a row and ← → also move the offset by 0.1 s (Shift: 0.01 s). ✓ on a row means it plays at the position the offset says, ↻ that it is still moving there (whether voices line up is up to your ears). If adjusting by hand went wrong, ↺ on the row (↺ in the header for the whole group) goes back to real time. Offsets are remembered per video and go into playlists and share codes</li>
 <li>The slider on the top bar moves the group of the tile playing audio</li>
 <li>Playback speed: tiles in a synced group can’t change speed on their own. Changing it on any tile in the group (its 1× button, the < > keys, or the player’s ⚙) changes the whole group, and the sync clock moves at that speed. A group with a live stream stays at normal speed</li>

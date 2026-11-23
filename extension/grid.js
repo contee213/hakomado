@@ -3272,8 +3272,8 @@ const Sync = (() => {
           modeEl,
           folded.has(G.g) ? mk('span', { class: 'dg-count' }, tr('syncGroupCount', list.length)) : null,
         ),
-        // ✨ は本編モードでも使う (ライブが基準のときは、基準が動かせず測れないので出さない)。↺ は実際の時刻だけ
-        ok ? mk('div', { class: 'dg-actions' }, h.play, !isMovie(G) || reference(G) == null || !liveTile(G.ref) ? h.audio : null, !isMovie(G) ? h.reset : null) : null,
+        // ✨ 自動補正と ↺ はコラボ配信だけ (同時視聴の配信には本編の音が入っていないことが多いので、タイマーなどで合わせる)
+        ok ? mk('div', { class: 'dg-actions' }, h.play, !isMovie(G) ? h.audio : null, !isMovie(G) ? h.reset : null) : null,
         ok ? mk('div', { class: 'dg-seek' }, h.now, h.range, h.end) : null,
         h.tl?.el,
         h.note,
@@ -3379,16 +3379,18 @@ const Sync = (() => {
       // 補正を見せる位置: 基準と一緒に流れ始めるところ (基準より前に始まった枠は基準の開始、後に始まった枠と基準は自分の開始)
       const refRaw = marks.get(G.ref)?.raw ?? null;
       const corrAt = (i, m) => (i !== G.ref && refRaw != null ? Math.max(m.raw, refRaw) : m.raw);
-      // ✨ 自動補正の候補 (反映したら補正を入れた開始 (本編は本編 0:00 の位置) がどこへ動くか)
+      // ✨ 自動補正の候補 (反映したら補正を入れた開始がどこへ動くか。コラボ配信のグループだけ)
       const cands = new Map();
-      for (const [i, m] of marks) {
-        const c = m && (m.raw != null || isMovie(G)) ? AudioSync.candidateFor(i) : null;
-        if (c) cands.set(i, c);
+      if (!isMovie(G)) {
+        for (const [i, m] of marks) {
+          const c = m?.raw != null ? AudioSync.candidateFor(i) : null;
+          if (c) cands.set(i, c);
+        }
       }
       const pts = [...marks.entries()]
         .filter(([, m]) => m)
         .flatMap(([i, m]) =>
-          m.raw == null ? [m.at, ...(cands.has(i) ? [-cands.get(i).v * 1000] : [])] : [m.at, m.raw, corrAt(i, m), corrAt(i, m) - (m.raw - m.at), ...(cands.has(i) ? [corrAt(i, m) - cands.get(i).v * 1000] : [])],
+          m.raw == null ? [m.at] : [m.at, m.raw, corrAt(i, m), corrAt(i, m) - (m.raw - m.at), ...(cands.has(i) ? [corrAt(i, m) - cands.get(i).v * 1000] : [])],
         );
       const sc = SyncChart.scale(pts);
       if (!sc) return;
@@ -3440,19 +3442,9 @@ const Sync = (() => {
         const corrected = Math.abs(shift) >= 5;
         const cand = cands.get(i);
         x.corr.hidden = !corrected;
-        x.raw.hidden = !corrected && !(cand && m?.raw != null);
+        x.raw.hidden = !corrected && !cand;
         x.cand.hidden = x.candSpan.hidden = !cand;
-        if (m && cand && m.raw == null) {
-          // 本編: 反映したあとの本編 0:00 の位置。今の位置から点線でつなぐ
-          const a = pct(m.at);
-          const b = pct(-cand.v * 1000);
-          x.cand.style.left = b + '%';
-          x.candSpan.style.left = Math.min(a, b) + '%';
-          x.candSpan.style.width = Math.abs(b - a) + '%';
-          for (const e of [x.cand, x.candSpan]) e.classList.toggle('is-prelim', cand.prelim);
-          x.cand.title = tr(cand.prelim ? 'movieTlCandPrelimTitle' : 'movieTlCandTitle', anchorText(cand.v), tr(`syncAudioGrade_${cand.grade}`));
-          x.cand.dataset.grade = GRADE_MARK[cand.grade];
-        } else if (m && cand) {
+        if (m && cand) {
           // 候補の印: 反映したあとの補正を入れた開始。今の位置 (補正を入れた開始) から点線でつなぐ
           const p = corrAt(i, m);
           const a = pct(p - shift);
@@ -3516,16 +3508,15 @@ const Sync = (() => {
     }
 
     /** 行の ✨ の候補: 「✨ −1.61 ◎」(途中の結果は薄く)。決められなかった枠は「✨ —」 */
-    /** 行の ✨ の候補 (movie = 本編モード。値は補正ではなく本編の位置) */
-    function paintCand(el, c, movie = false) {
-      const key = c == null ? '' : c === false ? '-' : [c.v, c.grade, c.prelim, movie].join();
+    function paintCand(el, c) {
+      const key = c == null ? '' : c === false ? '-' : [c.v, c.grade, c.prelim].join();
       if (el.dataset.k === key) return;
       el.dataset.k = key;
       el.classList.toggle('is-prelim', !!c?.prelim);
-      const txt = c ? (movie ? anchorText(c.v) : signedSec(c.v)) : '';
-      const key2 = movie ? (c?.prelim ? 'movieAudioCandPrelimTitle' : 'movieAudioCandTitle') : c?.prelim ? 'syncAudioCandPrelimTitle' : 'syncAudioCandTitle';
-      el.title = c == null ? '' : c === false ? tr('syncAudioNoCandTitle') : tr(key2, txt, tr(`syncAudioGrade_${c.grade}`));
-      el.replaceChildren(...(c == null ? [] : c === false ? ['✨ —'] : [`✨ ${txt} `, mk('span', { class: 'dr-grade g' + c.grade }, GRADE_MARK[c.grade])]));
+      el.title = c == null ? '' : c === false ? tr('syncAudioNoCandTitle') : tr(c.prelim ? 'syncAudioCandPrelimTitle' : 'syncAudioCandTitle', signedSec(c.v), tr(`syncAudioGrade_${c.grade}`));
+      el.replaceChildren(
+        ...(c == null ? [] : c === false ? ['✨ —'] : [`✨ ${signedSec(c.v)} `, mk('span', { class: 'dr-grade g' + c.grade }, GRADE_MARK[c.grade])]),
+      );
     }
 
     function render() {
@@ -3572,9 +3563,7 @@ const Sync = (() => {
         h.audio.classList.toggle('is-measuring', !!a);
         h.audio.disabled = AudioSync.busyOther(g);
         // まだ補正していないグループでは ✨ を目立たせる (見つけてもらえるように)
-        // (本編モードは、本編の枠があって、ほかの枠の本編の位置が見当 (配信の時刻から) のままのとき)
-        const untouched = isMovie(G) ? mainOf(membersOf(g)) != null : membersOf(g).every((i) => !movable(i) || off(i) === 0);
-        h.audio.classList.toggle('is-suggest', !a && !AudioSync.hasOutput(g) && !AudioSync.busyOther(g) && untouched);
+        h.audio.classList.toggle('is-suggest', !a && !AudioSync.hasOutput(g) && !AudioSync.busyOther(g) && membersOf(g).every((i) => !movable(i) || off(i) === 0));
         h.box?.paint();
         h.reset.disabled = !membersOf(g).some((i) => movable(i) && off(i) !== 0);
         h.note.textContent = isMovie(G) && anchor(G.ref) == null ? tr('syncGroupNeedAnchor') : '';
@@ -3600,7 +3589,7 @@ const Sync = (() => {
           r.wait.classList.toggle('is-waiting', !!wait);
         }
         if (r.steps && !r.locked) for (const b of r.steps) b.disabled = movie && anchor(i) == null;
-        if (r.cand) paintCand(r.cand, AudioSync.candidateFor(i), !!groupOfTile(i) && isMovie(groupOfTile(i)));
+        if (r.cand) paintCand(r.cand, AudioSync.candidateFor(i));
         const st = wait ? 'wait' : drift.get(i) || 'none';
         r.dot.className = 'dr-dot is-' + st;
         r.dot.textContent = st === 'ok' ? '✓' : st === 'fix' ? '↻' : '';
@@ -3653,24 +3642,11 @@ const Sync = (() => {
     Dock.setup();
   }
 
-  /**
-   * グループの様子 (✨ 自動補正用): {ref, tiles, movie, active, paused, alignable}。無ければ null。
-   * alignable = 音で合わせられる枠 (本編モードは、本編の位置を決めたアーカイブだけ。ライブは動かせないので除く)
-   */
+  /** グループの様子 (✨ 自動補正用): {ref, tiles, movie, active, paused}。無ければ null */
   function groupInfo(g) {
     const G = on ? groups.get(g) : null;
     if (!G) return null;
-    const list = membersOf(g);
-    const alignable = isMovie(G) ? list.filter((i) => movable(i) && anchor(i) != null) : list;
-    return { ref: reference(G), tiles: list, movie: isMovie(G), active: active(G), paused: G.paused, alignable };
-  }
-  /**
-   * ✨ 自動補正用: 枠 i の再生位置と時計の時刻の読み替え {base, val} (時計の時刻 = base + (再生位置 − val) × 1000)。
-   * 実際の時刻: 配信の開始とずれ / 本編: 0 と本編の位置。測った結果 (val に足す秒) は、どちらもそのまま setOffset に渡せる
-   */
-  function axisOf(i) {
-    const G = groupOfTile(i);
-    return G && isMovie(G) ? { base: 0, val: anchor(i) } : { base: views[i].archive.start, val: off(i) };
+    return { ref: reference(G), tiles: membersOf(g), movie: isMovie(G), active: active(G), paused: G.paused };
   }
 
   return {
@@ -3690,7 +3666,7 @@ const Sync = (() => {
     groupInfo,
     speedGroupOf,
     setGroupSpeed,
-    axisOf,
+    offOf: off,
     applyOffsets,
     dockChanged: () => Dock.update(),
   };
@@ -3714,8 +3690,7 @@ const Sync = (() => {
 //   (SyncOffsets) に書き込む。基準の枠のずれはそのまま
 // - 2 枠のときは「中間 (映像がそろう)」が既定。それぞれの人の声に合わせる値も選べる (通話の遅れのぶん、もう一人の声はずれる)
 // - 声が少ない区間などで決められなければ、パネルにそう出して、「測り直す」で別の場面から測り直してもらう
-// - 🎬 本編モードのグループでも使える (同時視聴の配信には本編の音が入っているので、本編の枠や、ほかの配信と突き合わせられる)。
-//   本編の位置を決めた枠だけで測り、結果は本編の位置に足す (時計の時刻 = 本編の時刻。Sync.axisOf)。ライブは動かせないので除く
+// - 🎬 同時視聴のグループでは使わない (同時視聴の配信には本編の音が入っていないことが多い。画面のタイマーなどで合わせる)
 /** ✨ 自動補正の確かさの記号 (1 = △ 怪しい / 2 = ○ たぶん / 3 = ◎ 確か) */
 const GRADE_MARK = [null, '△', '○', '◎'];
 const AudioSync = (() => {
@@ -3743,12 +3718,9 @@ const AudioSync = (() => {
   function start(g) {
     if (run) return;
     const info = Sync.groupInfo(g);
-    if (!info || !info.active) return;
-    const { ref, alignable: tiles } = info;
-    if (ref == null || !tiles.includes(ref) || tiles.length < 2) {
-      if (info.movie) notify(tr('movieAudioNeedAnchors'));
-      return;
-    }
+    if (!info || !info.active || info.movie) return;
+    const { ref, tiles } = info;
+    if (ref == null || tiles.length < 2) return;
     if (pausedAll || info.paused || views[ref].ss?.ps === 2) {
       notify(tr('syncAudioNeedPlay'));
       return;
@@ -3759,9 +3731,7 @@ const AudioSync = (() => {
       g,
       tiles,
       ref,
-      movie: info.movie,
-      offs: new Map(tiles.map((i) => [i, Sync.axisOf(i).val])),
-      base: new Map(tiles.map((i) => [i, Sync.axisOf(i).base])),
+      offs: new Map(tiles.map((i) => [i, Sync.offOf(i)])),
       ids: new Map(tiles.map((i) => [i, state.tiles[i].videoId])),
       tracks: new Map(),
       blocked: new Set(),
@@ -3787,7 +3757,7 @@ const AudioSync = (() => {
     run.last = t;
     // 同期が止まった・本編モードにした・グループの枠が変わった → やめる
     const info = Sync.groupInfo(run.g);
-    if (!info || info.movie !== run.movie || run.tiles.some((i) => !info.tiles.includes(i) || state.tiles[i].videoId !== run.ids.get(i))) {
+    if (!info || info.movie || run.tiles.some((i) => !info.tiles.includes(i) || state.tiles[i].videoId !== run.ids.get(i))) {
       cancel();
       return;
     }
@@ -3887,7 +3857,7 @@ const AudioSync = (() => {
       const tk = r.tracks.get(i);
       return {
         track: { sr: tk.sr, per: tk.per, bins: Float32Array.from(tk.bins), marks: tk.marks.map((m) => m.slice()) },
-        startMs: r.base.get(i),
+        startMs: views[i].archive.start,
         off: r.offs.get(i),
       };
     });
@@ -4003,12 +3973,12 @@ const AudioSync = (() => {
     releaseWorker();
     const b = r.best;
     if (!b || !b.pick.size) {
-      failure = { g: r.g, ref: r.ref, ids: r.ids, movie: r.movie, reason: okNow || r.played >= PRELIM_FIRST ? 'weak' : 'short', n: ++seq };
+      failure = { g: r.g, ref: r.ref, ids: r.ids, reason: okNow || r.played >= PRELIM_FIRST ? 'weak' : 'short', n: ++seq };
       Sync.dockChanged();
       notify(tr(failure.reason === 'short' ? 'syncAudioShort' : 'syncAudioWeak'));
       return;
     }
-    result = { g: r.g, tiles: b.tiles, ref: r.ref, movie: r.movie, offs: r.offs, ids: r.ids, pick: b.pick, two: b.two, choice: 'mid', n: ++seq };
+    result = { g: r.g, tiles: b.tiles, ref: r.ref, offs: r.offs, ids: r.ids, pick: b.pick, two: b.two, choice: 'mid', n: ++seq };
     notify(tr('syncAudioDone'));
     Sync.dockChanged();
   }
@@ -4041,7 +4011,7 @@ const AudioSync = (() => {
   function stillSame(o) {
     if (!o) return false;
     const info = Sync.groupInfo(o.g);
-    return !!info && info.movie === o.movie && info.ref === o.ref && [...o.ids].every(([i, id]) => !info.tiles.includes(i) || state.tiles[i].videoId === id);
+    return !!info && !info.movie && info.ref === o.ref && [...o.ids].every(([i, id]) => !info.tiles.includes(i) || state.tiles[i].videoId === id);
   }
   function resultValid() {
     return stillSame(result) && result.tiles.every((i) => state.tiles[i].videoId === result.ids.get(i));
