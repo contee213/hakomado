@@ -128,15 +128,13 @@ const Favorites = (() => {
     );
   }
 
-  // 縦型のライブ配信。YouTube ではショートとして出るが、「ライブ配信」の再生リストに入り、RSS では見分けがつかないのでタイトルで見る
-  const VERTICAL_LIVE_RE = /#shorts?|縦型|縦配信|vertical|short stream/i;
-
   /**
    * そのチャンネルの最近の配信アーカイブと動画 (新しい順)。force = 覚えている結果を使わずに取り直す。
    * 「ライブ配信」の再生リスト (UULV) に加えて「動画」の再生リスト (UULF。プレミア公開・MV など。ショートは入らない) も見る。
    * プレミア公開 (同時視聴の本編になりやすい) は「ライブ配信」の方に入らないため。
    * shorts = 「ショート」の再生リスト (UUSH) も見る (自動再生でショートも流す設定のときだけ)。
-   * 各項目の kind = live (配信のアーカイブ) / video (動画) / short (ショート・縦型の配信)、list = 取った再生リスト
+   * 各項目の kind = live (配信のアーカイブ) / video (動画) / short (ショート)、list = 取った再生リスト。
+   * 縦型の配信は「ライブ配信」の再生リストに入っていて RSS では見分けられないので、live のまま (枠で読み込んでから grid.js が見分ける)
    */
   async function fetchArchives(channelId, { force = false, shorts = false } = {}) {
     const maxAge = force ? 0 : ARCHIVE_TTL_MS;
@@ -152,7 +150,7 @@ const Favorites = (() => {
     };
     const tag = (items, list, kind) => items.map((v) => ({ ...v, list, kind }));
     const all = [
-      ...lives.map((v) => ({ ...v, list: 'UULV', kind: VERTICAL_LIVE_RE.test(v.title) ? 'short' : 'live' })),
+      ...tag(lives, 'UULV', 'live'),
       ...tag(await more('UULF'), 'UULF', 'video'),
       ...(shorts ? tag(await more('UUSH'), 'UUSH', 'short') : []),
     ];

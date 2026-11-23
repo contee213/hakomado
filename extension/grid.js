@@ -4198,10 +4198,12 @@ window.addEventListener('message', (e) => {
       publish: num(data.publish),
       dur: num(data.dur),
       t: num(data.t),
+      vertical: typeof data.vertical === 'boolean' ? data.vertical : null,
       at: Date.now(),
     };
     Sync.refresh();
     TileInfo.update();
+    if (views[i].info.vertical) onVertical(i);
   } else if (data.hakomado === 'ended') {
     onEnded(i, data.reason === 'played' ? 'played' : 'already');
   } else if (data.hakomado === 'social') {
@@ -4215,6 +4217,26 @@ window.addEventListener('message', (e) => {
     if (data.failed) notify(tr('ytFailed', tileName(i)));
   }
 });
+
+/**
+ * 枠のプレイヤーが「縦長の映像 (ショート・縦型の配信)」と知らせてきたとき。覚えておき、自動再生で最近の動画として入れた枠で、
+ * 設定「ショートも流す」が OFF なら、枠を空けて次の候補を入れる (RSS では縦型の配信を見分けられないので、読み込んでから判定する)
+ */
+function onVertical(i) {
+  const t = state.tiles[i];
+  if (!t.videoId) return;
+  verticalIds.add(t.videoId);
+  if (!state.autoMode || !t.fill || state.settings.autoArchiveShorts) return;
+  // 流さなかったものなので、視聴履歴にも残さない
+  WatchHistory.remove(t.videoId);
+  state.tiles[i] = newTileState();
+  views[i].danmaku.clear();
+  if (document.fullscreenElement === views[i].el) document.exitFullscreen().catch(() => {});
+  renderTile(i);
+  if (state.settings.autoArchive) refillArchives();
+  else compactToContent();
+  save();
+}
 
 /**
  * 枠のプレイヤーが「配信・動画が終わった」と知らせてきたとき。終わった配信として覚え (自動再生で入れ直さない)、
@@ -6902,10 +6924,13 @@ function inLibrary(v) {
   return v.list !== 'UUSH';
 }
 
+// 枠で読み込んで縦長と分かった動画 (ショート・縦型の配信)。ショートを流さない設定のとき、自動再生の候補から外す
+const verticalIds = new Set();
+
 /** 自動再生・おまかせで流してよい種類か (設定の「動画も流す」「ショートも流す」) */
 function autoKindAllowed(v) {
+  if (v.kind === 'short' || verticalIds.has(v.videoId)) return state.settings.autoArchiveShorts;
   if (v.kind === 'video') return state.settings.autoArchiveVideos;
-  if (v.kind === 'short') return state.settings.autoArchiveShorts;
   return true;
 }
 
