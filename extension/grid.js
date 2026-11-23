@@ -573,17 +573,58 @@ function layout() {
 
 /**
  * 空き枠を減らすときのレイアウト: 今より枠数の少ないレイアウトのうち、読み込んだ配信が全部入るもの。
- * 枠数ごとの選び方は chooseLayoutFor。ちょうど合うものが無い枠数 (7・11) は飛ばすので、
- * 空き枠が一度に 2 つ消えることがある。減らせなければ null
+ * 枠数を 1 つずつ減らしながら、枠数がちょうど合うレイアウトがある最初の枠数で選ぶ (無い枠数は飛ばすので、
+ * 空き枠が一度に 2 つ消えることがある)。減らせなければ null
  */
 function shrinkTarget() {
   const shown = visibleIndexes();
   const filled = shown.filter((j) => state.tiles[j].videoId).length;
   for (let k = shown.length - 1; k >= Math.max(1, filled); k--) {
-    const l = chooseLayoutFor(k);
-    if (l.slots.length < shown.length) return l;
+    const l = shrinkLayoutFor(k);
+    if (l) return l;
   }
   return null;
+}
+
+/** メイン枠の数 (均等はどの枠も同じ大きさなので、全部をメイン枠として数える) */
+function mainCount(l) {
+  return l.group === 'uniform' ? l.slots.length : l.mains;
+}
+
+/**
+ * 枠数をちょうど k にするときのレイアウト (無ければ null)。優先する順に:
+ *  1. メイン枠の数が今と同じか、今より多い (均等は全部メイン枠)。その中では今に近いもの。無ければ今に一番近いもの
+ *  2. おすすめ
+ *  3. 今と同じ基準位置
+ *  4. 映像が画面を占める割合が大きい
+ * PinP は、今 PinP を使っているときだけ選ぶ。クルーズ中 (3 枠以上) はメイン + サブを優先する (chooseLayoutFor と同じ)
+ */
+function shrinkLayoutFor(k) {
+  const base = currentBase();
+  let pool = LAYOUTS.filter((l) => l.slots.length === k && (l.group !== 'pip' || base.group === 'pip'));
+  if (state.cruise && k >= 3) {
+    const withMain = pool.filter((l) => l.mains > 0);
+    if (withMain.length) pool = withMain;
+  }
+  if (!pool.length) return null;
+  const cur = mainCount(base);
+  const rank = (l) => [
+    mainCount(l) >= cur ? 0 : 1,
+    Math.abs(mainCount(l) - cur),
+    l.recommended ? 0 : 1,
+    (l.anchor ?? base.anchor) === base.anchor ? 0 : 1,
+    -filledArea(l, k),
+  ];
+  const better = (x, y) => {
+    for (let i = 0; i < x.length; i++) if (Math.abs(x[i] - y[i]) > 1e-3) return x[i] < y[i];
+    return false;
+  };
+  let best = null;
+  for (const l of pool) {
+    const r = rank(l);
+    if (!best || better(r, best.r)) best = { l, r };
+  }
+  return best.l;
 }
 
 /** 上部バーの「＋」「−」と、空き枠の ✕ を押せるかどうか (枠の中身が変わるたびにまとめて 1 回) */
