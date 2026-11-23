@@ -6328,7 +6328,7 @@ async function renderArchiveTab({ force = false } = {}) {
   if (favMode !== 'archive') return;
   items.sort((a, b) => b.v.at - a.v.at);
   selShown.clear();
-  buildCollabGroups(items.map(({ v, f }) => videoSelEntry({ videoId: v.videoId, title: v.title, at: v.at, channelId: f.channelId }, f)));
+  buildCollabGroups(items.map(({ v, f }) => videoSelEntry({ videoId: v.videoId, title: v.title, at: v.at, channelId: f.channelId }, f, COLLAB_WIN.archive)));
   const ul = document.createElement('ul');
   ul.className = 'fav-sub video-grid';
   ul.append(...items.map(({ v, f }) => archiveItem(v, f)));
@@ -6354,7 +6354,7 @@ function isFinishedArchive(v, f) {
 /** アーカイブの 1 行 (履歴と同じ見た目。🔖 で保存できる。✕ は無し) */
 function archiveItem(v, f) {
   const h = { videoId: v.videoId, title: v.title, label: f.name, channelId: f.channelId, handle: f.handle || '', at: v.at, input: `${YT}/watch?v=${v.videoId}` };
-  const li = videoItem(h, false, { entry: videoSelEntry(h, f) });
+  const li = videoItem(h, false, { entry: videoSelEntry(h, f, COLLAB_WIN.archive) });
   li.querySelector('.fav-del')?.remove();
   return li;
 }
@@ -6552,63 +6552,102 @@ function putHistoryInto(target, h) {
 // ---------------------------------------------------------------- 複数選択・コラボの一括選択 (チャンネルの配信中・配信予定 / 最近の配信 / 視聴履歴 / あとで見る)
 // 行・カードの ☐ (または Ctrl / Shift + クリック) で、同じ画面の中で何本でも選べる。選んでいる間は、行のクリックも選ぶ / 外すになる。
 // 下のバーの「▦ まとめて枠に入れる」で、空いている枠に順に入れる (足りなければ 16 枠まで足す)。タブを切り替える・閉じると選択は外れる。
-// 🤝 N = 同じ時間に始まり、タイトルで相手の名前や同じハッシュタグに触れている配信 (コラボと思われるもの)。押すとまとめて選ぶ
+// 🤝 N = 同じ時間に始まり、タイトルで相手の名前や同じハッシュタグ・企画名に触れている配信 (コラボと思われるもの)。押すとまとめて選ぶ。
+// 同じ組の配信には、どれにも同じ 🤝 N が付く
 
 /**
  * 一覧の 1 件。id = 動画 ID / ch = チャンネル / names = 配信者の呼び名 (タイトルで探す) / t = 開始 (または公開・視聴) の時刻 /
- * tight = 配信中・配信予定 (開始時刻が分かるので、時刻の近さで厳しく見る) / load = 枠に入れるもの ({f, st} か {h})
- * @typedef {{id: string, ch: string, names: string[], title: string, t: number, tight: boolean, load: {f?: object, st?: object, h?: object}}} SelEntry
+ * tight = 配信中・配信予定 (開始時刻が分かるので、時刻の近さで厳しく見る) / win = 時刻がどれだけ離れていてもコラボの相手とみなすか (ミリ秒) /
+ * load = 枠に入れるもの ({f, st} か {h})
+ * @typedef {{id: string, ch: string, names: string[], title: string, t: number, tight: boolean, win: number, load: {f?: object, st?: object, h?: object}}} SelEntry
  */
 /** @type {Map<string, SelEntry>} 選んでいる配信 (選んだ順) */
 const favSel = new Map();
-/** @type {Map<string, string[]>} 動画 ID → 一緒にコラボしていると思われる配信の動画 ID (自分を含む) */
+/** @type {Map<string, string[]>} 動画 ID → 一緒にコラボしていると思われる配信の動画 ID (自分を含む。同じ組なら同じ並び) */
 let collabOf = new Map();
 /** @type {Map<string, SelEntry>} 今の一覧に出ている、選べる配信 (🤝 で組の相手を選ぶときに使う) */
 const selShown = new Map();
 
-const NAME_STOP = new Set(['ch', 'channel', 'official', 'hololive', 'ホロライブ', 'vtuber', 'gaming', 'live', 'music', 'english', 'indonesia']);
+// 呼び名・印にしない言葉 (どのチャンネル・配信にも付くもの、@ハンドルの「holoen_」のような所属の部分、「holoAN room」の「room」など)
+const NAME_STOP = new Set([
+  'ch', 'channel', 'official', '公式', 'hololive', 'ホロライブ', 'ほろらいぶ', 'holoen', 'holoid', 'holojp', 'holodev', 'vtuber', 'gaming', 'live', 'music',
+  'english', 'indonesia', 'room', 'staff', 'radio', 'station',
+]);
+// コラボの相手とみなす時刻の幅: 配信中・配信予定 (開始時刻) / 最近の配信 (配信の枠を作った時刻) / 視聴履歴・あとで見る (見た・保存した時刻)
+const COLLAB_WIN = { live: 20 * 60e3, archive: 3 * 3600e3, other: 12 * 3600e3 };
 const ASCII_ONLY = /^[\x20-\x7e]+$/;
+const KANA_ONLY = /^[ぁ-ゟ゠-ヿー]+$/;
+const KANA = /[ぁ-ゟ゠-ヿー]/;
+// 2 文字の名前 (アキ・ミオなど) の前に来てはいけない文字 (かな・漢字。言葉の途中とみなす)
+const WORD_CHAR = /[ぁ-ゟ゠-ヿー一-龯々]/;
+// かなの名前のすぐ後に続いてもよいかな (助詞・「ちゃん」「さん」「くん」など)。それ以外のかなが続くときは別の言葉とみなす
+// (「はじめての」の「はじめ」・「ぺこらっちょ」の「ぺこら」など)
+const NAME_FOLLOW = new Set([...'とのがはもにへやをでちさくせ']);
+
+/** 比べるための形: 全角・半角をそろえ、小文字・カタカナはひらがなに (「コヨリ」「リリか」も名前として拾えるように) */
+function foldText(s) {
+  return String(s || '')
+    .normalize('NFKC')
+    .toLowerCase()
+    .replace(/[ァ-ヶ]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0x60));
+}
 
 /** チャンネルの呼び名 (フルネーム・英語名・@ハンドル・「兎田ぺこら」の「ぺこら」のような下の名前) */
 function callNames(f) {
   const out = new Set();
-  const add = (w) => {
-    w = String(w || '').normalize('NFKC').trim().toLowerCase();
+  const add = (w, short = false) => {
+    w = foldText(w).trim();
     if (!w || NAME_STOP.has(w)) return;
-    // 英数字だけの短い名前 (Ina など) や、かな 2 文字以下は、ほかの言葉に紛れやすいので使わない
-    if (ASCII_ONLY.test(w) ? w.length >= 4 : w.length >= 3) out.add(w);
+    // 英数字だけの短い名前 (Ina など) や、1 文字の名前・かな以外の 2 文字の名前は、ほかの言葉に紛れやすいので使わない。
+    // かな 2 文字は、「アキ・ローゼンタール」の「アキ」のように区切られた名前のときだけ使い、前後が区切られているときだけ名前とみなす (mentions)。
+    // 「ロボ子さん」の「さん」のような、名前の終わりのかなは使わない
+    if (ASCII_ONLY.test(w) ? w.length >= 4 : w.length >= 3 || (short && w.length === 2 && KANA_ONLY.test(w))) out.add(w);
   };
   for (const n of [f.name, f.nameJa, f.handle?.replace(/^@/, '')]) {
     if (!n) continue;
     add(n);
-    for (const part of String(n).split(/[\s・/|｜()（）【】[\]_\-.,]+/)) {
-      add(part);
+    const parts = String(n).split(/[\s・/|｜()（）【】[\]_\-.,]+/);
+    for (const part of parts) {
+      add(part, parts.length > 1);
       add(part.match(/[ぁ-ゟ゠-ヿー]+$/)?.[0]); // 漢字の名字 + かなの名前 → 名前
     }
   }
   return [...out];
 }
 
-/** タイトルの印: ハッシュタグと、【】『』の中身 */
+/**
+ * タイトルの印 (ハッシュタグ・【】『』の中身)。tags = # で付けたもの、marks = 印すべて (# を外し、【】の中は区切りでも分ける。
+ * 「【ホロライブ麻雀 -ホロじゃん-】」と「【#ホロじゃん】」を同じ「ホロじゃん」として見るため)
+ */
 function titleTags(title) {
-  const s = String(title || '').normalize('NFKC').toLowerCase();
-  const tags = (s.match(/#[^\s#【】「」『』()（）]+/g) || []).map((x) => x.replace(/[!?！？。、,.]+$/, ''));
-  const brackets = [...s.matchAll(/【([^】]+)】|『([^』]+)』/g)].map((m) => (m[1] || m[2]).trim());
-  return { tags: tags.filter((x) => x.length > 2), brackets: brackets.filter((x) => x.length >= 2) };
+  const s = foldText(title);
+  const trim = (x) => x.replace(/^[#＃]+/, '').replace(/[!?！？。、,.~〜♪☆★✨]+$/u, '').trim();
+  // 「hololive」「ホロライブ」のような、どの配信にも付く言葉は印にしない
+  const ok = (k) => k.length >= 2 && !/^\d+$/.test(k) && !NAME_STOP.has(k);
+  const tags = (s.match(/#[^\s#【】「」『』()（）]+/g) || []).map(trim).filter(ok);
+  const marks = new Set(tags);
+  for (const m of s.matchAll(/【([^】]+)】|『([^』]+)』/g)) {
+    const inner = m[1] || m[2];
+    for (const x of [inner, ...inner.split(/[\s/|｜・:：\-－–—]+/)]) {
+      const k = trim(x);
+      if (ok(k)) marks.add(k);
+    }
+  }
+  return { tags, marks: [...marks] };
 }
 
-const KANA_ONLY = /^[ぁ-ゟ゠-ヿー]+$/;
-const KANA = /[ぁ-ゟ゠-ヿー]/;
-// かなの名前のすぐ後に続いてもよいかな (助詞・「ちゃん」「さん」「くん」など)。それ以外のかなが続くときは別の言葉とみなす
-// (「はじめての」の「はじめ」・「ぺこらっちょ」の「ぺこら」など)
-const NAME_FOLLOW = new Set([...'とのがはもにへやをでちさくせ']);
-
-/** 英数字だけの名前は単語の区切りで、かなだけの名前は後ろに続く文字を見て、それ以外はそのまま含まれているかで探す */
-function mentions(title, name) {
+/**
+ * タイトルに名前が出てくるか。英数字だけの名前は単語の区切りで、かなだけの名前は後ろに続く文字を見て、それ以外はそのまま含まれているかで探す。
+ * かなの名前のすぐ後に、ほかの人の名前が続くのはよい (「アキこよりらでんで」)。starts = 一覧に出てくる呼び名
+ */
+function mentions(title, name, starts) {
   if (KANA_ONLY.test(name)) {
     for (let i = title.indexOf(name); i >= 0; i = title.indexOf(name, i + 1)) {
-      const next = title[i + name.length];
+      if (name.length === 2 && i > 0 && WORD_CHAR.test(title[i - 1])) continue;
+      const j = i + name.length;
+      const next = title[j];
       if (!next || !KANA.test(next) || NAME_FOLLOW.has(next)) return true;
+      if (starts?.some((n) => n !== name && title.startsWith(n, j))) return true;
     }
     return false;
   }
@@ -6618,22 +6657,28 @@ function mentions(title, name) {
 }
 
 /**
- * 一覧の中から、配信ごとにコラボの相手と思われる配信を探す (collabOf を作り直す)。
+ * 一覧の中から、コラボと思われる配信の組を作る (collabOf を作り直す)。
  * 違うチャンネルの 2 本が、時刻が近く (配信中・配信予定は開始が 20 分以内、それ以外は公開・視聴が 12 時間以内)、
- * どちらかのタイトルが相手の呼び名に触れているか、同じハッシュタグが付いていれば相手とみなす。
- * 配信中・配信予定どうしは、【】の中身 (ゲーム名・企画名) が同じでも相手とみなす。
+ * どちらかのタイトルが相手の呼び名に触れているか、同じハッシュタグが付いていればつながりがあるとみなす。
+ * 【】の中身 (企画名・ゲーム名) が同じものは、どちらかが # で付けているか、配信中・配信予定どうしならつながりとみなす。
  * - 多くのチャンネルが付けているもの (#ホロライブ・【雑談】など) と、そのチャンネルがいつも付けているもの (#ReGLOSS など、3 本以上) は使わない
- * - 相手の相手まではたどらない (たどると、同じゲームの別のコラボまで次々につながるため)。1 チャンネル 1 本 (時刻が一番近いもの)
+ * - つながりの強いもの・時刻の近いものから順に組にまとめる。1 つの組には 1 チャンネル 1 本で、組の中の時刻の幅も上の範囲に収める
+ *   (同じゲームの別のコラボまで次々につながらないように)
  */
 function buildCollabGroups(entries) {
   collabOf = new Map();
   const list = entries.filter((e) => e.id && e.ch);
   if (list.length < 2) return;
-  const info = list.map((e) => ({ e, title: String(e.title || '').normalize('NFKC').toLowerCase(), ...titleTags(e.title) }));
+  // 2 つ以上のチャンネルに共通する呼び名 (@ハンドルの所属の部分など) は、だれのことか決まらないので使わない
+  const nameChs = new Map(); // 呼び名 → チャンネル
+  for (const e of list) for (const n of e.names) (nameChs.get(n) || nameChs.set(n, new Set()).get(n)).add(e.ch);
+  const own = (e) => e.names.filter((n) => nameChs.get(n).size === 1);
+  const info = list.map((e) => ({ e, names: own(e), title: foldText(e.title), ...titleTags(e.title) }));
+  const starts = [...nameChs.keys()];
   const chOf = new Map(); // 印 → 付けているチャンネル
   const uses = new Map(); // チャンネル + 印 → 本数
   for (const x of info) {
-    for (const k of new Set([...x.tags, ...x.brackets])) {
+    for (const k of x.marks) {
       if (!chOf.has(k)) chOf.set(k, new Set());
       chOf.get(k).add(x.e.ch);
       uses.set(`${x.e.ch}\n${k}`, (uses.get(`${x.e.ch}\n${k}`) || 0) + 1);
@@ -6644,39 +6689,66 @@ function buildCollabGroups(entries) {
   // 呼び名も、そのチャンネルがいつもタイトルに書いているもの (ユニット名など、3 本以上) は相手の印にしない
   const said = new Map(); // チャンネル + 呼び名 → そのチャンネルのタイトルに出てくる本数
   const says = (x, n) => {
-    if (!mentions(x.title, n)) return false;
+    if (!mentions(x.title, n, starts)) return false;
     const key = `${x.e.ch}\n${n}`;
-    if (!said.has(key)) said.set(key, info.filter((y) => y.e.ch === x.e.ch && mentions(y.title, n)).length);
+    if (!said.has(key)) said.set(key, info.filter((y) => y.e.ch === x.e.ch && mentions(y.title, n, starts)).length);
     return said.get(key) < 3;
   };
-  const linked = (A, B) => {
-    if (A.e.ch === B.e.ch || A.e.id === B.e.id) return false;
+  const windowOf = (a, b) => Math.max(a.win, b.win);
+  /** つながりの強さ (s = 0 はつながりなし。名前で触れている・同じハッシュタグ > 同じ企画名) と、名前で触れているか */
+  const strength = (A, B) => {
+    if (A.e.ch === B.e.ch || A.e.id === B.e.id) return { s: 0 };
+    if (A.e.t && B.e.t && Math.abs(A.e.t - B.e.t) > windowOf(A.e, B.e)) return { s: 0 };
+    let s = 0;
+    if (A.names.some((n) => says(B, n))) s += 2;
+    if (B.names.some((n) => says(A, n))) s += 2;
+    const named = s > 0;
+    if (A.tags.some((k) => B.tags.includes(k) && special(A, k) && special(B, k))) s += 2;
     const tight = A.e.tight && B.e.tight;
-    if (A.e.t && B.e.t && Math.abs(A.e.t - B.e.t) > (tight ? 20 * 60e3 : 12 * 3600e3)) return false;
-    if (A.e.names.some((n) => says(B, n)) || B.e.names.some((n) => says(A, n))) return true;
-    if (A.tags.some((k) => B.tags.includes(k) && special(A, k) && special(B, k))) return true;
-    return tight && A.brackets.some((k) => B.brackets.includes(k) && special(A, k) && special(B, k));
+    if (A.marks.some((k) => B.marks.includes(k) && special(A, k) && special(B, k) && (tight || A.tags.includes(k) || B.tags.includes(k)))) s += 1;
+    return { s, named };
   };
-  for (const A of info) {
-    const best = new Map(); // チャンネル → 時刻が一番近い相手
-    for (const B of info) {
-      if (!linked(A, B)) continue;
-      const cur = best.get(B.e.ch);
-      if (!cur || Math.abs(B.e.t - A.e.t) < Math.abs(cur.e.t - A.e.t)) best.set(B.e.ch, B);
+  const links = [];
+  for (let i = 0; i < info.length; i++) {
+    for (let j = i + 1; j < info.length; j++) {
+      const { s, named } = strength(info[i], info[j]);
+      if (s) links.push({ a: info[i], b: info[j], s, named, gap: Math.abs((info[i].e.t || 0) - (info[j].e.t || 0)) });
     }
-    if (best.size) collabOf.set(A.e.id, [A.e.id, ...[...best.values()].map((B) => B.e.id)]);
+  }
+  links.sort((x, y) => y.s - x.s || x.gap - y.gap);
+  /** @type {Map<object, object[]>} 配信 → 入っている組 (同じ配列を共有する) */
+  const groupOf = new Map(info.map((x) => [x, [x]]));
+  for (const { a, b, named } of links) {
+    const ga = groupOf.get(a);
+    const gb = groupOf.get(b);
+    if (ga === gb) continue;
+    // 2 本以上の組どうしは、名前で触れているときだけまとめる (同じゲームのハッシュタグだけで、別のコラボの組とつながらないように)
+    if (ga.length > 1 && gb.length > 1 && !named) continue;
+    const chs = new Set(ga.map((x) => x.e.ch));
+    if (gb.some((x) => chs.has(x.e.ch))) continue; // 1 チャンネル 1 本
+    const merged = [...ga, ...gb];
+    const ts = merged.filter((x) => x.e.t).map((x) => x.e.t);
+    const win = Math.max(...merged.map((x) => x.e.win));
+    if (ts.length && Math.max(...ts) - Math.min(...ts) > win) continue;
+    for (const x of merged) groupOf.set(x, merged);
+  }
+  for (const g of new Set(groupOf.values())) {
+    if (g.length < 2) continue;
+    // 一覧と同じ並び (時刻の新しい順) にしておく
+    const ids = g.sort((x, y) => (y.e.t || 0) - (x.e.t || 0)).map((x) => x.e.id);
+    for (const id of ids) collabOf.set(id, ids);
   }
 }
 
 /** チャンネルの配信中・配信予定の 1 件 */
 function favSelEntry(f, st) {
-  return { id: st.videoId, ch: f.channelId, names: callNames(f), title: st.title || '', t: st.startAt || 0, tight: true, load: { f, st } };
+  return { id: st.videoId, ch: f.channelId, names: callNames(f), title: st.title || '', t: st.startAt || 0, tight: true, win: COLLAB_WIN.live, load: { f, st } };
 }
 
-/** 最近の配信・視聴履歴・あとで見るの 1 件。f = そのチャンネル (分かれば) */
-function videoSelEntry(h, f) {
+/** 最近の配信・視聴履歴・あとで見るの 1 件。f = そのチャンネル (分かれば) / win = コラボの相手とみなす時刻の幅 */
+function videoSelEntry(h, f, win = COLLAB_WIN.other) {
   const names = callNames(f || { name: h.label || h.channel, handle: h.handle });
-  return { id: h.videoId, ch: h.channelId || f?.channelId || h.handle || h.label || '', names, title: h.title || '', t: h.at || 0, tight: false, load: { h } };
+  return { id: h.videoId, ch: h.channelId || f?.channelId || h.handle || h.label || '', names, title: h.title || '', t: h.at || 0, tight: false, win, load: { h } };
 }
 
 /**
