@@ -31,7 +31,7 @@ const DEFAULT_SETTINGS = {
   prestartMin: 10, // 開始の何分前から、配信予定の枠を用意しておくか (0 = しない)
   autoArchive: false, // 自動再生: 配信中が 1 本も無いときは、最近の動画 (配信のアーカイブなど) を流す
   autoArchiveVideos: true, // そのとき、動画 (プレミア公開・MV など) も流す
-  autoArchiveShorts: false, // そのとき、ショート (縦型の配信を含む) も流す
+  autoArchiveShorts: false, // そのとき、ショートも流す (縦型の配信はふつうの配信として流す)
   autoPickupMain: true, // 自動再生: ピックアップ (📌) のライブ配信をメイン枠に優先して置く
   autoMaxTiles: 8, // 自動再生で同時に再生する最大の枠数 (回線が細いときは少なく)
   autoTarget: 'all', // 自動再生の対象: 'all' = チャンネル全部 / 'fav' = ピックアップ (📌) だけ
@@ -4274,7 +4274,6 @@ window.addEventListener('message', (e) => {
     };
     Sync.refresh();
     TileInfo.update();
-    if (views[i].info.vertical) onVertical(i);
   } else if (data.hakomado === 'ended') {
     onEnded(i, data.reason === 'played' ? 'played' : 'already');
   } else if (data.hakomado === 'social') {
@@ -4288,26 +4287,6 @@ window.addEventListener('message', (e) => {
     if (data.failed) notify(tr('ytFailed', tileName(i)));
   }
 });
-
-/**
- * 枠のプレイヤーが「縦長の映像 (ショート・縦型の配信)」と知らせてきたとき。覚えておき、自動再生で最近の動画として入れた枠で、
- * 設定「ショートも流す」が OFF なら、枠を空けて次の候補を入れる (RSS では縦型の配信を見分けられないので、読み込んでから判定する)
- */
-function onVertical(i) {
-  const t = state.tiles[i];
-  if (!t.videoId) return;
-  verticalIds.add(t.videoId);
-  if (!state.autoMode || !t.fill || state.settings.autoArchiveShorts) return;
-  // 流さなかったものなので、視聴履歴にも残さない
-  WatchHistory.remove(t.videoId);
-  state.tiles[i] = newTileState();
-  views[i].danmaku.clear();
-  if (document.fullscreenElement === views[i].el) document.exitFullscreen().catch(() => {});
-  renderTile(i);
-  if (state.settings.autoArchive) refillArchives();
-  else compactToContent();
-  save();
-}
 
 /**
  * 枠のプレイヤーが「配信・動画が終わった」と知らせてきたとき。終わった配信として覚え (自動再生で入れ直さない)、
@@ -6995,12 +6974,9 @@ function inLibrary(v) {
   return v.list !== 'UUSH';
 }
 
-// 枠で読み込んで縦長と分かった動画 (ショート・縦型の配信)。ショートを流さない設定のとき、自動再生の候補から外す
-const verticalIds = new Set();
-
 /** 自動再生・おまかせで流してよい種類か (設定の「動画も流す」「ショートも流す」) */
 function autoKindAllowed(v) {
-  if (v.kind === 'short' || verticalIds.has(v.videoId)) return state.settings.autoArchiveShorts;
+  if (v.kind === 'short') return state.settings.autoArchiveShorts;
   if (v.kind === 'video') return state.settings.autoArchiveVideos;
   return true;
 }

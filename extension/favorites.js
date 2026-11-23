@@ -134,7 +134,7 @@ const Favorites = (() => {
    * プレミア公開 (同時視聴の本編になりやすい) は「ライブ配信」の方に入らないため。
    * shorts = 「ショート」の再生リスト (UUSH) も見る (自動再生でショートも流す設定のときだけ)。
    * 各項目の kind = live (配信のアーカイブ) / video (動画) / short (ショート)、list = 取った再生リスト。
-   * 縦型の配信は「ライブ配信」の再生リストに入っていて RSS では見分けられないので、live のまま (枠で読み込んでから grid.js が見分ける)
+   * 縦型の配信はショートではなくふつうの配信 (「ライブ配信」の再生リストに入る) なので、live のまま
    */
   async function fetchArchives(channelId, { force = false, shorts = false } = {}) {
     const maxAge = force ? 0 : ARCHIVE_TTL_MS;

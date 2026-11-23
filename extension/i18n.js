@@ -924,7 +924,7 @@ const HTML_EN = {
   'auto.archive': 'Play recent videos when nothing is live',
   'auto.archiveNote': 'Plays 4 recent videos when nothing is live',
   'auto.archiveVideos': 'Include videos (premieres, MVs, etc.)',
-  'auto.archiveShorts': 'Include Shorts (including vertical streams)',
+  'auto.archiveShorts': 'Include Shorts',
   'auto.maxTiles': 'Max tiles in auto play',
   'auto.maxTilesNote': 'Lower it if things get slow',
   'auto.prestart': 'Prepare tiles for upcoming streams',
