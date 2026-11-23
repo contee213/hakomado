@@ -1485,7 +1485,6 @@ window.addEventListener('message', (e) => {
 //   (基準の枠をプレイヤーで一時停止したときは、これまでどおりグループ全部が止まる)。待っている間は、時計は基準の枠に合わせず進む
 // - 基準でない枠を、枠の中のプレイヤーでシーク (シークバー・← → キー) すると、引き戻さずに、その位置でずれを決める
 //   (進みすぎた枠をシークバーで戻す、など)。基準の枠をシークしたときは、これまでどおりほかの枠がついてくる
-// - ずれを変えたら (パネル・止めて待つ・シーク・🎧)、直前の値に 1 回だけ戻せる (パネルの「元に戻す」)
 // ON / OFF は保存しない (開き直したら OFF。視聴セットを開いたときは、ずれが入っていれば自動で ON にする)
 //
 // 🎬 本編モード (パネルのグループの見出しで「🕒 実際の時刻 / 🎬 本編」を切り替える): 時間のずれた同時視聴 (先月のアーカイブと今のライブなど) を、
@@ -1526,8 +1525,6 @@ const Sync = (() => {
   const seenSeeks = new Map(); // i -> 最後に見た、枠の中でユーザーがシークした回数
   const drift = new Map(); // i -> 'ok' | 'fix' | 'ref' 追いつき具合 (パネルの点)
   const driftSec = new Map(); // i -> 設定の位置との差 (秒。+ = 進んでいる)。'fix' の間の「あと何秒」に使う
-  let lastChange = null; // 元に戻せる、直前のずれの変更: [{vid, movie, prev, at}]
-  const UNDO_MERGE_MS = 5000; // 同じ枠をこの間隔より短く続けて動かしたら、1 回の変更にまとめる
 
   const now = () => performance.now();
   const newGroup = (g, mode = 'time') => ({ g, mode, ref: null, clock: { R0: 0, at: 0, playing: true }, holdUntil: 0, paused: false, init: true, lo: 0, hi: 1000, dragging: false });
@@ -1741,7 +1738,7 @@ const Sync = (() => {
   /**
    * 基準の枠の補正をいつも 0 にする (実際の時刻のグループ)。基準を変えたとき・基準の補正が 0 でないまま始めたときに、
    * グループの全部の枠の補正から基準の補正を引く。そろい方は補正どうしの差で決まるので、見え方は変わらない
-   * (どの枠も同じ位置のまま。シークもしない)。元に戻すは取り消す (基準を変える前の値に戻すと、また 0 に寄せ直すため)
+   * (どの枠も同じ位置のまま。シークもしない)
    */
   function zeroRef(G) {
     const ref = G.ref;
@@ -1751,7 +1748,6 @@ const Sync = (() => {
     for (const j of membersOf(G.g)) {
       if (movable(j)) storeOffset(false, j, Math.round((off(j) - r) * 100) / 100);
     }
-    lastChange = null;
   }
 
   function tickGroup(G) {
@@ -1965,7 +1961,6 @@ const Sync = (() => {
     // 時間帯の重なるアーカイブが無ければ、全部を 1 つの本編モードのグループにする
     if (how === 'movie') pin(visibleIndexes().filter(candidate), 1, 'movie');
     sent.clear();
-    lastChange = null;
     on = true;
     regroup();
     clearInterval(timer);
@@ -2038,7 +2033,6 @@ const Sync = (() => {
     waiting.clear();
     seenSeeks.clear();
     drift.clear();
-    lastChange = null;
     clearInterval(timer);
     timer = 0;
     for (let i = 0; i < MAX_TILES; i++) {
@@ -2177,10 +2171,9 @@ const Sync = (() => {
     if (!views[i].archive) return null;
     return Math.round((p - (R - views[i].archive.start) / 1000) * 100) / 100;
   }
-  /** ずれ (実際の時刻) か本編の位置 (本編) を書き込む。v = null は本編の位置を消す。戻すための元の値を返す */
+  /** ずれ (実際の時刻) か本編の位置 (本編) を書き込む。v = null は本編の位置を消す */
   function storeOffset(movie, i, v) {
     const vid = state.tiles[i].videoId;
-    const change = { vid, movie, prev: movie ? anchor(i) : off(i) };
     if (movie) {
       if (v == null) MovieAnchors.remove(vid);
       else MovieAnchors.set(vid, v);
@@ -2188,13 +2181,12 @@ const Sync = (() => {
       SyncOffsets.set(vid, v);
       playlistOffsetChanged(vid, v);
     }
-    return change;
   }
   /** 今の再生位置のまま合うように、ずれを決める (「止めて待つ」の再生・枠の中でのシーク) */
   function adoptOffset(G, i, R) {
     const v = offsetAt(G, i, R);
     if (v == null) return Dock.update();
-    lastChange = [storeOffset(isMovie(G), i, v)];
+    storeOffset(isMovie(G), i, v);
     sent.delete(i);
     forceSeek.delete(i);
     rate(i, 1);
@@ -2314,26 +2306,18 @@ const Sync = (() => {
   const anchorText = (a) => (a < 0 ? '−' : '') + hms(Math.floor(Math.abs(a))) + (Math.round(Math.abs(a) * 10) % 10 ? '.' + (Math.round(Math.abs(a) * 10) % 10) : '');
 
   /** この枠のずれ (本編モードなら本編の位置) を v にして、すぐ合わせ直す */
-  function setOffset(i, v, { record = true } = {}) {
+  function setOffset(i, v) {
     const G = groupOfTile(i);
-    const change = storeOffset(!!G && isMovie(G), i, v);
-    if (record) {
-      // 同じ枠を続けて動かしている間 (← → を何度も押すなど) は、まとめて 1 回で、動かし始める前に戻せるように
-      const last = lastChange?.length === 1 ? lastChange[0] : null;
-      if (last && last.vid === change.vid && last.movie === change.movie && now() - last.at < UNDO_MERGE_MS) change.prev = last.prev;
-      change.at = now();
-      lastChange = [change];
-    }
+    storeOffset(!!G && isMovie(G), i, v);
     sent.delete(i);
     forceSeek.add(i); // 速度で詰めず、すぐ合わせ直す
     tick();
-    return change;
   }
-  /** 🎧 の結果など、いくつかの枠のずれをまとめて変える (まとめて 1 回で元に戻せる) */
+  /** 🎧 の結果など、いくつかの枠のずれをまとめて変える */
   function applyOffsets(pairs) {
-    lastChange = pairs.map(([i, v]) => setOffset(i, v, { record: false }));
+    for (const [i, v] of pairs) setOffset(i, v);
   }
-  /** グループの枠のずれを全部 0 に戻す (実際の時刻だけでそろえ直す。まとめて 1 回で元に戻せる) */
+  /** グループの枠のずれを全部 0 に戻す (実際の時刻だけでそろえ直す) */
   function resetGroup(G) {
     const pairs = membersOf(G.g)
       .filter((i) => movable(i) && off(i) !== 0)
@@ -2341,23 +2325,6 @@ const Sync = (() => {
     if (!pairs.length) return;
     applyOffsets(pairs);
     notify(tr('syncResetDone', pairs.length));
-  }
-  /** 直前のずれの変更を元に戻す */
-  function undo() {
-    if (!lastChange) return;
-    for (const c of lastChange) {
-      if (c.movie) {
-        if (c.prev == null) MovieAnchors.remove(c.vid);
-        else MovieAnchors.set(c.vid, c.prev);
-      } else {
-        SyncOffsets.set(c.vid, c.prev);
-        playlistOffsetChanged(c.vid, c.prev);
-      }
-    }
-    offsetsChanged(lastChange.map((c) => c.vid));
-    lastChange = null;
-    notify(tr('syncUndone'));
-    tick();
   }
   /** ← → キー・◀ ▶: ずれ (本編の位置) を d 秒動かす */
   function nudge(i, d) {
@@ -2705,7 +2672,7 @@ const Sync = (() => {
     function onRowKey(e, i) {
       if (e.target !== e.currentTarget) return; // 入力欄・ボタンの中のキーは、そちらに任せる
       if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
-        const step = e.shiftKey ? 0.01 : e.ctrlKey ? 1 : 0.1;
+        const step = e.shiftKey ? 0.01 : 0.1; // 大きく動かすときは、ボタンの長押しで
         nudge(i, e.key === 'ArrowLeft' ? -step : step);
       } else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
         const list = [...body().querySelectorAll('.dock-row')].filter((r) => r.offsetParent); // たたんだグループの行は飛ばす
@@ -3048,9 +3015,6 @@ const Sync = (() => {
         if (r.trim) r.trim.disabled = off(i) === -trimmedOf(i);
         if (r.reset) r.reset.hidden = !movable(i) || off(i) === 0 || !!wait;
       }
-      const undoBtn = document.getElementById('syncUndo');
-      undoBtn.hidden = !lastChange;
-      if (lastChange) undoBtn.title = tr('syncUndoTitle', lastChange.length);
     }
 
     function setup() {
@@ -3069,12 +3033,7 @@ const Sync = (() => {
         structKey = '';
         update();
       });
-      document.getElementById('syncUndo').addEventListener('click', undo);
       for (const ev of ['pointerup', 'blur']) addEventListener(ev, () => stopHold?.());
-      document.getElementById('syncLegend').replaceChildren(
-        mk('span', { class: 'dock-legend-item' }, mk('span', { class: 'dr-dot is-ok' }, '✓'), tr('syncLegendOk')),
-        mk('span', { class: 'dock-legend-item' }, mk('span', { class: 'dr-dot' }, '↻'), tr('syncLegendFix')),
-      );
       document.getElementById('syncDockFloat').addEventListener('click', () => setFloating(!floating));
       setupDrag();
       setMini(false);

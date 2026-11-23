@@ -352,8 +352,6 @@ const MESSAGES = {
   syncTlCorrEarlier: ['補正 {0} 秒: 配信の実際の開始より、この分だけ早めてそろえています', 'Correction {0}s: aligned this much earlier than the actual stream start'],
   syncTlCorrLater: ['補正 {0} 秒: 配信の実際の開始より、この分だけ遅らせてそろえています', 'Correction {0}s: aligned this much later than the actual stream start'],
   syncTlNowTitle: ['今の時刻', 'Now'],
-  syncLegendOk: ['設定どおりの位置', 'At the set position'],
-  syncLegendFix: ['設定の位置へ移動中', 'Moving to the set position'],
   syncDot_ref: ['基準の枠です', 'Reference tile'],
   syncDot_wait: ['止めて待っています', 'Paused and waiting'],
   syncDot_none: ['同期していません', 'Not synced'],
@@ -362,16 +360,14 @@ const MESSAGES = {
   syncDockExpand: ['広げる', 'Expand'],
   syncDockToFloat: ['浮かぶ小窓にする (枠の上に半透明で重ねる。見出しをつかんで動かせる)', 'Float it over the tiles (semi-transparent; drag the header to move it)'],
   syncDockToSide: ['画面の右の列にする (枠の並びを縮めて、重ねない)', 'Dock it on the right (the tiles shrink to make room)'],
-  syncUndoTitle: ['直前の補正の変更 ({0} 枠) を元に戻す', 'Undo the last offset change ({0} tile(s))'],
-  syncUndone: ['補正を元に戻しました', 'Offset restored'],
   syncGroupPauseLabel: ['⏸ 一時停止', '⏸ Pause'],
   syncGroupPlayLabel: ['▶ 再生', '▶ Play'],
   syncAudioLabel: ['🎧 音で測る', '🎧 Measure'],
   syncResetLabel: ['↺ 0 に戻す', '↺ Reset'],
   syncResetTitle: ['実際の時刻に戻す (補正を 0 にする)。手で合わせてうまくいかなかったときに', 'Back to real time (set the offset to 0). For when adjusting by hand went wrong'],
   syncResetGroupTitle: [
-    'グループ {0} の補正を全部 0 に戻す (配信していた実際の時刻だけでそろえ直す)。「↶ 元に戻す」で戻せます',
-    'Set every offset in group {0} back to 0 (align on the actual stream times only). “↶ Undo” brings them back',
+    'グループ {0} の補正を全部 0 に戻す (配信していた実際の時刻だけでそろえ直す)',
+    'Set every offset in group {0} back to 0 (align on the actual stream times only)',
   ],
   syncResetDone: ['{0} 枠の補正を 0 に戻しました (実際の時刻でそろえています)', 'Set {0} tile(s) back to offset 0 (aligned on real time)'],
   syncAudioStart: [
@@ -908,8 +904,6 @@ const HTML_EN = {
   'sync.seekTitle': 'Move all synced archives to this time',
   'sync.dockTitle': 'Show / hide the sync panel (groups, reference, offsets, 🎧 match by sound)',
   'sync.dockHead': '⏱ Sync',
-  'sync.undo': '↶ Undo',
-  'sync.dockKeys': 'Select a row: ← → moves the offset 0.1 s (Shift: 0.01 s / Ctrl: 1 s), ↑ ↓ moves between rows',
   'sync.adjTitle': 'Open the sync panel with this tile selected (offset, reference, group)',
   'share.title': 'Share: turn the current tiles or a playlist into an image, a code, text or a link to give to others',
   'share.h': '🔗 Share',
@@ -1022,7 +1016,7 @@ const HTML_EN = {
 <li>Press “⏱ Archive sync” on the top bar to play stream archives that overlap in time, aligned to when they were actually streamed. Until 2 such archives are shown it is dimmed, and pressing it tells you why (live now, a regular video, and so on)</li>
 <li>Archives streamed at overlapping times are grouped automatically, so A·B and C·D from different collabs sync separately (up to 4 groups, shown by color and number on the tiles). Change a tile’s group on its row in the sync panel</li>
 <li>The sync panel (☰ on the top bar, or ⏱ on a tile) floats over the tiles, semi-transparent (drag its header to move it; ⇲ docks it on the right). Per group: what to align on (🕒 real time / 🎬 movie), ⏸, 🎧 match by sound and a slider. Per tile: the reference (🔒; ◉ in 🎬 groups), the offset and ⏸ pause and wait. Each group’s chart zooms in on where the streams start (gaps of more than a minute between starts are cut short, with each tile’s start time shown above where it fits): each bar runs from the actual stream start, the offset shows as a light-blue stretch (which side of the thin line tells earlier or later) where it starts playing alongside the reference (at the reference’s start for tiles that started earlier), with a thin line at the uncorrected position (also drawn on the other tiles already playing then, to compare against), plus how much earlier or later it started than the reference and how far it still has to move. Collapse groups you are not adjusting with ▾</li>
-<li>You adjust the tiles other than the reference. The reference (🔒 at the start of its row) always has offset 0; when you change the reference, the offsets move to the other tiles and the alignment stays the same. Move an offset with −0.1, −0.01, +0.01 and +0.1 (hold to keep going). ⏸ pauses just that tile to wait, ▶ matches it there. Select a row and use ← → to move the offset by 0.1 s (Shift: 0.01 s / Ctrl: 1 s). ✓ on a row means it plays at the position the offset says, ↻ that it is still moving there (whether voices line up is up to your ears). “↶ Undo” restores the last change. If adjusting by hand went wrong, ↺ on the row (↺ in the header for the whole group) goes back to real time. Offsets are remembered per video and go into playlists and share codes</li>
+<li>You adjust the tiles other than the reference. The reference (🔒 at the start of its row) always has offset 0; when you change the reference, the offsets move to the other tiles and the alignment stays the same. Move an offset with −0.1, −0.01, +0.01 and +0.1 (hold to keep going). ⏸ pauses just that tile to wait, ▶ matches it there. Select a row and ← → also move the offset by 0.1 s (Shift: 0.01 s). ✓ on a row means it plays at the position the offset says, ↻ that it is still moving there (whether voices line up is up to your ears). If adjusting by hand went wrong, ↺ on the row (↺ in the header for the whole group) goes back to real time. Offsets are remembered per video and go into playlists and share codes</li>
 <li>The slider on the top bar moves the group of the tile playing audio</li>
 </ul>`,
   'helpPage.share': `<p>“🔗 Share” turns the current tiles or a playlist into one of four forms.</p>
