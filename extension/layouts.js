@@ -75,18 +75,22 @@ function layoutFor(key, anchor) {
  * どの枠もなるべく 16:9 になるような列の幅・行の高さ (相対値) を求める。
  * 枠ごとに「横長すぎなら列を縮めて行を伸ばす」補正を掛け、各列・各行は関係する枠の補正の幾何平均を取る。
  * これを繰り返すと、ここで定義しているレイアウトはどれもちょうど 16:9 に収束する。
+ * aspects (省略可) = 枠ごとの目標の横/縦 (縦長の映像の枠は 9/16 など)。同じ列・行に違う目標の枠があると、間の比で止まる
+ * @param {number[]} [aspects]
  * @returns {{colW: number[], rowH: number[], aspect: number}} aspect = 全体の横/縦
  */
-function solveTracks(l) {
-  if (l._tracks) return l._tracks;
-  const target = 16 / 9;
+function solveTracks(l, aspects) {
+  const key = aspects ? aspects.map((a) => a.toFixed(4)).join(',') : '';
+  if (!l._tracks) l._tracks = new Map();
+  if (l._tracks.has(key)) return l._tracks.get(key);
   let colW = Array(l.cols).fill(16);
   let rowH = Array(l.rows).fill(9);
   for (let iter = 0; iter < 300; iter++) {
     const colLog = Array(l.cols).fill(0), colN = Array(l.cols).fill(0);
     const rowLog = Array(l.rows).fill(0), rowN = Array(l.rows).fill(0);
     let worst = 0;
-    for (const [x, y, w, h] of l.slots) {
+    l.slots.forEach(([x, y, w, h], k) => {
+      const target = (aspects && aspects[k]) || 16 / 9;
       let sw = 0, sh = 0;
       for (let i = x; i < x + w; i++) sw += colW[i];
       for (let j = y; j < y + h; j++) sh += rowH[j];
@@ -94,12 +98,14 @@ function solveTracks(l) {
       worst = Math.max(worst, Math.abs(err));
       for (let i = x; i < x + w; i++) { colLog[i] -= err / 2; colN[i]++; }
       for (let j = y; j < y + h; j++) { rowLog[j] += err / 2; rowN[j]++; }
-    }
+    });
     if (worst < 1e-4) break;
     colW = colW.map((v, i) => v * Math.exp(colLog[i] / colN[i]));
     rowH = rowH.map((v, j) => v * Math.exp(rowLog[j] / rowN[j]));
   }
   const sum = (a) => a.reduce((s, v) => s + v, 0);
-  l._tracks = { colW, rowH, aspect: sum(colW) / sum(rowH) };
-  return l._tracks;
+  const out = { colW, rowH, aspect: sum(colW) / sum(rowH) };
+  if (l._tracks.size > 64) l._tracks.clear();
+  l._tracks.set(key, out);
+  return out;
 }

@@ -39,6 +39,11 @@ html.hakomado-frame.hakomado-fill #movie_player video {
   object-fit: cover !important;
 }
 
+/* 縦長の映像 (ショート・縦型の配信) はストレッチでも切らない */
+html.hakomado-frame.hakomado-fill.hakomado-vertical #movie_player video {
+  object-fit: contain !important;
+}
+
 /* マウスが枠の外にある間は、プレイヤーの操作 UI (上下のバー・影・ツールチップ) を隠す。
    枠の上に重ねた要素を通って離れると、プレイヤーが離れたことに気づかず UI が出たままになるため、親画面から知らせる */
 html.hakomado-frame.hakomado-away #movie_player .ytp-chrome-top,

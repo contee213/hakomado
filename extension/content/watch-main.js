@@ -517,10 +517,11 @@
   }, 1000);
 
   // ---- 枠の情報 (親の「ℹ 枠の情報」の一覧と、アーカイブ同期ボタンが使えない理由の表示用)
-  //   ここ → watch.js : 'hakomado:info'     detail JSON {kind, viewers, views, start, end, publish, dur, t}
+  //   ここ → watch.js : 'hakomado:info'     detail JSON {kind, viewers, views, start, end, publish, dur, t, vertical}
   //   watch.js → ここ : 'hakomado:info-req' (一覧を開いている間だけ、親が数秒ごとに求める)
   //   kind = 'live' (ライブ配信中) | 'upcoming' (配信前) | 'archive' (配信のアーカイブ) | 'video' (ふつうの動画) | '' (まだ分からない)
-  //   種類が変わったときは、求められなくても知らせる (親が同期ボタンの理由を出せるように)
+  //   vertical = 縦長の映像か (ショート・縦型の配信。親は自動再生でショートを流さない設定のときに差し替える)。分からなければ null
+  //   種類・縦長かが変わったときは、求められなくても知らせる (親が同期ボタンの理由を出せるように)
   //   今の視聴者数は、隠している説明欄 (#below) の「◯人が視聴中」を読む (YouTube が数秒ごとに更新している)
   const kindNow = () => {
     const pr = playerResponse();
@@ -531,6 +532,19 @@
     return pr.videoDetails?.isLiveContent ? '' : 'video'; // 配信が終わった直後などは、アーカイブになるまで分からない
   };
   const numOrNull = (v) => (Number.isFinite(v) ? v : null);
+  // 映像の縦横は、プレイヤーの情報 (streamingData の各画質の幅・高さ) で見る。無ければ再生中の映像 (広告中は見ない)
+  const verticalNow = () => {
+    try {
+      const sd = playerResponse()?.streamingData || window.ytInitialPlayerResponse?.streamingData;
+      const f = [...(sd?.adaptiveFormats || []), ...(sd?.formats || [])].find((x) => x.width > 0 && x.height > 0);
+      if (f) return f.height > f.width;
+    } catch {
+      /* ignore */
+    }
+    const v = video();
+    if (v && !adShowing() && v.videoWidth > 0 && v.videoHeight > 0) return v.videoHeight > v.videoWidth;
+    return null;
+  };
   const viewersNow = () => {
     const label = document.querySelector('ytd-watch-metadata #view-count')?.getAttribute('aria-label') || '';
     const digits = label.replace(/\D/g, '');
@@ -568,6 +582,7 @@
       publish: numOrNull(Date.parse(mf?.publishDate || '')),
       dur,
       t,
+      vertical: verticalNow(),
     };
   };
   const reportInfo = () => {
@@ -578,7 +593,7 @@
   document.addEventListener('hakomado:info-req', reportInfo);
   let kindSent = null;
   setInterval(() => {
-    const kind = kindNow();
+    const kind = `${kindNow()}|${verticalNow()}`;
     if (kind === kindSent) return;
     kindSent = kind;
     reportInfo();

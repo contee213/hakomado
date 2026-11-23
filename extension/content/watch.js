@@ -106,6 +106,8 @@
       return;
     }
     const num = (v) => (v != null && Number.isFinite(Number(v)) ? Number(v) : null);
+    // 縦長の映像は、ストレッチ表示でも切らずに枠に収める (16:9 の枠いっぱいに広げると上下の大半が切れるため)
+    document.documentElement.classList.toggle('hakomado-vertical', d.vertical === true);
     window.parent.postMessage(
       {
         hakomado: 'info',
@@ -117,6 +119,7 @@
         publish: num(d.publish),
         dur: num(d.dur),
         t: num(d.t),
+        vertical: typeof d.vertical === 'boolean' ? d.vertical : null,
       },
       PARENT_ORIGIN,
     );

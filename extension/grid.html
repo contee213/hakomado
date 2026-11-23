@@ -39,7 +39,7 @@
 
     <button id="openNotices" type="button" data-i18n-title="notice.title" title="通知 (チャンネルの配信開始)"><span class="tb-icon">🔔</span><span class="tb-label" data-i18n="notice.label">通知</span><span id="noticeBadge" class="notice-badge" hidden></span></button>
     <button id="openChannels" type="button" data-i18n-title="ch.title" title="チャンネル (F): 配信中・配信予定と、チャンネルの追加・ピックアップ"><span class="tb-icon">📺</span><span class="tb-label" data-i18n="ch.label">チャンネル</span></button>
-    <button id="openFavorites" type="button" data-i18n-title="fav.title" title="ライブラリ (B): 最近の配信・視聴履歴・あとで見る"><span class="tb-icon">📚</span><span class="tb-label" data-i18n="fav.label">ライブラリ</span></button>
+    <button id="openFavorites" type="button" data-i18n-title="fav.title" title="ライブラリ (B): 最近の動画・視聴履歴・あとで見る"><span class="tb-icon">📚</span><span class="tb-label" data-i18n="fav.label">ライブラリ</span></button>
     <button id="openInfo" class="icon-only" type="button" data-i18n-title="info.title" title="枠の情報 (I): 各枠の種類 (ライブ・アーカイブ・動画)・配信の時間・視聴者数・再生数などを一覧で見る">ℹ️</button>
     <button id="openShare" class="icon-only" type="button" data-i18n-title="share.title" title="共有: 今の枠や再生リストを、画像・コード・テキスト・リンクにして人に渡す">🔗</button>
     <button id="openRead" class="icon-only" type="button" data-i18n-title="read.title" title="読み込む: 共有された画像・コード・テキスト・リンクや URL を、枠に並べるか再生リストとして保存する">📥</button>
@@ -88,6 +88,7 @@
           <button type="button" role="tab" data-tab="danmaku" data-i18n="tab.danmaku">弾幕</button>
           <button type="button" role="tab" data-tab="audio" data-i18n="tab.audio">枠の線</button>
           <button type="button" role="tab" data-tab="chat" data-i18n="tab.chat">チャット欄</button>
+          <button type="button" role="tab" data-tab="view" data-i18n="tab.view">表示</button>
           <button type="button" role="tab" data-tab="auto" data-i18n="tab.auto">自動再生</button>
           <button type="button" role="tab" data-tab="channels" data-i18n="tab.channels">チャンネル</button>
           <button type="button" role="tab" data-tab="backup" data-i18n="tab.backup">バックアップ</button>
@@ -180,6 +181,13 @@
         </div>
       </section>
 
+      <section class="settings-panel" data-panel="view" role="tabpanel" hidden>
+        <div class="settings-col">
+        <label class="check"><input type="checkbox" id="verticalLiveFit"> <span data-i18n="tile.verticalFit">縦型の配信と分かったら、枠を縦長にする</span></label>
+        <p class="settings-note" data-i18n="tile.verticalFitNote">読み込んでから枠の大きさが変わります (ショートの枠は、この設定に関係なく初めから縦長)</p>
+        </div>
+      </section>
+
       <section class="settings-panel" data-panel="auto" role="tabpanel" hidden>
         <div class="settings-col">
         <label><span data-i18n="auto.target">自動再生の対象</span>
@@ -202,8 +210,10 @@
           <input type="range" id="prestartMin" min="0" max="5" step="1">
         </label>
         <p class="settings-note" data-i18n="auto.prestartNote">配信予定の枠を開始前に作っておきます</p>
-        <label class="check"><input type="checkbox" id="autoArchive"> <span data-i18n="auto.archive">配信中が無いときは、最近の配信を流す</span></label>
-        <p class="settings-note" data-i18n="auto.archiveNote">ライブが無いときに、最近の配信を 4 枠流します</p>
+        <label class="check"><input type="checkbox" id="autoArchive"> <span data-i18n="auto.archive">配信中が無いときは、最近の動画を流す</span></label>
+        <p class="settings-note" data-i18n="auto.archiveNote">ライブが無いときに、最近の動画を 4 枠流します</p>
+        <label class="check sub-check"><input type="checkbox" id="autoArchiveVideos"> <span data-i18n="auto.archiveVideos">動画 (プレミア公開・MV など) も流す</span></label>
+        <label class="check sub-check"><input type="checkbox" id="autoArchiveShorts"> <span data-i18n="auto.archiveShorts">ショートも流す</span></label>
         <label><span data-i18n="auto.cruise">クルーズの間隔</span> <output id="cruiseSecOut"></output>
           <input type="range" id="cruiseSec" min="0" max="13" step="1">
         </label>
@@ -257,7 +267,7 @@
       <footer class="settings-foot">
         <span class="app-version"></span>
         <button type="button" id="settingsHelp" class="settings-help" data-i18n="settings.help" data-i18n-title="settings.helpTitle" title="このタブの設定の詳しい説明を「? 使い方」で開く">? 詳しい説明</button>
-        <button type="button" id="settingsReset" data-i18n="settings.reset" data-i18n-title="settings.resetTitle" title="弾幕・枠の線・チャット欄・自動再生の設定を、すべて最初の状態に戻す (表示言語とチャンネルはそのまま)">すべて初期値に戻す</button>
+        <button type="button" id="settingsReset" data-i18n="settings.reset" data-i18n-title="settings.resetTitle" title="弾幕・枠の線・チャット欄・表示・自動再生の設定を、すべて最初の状態に戻す (表示言語とチャンネルはそのまま)">すべて初期値に戻す</button>
       </footer>
     </form>
   </dialog>
@@ -318,7 +328,7 @@
               <li><b>自動再生の最大枠数</b>: 配信中のものが多くても、この数までしか再生しません。回線が細いときや、パソコンが重いときは減らしてください</li>
               <li><b>ピックアップ (📌) の配信をメイン枠に優先して置く</b>: ピックアップのライブ配信を大きいメイン枠に入れ、ほかはサブ枠に回します。最大枠数に届いたときも、ピックアップを先に入れます。メイン枠の無い均等レイアウトと、クルーズ中は並べ替えません</li>
               <li><b>配信予定の枠を用意する</b>: 開始前から枠を作り、最初から見られるようにします。配信中のものが 1 つも無いときは、次に始まる配信予定と、その開始から 1 時間以内に始まる予定を出します</li>
-              <li><b>配信中が無いときは、最近の配信を流す</b>: 深夜などライブが 1 本も無いときに、チャンネルの最近終わった配信を 4 枠流します (ピックアップが先、一度見たものは除く)。ライブが始まったら片付けます</li>
+              <li><b>配信中が無いときは、最近の動画を流す</b>: 深夜などライブが 1 本も無いときに、チャンネルの最近終わった配信や公開された動画を 4 枠流します (ピックアップが先、一度見たものは除く。動画・ショートも流すかは設定で選べます)。ライブが始まったら片付けます</li>
             </ul>
           </section>
           <section class="help-page" data-help-page="cruise" role="tabpanel" data-i18n-html="helpPage.cruise" hidden>
@@ -332,7 +342,7 @@
           <section class="help-page" data-help-page="channels" role="tabpanel" data-i18n-html="helpPage.channels" hidden>
             <ul>
               <li>「📺 チャンネル」(<kbd>F</kbd>) で、追加したチャンネルの配信中・配信予定と、それ以外を一覧します。配信中・予定の行を押すと、空いている枠に入ります</li>
-              <li>行の「最近 ⌄」でそのチャンネルの最近の配信を開き、📌 でピックアップに入れます</li>
+              <li>行の「最近 ⌄」でそのチャンネルの最近の動画を開き、📌 でピックアップに入れます</li>
               <li><b>ピックアップ</b>: 今注目しているチャンネル (箱企画の参加者など)。上の「📺 すべて / 📌 ピックアップ」で一覧を絞れて、自動再生や通知の対象にもできます</li>
               <li>下の欄に <code>@チャンネル名</code>・チャンネルの URL・動画の URL を入れると追加できます</li>
               <li><b>🔔 通知</b>: チャンネルの配信が始まると知らせます。対象は 設定 → 自動再生 →「通知の対象」で選びます</li>
@@ -347,7 +357,7 @@
           </section>
           <section class="help-page" data-help-page="library" role="tabpanel" data-i18n-html="helpPage.library" hidden>
             <ul>
-              <li>「📚 ライブラリ」(<kbd>B</kbd>): 🎞 最近の配信 (最近 7 日に終わった配信) / 🕘 視聴履歴 (100 件) / 🔖 あとで見る (100 件) / 📃 再生リスト</li>
+              <li>「📚 ライブラリ」(<kbd>B</kbd>): 🎞 最近の動画 (最近 7 日に終わった配信と、公開された動画) / 🕘 視聴履歴 (100 件) / 🔖 あとで見る (100 件) / 📃 再生リスト</li>
               <li><b>あとで見る</b>: 枠のバーや一覧の 🔖 で入れます。「▶ 今の枠で順に再生」で今ある枠に順に入れ、最後まで見た枠には次が入ります。最後まで見たものは消えます</li>
               <li><b>再生リスト</b>: 名前を付けた並び (30 個・1 つに 200 本まで)。「＋ 新規」「▦ 今の枠から作る」「📥 読み込む」で作り、URL の欄や、枠のバー・一覧の 📃 で足します。⠿ で並べ替え、行の名前は枠に出す名前になります</li>
               <li>「▶ 順に再生」は今の枠に上から入れて、見終わった枠に次を入れます (最後まで見たものに ✓ を付け、次は続きから)。「⏱ まとめて同期再生」は全部を一度に並べて、アーカイブを同じ瞬間にそろえます (16 本まで)</li>
@@ -565,7 +575,7 @@
         <h2 data-i18n="layout.h">▦ レイアウト</h2>
         <span class="spacer"></span>
         <span class="seg">
-          <button type="button" data-fit="fit" data-i18n="fit.fit" data-i18n-title="fit.fitTitle" title="どの枠も 16:9 ちょうどの大きさにする。画面と比率が合わない分は外側の余白になる">標準</button><button type="button" data-fit="fill" data-i18n="fit.fill" data-i18n-title="fit.fillTitle" title="余白なしで画面を埋める。映像は枠に合わせて拡大し、はみ出た端は切れる">ストレッチ</button>
+          <button type="button" data-fit="fit" data-i18n="fit.fit" data-i18n-title="fit.fitTitle" title="どの枠も 16:9 ちょうどの大きさにする (ショートの枠は 9:16 に寄せる)。画面と比率が合わない分は外側の余白になる">標準</button><button type="button" data-fit="fill" data-i18n="fit.fill" data-i18n-title="fit.fillTitle" title="余白なしで画面を埋める。映像は枠に合わせて拡大し、はみ出た端は切れる (縦長の動画は切らずに収める)">ストレッチ</button>
         </span>
         <button type="button" id="layoutClose" class="dialog-close" data-i18n-title="close" title="閉じる (Esc)">✕</button>
       </header>
@@ -586,7 +596,7 @@
              見出しとタブは開いた入り口で切り替える。どちらでも「📺 すべて / 📌 ピックアップ」で対象のチャンネルを絞れる -->
         <h2 id="favTitle"></h2>
         <div class="fav-tabs settings-tabs" role="tablist">
-          <button type="button" role="tab" data-favtab="archive" data-i18n="fav.archive" data-i18n-title="fav.archiveTitle" title="チャンネルの、最近 7 日に終わった配信 (新しい順)">🎞 最近の配信</button>
+          <button type="button" role="tab" data-favtab="archive" data-i18n="fav.archive" data-i18n-title="fav.archiveTitle" title="チャンネルの、最近 7 日に終わった配信と公開された動画 (プレミア公開など。新しい順)">🎞 最近の動画</button>
           <button type="button" role="tab" data-favtab="history" data-i18n="fav.history" data-i18n-title="fav.historyTitle" title="この拡張機能で見た配信・動画 (新しい順に 100 件。すべてのタブで共通)">🕘 視聴履歴</button>
           <button type="button" role="tab" data-favtab="saved" data-i18n="fav.saved" data-i18n-title="fav.savedTitle" title="あとで見たい配信・動画 (🔖)。100 件まで。最後まで再生するか、🔖 を外すと消える (すべてのタブで共通)">🔖 あとで見る</button>
           <button type="button" role="tab" data-favtab="playlists" data-i18n="fav.playlists" data-i18n-title="fav.playlistsTitle" title="名前を付けた配信・動画の並び。今の枠で順に再生するか、まとめて並べて同期再生する。再生しても減らない (すべてのタブで共通)">📃 再生リスト</button>

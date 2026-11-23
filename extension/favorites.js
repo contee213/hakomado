@@ -93,8 +93,9 @@ const Favorites = (() => {
   // 配信予定 (待機所) は再生数が 0。配信中とアーカイブは再生数では見分けられない。日時は「枠を作った日時」
   // 取った結果はタブ間で共有する (配信状況と最近の配信の両方で使う)
   const FEED_PREFIX = 'feed:'; // 'feed:<チャンネル ID>' → {at, items: [{videoId, title, at, views}]} (チャンネルごとに別の項目にして、書き込みを軽く)
-  const feedKey = (channelId) => FEED_PREFIX + channelId;
-  const readFeed = async (channelId) => (await shared.get(feedKey(channelId)))[feedKey(channelId)];
+  // 「動画」(UULF)・「ショート」(UUSH) の再生リストは 'feed:UULF:<チャンネル ID>' など (最近の動画でだけ使う)
+  const feedKey = (channelId, list = 'UULV') => FEED_PREFIX + (list === 'UULV' ? '' : `${list}:`) + channelId;
+  const readFeed = async (channelId, list) => (await shared.get(feedKey(channelId, list)))[feedKey(channelId, list)];
   const ARCHIVE_TTL_MS = 30 * 60 * 1000;
   const CHANNEL_ID_RE = /^UC[\w-]{22}$/;
   const VIDEO_RE = /^[A-Za-z0-9_-]{11}$/;
@@ -104,33 +105,61 @@ const Favorites = (() => {
 
   /**
    * そのチャンネルの再生リストの中身 (maxAge より新しい結果があればそれを使う)。配信をしたことがないチャンネルは []。
-   * cacheOnly = 取りに行かず、覚えている結果を古くても使う (無ければ [])
+   * cacheOnly = 取りに行かず、覚えている結果を古くても使う (無ければ [])。
+   * list = 再生リストの種類 (UULV = ライブ配信 / UULF = 動画 / UUSH = ショート)
    */
-  async function fetchFeed(channelId, { maxAge, cacheOnly = false }) {
+  async function fetchFeed(channelId, { maxAge, cacheOnly = false, list = 'UULV' }) {
     if (!CHANNEL_ID_RE.test(channelId)) return [];
     const fresh = (c) => c && Date.now() - c.at < maxAge && Array.isArray(c.items);
-    const hit = await readFeed(channelId);
+    const hit = await readFeed(channelId, list);
     if (fresh(hit)) return hit.items;
     if (cacheOnly) return Array.isArray(hit?.items) ? hit.items : [];
     return ytTurn(
       async (fetchText) => {
         // 順番を待つ間に他のタブが取っていれば、それを使う
-        const again = await readFeed(channelId);
+        const again = await readFeed(channelId, list);
         if (fresh(again)) return again.items;
-        const xml = await fetchText(`${YT}/feeds/videos.xml?playlist_id=UULV${channelId.slice(2)}`, { credentials: 'omit', allow404: true });
+        const xml = await fetchText(`${YT}/feeds/videos.xml?playlist_id=${list}${channelId.slice(2)}`, { credentials: 'omit', allow404: true });
         const items = xml == null ? [] : parseFeed(xml);
-        await shared.set({ [feedKey(channelId)]: { at: Date.now(), items } });
+        await shared.set({ [feedKey(channelId, list)]: { at: Date.now(), items } });
         return items;
       },
       { lock: 'hakomado-feed-fetch', gap: FEED_GAP_MS, lastKey: 'lastFeedFetch' },
     );
   }
 
-  /** そのチャンネルの最近の配信アーカイブ (新しい順)。force = 覚えている結果を使わずに取り直す */
-  async function fetchArchives(channelId, { force = false } = {}) {
-    const items = await fetchFeed(channelId, { maxAge: force ? 0 : ARCHIVE_TTL_MS });
-    // 配信予定 (再生数 0) は除く
-    return items.filter((v) => v.views > 0).map(({ views, ...v }) => v);
+  /**
+   * そのチャンネルの最近の配信アーカイブと動画 (新しい順)。force = 覚えている結果を使わずに取り直す。
+   * 「ライブ配信」の再生リスト (UULV) に加えて「動画」の再生リスト (UULF。プレミア公開・MV など。ショートは入らない) も見る。
+   * プレミア公開 (同時視聴の本編になりやすい) は「ライブ配信」の方に入らないため。
+   * shorts = 「ショート」の再生リスト (UUSH) も見る (自動再生でショートも流す設定のときだけ)。
+   * 各項目の kind = live (配信のアーカイブ) / video (動画) / short (ショート)、list = 取った再生リスト。
+   * 縦型の配信はショートではなくふつうの配信 (「ライブ配信」の再生リストに入る) なので、live のまま
+   */
+  async function fetchArchives(channelId, { force = false, shorts = false } = {}) {
+    const maxAge = force ? 0 : ARCHIVE_TTL_MS;
+    const lives = await fetchFeed(channelId, { maxAge });
+    // 動画・ショートの方が取れなくても (制限中も)、配信の分は出す
+    const more = async (list) => {
+      try {
+        return await fetchFeed(channelId, { maxAge, list });
+      } catch (e) {
+        console.warn('hakomado: チャンネルの動画の取得に失敗', list, channelId, e);
+        return [];
+      }
+    };
+    const tag = (items, list, kind) => items.map((v) => ({ ...v, list, kind }));
+    const all = [
+      ...tag(lives, 'UULV', 'live'),
+      ...tag(await more('UULF'), 'UULF', 'video'),
+      ...(shorts ? tag(await more('UUSH'), 'UUSH', 'short') : []),
+    ];
+    const seen = new Set();
+    // 配信予定・公開予定 (再生数 0) は除く
+    return all
+      .filter((v) => v.views > 0 && !seen.has(v.videoId) && seen.add(v.videoId))
+      .sort((a, b) => b.at - a.at)
+      .map(({ views, ...v }) => v);
   }
 
   function parseFeed(xml) {
