@@ -276,7 +276,6 @@ const MESSAGES = {
   syncRefBadgeTitle: ['同期の基準の枠 (同じグループのほかの枠がこの枠に合わせる)', 'The reference tile for sync (the other tiles in its group follow it)'],
   syncSetRefTitle: ['この枠を基準にする (同じグループのほかの枠がこの枠に合わせる)', 'Use this tile as the reference (the other tiles in its group follow it)'],
   syncGroupN: ['グループ {0}', 'Group {0}'],
-  syncGroupNew: ['グループ {0} (新しく)', 'Group {0} (new)'],
   syncGroupAuto: ['自動', 'Auto'],
   syncGroupNone: ['同期しない', "Don't sync"],
   syncGroupTitle: [

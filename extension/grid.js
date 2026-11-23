@@ -2519,7 +2519,7 @@ const Sync = (() => {
     const groupOptions = (i) => {
       const cur = manual.has(i) ? String(manual.get(i).g) : 'auto';
       const opts = [['auto', tr('syncGroupAuto')]];
-      for (let g = 1; g <= SyncGroups.MAX; g++) opts.push([String(g), groups.has(g) ? tr('syncGroupN', g) : tr('syncGroupNew', g)]);
+      for (let g = 1; g <= SyncGroups.MAX; g++) opts.push([String(g), tr('syncGroupN', g)]); // まだ無い番号を選ぶと、そのグループを作る
       opts.push(['0', tr('syncGroupNone')]);
       return opts.map(([v, label]) => mk('option', { value: v, selected: v === cur }, label));
     };
