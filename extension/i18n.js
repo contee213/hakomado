@@ -337,6 +337,12 @@ const MESSAGES = {
   syncDockToSide: ['画面の右の列にする (枠の並びを縮めて、重ねない)', 'Dock it on the right (the tiles shrink to make room)'],
   syncUndoTitle: ['直前のずれの変更 ({0} 枠) を元に戻す', 'Undo the last offset change ({0} tile(s))'],
   syncUndone: ['ずれを元に戻しました', 'Offset restored'],
+  syncGroupPauseLabel: ['⏸ 一時停止', '⏸ Pause'],
+  syncGroupPlayLabel: ['▶ 再生', '▶ Play'],
+  syncAudioLabel: ['🎧 音で測る', '🎧 Measure'],
+  syncResetLabel: ['↺ 0 に戻す', '↺ Reset'],
+  syncWaitLabel: ['⏸ 待つ', '⏸ Wait'],
+  syncWaitResumeLabel: ['▶ 合わせる', '▶ Match'],
   syncResetTitle: ['実際の時刻に戻す (ずれを 0 にする)。手で合わせてうまくいかなかったときに', 'Back to real time (set the offset to 0). For when adjusting by hand went wrong'],
   syncResetGroupTitle: [
     'グループ {0} のずれを全部 0 に戻す (配信していた実際の時刻だけでそろえ直す)。「↶ 元に戻す」で戻せます',

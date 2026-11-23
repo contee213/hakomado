@@ -2524,6 +2524,7 @@ const Sync = (() => {
           : null,
         mk('span', { class: 'dr-num' }, String(tileNo(i))),
         mk('span', { class: 'dr-name', title: tileName(i) || '' }, tileName(i) || state.tiles[i].videoId),
+        isRef ? mk('span', { class: 'dr-ref-tag', title: tr('syncRefBadgeTitle') }, tr('syncRefShort')) : null,
         r.short,
         r.dot,
         groupSel,
@@ -2679,7 +2680,7 @@ const Sync = (() => {
       });
       h.play = mk('button', { type: 'button', class: 'dg-play', onclick: () => togglePauseGroup(G) });
       h.audio = mk('button', { type: 'button', class: 'dg-audio sync-audio', title: tr('syncAudioTitle'), onclick: () => AudioSync.toggle(G.g) });
-      h.reset = mk('button', { type: 'button', class: 'dg-reset', textContent: '↺', title: tr('syncResetGroupTitle', G.g), onclick: () => resetGroup(G) });
+      h.reset = mk('button', { type: 'button', class: 'dg-reset', textContent: tr('syncResetLabel'), title: tr('syncResetGroupTitle', G.g), onclick: () => resetGroup(G) });
       h.now = mk('span', { class: 'sync-time dg-now' });
       h.end = mk('span', { class: 'sync-time dg-end' });
       h.range = mk('input', { type: 'range', class: 'dg-range', min: 0, max: 1, step: 1, value: 0, title: tr('syncSeekGroup', G.g) });
@@ -2687,7 +2688,8 @@ const Sync = (() => {
       h.note = mk('div', { class: 'dg-note' });
       const ok = active(G);
       const kids = [
-        mk('div', { class: 'dg-head' }, mk('span', { class: 'dg-num', title: tr('syncGroupN', G.g) }, String(G.g)), modeSel, ok ? h.play : null, ok && !isMovie(G) ? h.audio : null, ok && !isMovie(G) ? h.reset : null),
+        mk('div', { class: 'dg-head' }, mk('span', { class: 'dg-num', title: tr('syncGroupN', G.g) }, String(G.g)), modeSel),
+        ok ? mk('div', { class: 'dg-actions' }, h.play, !isMovie(G) ? h.audio : null, !isMovie(G) ? h.reset : null) : null,
         ok ? mk('div', { class: 'dg-seek' }, h.now, h.range, h.end) : null,
         h.note,
         ok ? AudioSync.resultEl(G.g) : null,
@@ -2732,11 +2734,11 @@ const Sync = (() => {
           continue;
         }
         const playing = G.clock.playing && !G.paused;
-        h.play.textContent = playing ? '⏸' : '▶';
+        h.play.textContent = tr(playing ? 'syncGroupPauseLabel' : 'syncGroupPlayLabel');
         h.play.title = tr(playing ? 'syncGroupPause' : 'syncGroupPlay');
         fillSeek(h.range, h.now, h.end, G);
         const a = AudioSync.progressText(g);
-        h.audio.textContent = a || '🎧';
+        h.audio.textContent = a || tr('syncAudioLabel');
         h.audio.classList.toggle('is-measuring', !!a);
         h.audio.disabled = AudioSync.busyOther(g);
         h.reset.disabled = !membersOf(g).some((i) => movable(i) && off(i) !== 0);
@@ -2755,7 +2757,7 @@ const Sync = (() => {
           r.val.dataset.shown = txt;
         }
         if (r.wait) {
-          r.wait.textContent = wait ? '▶' : '⏸';
+          r.wait.textContent = tr(wait ? 'syncWaitResumeLabel' : 'syncWaitLabel');
           r.wait.title = tr(wait ? 'syncWaitResumeTitle' : 'syncWaitTitle');
           r.wait.classList.toggle('is-waiting', !!wait);
         }
@@ -2792,6 +2794,9 @@ const Sync = (() => {
         update();
       });
       document.getElementById('syncUndo').addEventListener('click', undo);
+      document.getElementById('syncLegend').replaceChildren(
+        ...['ok', 'fix', 'ref', 'wait'].map((st) => mk('span', { class: 'dock-legend-item' }, mk('span', { class: 'dr-dot is-' + st }), tr('syncDot_' + st))),
+      );
       document.getElementById('syncDockFloat').addEventListener('click', () => setFloating(!floating));
       setupDrag();
       setMini(false);
