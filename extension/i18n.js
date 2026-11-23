@@ -104,6 +104,7 @@ const MESSAGES = {
   kindFocus: ['メイン重視', 'Main focus'],
   kindBalance: ['バランス', 'Balanced'],
   layoutTitle: ['{0} ({1} 枠)', '{0} ({1} tiles)'],
+  tileCorner: ['ストレッチで切るとき、{0}の角を残す (押すと切り替え。配信者が映っている角に)', 'When stretching crops the video, keep the {0} corner (click to change; pick the corner where the streamer appears)'],
   tileClear: ['この枠を閉じる', 'Close this tile'],
   tileRemove: ['この空き枠を消す (枠の数に合ったレイアウトに変わります)', 'Remove this empty tile (the layout changes to fit the number of tiles)'],
   ytLogin: ['YouTube にログインすると使えます', 'Sign in to YouTube to use this'],
@@ -1140,10 +1141,8 @@ const HTML_EN = {
   'notice.empty': 'No notifications yet. When a channel goes live, it shows up here (checked while this page is open).',
   'progress.title': 'Preparing auto play',
   'layout.anchor': 'Placement',
-  'fit.fit': 'Standard',
-  'fit.fitTitle': 'Make every tile exactly 16:9 (Shorts tiles lean toward 9:16). If the screen ratio differs, the leftover space goes to the outer margins',
   'fit.fill': 'Stretch',
-  'fit.fillTitle': 'Fill the screen with no margins. Videos are zoomed to fit their tiles and the edges are cropped (vertical videos are not cropped)',
+  'fit.fillTitle': 'Stretch: fill the screen with no margins. Videos are zoomed to fit their tiles and the edges are cropped (vertical videos are not cropped). When off (standard), every tile is exactly 16:9 and any leftover space goes to the outer margins',
   'layout.note': 'Darker tiles are main tiles. Streams fill tile 1 (main) first. Drag ⠿ on a tile to swap.',
 
   // チャンネル・ピックアップ

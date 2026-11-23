@@ -75,7 +75,8 @@ function newTileState() {
   // pan = 音の左右 (-1 = 左・0 = 真ん中・1 = 右)、gain = 音量 (1 = 元のまま、0〜2)。枠の中の Web Audio で変える (content/watch.js)
   // speed = 再生速度 (1 = 等速)。同期中のグループの枠は、グループの速度にそろえる (Sync)。ライブ配信では使わない (等速)
   // short = ショートとして縦長 (9:16) の枠で見せる。読み込む前に、URL (/shorts/) で決める (isShortHint)
-  return { input: '', videoId: null, chat: false, danmaku: null, muted: true, auto: false, queue: false, fill: false, label: '', pan: 0, gain: 1, delay: 0, speed: 1, short: false };
+  // corner = ストレッチで映像の端を切るとき、残す角 (CORNERS)。配信者が映る角は配信ごとに違うので、動画を変えたら右下に戻す
+  return { input: '', videoId: null, chat: false, danmaku: null, muted: true, auto: false, queue: false, fill: false, label: '', pan: 0, gain: 1, delay: 0, speed: 1, short: false, corner: 'br' };
 }
 
 /**
@@ -144,6 +145,7 @@ function applySession(saved = {}) {
       if ('gain' in picked) picked.gain = clampGain(picked.gain);
       if ('delay' in picked) picked.delay = clampDelay(picked.delay);
       if ('speed' in picked) picked.speed = clampSpeed(picked.speed);
+      if ('corner' in picked && !CORNERS.includes(picked.corner)) delete picked.corner;
       // 以前の版は弾幕の初期値が「表示」だったので、そのときの true は自動 (メイン枠だけ) として扱う
       if (!saved.dmAuto && picked.danmaku === true) picked.danmaku = null;
       // あとで見るの再生中かどうかは保存しない (開き直したら、ふつうの枠として扱う)
@@ -542,6 +544,7 @@ function relayoutIfVerticalChanged() {
 function layout() {
   const l = state.layout;
   verticalShape = verticalKey();
+  setToggle(document.getElementById('fitFill'), state.fit === 'fill');
   if (state.fit === 'fill') {
     // ストレッチ: 格子を均等に割り、映像は枠に合わせて拡大 (端が切れる。縦長の映像は枠のプレイヤー側で切らずに収める)
     gridEl.style.gridTemplateColumns = `repeat(${l.cols}, minmax(0, 1fr))`;
@@ -703,6 +706,29 @@ function setFit(mode) {
     postToFrame(v.player, { hakomado: 'fill', on: mode === 'fill' });
   }
   layout();
+  for (let i = 0; i < MAX_TILES; i++) renderCornerButton(i);
+  save();
+}
+
+// ストレッチで残す角: 右下 → 左下 → 左上 → 右上 の順に切り替える
+const CORNERS = ['br', 'bl', 'tl', 'tr'];
+const CORNER_ICON = { br: '↘', bl: '↙', tl: '↖', tr: '↗' };
+
+/** 枠のバーの「残す角」ボタン (ストレッチのときだけ出す) */
+function renderCornerButton(i) {
+  const btn = views[i].el.querySelector('.bar [data-act="corner"]');
+  const c = state.tiles[i].corner;
+  btn.hidden = state.fit !== 'fill';
+  btn.textContent = CORNER_ICON[c];
+  btn.title = tr('tileCorner', tr('anchor_' + c));
+}
+
+/** 枠 i のストレッチで残す角を次に切り替え、プレイヤーに伝える */
+function cycleCorner(i) {
+  const t = state.tiles[i];
+  t.corner = CORNERS[(CORNERS.indexOf(t.corner) + 1) % CORNERS.length];
+  postToFrame(views[i].player, { hakomado: 'corner', corner: t.corner });
+  renderCornerButton(i);
   save();
 }
 
@@ -781,7 +807,7 @@ function setTileVideo(i, videoId, input) {
   views[i].danmaku.clear();
   // 手で読み込んだ枠は自動再生でも消さない
   // 音の遅延はその配信のずれに合わせた値なので、別の動画にしたら戻す。速度もその動画のために決めたものなので戻す
-  Object.assign(state.tiles[i], { input, videoId, auto: false, queue: false, fill: false, label: '', delay: 0, short: isShortHint(input), ...(prev !== videoId ? { speed: 1 } : {}) });
+  Object.assign(state.tiles[i], { input, videoId, auto: false, queue: false, fill: false, label: '', delay: 0, short: isShortHint(input), ...(prev !== videoId ? { speed: 1, corner: 'br' } : {}) });
   // 新しく読み込んだ枠は、他に音の出ている枠が無ければ音を出す
   const anyAudible = state.tiles.some((t, j) => j !== i && isVisible(j) && t.videoId && !t.muted);
   state.tiles[i].muted = anyAudible;
@@ -799,6 +825,7 @@ function playerUrl(t) {
     hakomado: '1',
     hakomado_muted: t.muted ? '1' : '0',
     hakomado_fill: state.fit === 'fill' ? '1' : '0',
+    hakomado_corner: t.corner,
   });
   return `${YT}/watch?${p}`;
 }
@@ -977,6 +1004,7 @@ function renderTile(i, { reloadPlayer = false, reloadChat = false } = {}) {
   el.classList.toggle('audible', visible && !!t.videoId && !t.muted && state.count > 1);
   setToggle(el.querySelector('.bar [data-act="chat"]'), t.chat);
   setToggle(el.querySelector('.bar [data-act="danmaku"]'), tileDanmaku(i));
+  renderCornerButton(i);
   renderSpeedButton(i);
   renderSpeedAll();
   renderMix(i);
@@ -1668,6 +1696,9 @@ function onBarAction(i, act, e) {
         renderTile(i);
       }
       break;
+    case 'corner':
+      cycleCorner(i);
+      return;
     case 'chat':
       t.chat = !t.chat;
       renderTile(i);
@@ -4906,21 +4937,12 @@ function setupLayoutPicker() {
     anchorSeg.appendChild(b);
   }
 
-  const fitButtons = dialog.querySelectorAll('[data-fit]');
-  const refresh = () => {
-    for (const b of fitButtons) b.classList.toggle('selected', b.dataset.fit === state.fit);
-    renderTab();
-  };
-  for (const b of fitButtons) {
-    b.addEventListener('click', () => {
-      setFit(b.dataset.fit);
-      refresh();
-    });
-  }
   document.getElementById('openLayout').addEventListener('click', () => {
-    refresh();
+    renderTab();
     dialog.showModal();
   });
+  // 上部バーの「ストレッチ」: ON = 余白なしで画面を埋める / OFF = 標準 (どの枠も 16:9)
+  document.getElementById('fitFill').addEventListener('click', () => setFit(state.fit === 'fill' ? 'fit' : 'fill'));
   document.getElementById('layoutClose').addEventListener('click', () => dialog.close());
   closeOnBackdrop(dialog);
   document.getElementById('addTile').addEventListener('click', () => addTileSlot());

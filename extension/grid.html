@@ -20,6 +20,7 @@
     <button id="openLayout" type="button" data-i18n-title="layout.title" title="レイアウトを選ぶ"><span class="tb-icon">▦</span><span id="layoutName" class="tb-label"></span></button>
     <button id="addTile" type="button" data-i18n-title="addTile.title" title="枠を 1 つ増やす (枠の数に合ったレイアウトに変わります)"><span class="tb-icon">＋</span></button>
     <button id="removeTile" type="button" data-i18n-title="removeTile.title" title="空き枠を 1 つ減らす (枠の数に合ったレイアウトに変わります)。配信を読み込んだ枠は消しません"><span class="tb-icon">−</span></button>
+    <button id="fitFill" class="toggle" type="button" aria-pressed="false" data-i18n-title="fit.fillTitle" title="ストレッチ: 余白なしで画面を埋める。映像は枠に合わせて拡大し、はみ出た端は切れる (縦長の動画は切らずに収める)。OFF (標準) はどの枠も 16:9 ちょうどの大きさにし、画面と比率が合わない分は外側の余白になる"><span class="tb-icon">⤢</span><span class="tb-label" data-i18n="fit.fill">ストレッチ</span></button>
     <button id="autoMode" class="toggle" type="button" aria-pressed="false" data-i18n-title="auto.title" title="自動再生 (L): 配信中のチャンネルを並べ、始まった・終わった配信に合わせて枠を増減する"><span class="tb-icon"><svg class="helm" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="4.3" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="8" cy="8" r="1.4"/><path d="M7.25 0.6h1.5v14.8h-1.5z M0.6 7.25h14.8v1.5H0.6z"/><path transform="rotate(45 8 8)" d="M7.25 0.6h1.5v14.8h-1.5z M0.6 7.25h14.8v1.5H0.6z"/></svg></span><span class="tb-label" data-i18n="auto.label">自動再生</span></button>
     <button id="cruise" class="toggle" type="button" aria-pressed="false" data-i18n-title="cruise.title" title="クルーズ (C): 一定時間ごとに、メイン枠と音声を次の配信へ回す"><span class="tb-icon"><svg class="ship" viewBox="0 0 16 16" aria-hidden="true"><path d="M9 2.5h2v2.5H9z"/><path d="M4.5 5h8v2h-8z"/><path d="M3.5 7.5h10v2h-10z"/><path d="M1 10h14l-2.4 3.5H3.4z"/></svg></span><span class="tb-label" data-i18n="cruise.label">クルーズ</span><i class="cruise-progress" aria-hidden="true"></i></button>
     <button id="pauseAll" class="toggle" type="button" aria-pressed="false" data-i18n-title="pauseAll.title" title="全部の枠をまとめて一時停止 / 再開 (Space)。再開するとき、ライブ配信は最新の位置に戻ります"><span class="tb-icon">⏸</span><span class="tb-label" data-i18n="pauseAll.label">一時停止</span></button>
@@ -554,9 +555,6 @@
       <header class="fav-head">
         <h2 data-i18n="layout.h">▦ レイアウト</h2>
         <span class="spacer"></span>
-        <span class="seg">
-          <button type="button" data-fit="fit" data-i18n="fit.fit" data-i18n-title="fit.fitTitle" title="どの枠も 16:9 ちょうどの大きさにする (ショートの枠は 9:16 に寄せる)。画面と比率が合わない分は外側の余白になる">標準</button><button type="button" data-fit="fill" data-i18n="fit.fill" data-i18n-title="fit.fillTitle" title="余白なしで画面を埋める。映像は枠に合わせて拡大し、はみ出た端は切れる (縦長の動画は切らずに収める)">ストレッチ</button>
-        </span>
         <button type="button" id="layoutClose" class="dialog-close" data-i18n-title="close" title="閉じる (Esc)">✕</button>
       </header>
       <p class="layout-note"><span data-i18n="layout.note">濃い枠がメイン。読み込んだ配信は 1 番 (メイン) から順に入ります。枠の ⠿ をドラッグで入れ替え。</span></p>
@@ -760,6 +758,7 @@
             <button type="button" data-act="audio" data-i18n-title="tile.audio" title="この枠だけ音を出す (他の枠はミュート)。複数枠で同時に聞くときは枠内のプレイヤーのスピーカーで"></button>
             <button type="button" data-act="mix" class="mix-btn" data-i18n-title="tile.mix" title="この枠の音の左右 (L / C / R)・音量・遅延 (ライブ配信のとき)">🎚</button>
             <button type="button" data-act="speed" class="speed-btn">1×</button>
+            <button type="button" data-act="corner" hidden>↘</button>
             <button type="button" data-act="chat" class="toggle" data-i18n-title="tile.chat" title="チャット欄の表示">💬</button>
             <button type="button" data-act="danmaku" class="toggle" data-i18n-title="tile.danmaku" title="この枠の弾幕の表示">≋</button>
             <button type="button" data-act="fav" class="toggle" title="この枠のチャンネルをピックアップに入れる">📌</button>
