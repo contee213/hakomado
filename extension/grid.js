@@ -2302,7 +2302,7 @@ const Sync = (() => {
     forceSeek.add(i); // 速度で詰めず、すぐ合わせ直す
     tick();
   }
-  /** 🎧 の結果など、いくつかの枠のずれをまとめて変える */
+  /** ✨ 自動補正の結果など、いくつかの枠のずれをまとめて変える */
   function applyOffsets(pairs) {
     for (const [i, v] of pairs) setOffset(i, v);
   }
@@ -2327,7 +2327,7 @@ const Sync = (() => {
   }
 
   // ---------------------------------------------------------------- 同期の調整パネル (浮かぶ小窓 / 画面の右の列)
-  // グループごとに見出し (番号と色・そろえ方・⏸・🎧・つまみ) と、枠の行 (基準・ずれ・止めて待つ・🎧 の候補・追いつき具合・グループ) を並べる。
+  // グループごとに見出し (番号と色・そろえ方・⏸・✨ 自動補正・つまみ) と、枠の行 (基準・ずれ・止めて待つ・✨ 自動補正の候補・追いつき具合・グループ) を並べる。
   // 置き方は 2 通り (見出しのボタンで切り替え。この画面を開いたブラウザで覚える):
   // - 浮かぶ小窓: 枠の上に半透明で重ねる (枠の大きさは変わらない)。見出しをつかんで動かせる。左上の位置は固定で、中身が増えると下へ伸びる
   // - 右の列: 枠の並びを横に縮めて置く (枠に重ねない)
@@ -2987,7 +2987,7 @@ const Sync = (() => {
         if (r.steps && !r.locked) for (const b of r.steps) b.disabled = movie && anchor(i) == null;
         if (r.cand) {
           const c = AudioSync.candidateFor(i);
-          r.cand.textContent = c == null ? '' : c === false ? '🎧 —' : `🎧 ${signedSec(c)}`;
+          r.cand.textContent = c == null ? '' : c === false ? '✨ —' : `✨ ${signedSec(c)}`;
         }
         const st = wait ? 'wait' : drift.get(i) || 'none';
         r.dot.className = 'dr-dot is-' + st;
@@ -3041,7 +3041,7 @@ const Sync = (() => {
     Dock.setup();
   }
 
-  /** グループの様子 (🎧 音で合わせる用): {ref, tiles, movie, active}。無ければ null */
+  /** グループの様子 (✨ 自動補正用): {ref, tiles, movie, active}。無ければ null */
   function groupInfo(g) {
     const G = on ? groups.get(g) : null;
     if (!G) return null;
@@ -3069,9 +3069,9 @@ const Sync = (() => {
   };
 })();
 
-// ---------------------------------------------------------------- 🎧 音で合わせる (アーカイブの同期再生のずれを、音で測って直す)
+// ---------------------------------------------------------------- ✨ 自動補正 (今は音で合わせる。アーカイブの同期再生のずれを、音で測って直す)
 // コラボの各視点には通話の声が共通して入っているので、同期しているグループの枠の音を 90 秒聞いて突き合わせ、ずれを求める。
-// - 同期の調整パネルのグループの見出しの 🎧 で始める (一度に 1 グループ)。今の位置からそのまま再生しながら測る
+// - 同期の調整パネルのグループの見出しの「✨ 自動補正」で始める (一度に 1 グループ)。今の位置からそのまま再生しながら測る
 //   (基準の枠が再生している間だけ数える)。もう一度押すとやめる
 // - 測っている間は、各枠の中 (content/watch.js の Mix) が音の大きさを記録して送ってくる。消音中の枠もプレイヤーの消音を外して
 //   Web Audio 側で消音するので、聞こえ方は変わらない。終わったら元の消音に戻す
@@ -3220,7 +3220,7 @@ const AudioSync = (() => {
     const info = Sync.groupInfo(result.g);
     return !!info && !info.movie && info.ref === result.ref && result.tiles.every((i) => state.tiles[i].videoId === result.ids.get(i));
   }
-  /** パネルの行の 🎧 の候補: 数 / false (決められなかった) / null (候補なし) */
+  /** パネルの行の ✨ の候補: 数 / false (決められなかった) / null (候補なし) */
   function candidateFor(i) {
     if (!resultValid() || !result.tiles.includes(i) || i === result.ref) return null;
     return proposed(i) ?? false;
@@ -3290,7 +3290,7 @@ const AudioSync = (() => {
     notify(tr('syncAudioApplied', pairs.length));
   }
 
-  /** グループ g の見出しの 🎧 に出す進み具合 (測っていなければ '') */
+  /** グループ g の見出しの ✨ に出す進み具合 (測っていなければ '') */
   function progressText(g) {
     if (!run || run.g !== g) return '';
     return run.closed ? tr('syncAudioAnalyzing') : tr('syncAudioMeasuring', Math.floor(run.played), MEASURE_SEC);
@@ -3301,7 +3301,7 @@ const AudioSync = (() => {
     chunk,
     blocked,
     isMeasuring: () => !!run,
-    /** ほかのグループで測っている (このグループの 🎧 は押せない) */
+    /** ほかのグループで測っている (このグループの ✨ は押せない) */
     busyOther: (g) => !!run && run.g !== g,
     progressText,
     candidateFor,
@@ -3583,7 +3583,7 @@ window.addEventListener('message', (e) => {
     // 枠の中で左右・音量の経路を作れなかった (AudioContext が動かない)
     if (data.ok === false) showToast(i, tr('mixBlocked'));
   } else if (data.hakomado === 'envChunk') {
-    AudioSync.chunk(i, data); // 🎧 音で合わせる: 枠の音の大きさの記録
+    AudioSync.chunk(i, data); // ✨ 自動補正: 枠の音の大きさの記録
   } else if (data.hakomado === 'measure') {
     if (data.ok === false) AudioSync.blocked(i);
   } else if (data.hakomado === 'live') {
