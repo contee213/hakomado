@@ -5749,18 +5749,40 @@ async function copyField(el) {
 /** 共有画面で今の枠に付ける名前 (このタブで最後に付けたもの。読み込んで枠に並べたときはその名前) */
 let shareTilesName = '';
 
-/** 共有画面を開く。source = 'tiles' (今の枠) か、再生リストの ID */
+// 🔗 共有 と 📥 読み込む は、1 つの受け渡しの画面 (#xferDialog) の 2 つの側。上の 2 択で切り替える
+// (上部バーの 🔗・📥 はそれぞれの側で開く)。中身はそれぞれ setupShare・setupRead が受け持つ
+
+/** 受け渡しの画面で side ('share' / 'read') の側を出す (閉じていれば開く) */
+function showXfer(side) {
+  const dialog = document.getElementById('xferDialog');
+  for (const p of dialog.querySelectorAll('[data-xpane]')) p.hidden = p.dataset.xpane !== side;
+  for (const b of dialog.querySelectorAll('[data-xfer]')) {
+    b.classList.toggle('selected', b.dataset.xfer === side);
+    b.setAttribute('aria-selected', String(b.dataset.xfer === side));
+  }
+  dialog.dataset.side = side;
+  if (!dialog.open) dialog.showModal();
+}
+
+/** 受け渡しの画面で今出ている側 (閉じていれば null) */
+function xferSide() {
+  const dialog = document.getElementById('xferDialog');
+  return dialog.open ? dialog.dataset.side : null;
+}
+
+/** 共有の側を開く。source = 'tiles' (今の枠) か、再生リストの ID */
 let openShareDialog = () => {};
 
 function setupShare() {
-  const dialog = document.getElementById('shareDialog');
+  const dialog = document.getElementById('xferDialog');
+  const pane = document.getElementById('sharePane');
   const sourceEl = document.getElementById('shareSource');
   const nameEl = document.getElementById('shareName');
   const status = document.getElementById('shareStatus');
   const imgEl = document.getElementById('shareImg');
   const textEl = document.getElementById('shareText');
   const linkEl = document.getElementById('shareLink');
-  const tabs = dialog.querySelectorAll('[data-stab]');
+  const tabs = pane.querySelectorAll('[data-stab]');
   const imgBtns = ['shareToX', 'shareImgCopy', 'shareImgSave'].map((id) => document.getElementById(id));
   const feedBtn = document.getElementById('shareToFeed');
   const outBtns = [...imgBtns, feedBtn, ...['shareAltCopy', 'shareCopyText', 'shareCopyLink'].map((id) => document.getElementById(id))];
@@ -5771,6 +5793,7 @@ function setupShare() {
   const authorEl = document.getElementById('shareAuthor');
   let authorTimer = 0;
   let source = 'tiles';
+  let filled = false; // 共有の側を一度でも開いたか
   let set = null; // 今の共有セット (共有するものが無ければ null)
   let tab = 'image';
   let imageBlob = null;
@@ -5871,7 +5894,7 @@ function setupShare() {
       t.classList.toggle('selected', t.dataset.stab === tab);
       t.setAttribute('aria-selected', String(t.dataset.stab === tab));
     }
-    for (const p of dialog.querySelectorAll('.share-panel')) p.hidden = p.dataset.spanel !== tab;
+    for (const p of pane.querySelectorAll('.share-panel')) p.hidden = p.dataset.spanel !== tab;
     try {
       localStorage.setItem(TAB_KEY, tab);
     } catch {
@@ -5915,10 +5938,13 @@ function setupShare() {
     await fillName();
     clearImage();
     setStatus('');
-    if (!dialog.open) dialog.showModal();
+    filled = true;
+    showXfer('share');
     await refresh();
   };
   document.getElementById('openShare').addEventListener('click', () => openShareDialog());
+  // 読み込むの側から戻ったときは、前に選んでいたもの (今の枠 / 再生リスト) のまま作り直す (読み込んだもので変わっているかもしれないので)
+  dialog.querySelector('[data-xfer="share"]').addEventListener('click', () => openShareDialog({ source: filled ? source : 'tiles' }));
 
   sourceEl.addEventListener('change', async () => {
     source = sourceEl.value;
@@ -6008,7 +6034,7 @@ function setupShare() {
 
   // 開いている間に再生リストが編集・削除されたら作り直す (名前欄は書きかけを残す)
   chrome.storage.onChanged.addListener(async (changes, area) => {
-    if (area !== 'local' || !Playlists.isChange(changes) || !dialog.open) return;
+    if (area !== 'local' || !Playlists.isChange(changes) || xferSide() !== 'share') return;
     if (await fillSources()) await fillName();
     if (source !== 'tiles') {
       clearImage();
@@ -6030,7 +6056,7 @@ function setupShare() {
 let openReadDialog = () => {};
 
 function setupRead() {
-  const dialog = document.getElementById('readDialog');
+  const dialog = document.getElementById('xferDialog');
   const input = document.getElementById('readIn');
   const summary = document.getElementById('readSummary');
   const nameEl = document.getElementById('readName');
@@ -6045,7 +6071,7 @@ function setupRead() {
   let nameTouched = false; // 名前を自分で書いたら、読み取った名前で上書きしない
   let busy = false;
   let lead = '';
-  closeOnBackdrop(dialog);
+  // 外側を押して閉じるのは setupShare で付けてある (同じ画面)
 
   const setSummary = (text, isError = false) => {
     summary.textContent = [lead, text].filter(Boolean).join('\n');
@@ -6150,7 +6176,7 @@ function setupRead() {
       nameEl.value = '';
       nameTouched = false;
     }
-    if (!dialog.open) dialog.showModal();
+    showXfer('read');
     if (image) await readImage(image);
     else await parse(); // 前に貼ったものが残っていれば読み直す (名前の重なりなどが変わっているかもしれないので)
     (parsed ? primaryBtn() : input).focus();
@@ -6178,6 +6204,7 @@ function setupRead() {
     if (!file && !url) return;
     e.preventDefault();
     lead = '';
+    showXfer('read'); // 共有の側に落としても、読み込むの側で読む
     if (file) {
       readImage(file);
       return;
@@ -6297,18 +6324,18 @@ function setupRead() {
   });
 
   document.getElementById('openRead').addEventListener('click', () => openReadDialog({ primary: 'apply' }));
+  dialog.querySelector('[data-xfer="read"]').addEventListener('click', () => openReadDialog({ primary }));
 
   // 画面のどこかで貼り付けた (入力欄の外で Ctrl+V) ときも、共有されたものならここで読む。
-  // ほかの画面 (設定など) を開いているときは何もしない。共有画面からは、こちらに切り替える
+  // ほかの画面 (設定など) を開いているときは何もしない。共有の側からは、読み込むの側に切り替える
   document.addEventListener('paste', (e) => {
     if (e.target instanceof Element && e.target.closest('input, textarea, select, [contenteditable]')) return;
     const open = [...document.querySelectorAll('dialog[open]')];
-    if (open.some((d) => d !== dialog && d.id !== 'shareDialog')) return;
+    if (open.some((d) => d !== dialog)) return;
     const image = [...(e.clipboardData?.files || [])].find((f) => f.type.startsWith('image/'));
     const text = e.clipboardData?.getData('text/plain') || '';
     if (!image && !text.trim()) return;
     e.preventDefault();
-    document.getElementById('shareDialog').close();
     openReadDialog({ primary: 'apply', text: image ? null : text, image });
   });
 }
@@ -10267,9 +10294,10 @@ const SESSION_LOCK_PREFIX = 'hakomado-session:';
 const START_CHOICE_KEY = 'hakomado.startChoice'; // sessionStorage: 開き直したときに始める内容 (ロゴのボタンで選んだもの)
 
 let choosingStart = false;
+let startWithRead = false; // 「読み込んで始める」を選んだ: 空の枠で始めて、起動し終えたら 📥 読み込むの側を開く
 
 /**
- * ロゴのボタン: 起動時と同じ選択画面 (ほかの保存内容で再開 / 新しく / 自動再生で) を出す。
+ * ロゴのボタン: 起動時と同じ選択画面 (ほかの保存内容で再開 / 新しく / 読み込んで / 自動再生で) を出す。
  * キャンセル (Esc) なら何もしない。選んだら今の内容を保存してから開き直し、選んだ内容で始める
  * (今の内容は残るので、あとでまた選べる)
  */
@@ -10285,6 +10313,7 @@ async function backToStart() {
     const choices = resumable.map((s) => ({ value: 'resume:' + s.id, label: tr('resumeThis'), note: describeSession(s.data).lines }));
     choices.push(
       { value: 'new', label: tr('startNew'), note: tr('startNewNote') },
+      { value: 'read', label: tr('startRead'), note: tr('startReadNote') },
       { value: 'auto', label: tr('startAuto'), note: tr('startAutoNote') },
     );
     const choice = await askChoice({ title: tr('chooseTitle'), body: [], choices, cancelValue: 'cancel' });
@@ -10544,8 +10573,9 @@ async function chooseSession() {
     applySession(pickedSession.data);
     return false;
   }
-  if (picked === 'new' || picked === 'auto') {
+  if (picked === 'new' || picked === 'auto' || picked === 'read') {
     startNew();
+    startWithRead = picked === 'read';
     return picked === 'auto';
   }
 
@@ -10561,6 +10591,7 @@ async function chooseSession() {
   }));
   choices.push(
     { value: 'new', label: tr('startNew'), note: tr('startNewNote') },
+    { value: 'read', label: tr('startRead'), note: tr('startReadNote') },
     { value: 'auto', label: tr('startAuto'), note: tr('startAutoNote') },
   );
   const body = document.createElement('p');
@@ -10573,6 +10604,7 @@ async function chooseSession() {
     return false;
   }
   startNew();
+  startWithRead = choice === 'read';
   return choice === 'auto';
 }
 
@@ -10615,6 +10647,7 @@ async function chooseSession() {
   startNoticeWatch();
   handleImportLink();
   handleAddLink();
+  if (startWithRead) openReadDialog({ primary: 'apply' });
   // 右クリックのメニューからの追加を受け取る (起動し終えてから。それまでに押されたものは新しいタブで開く)
   chrome.tabs
     .getCurrent()

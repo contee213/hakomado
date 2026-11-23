@@ -827,6 +827,8 @@ const MESSAGES = {
   resumeThis: ['▶ この内容で再開', '▶ Resume this'],
   startNew: ['新しく始める', 'Start fresh'],
   startNewNote: ['空の枠から始めます', 'Start with empty tiles'],
+  startRead: ['読み込んで始める', 'Start from something shared'],
+  startReadNote: ['共有された画像・リンク・テキストなどを貼って、枠に並べます', 'Paste a shared image, link, text and so on, and lay it out in tiles'],
   startAuto: ['自動再生で始める', 'Start with auto play'],
   startAutoNote: ['配信中のチャンネルを全部再生します', 'Play all your live channels'],
   inUse: [
@@ -850,7 +852,7 @@ function tr(key, ...args) {
 // 画面 (grid.html) の英語。キーは data-i18n* 属性の値。日本語は grid.html に書いてあるものを使う
 const HTML_EN = {
   // 上部バー
-  'brand.title': 'Show the start screen (resume another saved session / start fresh / start with auto play). Cancel to keep watching',
+  'brand.title': 'Show the start screen (resume another saved session / start fresh / start from something shared / start with auto play). Cancel to keep watching',
   'auto.title': 'Auto play (L): lay out live channels and add or remove tiles as streams start and end',
   'auto.label': 'Auto play',
   'cruise.title': 'Cruise (C): move the main tile and audio to the next stream at a set interval',
@@ -1087,7 +1089,7 @@ const HTML_EN = {
 <li>Playback speed: tiles in a synced group can’t change speed on their own. Changing it on any tile in the group (its 1× button, the < > keys, or the player’s ⚙) changes the whole group, and the sync clock moves at that speed. A group with a live stream stays at normal speed</li>
 <li>Choosing the reference: make the tile you mainly listen to the reference, so its sound stays the most natural (the others change speed slightly or jump to keep up). If one tile needs a much larger offset than the rest, don’t make it the reference, so the other videos keep small offsets (offsets are remembered per video and reused in other sets)</li>
 </ul>`,
-  'helpPage.share': `<p>“🔗 Share” turns the current tiles or a playlist into one of three forms, depending on who you give it to.</p>
+  'helpPage.share': `<p>“🔗 Share” and “📥 Import” are one screen; switch between them at the top. “🔗 Share” turns the current tiles or a playlist into one of three forms, depending on who you give it to.</p>
 <ul>
 <li><b>Image</b>: attach it to a post on X or elsewhere. Scanning the QR opens it on YouTube, and Hakomado opens the same arrangement. You can also copy ALT text for the image. “𝕏 Post” opens the X post screen with the image, the name and the link filled in (you press Post yourself; the first time, it asks for access to x.com)</li>
 <li><b>Link</b>: send it directly, such as in a DM. It holds the same as the QR on the image (up to 16, the layout, offsets and the name). With Hakomado, opening it gives the same arrangement; without it, it opens as a YouTube playlist</li>
