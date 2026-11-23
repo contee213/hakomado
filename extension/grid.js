@@ -2429,7 +2429,7 @@ const Sync = (() => {
         d.style.removeProperty('max-height');
         return;
       }
-      const w = d.offsetWidth || 290;
+      const w = d.offsetWidth || 340;
       const top = document.body.classList.contains('grid-fs') ? 0 : 36;
       const x = pos ? pos.x : innerWidth - w - 16;
       const y = pos ? pos.y : top + 12;

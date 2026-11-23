@@ -1456,7 +1456,7 @@ code { font-size: 12px; background: #222228; padding: 0 4px; border-radius: 3px;
 .sync-dock-toggle.on { color: var(--on); border-color: var(--on); background: var(--on-bg); }
 
 /* ---------- 同期の調整パネル (画面の右の列。枠の並びはこの分だけ横に縮む) ---------- */
-:root { --dock-w: 290px; --dock-mini-w: 128px; }
+:root { --dock-w: 340px; --dock-mini-w: 144px; }
 body.sync-dock-open:not(.sync-dock-float) .grid { margin-right: var(--dock-w); }
 body.sync-dock-open.sync-dock-mini:not(.sync-dock-float) .grid { margin-right: var(--dock-mini-w); }
 .sync-dock {
@@ -1470,8 +1470,13 @@ body.sync-dock-open.sync-dock-mini:not(.sync-dock-float) .grid { margin-right: v
   flex-direction: column;
   background: var(--panel);
   border-left: 1px solid var(--line);
-  font-size: 12px;
+  font-size: 13px;
 }
+/* パネルの中の入力欄・時刻も、パネルの文字に合わせて大きめに */
+.sync-dock .sync-input { font-size: 13px; padding: 2px 5px; }
+.sync-dock .sync-time { font-size: 12px; }
+.sync-dock select { font-size: 13px; }
+.sync-dock button { min-height: 24px; }
 .sync-dock[hidden] { display: none; }
 .sync-dock.mini { width: var(--dock-mini-w); }
 body.grid-fs .sync-dock { top: 0; }
@@ -1492,33 +1497,33 @@ body.grid-fs .sync-dock { top: 0; }
 .sync-dock.floating .dock-group { border-color: #ffffff1f; }
 .dock-head { flex: none; display: flex; align-items: center; gap: 4px; padding: 6px 8px; border-bottom: 1px solid var(--line); }
 .dock-title { flex: 1; min-width: 0; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.dock-head button { padding: 0 6px; }
-.dock-body { flex: 1; min-height: 0; overflow-y: auto; padding: 6px; display: flex; flex-direction: column; gap: 8px; }
+.dock-head button { padding: 0 8px; }
+.dock-body { flex: 1; min-height: 0; overflow-y: auto; padding: 8px; display: flex; flex-direction: column; gap: 10px; }
 .dock-empty { margin: 8px; color: var(--muted); }
 /* パネルの中でグループの色を使うのは、見出しの番号の丸だけ (ほかは同じ色にして、✓ などの色とまぎれないように) */
-.dock-group { border: 1px solid var(--line); border-radius: 6px; padding: 4px; display: flex; flex-direction: column; gap: 4px; }
+.dock-group { border: 1px solid var(--line); border-radius: 6px; padding: 6px; display: flex; flex-direction: column; gap: 6px; }
 .dock-group.is-idle { opacity: .8; }
 .dock-rest { border-left-color: var(--line); }
 .dg-head { display: flex; align-items: center; gap: 4px; }
-.dg-head select { min-width: 0; flex: 1 1 auto; font-size: 12px; }
-.dg-head button { flex: none; padding: 0 6px; font-variant-numeric: tabular-nums; }
-.dg-num { flex: none; min-width: 18px; border-radius: 9px; background: var(--g); color: #111; font-weight: 700; line-height: 18px; text-align: center; }
+.dg-head select { min-width: 0; flex: 1 1 auto; }
+.dg-head button { flex: none; padding: 0 8px; font-variant-numeric: tabular-nums; }
+.dg-num { flex: none; min-width: 20px; border-radius: 10px; background: var(--g); color: #111; font-weight: 700; line-height: 20px; text-align: center; }
 .dg-title { color: var(--muted); }
-.dg-actions { display: flex; flex-wrap: wrap; gap: 4px; padding-left: 22px; }
-.dg-actions button { padding: 0 6px; font-size: 12px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.dg-actions { display: flex; flex-wrap: wrap; gap: 6px; padding-left: 24px; }
+.dg-actions button { padding: 0 8px; font-size: 13px; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .dg-seek { display: flex; align-items: center; gap: 4px; }
 .dg-range { flex: 1 1 auto; min-width: 40px; margin: 0; }
 /* 図: 各枠の開始のあたりを拡大。横棒 = 配信の実際の開始から右へ、補正の分は水色 (下の .tl-corr)、縦の白線 = 今。左に基準との開始の差、右に状態 */
-.dg-tl { display: flex; flex-direction: column; gap: 2px; padding: 2px 0 4px; font-size: 11px; font-variant-numeric: tabular-nums; }
+.dg-tl { display: flex; flex-direction: column; gap: 4px; padding: 2px 0 4px; font-size: 12px; font-variant-numeric: tabular-nums; }
 /* 目盛り: 棒と同じ横の範囲に、両端の開始の時刻と切れ目の ≈ を、その位置に置く */
 .tl-axis-row { display: flex; gap: 4px; }
-.tl-axis { position: relative; flex: 1 1 auto; height: 22px; margin: 0 72px 0 76px; color: var(--muted); font-size: 10px; }
-.tl-time { position: absolute; top: 0; white-space: nowrap; transform: translateX(-50%); line-height: 11px; }
+.tl-axis { position: relative; flex: 1 1 auto; height: 26px; margin: 0 84px 0 88px; color: var(--muted); font-size: 11px; }
+.tl-time { position: absolute; top: 0; white-space: nowrap; transform: translateX(-50%); line-height: 13px; }
 .tl-break { position: absolute; top: -1px; bottom: -1px; width: 4px; margin-left: -2px; background: var(--panel); transform: skewX(-20deg); z-index: 1; }
 .tl-row { display: flex; align-items: center; gap: 4px; }
-.tl-no { flex: none; width: 12px; color: var(--muted); text-align: right; }
-.tl-diff { flex: none; width: 56px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.tl-track { position: relative; flex: 1 1 auto; min-width: 60px; height: 8px; border-radius: 2px; background: #ffffff10; }
+.tl-no { flex: none; width: 14px; color: var(--muted); text-align: right; }
+.tl-diff { flex: none; width: 66px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tl-track { position: relative; flex: 1 1 auto; min-width: 60px; height: 10px; border-radius: 2px; background: #ffffff10; }
 /* 棒は青 (グループの色 = 黄・緑・紫・橙 に使わない色) */
 .tl-bar { position: absolute; top: 1px; bottom: 1px; right: 0; border-radius: 2px 0 0 2px; background: #4a86e8; }
 /* 補正の分: 早めても遅らせても同じ水色 (向きは細い線との位置で分かる)。小さな補正も見えるよう、少なくとも 2px */
@@ -1532,43 +1537,43 @@ body.grid-fs .sync-dock { top: 0; }
 .tl-now[hidden] { display: none; }
 .tl-bar[hidden] { display: none; }
 .tl-now { position: absolute; top: -2px; bottom: -2px; width: 2px; margin-left: -1px; background: var(--text); }
-.tl-st { flex: none; width: 68px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tl-st { flex: none; width: 80px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tl-st.is-fix { color: var(--text); }
 /* たためるグループ: たたんだら見出しだけ */
 .dg-fold { flex: none; padding: 0 4px !important; border: none; background: none; color: var(--muted); }
-.dg-count { flex: none; color: var(--muted); font-size: 11px; }
+.dg-count { flex: none; color: var(--muted); font-size: 12px; }
 .sync-dock:not(.mini) .dock-group.is-folded > :not(.dg-head) { display: none; }
 /* 状態は図に出すので、行の ✓ / ↻ はたたんだパネル (図が無い) のときだけ */
 .sync-dock:not(.mini) .dock-row .dr-dot { display: none; }
-.dg-note { color: #f0c36d; font-size: 11px; }
+.dg-note { color: #f0c36d; font-size: 12px; }
 .dg-note:empty { display: none; }
 .sync-audio.is-measuring { color: #8fd3ff; border-color: #8fd3ff; }
 .dg-audio-result { display: flex; flex-direction: column; gap: 4px; padding: 4px 6px; border: 1px solid #8fd3ff55; border-radius: 4px; }
 .dga-title { color: #8fd3ff; }
 .dga-choice { display: flex; flex-direction: column; gap: 2px; }
 .dga-buttons { display: flex; gap: 6px; justify-content: flex-end; }
-.dock-row { display: flex; flex-direction: column; gap: 3px; padding: 4px; border-radius: 4px; outline: none; }
+.dock-row { display: flex; flex-direction: column; gap: 4px; padding: 5px; border-radius: 4px; outline: none; }
 .dock-row:hover { background: #ffffff0a; }
 .dock-row.is-sel, .dock-row:focus-visible { background: #ffffff12; box-shadow: inset 0 0 0 1px var(--muted); }
-.dr-line { display: flex; align-items: center; gap: 4px; min-width: 0; }
-.dr-line button { padding: 0 4px; font-size: 12px; }
+.dr-line { display: flex; align-items: center; gap: 5px; min-width: 0; }
+.dr-line button { padding: 0 6px; font-size: 13px; }
 .dr-ref { flex: none; padding: 0 3px !important; border: none; background: none; color: var(--muted); }
-.dr-ref.on { color: var(--text); font-size: 11px; }
+.dr-ref.on { color: var(--text); font-size: 12px; }
 .dr-num { flex: none; min-width: 1.2em; color: var(--muted); font-variant-numeric: tabular-nums; }
 .dr-name { flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.dr-ref-tag { flex: none; padding: 0 4px; border-radius: 3px; background: var(--g, #ffffff30); color: #111; font-size: 10px; font-weight: 700; line-height: 1.5; }
+.dr-ref-tag { flex: none; padding: 0 4px; border-radius: 3px; background: var(--g, #ffffff30); color: #111; font-size: 11px; font-weight: 700; line-height: 1.5; }
 .dr-short { flex: none; color: var(--muted); font-variant-numeric: tabular-nums; display: none; }
 /* 設定したずれどおりの位置か (✓) / その位置へ寄せている途中か (↻)。グループの色と混ざらないよう、色ではなく記号で見せる */
-.dr-dot { flex: none; width: 1.1em; text-align: center; color: var(--muted); font-size: 11px; line-height: 1; }
+.dr-dot { flex: none; width: 1.1em; text-align: center; color: var(--muted); font-size: 12px; line-height: 1; }
 .dr-dot.is-fix { color: var(--text); display: inline-block; animation: dr-spin 1.2s linear infinite; }
 @keyframes dr-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .dr-dot.is-fix { animation: none; } }
-.dr-group { flex: none; max-width: 92px; font-size: 11px; }
+.dr-group { flex: none; max-width: 110px; font-size: 12px; }
 .dr-sub { padding-left: 4px; flex-wrap: wrap; }
 /* 補正の操作は 1 行に収める (間と幅を詰める) */
 .dr-sub:has(.dr-step) { gap: 3px; }
-.dr-val { width: 4em; text-align: right; }
-.dr-line .dr-step { padding: 0 3px; font-size: 11px; font-variant-numeric: tabular-nums; touch-action: none; user-select: none; }
+.dr-val { width: 4.2em; text-align: right; }
+.dr-line .dr-step { padding: 0 5px; font-size: 12px; font-variant-numeric: tabular-nums; touch-action: none; user-select: none; }
 /* 基準の行: 補正は 0 に固定 (行の頭の 🔒)。操作は押せない形で薄く */
 .dr-line.is-locked > * { opacity: .4; }
 .dr-val::placeholder { color: var(--text); opacity: 1; }
