@@ -93,7 +93,7 @@ const Favorites = (() => {
   // 配信予定 (待機所) は再生数が 0。配信中とアーカイブは再生数では見分けられない。日時は「枠を作った日時」
   // 取った結果はタブ間で共有する (配信状況と最近の配信の両方で使う)
   const FEED_PREFIX = 'feed:'; // 'feed:<チャンネル ID>' → {at, items: [{videoId, title, at, views}]} (チャンネルごとに別の項目にして、書き込みを軽く)
-  // 「動画」の再生リスト (UULF) は 'feed:UULF:<チャンネル ID>' (最近の配信でだけ使う)
+  // 「動画」(UULF)・「ショート」(UUSH) の再生リストは 'feed:UULF:<チャンネル ID>' など (最近の動画でだけ使う)
   const feedKey = (channelId, list = 'UULV') => FEED_PREFIX + (list === 'UULV' ? '' : `${list}:`) + channelId;
   const readFeed = async (channelId, list) => (await shared.get(feedKey(channelId, list)))[feedKey(channelId, list)];
   const ARCHIVE_TTL_MS = 30 * 60 * 1000;
@@ -106,7 +106,7 @@ const Favorites = (() => {
   /**
    * そのチャンネルの再生リストの中身 (maxAge より新しい結果があればそれを使う)。配信をしたことがないチャンネルは []。
    * cacheOnly = 取りに行かず、覚えている結果を古くても使う (無ければ [])。
-   * list = 再生リストの種類 (UULV = ライブ配信 / UULF = 動画)
+   * list = 再生リストの種類 (UULV = ライブ配信 / UULF = 動画 / UUSH = ショート)
    */
   async function fetchFeed(channelId, { maxAge, cacheOnly = false, list = 'UULV' }) {
     if (!CHANNEL_ID_RE.test(channelId)) return [];
@@ -128,23 +128,38 @@ const Favorites = (() => {
     );
   }
 
+  // 縦型のライブ配信。YouTube ではショートとして出るが、「ライブ配信」の再生リストに入り、RSS では見分けがつかないのでタイトルで見る
+  const VERTICAL_LIVE_RE = /#shorts?|縦型|縦配信|vertical|short stream/i;
+
   /**
    * そのチャンネルの最近の配信アーカイブと動画 (新しい順)。force = 覚えている結果を使わずに取り直す。
-   * 「ライブ配信」の再生リストに加えて「動画」の再生リスト (UULF。プレミア公開・MV など。ショートは入らない) も見る。
-   * プレミア公開 (同時視聴の本編になりやすい) は「ライブ配信」の方に入らないため
+   * 「ライブ配信」の再生リスト (UULV) に加えて「動画」の再生リスト (UULF。プレミア公開・MV など。ショートは入らない) も見る。
+   * プレミア公開 (同時視聴の本編になりやすい) は「ライブ配信」の方に入らないため。
+   * shorts = 「ショート」の再生リスト (UUSH) も見る (自動再生でショートも流す設定のときだけ)。
+   * 各項目の kind = live (配信のアーカイブ) / video (動画) / short (ショート・縦型の配信)、list = 取った再生リスト
    */
-  async function fetchArchives(channelId, { force = false } = {}) {
+  async function fetchArchives(channelId, { force = false, shorts = false } = {}) {
     const maxAge = force ? 0 : ARCHIVE_TTL_MS;
     const lives = await fetchFeed(channelId, { maxAge });
-    // 動画の方が取れなくても (制限中も)、配信の分は出す
-    const uploads = await fetchFeed(channelId, { maxAge, list: 'UULF' }).catch((e) => {
-      console.warn('hakomado: チャンネルの動画の取得に失敗', channelId, e);
-      return [];
-    });
-    const seen = new Set(lives.map((v) => v.videoId));
+    // 動画・ショートの方が取れなくても (制限中も)、配信の分は出す
+    const more = async (list) => {
+      try {
+        return await fetchFeed(channelId, { maxAge, list });
+      } catch (e) {
+        console.warn('hakomado: チャンネルの動画の取得に失敗', list, channelId, e);
+        return [];
+      }
+    };
+    const tag = (items, list, kind) => items.map((v) => ({ ...v, list, kind }));
+    const all = [
+      ...lives.map((v) => ({ ...v, list: 'UULV', kind: VERTICAL_LIVE_RE.test(v.title) ? 'short' : 'live' })),
+      ...tag(await more('UULF'), 'UULF', 'video'),
+      ...(shorts ? tag(await more('UUSH'), 'UUSH', 'short') : []),
+    ];
+    const seen = new Set();
     // 配信予定・公開予定 (再生数 0) は除く
-    return [...lives, ...uploads.filter((v) => !seen.has(v.videoId))]
-      .filter((v) => v.views > 0)
+    return all
+      .filter((v) => v.views > 0 && !seen.has(v.videoId) && seen.add(v.videoId))
       .sort((a, b) => b.at - a.at)
       .map(({ views, ...v }) => v);
   }

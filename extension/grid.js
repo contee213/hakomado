@@ -29,7 +29,9 @@ const DEFAULT_SETTINGS = {
   skipMembersOnly: true, // メンバーになっていないメンバー限定配信は入れない
   cruiseSec: 120, // クルーズでメイン枠 (と音声) を次の配信に回す間隔 (秒)
   prestartMin: 10, // 開始の何分前から、配信予定の枠を用意しておくか (0 = しない)
-  autoArchive: false, // 自動再生: 配信中が 1 本も無いときは、最近の配信 (アーカイブ) を流す
+  autoArchive: false, // 自動再生: 配信中が 1 本も無いときは、最近の動画 (配信のアーカイブなど) を流す
+  autoArchiveVideos: true, // そのとき、動画 (プレミア公開・MV など) も流す
+  autoArchiveShorts: false, // そのとき、ショート (縦型の配信を含む) も流す
   autoPickupMain: true, // 自動再生: ピックアップ (📌) のライブ配信をメイン枠に優先して置く
   autoMaxTiles: 8, // 自動再生で同時に再生する最大の枠数 (回線が細いときは少なく)
   autoTarget: 'all', // 自動再生の対象: 'all' = チャンネル全部 / 'fav' = ピックアップ (📌) だけ
@@ -6123,7 +6125,7 @@ function stepIndex(key, v) {
   return best;
 }
 
-const SETTING_CHECKBOXES = ['showPaid', 'chatHideAvatars', 'hlAnimate', 'skipMembersOnly', 'autoArchive', 'autoPickupMain'];
+const SETTING_CHECKBOXES = ['showPaid', 'chatHideAvatars', 'hlAnimate', 'skipMembersOnly', 'autoArchive', 'autoArchiveVideos', 'autoArchiveShorts', 'autoPickupMain'];
 const SETTING_SELECTS = ['dmFont', 'dmWeight', 'authorName', 'autoTarget', 'noticeTarget'];
 
 /** 設定画面の入力欄を state.settings に合わせる (他のタブで設定が変わったときも呼ぶ) */
@@ -6753,7 +6755,7 @@ function favItem({ f, st }) {
   } else {
     const ul = document.createElement('ul');
     ul.className = 'fav-sub video-grid compact';
-    ul.append(...data.filter((v) => isFinishedArchive(v, f)).map((v) => archiveItem(v, f)));
+    ul.append(...data.filter((v) => inLibrary(v) && isFinishedArchive(v, f)).map((v) => archiveItem(v, f)));
     sub.append(ul);
   }
   return [li, sub];
@@ -6869,7 +6871,7 @@ async function renderArchiveTab({ force = false } = {}) {
     if (d !== 'loading') done++;
     if (!Array.isArray(d)) continue;
     for (const v of d) {
-      if (v.at < since || !isFinishedArchive(v, f)) continue;
+      if (v.at < since || !inLibrary(v) || !isFinishedArchive(v, f)) continue;
       if (q && ![v.title, f.name, f.handle].some((s) => String(s ?? '').toLowerCase().includes(q))) continue;
       items.push({ v, f });
     }
@@ -6895,6 +6897,18 @@ async function renderArchiveTab({ force = false } = {}) {
 }
 
 /** 配信中・配信予定と分かっている配信は、アーカイブには出さない (チャンネルの配信状況と照らし合わせる) */
+/** ライブラリの「最近の動画」に出すか。ショートの再生リストの分 (自動再生でショートも流す設定のときに取ったもの) は出さない */
+function inLibrary(v) {
+  return v.list !== 'UUSH';
+}
+
+/** 自動再生・おまかせで流してよい種類か (設定の「動画も流す」「ショートも流す」) */
+function autoKindAllowed(v) {
+  if (v.kind === 'video') return state.settings.autoArchiveVideos;
+  if (v.kind === 'short') return state.settings.autoArchiveShorts;
+  return true;
+}
+
 function isFinishedArchive(v, f) {
   const st = favStatus.get(f.channelId);
   return !(st && typeof st === 'object' && st.videoId === v.videoId && (st.state === 'live' || st.state === 'upcoming'));
@@ -9263,7 +9277,7 @@ async function archiveCandidates(channels, { onProgress = null } = {}) {
     for (let f = queue.shift(); f; f = queue.shift()) {
       let d;
       try {
-        d = await Favorites.fetchArchives(f.channelId);
+        d = await Favorites.fetchArchives(f.channelId, { shorts: state.settings.autoArchiveShorts });
         archiveData.set(f.channelId, d);
         archiveFailedAt.delete(f.channelId);
       } catch {
@@ -9272,7 +9286,7 @@ async function archiveCandidates(channels, { onProgress = null } = {}) {
       } finally {
         onProgress?.(++done, total);
       }
-      for (const v of d) if (v.at >= since && isFinishedArchive(v, f)) out.push({ v, f });
+      for (const v of d) if (v.at >= since && autoKindAllowed(v) && isFinishedArchive(v, f)) out.push({ v, f });
     }
   };
   await Promise.all([worker(), worker(), worker()]);

@@ -1286,6 +1286,8 @@ dialog.settings-dialog { width: min(780px, calc(100% - 32px)); overflow: hidden;
 .settings-form label output { color: var(--on); font-weight: 600; }
 .settings-form label select { width: 100%; margin: 0; box-sizing: border-box; }
 .settings-form label.check { flex-direction: row; align-items: center; gap: 6px; color: var(--text); }
+/* すぐ上の項目の細かい設定 (自動再生で流す種類など) */
+.settings-form label.check.sub-check { margin-left: 1.5em; }
 .settings-form label.check > span { font-weight: 600; }
 /* 使い方 */
 /* 使い方: 左にメニュー、右に説明。右は高さを決めてスクロールさせる (メニューを切り替えても画面が動かない) */
