@@ -75,7 +75,7 @@ export const canonical = (set) => formatShareCode(set.layoutId, set.ids, set.off
 
 /**
  * D1 の canon (UNIQUE) に入れる値。公開のものは名前を除いて 1 件にまとめる。
- * 限定公開 (短縮リンク) は名前も含めて、限定公開どうしでだけまとめる (付けた名前のままのリンクになるように。
+ * 限定公開は名前も含めて、限定公開どうしでだけまとめる (付けた名前のままのリンクになるように。
  * 公開のものとは混ぜないので、限定公開のつもりで作ったものが一覧に出ることも無い)
  */
 export const canonKey = (set, listed) =>
@@ -187,7 +187,7 @@ export function rowToSet(row) {
     listed: row.listed !== 0, // false = リンクを知っている人だけ (限定公開)
     tags: row.tags ? JSON.parse(row.tags) : [],
     dead: row.dead || 0, // 見直しで見つからなかった動画の数 (videos の該当するものに gone: true)
-    source: row.source || 'web', // web = 投稿フォーム / api = トークンを使った API・MCP / ext = 拡張機能の短縮リンク
+    source: row.source || 'web', // web = 投稿フォーム / api = トークンを使った API・MCP
     createdAt: row.created_at,
     code: formatShareCode(row.layout, ids, offsets || [], row.ref, row.name, movie, main ?? -1),
     link: formatShareLink(row.layout, ids, offsets || [], row.ref, row.name, 'Hakomado', false, movie, main ?? -1),

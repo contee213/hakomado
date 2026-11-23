@@ -2,7 +2,6 @@
 // 書いていない機能はオフ。.dev.vars では FEATURES='{"tags":true}' のように JSON の文字列で上書きできる
 export const FEATURE_NAMES = [
   'unlisted', // 公開範囲: 「リンクを知っている人だけ」(一覧・検索に載せない) で投稿できる
-  'extShare', // 拡張機能からの短縮リンク: 拡張機能のページからの投稿・読み出しを受け付ける (限定公開で入れる。unlisted も要る)
   'tags', // タグ: 投稿に付けて、一覧をタグで絞り込む
   'search', // 検索: 名前・投稿者・タグ・動画のタイトル・チャンネル名で探す
   'videoCheck', // 消えた動画の見直し: Cron で動画があるかを確かめ直し、消えたものに印を付ける
@@ -27,8 +26,6 @@ export function features(env) {
   }
   const out = {};
   for (const k of FEATURE_NAMES) out[k] = raw?.[k] === true || raw?.[k] === 'true' || raw?.[k] === 1;
-  // 拡張機能からの投稿はいつも限定公開で入れるので、unlisted がオフなら受け付けない
-  if (!out.unlisted) out.extShare = false;
   // X のアプリ (クライアント ID・シークレット) と公開の URL がそろっていなければ、X のログインは出さない
   if (!(env?.X_CLIENT_ID && env?.X_CLIENT_SECRET && env?.PUBLIC_ORIGIN)) out.xLogin = false;
   return out;

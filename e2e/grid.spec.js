@@ -198,21 +198,6 @@ test.describe('視聴セッション', () => {
 });
 
 test.describe('共有', () => {
-  test('短縮リンク (sets-link.js の機能フラグ) はオンで、共有画面に出る。開くだけでは Feed に送らない', async ({ openGrid }) => {
-    const page = await openGrid();
-    await skipTour(page);
-    expect(await page.evaluate(() => [SetsLink.enabled, SetsLink.origin])).toEqual([true, 'https://hakomado.contee.net']);
-    const sent = [];
-    page.on('request', (r) => r.url().startsWith('https://hakomado.contee.net/') && sent.push(r.url()));
-    await page.locator('#openShare').click();
-    await page.locator('#shareDialog [data-stab="link"]').click();
-    await expect(page.locator('#shareShortMake')).toBeVisible();
-    await page.locator('#shareDialog [data-stab="image"]').click();
-    await expect(page.locator('#shareImgShort')).toBeVisible();
-    // 送るのは利用者がボタンを押したときだけ
-    expect(sent).toEqual([]);
-  });
-
   test('画像の各枠の名前は既定で入れず、切り替えると作り直して、次に開いたときも覚えている', async ({ openGrid }) => {
     const page = await openGrid();
     await skipTour(page);
@@ -253,6 +238,40 @@ test.describe('共有', () => {
     const second = await openGrid();
     await second.locator('#openShare').click();
     await expect(second.locator('#shareAuthor')).toHaveValue('@someone');
+  });
+
+  test('共有画面は 画像・リンク・テキスト の 3 タブ。リンクは QR と同じ形 (レイアウト入り)', async ({ openGrid }) => {
+    const page = await openGrid();
+    await skipTour(page);
+    const input = visibleTiles(page).first().locator('.url-input');
+    await input.fill('dQw4w9WgXcQ');
+    await input.press('Enter');
+    await page.locator('#openShare').click();
+    await expect(page.locator('#shareDialog [data-stab]')).toHaveText(['🖼 画像', '🌐 リンク', '📝 テキスト']);
+    await page.locator('#shareDialog [data-stab="link"]').click();
+    await expect(page.locator('#shareLink')).toHaveValue(/^https:\/\/www\.youtube\.com\/watch_videos\?video_ids=dQw4w9WgXcQ&hkl=u2x2&title=.+&hakomado=$/);
+  });
+
+  test('「サイトに投稿」はコードを # の後ろに入れた投稿画面をタブで開くだけで、拡張機能からは送らない', async ({ openGrid, context }) => {
+    const page = await openGrid();
+    await skipTour(page);
+    const input = visibleTiles(page).first().locator('.url-input');
+    await input.fill('dQw4w9WgXcQ');
+    await input.press('Enter');
+    // サイトへの通信は止めずに、記録して空のページを返す (後から足した route が先に効く)
+    const sent = [];
+    await context.route('https://hakomado.contee.net/**', (route) => {
+      sent.push(`${route.request().method()} ${route.request().url()}`);
+      return route.fulfill({ status: 200, contentType: 'text/html', body: '<!doctype html><title>feed</title>' });
+    });
+    await page.locator('#openShare').click();
+    const [tab] = await Promise.all([context.waitForEvent('page'), page.locator('#shareToFeed').click()]);
+    await tab.waitForLoadState();
+    const url = new URL(tab.url());
+    expect(url.origin + url.pathname).toBe('https://hakomado.contee.net/post');
+    expect(decodeURIComponent(url.hash)).toBe('#text=#Hakomado u2x2.dQw4w9WgXcQ');
+    // 開いたタブがページを読みに行くだけ (# の後ろは送られない)。POST はしない
+    expect(sent).toEqual(['GET https://hakomado.contee.net/post']);
   });
 });
 

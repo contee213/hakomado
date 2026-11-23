@@ -2,7 +2,7 @@
 
 [日本語](#日本語) | [English](#english)
 
-最終更新 / Last updated: 2026-11-23
+最終更新 / Last updated: 2026-11-24
 
 このページは Web サイト <https://hakomado.contee.net> (共有された視聴セットを集めるサイト) のものです。
 Chrome 拡張機能の Hakomado のポリシーは [privacy.md](privacy.md) にあります。
@@ -14,11 +14,11 @@ The policy for the Hakomado Chrome extension is in [privacy.md](privacy.md).
 
 ## 日本語
 
-個人が作った非公式のサイトです。ログインしなくても使えます。X でログインすることもできます (任意)。
+個人が作った非公式のサイトです。見るだけならログインは要りません。セットを投稿するには X でログインします。
 
 ### 投稿したときに保存するもの
 
-- 投稿したセットの中身 (動画・レイアウト・名前など) と、任意で入れた投稿者の名前・タグ
+- 投稿したセットの中身 (動画・レイアウト・名前など) と、任意で入れたタグ。投稿者として X の @ユーザー名 (下)
 - 開かれた回数・通報の件数
 
 「リンクを知っている人だけ」で投稿したものは一覧・検索に出ませんが、リンクを知っている人は見られます。
@@ -41,7 +41,7 @@ The policy for the Hakomado Chrome extension is in [privacy.md](privacy.md).
 
 ### ブラウザの中に保存するもの
 
-自分が投稿したセットを消すための情報と、画面の設定 (言語など) を、利用者のブラウザにだけ保存します。X でログインしたときは、ログインの Cookie も保存します。
+画面の設定 (言語など) と、X でログインしたときはログインの Cookie を、利用者のブラウザにだけ保存します。以前にログインせずに投稿したセットがあれば、それを消すための合言葉も残っています。
 
 ### 外部のサービス
 
@@ -60,11 +60,11 @@ The policy for the Hakomado Chrome extension is in [privacy.md](privacy.md).
 
 ## English
 
-An unofficial site made by an individual. You can use it without signing in. You can also sign in with X (optional).
+An unofficial site made by an individual. You can browse without signing in. To post a set, you sign in with X.
 
 ### What is stored when you post
 
-- The contents of the set you post (videos, layout, name and so on), and the optional author name and tags
+- The contents of the set you post (videos, layout, name and so on) and the optional tags, with your X @username as the author (see below)
 - How many times it was opened, and the number of reports
 
 Sets posted as "Only people with the link" are not shown in the list or search, but anyone with the link can see them.
@@ -87,7 +87,7 @@ It is handled under [Cloudflare's privacy policy](https://www.cloudflare.com/pri
 
 ### What is stored in your browser
 
-Information for deleting sets you posted, and display settings (such as the language), are stored only in your browser. When you sign in with X, a sign-in cookie is stored too.
+Display settings (such as the language) and, when you sign in with X, a sign-in cookie are stored only in your browser. If you posted sets earlier without signing in, the delete keys for them also remain there.
 
 ### External services
 
