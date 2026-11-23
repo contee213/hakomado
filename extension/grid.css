@@ -886,16 +886,6 @@ dialog.layout-dialog { width: min(760px, calc(100% - 32px)); }
   line-height: 1;
   white-space: nowrap;
 }
-.layout-cell.first-of-count::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: -5px;
-  border-left: 2px solid #4a4a55;
-  border-radius: 1px;
-}
-.layout-list > .layout-cell.first-of-count:first-child::after { display: none; }
 .layout-empty { grid-column: 1 / -1; margin: 24px 0; color: var(--muted); font-size: 13px; text-align: center; }
 .layout-thumb {
   width: 100%;
