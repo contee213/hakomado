@@ -538,14 +538,15 @@ function removeEmptySlot(prefer = null) {
  * 今見えている枠は並び順も中身 (空き枠も) もそのまま。足した位置には空き枠が来るようにする
  * (ちょうど合うレイアウトが無い枠数では、空き枠が 2 つ以上増えることがある)
  */
-function addTileSlot() {
+/** 枠を k 個 (16 枠まで) 足す */
+function addTileSlot(k = 1) {
   if (state.count >= MAX_TILES) return;
   const shown = visibleIndexes();
   const hidden = state.order.slice(state.count);
   const empty = hidden.filter((j) => !state.tiles[j].videoId);
   // 隠れている枠に中身が残っていても、それは出さずに空き枠から使う
   state.order = [...shown, ...empty, ...hidden.filter((j) => state.tiles[j].videoId)];
-  setLayout(chooseLayoutFor(shown.length + 1).id);
+  setLayout(chooseLayoutFor(Math.min(MAX_TILES, shown.length + k)).id);
 }
 
 function setFit(mode) {
@@ -927,12 +928,27 @@ async function refreshSavedIds() {
 }
 
 // あとで見るが変わったら (このタブでも他のタブでも) 🔖 の表示と、開いている一覧を直す
+// 一覧は描き直さず、🔖 の表示だけ直す (描き直すと、その間に配信中・配信予定になった配信が一覧から抜けて、カードの位置がずれるため)。
+// 「あとで見る」タブだけは中身が変わるので描き直す
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area !== 'local' || !changes[SavedVideos.KEY]) return;
-  refreshSavedIds().catch(() => {});
-  if (favDialog.open && isVideoMode()) renderVideoList();
-  else if (favDialog.open) scheduleFavRender(); // チャンネルの行で開いたアーカイブの 🔖
+  refreshSavedIds()
+    .then(() => {
+      if (!favDialog.open) return;
+      if (favMode === 'saved') renderVideoList();
+      else updateSavedMarks();
+    })
+    .catch(() => {});
 });
+
+/** 開いている一覧の 🔖 の点灯を、今のあとで見るに合わせる */
+function updateSavedMarks() {
+  for (const b of favListEl.querySelectorAll('.fav-star[data-vid]')) {
+    const on = savedIds.has(b.dataset.vid);
+    b.classList.toggle('on', on);
+    b.title = tr(on ? 'savedOff' : 'savedOn');
+  }
+}
 
 /** 枠のバーの 🔖: この枠の配信を保存する / 外す */
 async function toggleSaveTile(i) {
@@ -3904,7 +3920,7 @@ function setupLayoutPicker() {
   });
   document.getElementById('layoutClose').addEventListener('click', () => dialog.close());
   closeOnBackdrop(dialog);
-  document.getElementById('addTile').addEventListener('click', addTileSlot);
+  document.getElementById('addTile').addEventListener('click', () => addTileSlot());
   document.getElementById('removeTile').addEventListener('click', () => removeEmptySlot());
 }
 
@@ -6086,6 +6102,8 @@ function renderFavorites(favs) {
     .filter((e) => e.st?.state === 'upcoming')
     .sort((a, b) => (a.st.startAt || Infinity) - (b.st.startAt || Infinity));
   const rest = entries.filter((e) => e.st?.state !== 'live' && e.st?.state !== 'upcoming');
+  selShown.clear();
+  buildCollabGroups([...live, ...upcoming].map(({ f, st }) => favSelEntry(f, st)));
 
   const sections = [];
   if (live.length) {
@@ -6102,6 +6120,7 @@ function renderFavorites(favs) {
     ? tr('favNoMatch', favFilter)
     : tr(scope === 'star' ? 'starEmpty' : 'favEmpty');
   document.getElementById('favLiveCount').textContent = live.length ? tr('liveCount', live.length) : '';
+  updateSelMarks();
 }
 
 function favItem({ f, st }) {
@@ -6133,7 +6152,7 @@ function favItem({ f, st }) {
     title.textContent = st.title || '';
     thumb.src = `https://i.ytimg.com/vi/${st.videoId}/mqdefault.jpg`;
     li.querySelector('.fav-where').textContent = whereShown(st.videoId);
-    li.addEventListener('click', () => pickFavorite(f, st));
+    makeSelectable(li, favSelEntry(f, st), () => pickFavorite(f, st));
   }
 
   // 「最近 ⌄」: このチャンネルの最近の配信アーカイブを、行の下に開く
@@ -6308,6 +6327,8 @@ async function renderArchiveTab({ force = false } = {}) {
   }
   if (favMode !== 'archive') return;
   items.sort((a, b) => b.v.at - a.v.at);
+  selShown.clear();
+  buildCollabGroups(items.map(({ v, f }) => videoSelEntry({ videoId: v.videoId, title: v.title, at: v.at, channelId: f.channelId }, f)));
   const ul = document.createElement('ul');
   ul.className = 'fav-sub video-grid';
   ul.append(...items.map(({ v, f }) => archiveItem(v, f)));
@@ -6321,6 +6342,7 @@ async function renderArchiveTab({ force = false } = {}) {
       : done < targets.length
         ? tr('archiveLoading')
         : tr('archiveEmpty', ARCHIVE_DAYS);
+  updateSelMarks();
 }
 
 /** 配信中・配信予定と分かっている配信は、アーカイブには出さない (チャンネルの配信状況と照らし合わせる) */
@@ -6332,7 +6354,7 @@ function isFinishedArchive(v, f) {
 /** アーカイブの 1 行 (履歴と同じ見た目。🔖 で保存できる。✕ は無し) */
 function archiveItem(v, f) {
   const h = { videoId: v.videoId, title: v.title, label: f.name, channelId: f.channelId, handle: f.handle || '', at: v.at, input: `${YT}/watch?v=${v.videoId}` };
-  const li = videoItem(h, false);
+  const li = videoItem(h, false, { entry: videoSelEntry(h, f) });
   li.querySelector('.fav-del')?.remove();
   return li;
 }
@@ -6356,7 +6378,9 @@ function rememberLibraryTab(tab) {
 
 /** チャンネル / 最近の配信 / 視聴履歴 / あとで見る を切り替える。配信・動画の一覧ではチャンネルの追加欄を隠す */
 function setFavMode(mode, { render = true } = {}) {
-  favMode = ['all', 'archive', 'saved', 'history', 'playlists'].includes(mode) ? mode : 'all';
+  const next = ['all', 'archive', 'saved', 'history', 'playlists'].includes(mode) ? mode : 'all';
+  if (next !== favMode) clearSel(); // 選べるのは同じ画面の中だけ
+  favMode = next;
   if (favMode !== 'all') rememberLibraryTab(favMode);
   const isHistory = isVideoMode();
   for (const b of document.querySelectorAll('[data-favtab]')) {
@@ -6409,9 +6433,14 @@ async function renderVideoList() {
       (!q || [h.title, h.channel, h.handle, h.label, h.input].some((s) => String(s ?? '').toLowerCase().includes(q))),
   );
   if (favMode !== mode) return; // 読み込んでいる間に切り替えられた
+  const favById = new Map((await Favorites.list()).map((f) => [f.channelId, f]));
+  if (favMode !== mode) return;
+  const entries = shown.map((h) => videoSelEntry(h, favById.get(h.channelId)));
+  selShown.clear();
+  buildCollabGroups(entries);
   const ul = document.createElement('ul');
   ul.className = 'fav-sub video-grid';
-  ul.append(...shown.map((h) => videoItem(h, saved)));
+  ul.append(...shown.map((h, n) => videoItem(h, saved, { entry: entries[n] })));
   favListEl.replaceChildren(...(shown.length ? [ul] : []));
   document.getElementById('favEmpty').textContent = q
     ? tr(saved ? 'savedNoMatch' : 'historyNoMatch', favFilter)
@@ -6420,13 +6449,14 @@ async function renderVideoList() {
       : tr(saved ? 'savedEmpty' : 'historyEmpty');
   if (saved) document.getElementById('savedCount').textContent = tr('savedCount', all.length, SavedVideos.MAX);
   else document.getElementById('historyClear').hidden = all.length === 0;
+  updateSelMarks();
 }
 
 /**
  * 視聴履歴 / あとで見る / 再生リスト の 1 行。saved = あとで見るの一覧 (✕ で外す)。それ以外の行には 🔖 を付けて、あとで見るに入れられるようにする。
  * onRemove を渡すと、✕ はそれを呼ぶ (再生リストから外す)
  */
-function videoItem(h, saved, { onRemove, removeTitle } = {}) {
+function videoItem(h, saved, { onRemove, removeTitle, entry } = {}) {
   const li = document.getElementById('favItemTemplate').content.firstElementChild.cloneNode(true);
   li.classList.add('history');
   li.title = tr('historyPick');
@@ -6439,6 +6469,7 @@ function videoItem(h, saved, { onRemove, removeTitle } = {}) {
   } else {
     const on = savedIds.has(h.videoId);
     star.textContent = '🔖';
+    star.dataset.vid = h.videoId;
     star.classList.toggle('on', on);
     star.title = tr(on ? 'savedOff' : 'savedOn');
     star.addEventListener('click', async (e) => {
@@ -6446,7 +6477,7 @@ function videoItem(h, saved, { onRemove, removeTitle } = {}) {
       const r = await SavedVideos.toggle(h.videoId, h);
       if (r === 'full') favErrorEl.textContent = tr('savedFull', SavedVideos.MAX);
       await refreshSavedIds();
-      renderVideoList();
+      updateSavedMarks(); // 一覧は描き直さない (カードの位置が動かないように)
     });
   }
   // 📃: 再生リストに入れる / 外す (どれかの再生リストに入っていれば点灯)
@@ -6469,7 +6500,8 @@ function videoItem(h, saved, { onRemove, removeTitle } = {}) {
   thumb.addEventListener('error', () => thumb.removeAttribute('src'), { once: true });
   thumb.loading = 'lazy';
   thumb.src = `https://i.ytimg.com/vi/${h.videoId}/mqdefault.jpg`;
-  li.addEventListener('click', () => loadFromHistory(h));
+  if (entry) makeSelectable(li, entry, () => loadFromHistory(h));
+  else li.addEventListener('click', () => loadFromHistory(h));
   const del = li.querySelector('.fav-del');
   del.title = removeTitle || tr(saved ? 'savedOff' : 'historyDel');
   del.addEventListener('click', async (e) => {
@@ -6497,6 +6529,14 @@ function loadFromHistory(h) {
     favErrorEl.textContent = tr('noEmptyTile');
     return;
   }
+  putHistoryInto(target, h);
+  updateNowPlaying();
+  save();
+  favDialog.close();
+}
+
+/** 履歴などの 1 件を枠 target に入れる (画面は閉じない) */
+function putHistoryInto(target, h) {
   forgetAutoMarks(h.videoId);
   setTileVideo(target, h.videoId, h.input || `https://www.youtube.com/watch?v=${h.videoId}`);
   const t = state.tiles[target];
@@ -6507,9 +6547,267 @@ function loadFromHistory(h) {
   if (state.autoMode && st) t.auto = true;
   updateTileName(target);
   updateFavButton(target);
-  updateNowPlaying();
-  save();
-  favDialog.close();
+}
+
+// ---------------------------------------------------------------- 複数選択・コラボの一括選択 (チャンネルの配信中・配信予定 / 最近の配信 / 視聴履歴 / あとで見る)
+// 行・カードの ☐ (または Ctrl / Shift + クリック) で、同じ画面の中で何本でも選べる。選んでいる間は、行のクリックも選ぶ / 外すになる。
+// 下のバーの「▦ まとめて枠に入れる」で、空いている枠に順に入れる (足りなければ 16 枠まで足す)。タブを切り替える・閉じると選択は外れる。
+// 🤝 N = 同じ時間に始まり、タイトルで相手の名前や同じハッシュタグに触れている配信 (コラボと思われるもの)。押すとまとめて選ぶ
+
+/**
+ * 一覧の 1 件。id = 動画 ID / ch = チャンネル / names = 配信者の呼び名 (タイトルで探す) / t = 開始 (または公開・視聴) の時刻 /
+ * tight = 配信中・配信予定 (開始時刻が分かるので、時刻の近さで厳しく見る) / load = 枠に入れるもの ({f, st} か {h})
+ * @typedef {{id: string, ch: string, names: string[], title: string, t: number, tight: boolean, load: {f?: object, st?: object, h?: object}}} SelEntry
+ */
+/** @type {Map<string, SelEntry>} 選んでいる配信 (選んだ順) */
+const favSel = new Map();
+/** @type {Map<string, string[]>} 動画 ID → 一緒にコラボしていると思われる配信の動画 ID (自分を含む) */
+let collabOf = new Map();
+/** @type {Map<string, SelEntry>} 今の一覧に出ている、選べる配信 (🤝 で組の相手を選ぶときに使う) */
+const selShown = new Map();
+
+const NAME_STOP = new Set(['ch', 'channel', 'official', 'hololive', 'ホロライブ', 'vtuber', 'gaming', 'live', 'music', 'english', 'indonesia']);
+const ASCII_ONLY = /^[\x20-\x7e]+$/;
+
+/** チャンネルの呼び名 (フルネーム・英語名・@ハンドル・「兎田ぺこら」の「ぺこら」のような下の名前) */
+function callNames(f) {
+  const out = new Set();
+  const add = (w) => {
+    w = String(w || '').normalize('NFKC').trim().toLowerCase();
+    if (!w || NAME_STOP.has(w)) return;
+    // 英数字だけの短い名前 (Ina など) や、かな 2 文字以下は、ほかの言葉に紛れやすいので使わない
+    if (ASCII_ONLY.test(w) ? w.length >= 4 : w.length >= 3) out.add(w);
+  };
+  for (const n of [f.name, f.nameJa, f.handle?.replace(/^@/, '')]) {
+    if (!n) continue;
+    add(n);
+    for (const part of String(n).split(/[\s・/|｜()（）【】[\]_\-.,]+/)) {
+      add(part);
+      add(part.match(/[ぁ-ゟ゠-ヿー]+$/)?.[0]); // 漢字の名字 + かなの名前 → 名前
+    }
+  }
+  return [...out];
+}
+
+/** タイトルの印: ハッシュタグと、【】『』の中身 */
+function titleTags(title) {
+  const s = String(title || '').normalize('NFKC').toLowerCase();
+  const tags = (s.match(/#[^\s#【】「」『』()（）]+/g) || []).map((x) => x.replace(/[!?！？。、,.]+$/, ''));
+  const brackets = [...s.matchAll(/【([^】]+)】|『([^』]+)』/g)].map((m) => (m[1] || m[2]).trim());
+  return { tags: tags.filter((x) => x.length > 2), brackets: brackets.filter((x) => x.length >= 2) };
+}
+
+const KANA_ONLY = /^[ぁ-ゟ゠-ヿー]+$/;
+const KANA = /[ぁ-ゟ゠-ヿー]/;
+// かなの名前のすぐ後に続いてもよいかな (助詞・「ちゃん」「さん」「くん」など)。それ以外のかなが続くときは別の言葉とみなす
+// (「はじめての」の「はじめ」・「ぺこらっちょ」の「ぺこら」など)
+const NAME_FOLLOW = new Set([...'とのがはもにへやをでちさくせ']);
+
+/** 英数字だけの名前は単語の区切りで、かなだけの名前は後ろに続く文字を見て、それ以外はそのまま含まれているかで探す */
+function mentions(title, name) {
+  if (KANA_ONLY.test(name)) {
+    for (let i = title.indexOf(name); i >= 0; i = title.indexOf(name, i + 1)) {
+      const next = title[i + name.length];
+      if (!next || !KANA.test(next) || NAME_FOLLOW.has(next)) return true;
+    }
+    return false;
+  }
+  if (!ASCII_ONLY.test(name)) return title.includes(name);
+  const re = new RegExp(`(^|[^a-z0-9])${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}($|[^a-z0-9])`);
+  return re.test(title);
+}
+
+/**
+ * 一覧の中から、配信ごとにコラボの相手と思われる配信を探す (collabOf を作り直す)。
+ * 違うチャンネルの 2 本が、時刻が近く (配信中・配信予定は開始が 20 分以内、それ以外は公開・視聴が 12 時間以内)、
+ * どちらかのタイトルが相手の呼び名に触れているか、同じハッシュタグが付いていれば相手とみなす。
+ * 配信中・配信予定どうしは、【】の中身 (ゲーム名・企画名) が同じでも相手とみなす。
+ * - 多くのチャンネルが付けているもの (#ホロライブ・【雑談】など) と、そのチャンネルがいつも付けているもの (#ReGLOSS など、3 本以上) は使わない
+ * - 相手の相手まではたどらない (たどると、同じゲームの別のコラボまで次々につながるため)。1 チャンネル 1 本 (時刻が一番近いもの)
+ */
+function buildCollabGroups(entries) {
+  collabOf = new Map();
+  const list = entries.filter((e) => e.id && e.ch);
+  if (list.length < 2) return;
+  const info = list.map((e) => ({ e, title: String(e.title || '').normalize('NFKC').toLowerCase(), ...titleTags(e.title) }));
+  const chOf = new Map(); // 印 → 付けているチャンネル
+  const uses = new Map(); // チャンネル + 印 → 本数
+  for (const x of info) {
+    for (const k of new Set([...x.tags, ...x.brackets])) {
+      if (!chOf.has(k)) chOf.set(k, new Set());
+      chOf.get(k).add(x.e.ch);
+      uses.set(`${x.e.ch}\n${k}`, (uses.get(`${x.e.ch}\n${k}`) || 0) + 1);
+    }
+  }
+  const limit = Math.max(4, Math.ceil(new Set(list.map((e) => e.ch)).size * 0.25));
+  const special = (x, k) => (chOf.get(k)?.size || 0) <= limit && uses.get(`${x.e.ch}\n${k}`) < 3;
+  // 呼び名も、そのチャンネルがいつもタイトルに書いているもの (ユニット名など、3 本以上) は相手の印にしない
+  const said = new Map(); // チャンネル + 呼び名 → そのチャンネルのタイトルに出てくる本数
+  const says = (x, n) => {
+    if (!mentions(x.title, n)) return false;
+    const key = `${x.e.ch}\n${n}`;
+    if (!said.has(key)) said.set(key, info.filter((y) => y.e.ch === x.e.ch && mentions(y.title, n)).length);
+    return said.get(key) < 3;
+  };
+  const linked = (A, B) => {
+    if (A.e.ch === B.e.ch || A.e.id === B.e.id) return false;
+    const tight = A.e.tight && B.e.tight;
+    if (A.e.t && B.e.t && Math.abs(A.e.t - B.e.t) > (tight ? 20 * 60e3 : 12 * 3600e3)) return false;
+    if (A.e.names.some((n) => says(B, n)) || B.e.names.some((n) => says(A, n))) return true;
+    if (A.tags.some((k) => B.tags.includes(k) && special(A, k) && special(B, k))) return true;
+    return tight && A.brackets.some((k) => B.brackets.includes(k) && special(A, k) && special(B, k));
+  };
+  for (const A of info) {
+    const best = new Map(); // チャンネル → 時刻が一番近い相手
+    for (const B of info) {
+      if (!linked(A, B)) continue;
+      const cur = best.get(B.e.ch);
+      if (!cur || Math.abs(B.e.t - A.e.t) < Math.abs(cur.e.t - A.e.t)) best.set(B.e.ch, B);
+    }
+    if (best.size) collabOf.set(A.e.id, [A.e.id, ...[...best.values()].map((B) => B.e.id)]);
+  }
+}
+
+/** チャンネルの配信中・配信予定の 1 件 */
+function favSelEntry(f, st) {
+  return { id: st.videoId, ch: f.channelId, names: callNames(f), title: st.title || '', t: st.startAt || 0, tight: true, load: { f, st } };
+}
+
+/** 最近の配信・視聴履歴・あとで見るの 1 件。f = そのチャンネル (分かれば) */
+function videoSelEntry(h, f) {
+  const names = callNames(f || { name: h.label || h.channel, handle: h.handle });
+  return { id: h.videoId, ch: h.channelId || f?.channelId || h.handle || h.label || '', names, title: h.title || '', t: h.at || 0, tight: false, load: { h } };
+}
+
+/**
+ * 行・カードに ☐ と 🤝 を付けて、選べるようにする。
+ * 選んでいる間 (1 本以上) と Ctrl / Shift + クリックでは、行のクリックで選ぶ / 外す。それ以外は onPick (1 本だけ枠に入れる)
+ */
+function makeSelectable(li, entry, onPick) {
+  selShown.set(entry.id, entry);
+  li.dataset.sel = entry.id;
+  const box = document.createElement('input');
+  box.type = 'checkbox';
+  box.className = 'fav-check';
+  box.title = tr('selTitle');
+  box.setAttribute('aria-label', tr('selTitle'));
+  box.checked = favSel.has(entry.id);
+  li.classList.toggle('selected', box.checked);
+  box.addEventListener('click', (e) => {
+    e.stopPropagation();
+    toggleSel(entry, box.checked);
+  });
+  // カード (最近の配信・視聴履歴・あとで見る) は名前の行の先頭、チャンネルの行は行の先頭
+  if (li.classList.contains('history')) li.querySelector('.fav-name-row').prepend(box);
+  else li.prepend(box);
+  const group = collabOf.get(entry.id);
+  if (group) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'fav-collab';
+    btn.textContent = `🤝 ${group.length}`;
+    btn.title = tr('collabTitle', group.length);
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      selectCollab(group);
+    });
+    li.querySelector('.fav-name-row').append(btn);
+  }
+  li.addEventListener('click', (e) => {
+    if (favSel.size || e.ctrlKey || e.metaKey || e.shiftKey) {
+      e.preventDefault();
+      toggleSel(entry, !favSel.has(entry.id));
+      return;
+    }
+    onPick();
+  });
+}
+
+function toggleSel(entry, on) {
+  if (on) favSel.set(entry.id, entry);
+  else favSel.delete(entry.id);
+  updateSelMarks();
+}
+
+/** 🤝: 組の配信をまとめて選ぶ (全部選んでいれば、まとめて外す) */
+function selectCollab(ids) {
+  const all = ids.every((id) => favSel.has(id));
+  for (const id of ids) {
+    if (all) favSel.delete(id);
+    else if (!favSel.has(id) && selShown.has(id)) favSel.set(id, selShown.get(id));
+  }
+  updateSelMarks();
+}
+
+/** 選択を外す (タブの切り替え・画面を閉じたとき・「選択を外す」) */
+function clearSel() {
+  favSel.clear();
+  updateSelMarks();
+}
+
+/** ☐ の点灯と、下のバー (何本選んでいるか・まとめて枠に入れる) を今の選択に合わせる */
+function updateSelMarks() {
+  for (const li of favListEl.querySelectorAll('[data-sel]')) {
+    const on = favSel.has(li.dataset.sel);
+    li.classList.toggle('selected', on);
+    const box = li.querySelector('.fav-check');
+    if (box) box.checked = on;
+  }
+  favListEl.classList.toggle('selecting', favSel.size > 0);
+  document.getElementById('favSelBar').hidden = !favSel.size;
+  if (!favSel.size) return;
+  const room = selRoom();
+  document.getElementById('favSelCount').textContent =
+    favSel.size > room ? tr('selCountOver', favSel.size, room) : tr('selCount', favSel.size);
+}
+
+/** 選んだ配信を入れられる枠の数 (読み込み先の枠 + 空いている枠 + まだ足せる枠) */
+function selRoom() {
+  const empty = visibleIndexes().filter((i) => !state.tiles[i].videoId && i !== favTarget).length;
+  return (favTarget != null ? 1 : 0) + empty + (MAX_TILES - state.count);
+}
+
+/**
+ * 選んだ配信を枠に入れる。読み込み先の枠 (枠のバーから開いたとき) があれば最初の 1 本はそこに、残りは空いている枠に順に入れる。
+ * 空き枠が足りなければ 16 枠まで一度に足す。もう表示中の枠にある配信は入れない。入りきらなかった分は選んだまま残す
+ */
+function loadSelection() {
+  const shown = new Set(visibleIndexes().map((i) => state.tiles[i].videoId).filter(Boolean));
+  let skipped = 0;
+  for (const id of [...favSel.keys()]) {
+    if (!shown.has(id)) continue;
+    favSel.delete(id);
+    skipped++;
+  }
+  const todo = [...favSel.values()];
+  const targets = favTarget != null && todo.length ? [favTarget] : [];
+  const emptyNow = () => visibleIndexes().filter((i) => !state.tiles[i].videoId && !targets.includes(i));
+  const lack = todo.length - targets.length - emptyNow().length;
+  if (lack > 0) addTileSlot(lack);
+  targets.push(...emptyNow());
+  let n = 0;
+  for (const e of todo) {
+    const target = targets[n];
+    if (target == null) break;
+    if (e.load.st) {
+      const { f, st } = e.load;
+      forgetAutoMarks(st.videoId);
+      setTileVideo(target, st.videoId, f.handle || `${YT}/channel/${f.channelId}`);
+    } else putHistoryInto(target, e.load.h);
+    favSel.delete(e.id);
+    n++;
+  }
+  if (n) {
+    updateNowPlaying();
+    save();
+  }
+  if (!favSel.size) {
+    favDialog.close();
+    return;
+  }
+  // 入りきらなかった分は選んだまま残す
+  favErrorEl.textContent = [tr('selNoRoom', n, favSel.size), skipped ? tr('selSkipped', skipped) : ''].filter(Boolean).join(' ');
+  updateSelMarks();
 }
 
 // 他のタブで見たものも含め、履歴が変わったら表示中の一覧を描き直す
@@ -8712,6 +9010,9 @@ function setupFavorites() {
   document.getElementById('plImport').addEventListener('click', () => openReadDialog({ primary: 'save' }));
   document.getElementById('openFavorites').addEventListener('click', () => openFavorites(null, 'library'));
   document.getElementById('favClose').addEventListener('click', () => favDialog.close());
+  favDialog.addEventListener('close', clearSel);
+  document.getElementById('favSelLoad').addEventListener('click', loadSelection);
+  document.getElementById('favSelClear').addEventListener('click', clearSel);
   document.getElementById('favRefresh').addEventListener('click', () => {
     if (favMode === 'archive') renderArchiveTab({ force: true });
     else refreshFavorites(true);
