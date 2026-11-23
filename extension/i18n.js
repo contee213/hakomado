@@ -366,8 +366,8 @@ const MESSAGES = {
   ],
   syncResetDone: ['{0} 枠の補正を 0 に戻しました (実際の時刻でそろえています)', 'Set {0} tile(s) back to offset 0 (aligned on real time)'],
   syncAudioStart: [
-    '✨ 自動補正: 音を {0} 秒聞いて補正を求めます。そのまま再生しておいてください',
-    '✨ Auto-correct: listening for {0}s to work out the offsets. Keep it playing',
+    '✨ 自動補正: 音を最大 {0} 秒聞いて補正を求めます。そのまま再生しておいてください',
+    '✨ Auto-correct: listening for up to {0}s to work out the offsets. Keep it playing',
   ],
   syncAudioMeasuring: ['✨ {0}/{1}秒', '✨ {0}/{1}s'],
   syncAudioAnalyzing: ['✨ 計算中…', '✨ Working…'],

@@ -3384,7 +3384,7 @@ const AudioSync = (() => {
   //   history: 計算ごとの結果 [{sec, tiles, res, grade, streak}], best: 一番よかった値 (bestOf), suggested: 切り上げを提案した, n}
   let run = null;
   let result = null; // 結果の候補: {g, tiles, ref, offs, ids, pick: Map, two, choice, n}
-  let failure = null; // 決められなかった: {g, reason, n}
+  let failure = null; // 決められなかった: {g, ref, ids, reason, n}
   let seq = 0;
 
   function toggle(g) {
@@ -3469,6 +3469,7 @@ const AudioSync = (() => {
   // ---- 計算 (Worker で)
   let worker = null;
   let noWorker = false;
+  let workerAnswered = false; // 一度でも答えが返った (読み込めている)
   let jobSeq = 0;
   const jobs = new Map(); // id -> {resolve, items, ref}
   /** 計算を Worker に頼む。Worker が使えなければ、この画面で計算する。計算できなければ null */
@@ -3481,20 +3482,24 @@ const AudioSync = (() => {
           const job = jobs.get(id);
           if (!job) return;
           jobs.delete(id);
+          workerAnswered = true;
           if (error) console.warn('hakomado: ✨ 自動補正の計算に失敗しました', error);
           job.resolve(error ? null : res);
           releaseWorker();
         };
         worker.onerror = (e) => {
-          // 読み込めなかったなど: 以後はこの画面で計算する (待っているものも)
+          // 読み込めなかった: 以後はこの画面で計算する (待っているものも)。
+          // 動いていたのに落ちた (メモリが足りないなど): 待っているものは決められなかったことにする
+          // (同じ計算をこの画面でやり直すと、画面と同期が止まるため)。次に計算するときに作り直す
           e.preventDefault?.();
-          console.warn('hakomado: ✨ 自動補正の Worker が使えないので、この画面で計算します', e.message || e);
-          noWorker = true;
+          const loadFailed = !workerAnswered;
+          console.warn('hakomado: ✨ 自動補正の Worker が止まりました', loadFailed ? '(読み込めないので、この画面で計算します)' : '', e.message || e);
+          if (loadFailed) noWorker = true;
           worker?.terminate();
           worker = null;
           const left = [...jobs.values()];
           jobs.clear();
-          for (const job of left) local(job.items, job.ref).then(job.resolve);
+          for (const job of left) (loadFailed ? local(job.items, job.ref) : Promise.resolve(null)).then(job.resolve);
         };
       } catch (e) {
         console.warn('hakomado: ✨ 自動補正の Worker を作れませんでした', e);
@@ -3648,7 +3653,7 @@ const AudioSync = (() => {
     releaseWorker();
     const b = r.best;
     if (!b || !b.pick.size) {
-      failure = { g: r.g, reason: okNow || r.played >= PRELIM_FIRST ? 'weak' : 'short', n: ++seq };
+      failure = { g: r.g, ref: r.ref, ids: r.ids, reason: okNow || r.played >= PRELIM_FIRST ? 'weak' : 'short', n: ++seq };
       Sync.dockChanged();
       notify(tr(failure.reason === 'short' ? 'syncAudioShort' : 'syncAudioWeak'));
       return;
@@ -3664,7 +3669,7 @@ const AudioSync = (() => {
     const sr = Number(d.sr);
     const per = Number(d.per);
     if (!(sr >= 8000 && sr <= 192000) || !Number.isInteger(per) || per < 1 || per > 1000) return;
-    if (!(d.bins instanceof Float32Array) || !Array.isArray(d.marks) || d.bins.length > 200000) return;
+    if (!(d.bins instanceof Float32Array) || !Array.isArray(d.marks) || d.bins.length > 200000 || d.marks.length > 20000) return;
     const marks = d.marks.filter((m) => Array.isArray(m) && m.slice(0, 3).every(Number.isFinite)).map((m) => [m[0], m[1], m[2] || 1]);
     let tk = run.tracks.get(i);
     if (!tk || tk.sr !== sr || tk.per !== per) run.tracks.set(i, (tk = { sr, per, bins: [], marks: [] }));
@@ -3682,12 +3687,16 @@ const AudioSync = (() => {
   }
 
   // ---- 結果の候補
-  /** 結果がまだ使えるか (グループの基準・枠の動画が測ったときのまま) */
-  function resultValid() {
-    if (!result) return false;
-    const info = Sync.groupInfo(result.g);
-    return !!info && !info.movie && info.ref === result.ref && result.tiles.every((i) => state.tiles[i].videoId === result.ids.get(i));
+  /** 結果・知らせ (o) がまだ使えるか (グループの基準・枠の動画が測ったときのまま。同期をやめて別のセットで始め直したら使えない) */
+  function stillSame(o) {
+    if (!o) return false;
+    const info = Sync.groupInfo(o.g);
+    return !!info && !info.movie && info.ref === o.ref && [...o.ids].every(([i, id]) => !info.tiles.includes(i) || state.tiles[i].videoId === id);
   }
+  function resultValid() {
+    return stillSame(result) && result.tiles.every((i) => state.tiles[i].videoId === result.ids.get(i));
+  }
+  const failureFor = (g) => failure?.g === g && stillSame(failure);
   /** 出している候補: 最後の結果か、測っている途中の結果。{src, prelim} / null */
   function shown() {
     if (resultValid()) return { src: result, prelim: false };
@@ -3709,7 +3718,11 @@ const AudioSync = (() => {
     return v == null ? false : { v, grade: s.src.pick.get(i)?.grade ?? 1, prelim: s.prelim };
   }
   /** パネルの形が変わる目印 (結果が出た・消えた・選び方を変えた・測り始めた・終えた・決められなかった) */
-  const resultKey = () => [resultValid() ? [result.g, result.n, result.choice] : null, run ? [run.g, run.n] : null, failure ? [failure.g, failure.n] : null];
+  const resultKey = () => [
+    resultValid() ? [result.g, result.n, result.choice] : null,
+    run ? [run.g, run.n] : null,
+    failure && stillSame(failure) ? [failure.g, failure.n] : null,
+  ];
 
   /**
    * パネルのグループの見出しの下に出す箱: 測っている間 (途中の結果)・結果 (2 枠なら合わせ方の選択・反映・測り直す・閉じる)・
@@ -3718,7 +3731,7 @@ const AudioSync = (() => {
   function resultEl(g) {
     if (run && run.g === g) return measuringEl();
     if (resultValid() && result.g === g) return { el: doneEl(), paint() {} };
-    if (failure && failure.g === g) {
+    if (failureFor(g)) {
       const el = mk(
         'div',
         { class: 'dg-audio-result is-fail' },
@@ -3840,11 +3853,10 @@ const AudioSync = (() => {
     toggle,
     chunk,
     blocked,
-    isMeasuring: () => !!run,
     /** ほかのグループで測っている (このグループの ✨ は押せない) */
     busyOther: (g) => !!run && run.g !== g,
     /** このグループの結果・途中の結果・知らせを出している */
-    hasOutput: (g) => (!!run && run.g === g) || (resultValid() && result.g === g) || failure?.g === g,
+    hasOutput: (g) => (!!run && run.g === g) || (resultValid() && result.g === g) || failureFor(g),
     progressText,
     candidateFor,
     resultKey,
