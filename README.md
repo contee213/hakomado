@@ -134,8 +134,8 @@ Hakomado の初期データはホロライブのチャンネルだけです。�
 
 - `extension/` が拡張機能の本体です。主なファイル: `grid.*` (マルチビュー画面)、`favorites.js` (チャンネルと配信状況)、
   `layouts.js` (レイアウト)、`content/` (枠に入れた YouTube のページで動くスクリプト)
-- メイン + サブのレイアウトは `tools/gen-layouts.js` で計算して `extension/layouts-generated.js` に書き出しています。
-  ルールを変えたら `node tools/gen-layouts.js` で作り直してください
+- メイン + サブのレイアウトとおすすめは `tools/layout-picks.json` に並べてあり、`tools/gen-layouts.js` で `extension/layouts-generated.js` に書き出しています。
+  一覧を変えたら `node tools/gen-layouts.js` で作り直してください (共有コードに入る key は変えない)
 - バージョン: `manifest.json` の `version` がリリースバージョンです (`chrome://extensions` やストアに出るのはこれだけ)。
   ビルド番号 (コミットの通し番号) と日付は `extension/build.js` に入り、使い方 (?) と設定 (⚙) の画面の下に「0.2.0 · build 120 (2026-11-22)」のように出ます。
   `build.js` は、`extension/` のファイルを変えたコミットのときだけフック (`.githooks/pre-commit` → `tools/stamp-version.js`) が書き込みます

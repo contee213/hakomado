@@ -20,7 +20,7 @@ function writeIfChanged(file, text) {
 }
 
 // Worker で使う名前 (share-code.js・layouts.js の /* exported */ から必要なものだけ)
-const EXPORTS = ['LAYOUTS', 'getLayout', 'formatShareCode', 'formatShareLink', 'parseShareCode', 'parseShareLink', 'shareName', 'videoIdFromUrl'];
+const EXPORTS = ['LAYOUTS', 'getLayout', 'layoutIdOf', 'formatShareCode', 'formatShareLink', 'parseShareCode', 'parseShareLink', 'shareName', 'videoIdFromUrl'];
 
 const parts = ['layouts-generated.js', 'layouts.js', 'share-code.js'].map((f) => `// ---- extension/${f}\n${read(f)}`);
 writeIfChanged(

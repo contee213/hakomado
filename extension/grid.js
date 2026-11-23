@@ -1,4 +1,4 @@
-/* global SyncGroups, SyncChart, Danmaku, LAYOUTS, ANCHORS, DEFAULT_LAYOUT_ID, MAX_SLOTS, getLayout, layoutFor, solveTracks, LANG, LANG_PREF, tr, setLangPref, Backup, UpdateCheck, qrcode, jsQR, ChannelPack, SyncOffsets, MovieAnchors, AudioAlign */
+/* global SyncGroups, SyncChart, Danmaku, LAYOUTS, ANCHORS, DEFAULT_LAYOUT_ID, MAX_SLOTS, getLayout, layoutFor, layoutIdOf, solveTracks, LANG, LANG_PREF, tr, setLangPref, Backup, UpdateCheck, qrcode, jsQR, ChannelPack, SyncOffsets, MovieAnchors, AudioAlign */
 'use strict';
 
 const MAX_TILES = MAX_SLOTS;
@@ -38,6 +38,7 @@ const DEFAULT_SETTINGS = {
   autoMaxTiles: 8, // 自動再生で同時に再生する最大の枠数 (回線が細いときは少なく)
   autoTarget: 'all', // 自動再生の対象: 'all' = チャンネル全部 / 'fav' = ピックアップ (📌) だけ
   noticeTarget: 'all', // 通知の対象: 'all' = チャンネル全部 / 'fav' = ピックアップだけ / 'off' = 知らせない
+  layoutFavs: '', // レイアウト画面の「お気に入り」タブに出す形 (layouts.js の key をカンマでつないだもの。基準位置は問わない)
 };
 
 const state = {
@@ -178,9 +179,10 @@ function retiredLayout(id) {
 /** 保存されているレイアウト (今は無いものは置き換え先)。分からなければ null */
 function savedLayoutId(saved) {
   if (typeof saved.layoutId !== 'string') return null;
-  if (LAYOUTS.some((l) => l.id === saved.layoutId)) return saved.layoutId;
+  const cur = layoutIdOf(saved.layoutId);
+  if (cur) return cur;
   const old = retiredLayout(saved.layoutId);
-  return old ? chooseLayoutFor(old.slots, { mains: old.mains, kind: 'single', group: 'main', anchor: 'tl' }).id : null;
+  return old ? chooseLayoutFor(old.slots, { mains: old.mains, group: 'main', anchor: 'tl' }).id : null;
 }
 
 /** 保存されているセッションで表示されていた枠の数 */
@@ -274,10 +276,10 @@ function replaceSettings(next) {
   if (state.settings.cruiseSec !== cruiseBefore) restartCruise();
 }
 
-/** 設定をすべて初期値に戻す (確認してから。表示言語は別に保存しているのでそのまま) */
+/** 設定をすべて初期値に戻す (確認してから。表示言語とお気に入りのレイアウトはそのまま) */
 function resetSettings() {
   if (!confirm(tr('settingsResetConfirm'))) return;
-  replaceSettings({});
+  replaceSettings({ layoutFavs: state.settings.layoutFavs }); // お気に入りのレイアウトは設定ではないので残す
   clearTimeout(settingsTimer);
   dirtySettings.clear();
   chrome.storage.local.set({ settings: state.settings });
@@ -384,14 +386,15 @@ function filledArea(l, n) {
  * n 本の配信を並べるのに向いたレイアウトを選ぶ。優先する順に:
  *  1. メイン枠の数が基準 (ふつうは今のレイアウト) と同じ (無ければ近いもの)。サブ枠が空になるほどメイン枠が多いものは使わない
  *  2. 空き枠が一番少ない (枠数がちょうど n のものがあればそれ)
- *  3. 基準と同じ種類 (メイン重視 / バランス。1 種類しか無い組み合わせはどちらとも合うものとする)
- *  4. 基準と同じ基準位置 (左上 / 左下 / 右上 / 右下)
- *  5. 映像が画面を占める割合が大きい (たいてい横長の形)
+ *  3. PinP を使っているときは PinP
+ *  4. おすすめ (枠数 × メインの数ごとに 1 つ。layouts.js の recommended)
+ *  5. 基準と同じ基準位置 (左上 / 左下 / 右上 / 右下)
+ *  6. 映像が画面を占める割合が大きい (たいてい横長の形)
  * クルーズ中は、メイン枠を回して見られるよう「メイン + サブ」のレイアウトを優先する (合うものが無ければ均等)。
  * 自動再生が枠を組み替えるときと、上部バーの「＋」「−」で使う
  * PinP は、今 PinP を使っているときだけ選ぶ (小窓に入りきらなければメイン 1 のメイン + サブ)
  * @param {number} n
- * @param {{mains: number, kind: string, group: string, anchor: string}} [base] 基準 (省略時は今のレイアウト)
+ * @param {{mains: number, group: string, anchor: string, kind?: string}} [base] 基準 (省略時は今のレイアウト)
  */
 function chooseLayoutFor(n, base = currentBase()) {
   let pool = LAYOUTS.filter(
@@ -402,12 +405,11 @@ function chooseLayoutFor(n, base = currentBase()) {
     if (withMain.length) pool = withMain;
   }
   if (!pool.length) return getLayout(DEFAULT_LAYOUT_ID);
-  const sameKind = (l) =>
-    base.kind === 'pip' ? l.kind === 'pip' : l.kind === base.kind || l.kind === 'single' || base.kind === 'single';
   const rank = (l) => [
     Math.abs(l.mains - base.mains),
     l.slots.length - n,
-    sameKind(l) ? 0 : 1,
+    base.kind === 'pip' && l.kind !== 'pip' ? 1 : 0,
+    l.recommended ? 0 : 1,
     (l.anchor ?? base.anchor) === base.anchor ? 0 : 1,
     -filledArea(l, n),
   ];
@@ -421,6 +423,11 @@ function chooseLayoutFor(n, base = currentBase()) {
     if (!best || better(r, best.r)) best = { l, r };
   }
   return best.l;
+}
+
+/** 枠 k をメイン枠として見せるか。均等はどの枠も同じ大きさなので、全部メイン枠として見せる (選び方の mains は 0 のまま) */
+function isMainSlot(l, k) {
+  return l.group === 'uniform' || k < l.mains;
 }
 
 /** 自動で選ぶときの基準 = 今のレイアウト (均等のときも、覚えている基準位置を使う) */
@@ -468,7 +475,7 @@ function autoMaxTiles() {
 /**
  * 自動再生を新しく始めるとき (ON にしたとき) のレイアウト。今のレイアウトではなく、本数ごとの決まった形を基準に選ぶ:
  *  - メイン枠の数: 1〜4 本はメイン 1、5〜6 本はメイン 2、7〜16 本はメイン 4 (2 本だけは均等の 1×2)
- *  - 3 本以上は「メイン重視」
+ *  - その本数・メイン枠の数のおすすめ
  *  - 基準位置は今のもの (レイアウト画面で選んだもの)
  * 始めた後の組み替えは chooseLayoutFor で、今のレイアウトを引き継ぐ (自分で選び直したものを勝手に戻さない)
  */
@@ -476,7 +483,7 @@ function autoLayoutFor(n) {
   // 2 本は均等の 1×2 (1+1 は作れず、1+2 だとサブが 1 枠空くため)
   if (n === 2) return getLayout('u1x2');
   const mains = n <= 4 ? 1 : n <= 6 ? 2 : 4;
-  return chooseLayoutFor(n, { mains, kind: n >= 3 ? 'focus' : 'single', group: 'main', anchor: state.anchor });
+  return chooseLayoutFor(n, { mains, group: 'main', anchor: state.anchor });
 }
 
 const VERTICAL = 9 / 16;
@@ -551,12 +558,12 @@ function layout() {
     const el = views[i].el;
     el.style.gridColumn = `${x + 1} / span ${w}`;
     el.style.gridRow = `${y + 1} / span ${h}`;
-    el.classList.toggle('main', k < l.mains);
+    el.classList.toggle('main', isMainSlot(l, k));
     // PinP の小窓はメインの上に重ねて出す
     el.style.zIndex = l.overlap && k >= l.mains ? '3' : '';
     el.classList.toggle('pip-sub', !!l.overlap && k >= l.mains);
     el.querySelector('.index').textContent = String(k + 1);
-    el.querySelector('.empty-title').textContent = k < l.mains ? tr('slotMain', k + 1) : tr('slot', k + 1);
+    el.querySelector('.empty-title').textContent = isMainSlot(l, k) ? tr('slotMain', k + 1) : tr('slot', k + 1);
     // メイン / サブが入れ替わって弾幕の出し方が変わった枠は描き直す (チャットの読み込みも合わせる)
     if (!!views[i].dmOn !== (state.danmakuAll && tileDanmaku(i))) renderTile(i);
   });
@@ -4655,7 +4662,7 @@ function layoutThumb(l) {
   const span = (arr, from, n) => sumOf(arr.slice(from, from + n));
   l.slots.forEach(([x, y, w, h], k) => {
     const cell = document.createElement('div');
-    cell.className = k < l.mains ? 'cell main' : 'cell';
+    cell.className = isMainSlot(l, k) ? 'cell main' : 'cell';
     cell.style.left = `${(span(colW, 0, x) / sumW) * 100}%`;
     cell.style.top = `${(span(rowH, 0, y) / sumH) * 100}%`;
     cell.style.width = `${(span(colW, x, w) / sumW) * 100}%`;
@@ -4684,10 +4691,13 @@ function fixLayoutLabelWidth() {
   label.style.width = `${Math.ceil(w) + 2}px`;
 }
 
-// レイアウト画面の「おすすめ」タブ (よく使う見やすいもの)。基準位置は選んでいるものに合わせて出す
-const RECOMMENDED_LAYOUTS = ['u1x2', 'u2x2', 'u3x3', 'u4x4', 'm1s3-sw', 'm1s5-fw', 'm2s4-sw', 'm2s8-sw', 'm4s4-sw', 'm4s9-sw', 'pip1'];
-const LAYOUT_TABS = ['recommend', 'uniform', 'main1', 'main2', 'pip'];
-const MAIN1_MAX_SLOTS = 10; // 「メイン + サブ①」は総枠数 10 まで、「②」は 11 以上
+// レイアウト画面のタブ。基準位置は選んでいるものに合わせて出す
+//  - おすすめ: 枠数ごとに選んだもの (layouts.js の tab)
+//  - お気に入り: 使う人が ☆ を付けたもの (設定 layoutFavs)
+//  - 1〜8 枠 / 9〜12 枠 / 13〜16 枠: PinP 以外を合計の枠数で分けたもの (どれも 40 個ほど)。枠数ごとに見出しを入れる
+//  - PinP
+const LAYOUT_TABS = ['recommend', 'fav', 'n1', 'n2', 'n3', 'pip'];
+const LAYOUT_RANGES = { n1: [1, 8], n2: [9, 12], n3: [13, 16] };
 
 /** 一覧の並び: 総枠数の少ない順 → 同じなら均等が先、メイン枠の少ない順 → 横長が先 */
 function layoutOrder(a, b) {
@@ -4699,6 +4709,21 @@ function layoutOrder(a, b) {
 }
 let layoutTab = 'recommend';
 
+/** お気に入りのレイアウト (key の集まり。今は無い形の key は除く) */
+function layoutFavs() {
+  const keys = String(state.settings.layoutFavs || '').split(',');
+  return new Set(keys.filter((k) => k && LAYOUTS.some((l) => l.key === k)));
+}
+
+/** レイアウトをお気に入りに入れる / 外す */
+function toggleLayoutFav(key) {
+  const favs = layoutFavs();
+  if (favs.has(key)) favs.delete(key);
+  else favs.add(key);
+  state.settings.layoutFavs = [...favs].join(',');
+  saveSettings('layoutFavs');
+}
+
 function setupLayoutPicker() {
   fixLayoutLabelWidth();
   const dialog = document.getElementById('layoutPicker');
@@ -4706,7 +4731,10 @@ function setupLayoutPicker() {
   const tabs = document.getElementById('layoutTabs');
   const anchorSeg = document.getElementById('layoutAnchor');
 
+  // カード = 選ぶボタン (右上に合計の枠数) + 左上の ☆ (お気に入りに入れる・外す)
   const option = (l) => {
+    const cell = document.createElement('div');
+    cell.className = 'layout-cell';
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'layout-option';
@@ -4716,17 +4744,50 @@ function setupLayoutPicker() {
     const label = document.createElement('span');
     label.className = 'layout-name';
     label.textContent = l.name;
-    btn.append(layoutThumb(l), label);
+    const count = document.createElement('span');
+    count.className = 'layout-count';
+    count.textContent = String(l.slots.length);
+    btn.append(layoutThumb(l), label, count);
     btn.addEventListener('click', () => {
       setLayout(l.id);
       dialog.close();
     });
-    return btn;
+    const fav = layoutFavs().has(l.key);
+    const star = document.createElement('button');
+    star.type = 'button';
+    star.className = 'layout-fav';
+    star.classList.toggle('on', fav);
+    star.textContent = fav ? '★' : '☆';
+    star.title = tr(fav ? 'layoutFavRemove' : 'layoutFavAdd');
+    star.setAttribute('aria-pressed', String(fav));
+    star.addEventListener('click', () => {
+      toggleLayoutFav(l.key);
+      renderTab();
+    });
+    cell.append(btn, star);
+    return cell;
   };
-  const list = (items) => {
+  // heads = 枠数が変わる最初のカードの上に見出し (「5 枠」) を付ける。行は切らずに詰めて並べる
+  const list = (items, heads = false) => {
     const el = document.createElement('div');
     el.className = 'layout-list';
-    el.append(...items.map(option));
+    el.classList.toggle('with-heads', heads);
+    let last = 0;
+    for (const l of items) {
+      const cell = option(l);
+      if (heads && l.slots.length !== last) {
+        last = l.slots.length;
+        cell.classList.add('first-of-count');
+        cell.dataset.head = tr('tilesCount', last);
+      }
+      el.append(cell);
+    }
+    if (!items.length) {
+      const empty = document.createElement('p');
+      empty.className = 'layout-empty';
+      empty.textContent = tr('layoutFavEmpty');
+      el.append(empty);
+    }
     return el;
   };
   // 今のタブの中身を、選んでいる基準位置で描く
@@ -4734,14 +4795,17 @@ function setupLayoutPicker() {
     const at = (l) => !l.anchor || l.anchor === state.anchor;
     let items;
     if (layoutTab === 'recommend') {
-      items = RECOMMENDED_LAYOUTS.map((k) => layoutFor(k, state.anchor)).filter(Boolean);
-    } else if (layoutTab === 'main1' || layoutTab === 'main2') {
-      const small = layoutTab === 'main1';
-      items = LAYOUTS.filter((l) => l.group === 'main' && at(l) && (l.slots.length <= MAIN1_MAX_SLOTS) === small);
+      items = LAYOUTS.filter((l) => l.tab && at(l));
+    } else if (layoutTab === 'fav') {
+      const favs = layoutFavs();
+      items = LAYOUTS.filter((l) => favs.has(l.key) && at(l));
+    } else if (layoutTab === 'pip') {
+      items = LAYOUTS.filter((l) => l.group === 'pip' && at(l));
     } else {
-      items = LAYOUTS.filter((l) => l.group === layoutTab && at(l));
+      const [from, to] = LAYOUT_RANGES[layoutTab];
+      items = LAYOUTS.filter((l) => l.group !== 'pip' && l.slots.length >= from && l.slots.length <= to && at(l));
     }
-    body.replaceChildren(list(items.sort(layoutOrder)));
+    body.replaceChildren(list(items.sort(layoutOrder), !!LAYOUT_RANGES[layoutTab]));
     for (const t of tabs.children) {
       const on = t.dataset.tab === layoutTab;
       t.classList.toggle('selected', on);
@@ -5113,7 +5177,8 @@ const syncItems = (pl) => pl.items.slice(0, SHARE_MAX);
 /** 同期再生のレイアウト (決めていないか本数に足りなければ、本数に合わせて選ぶ) */
 function playlistLayoutId(pl) {
   const n = Math.max(1, syncItems(pl).length);
-  return LAYOUTS.find((l) => l.id === pl.layoutId && l.slots.length >= n)?.id || chooseLayoutFor(n).id;
+  const id = layoutIdOf(pl.layoutId);
+  return LAYOUTS.find((l) => l.id === id && l.slots.length >= n)?.id || chooseLayoutFor(n).id;
 }
 
 /**
@@ -5216,7 +5281,7 @@ async function applyViewingSet(ids, layoutId, { offsets = null, anchors = null, 
       renderTile(j, { reloadPlayer: true, reloadChat: true });
     }
   });
-  const fixed = LAYOUTS.find((l) => l.id === layoutId && l.slots.length >= ids.length);
+  const fixed = LAYOUTS.find((l) => l.id === layoutIdOf(layoutId) && l.slots.length >= ids.length);
   state.layoutId = (fixed || chooseLayoutFor(ids.length)).id;
   if (state.layout.anchor) state.anchor = state.layout.anchor;
   state.order = [...assigned, ...state.order.filter((j) => !assigned.includes(j))];
@@ -5990,7 +6055,7 @@ function setupRead() {
     const parts = [];
     if (set.name) parts.push(tr('readName', set.name));
     parts.push(tr('readCount', set.items.length));
-    const layout = set.layoutId && LAYOUTS.find((l) => l.id === set.layoutId);
+    const layout = set.layoutId && LAYOUTS.find((l) => l.id === layoutIdOf(set.layoutId));
     if (layout) parts.push(tr('readLayout', layout.name));
     if (set.sync) parts.push(tr(set.items.some((h) => h.offset) ? 'readSyncOffsets' : 'readSync'));
     if (set.movie) parts.push(tr('readMovie'));

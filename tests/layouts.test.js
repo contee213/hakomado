@@ -74,3 +74,39 @@ test('layoutFor: 均等は基準位置に関係なくそのまま、無い形は
   assert.equal(layoutFor('pip2', 'br').id, 'br-pip2');
   assert.equal(layoutFor('nope', 'tl'), null);
 });
+
+test('おすすめ: 枠数 × メインの数 (均等は別) ごとにちょうど 1 つ', () => {
+  const get = setup();
+  const L = get('LAYOUTS').filter((l) => !l.anchor || l.anchor === 'tl');
+  const groups = new Map();
+  for (const l of L) {
+    const g = `${l.slots.length}-${l.group === 'uniform' ? 'u' : l.mains}`;
+    groups.set(g, (groups.get(g) || 0) + (l.recommended ? 1 : 0));
+  }
+  for (const [g, n] of groups) assert.equal(n, 1, `${g} のおすすめが ${n} 個`);
+  for (const key of get('RECOMMENDED_LAYOUT_KEYS')) assert.ok(get('layoutFor')(key, 'tl'), key);
+  // 1〜16 本のどれにもおすすめがある
+  for (let n = 1; n <= 16; n++) assert.ok(L.some((l) => l.recommended && l.slots.length === n), `${n} 本`);
+});
+
+test('layoutIdOf: 今は無いレイアウトは置き換え先、知らない id は null', () => {
+  const get = setup();
+  const of = get('layoutIdOf');
+  assert.equal(of('u3x3'), 'u3x3');
+  assert.equal(of('br-pip2'), 'br-pip2');
+  assert.equal(of('tl-m8s8-sw'), 'u4x4');
+  assert.equal(of('br-m8s8-sw'), 'u4x4');
+  assert.equal(of('nope'), null);
+  assert.equal(of(undefined), null);
+  assert.equal(get('getLayout')('tl-m8s8-sw').id, 'u4x4');
+});
+
+test('おすすめタブ: 1〜16 本のどれにも 1 つ以上あり、どれもおすすめの中から', () => {
+  const get = setup();
+  const L = get('LAYOUTS').filter((l) => !l.anchor || l.anchor === 'tl');
+  for (const key of get('TAB_LAYOUT_KEYS')) {
+    const l = get('layoutFor')(key, 'tl');
+    assert.ok(l && l.tab && l.recommended, key);
+  }
+  for (let n = 1; n <= 16; n++) assert.ok(L.some((l) => l.tab && l.slots.length === n), `${n} 本`);
+});

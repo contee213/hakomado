@@ -1,6 +1,6 @@
 // 投稿の画面 (/post): コード・リンクを貼る (または共有画像の QR を読む) → 形を確かめて見せる → 送る
 // 画面の切り替えは js/app.js が POST_VIEW.enter を呼ぶ
-/* global api, layoutPreview, errorText, saveKey, copyText, parseShareCode, parseShareLink, LAYOUTS, jsQR, turnstile, t, CONFIG, FEAT, APP, ACCOUNT */
+/* global api, layoutPreview, errorText, saveKey, copyText, parseShareCode, parseShareLink, LAYOUTS, layoutIdOf, jsQR, turnstile, t, CONFIG, FEAT, APP, ACCOUNT */
 /* exported POST_VIEW */
 'use strict';
 
@@ -15,8 +15,9 @@ const POST_VIEW = (() => {
   function parse(text) {
     const got = parseShareCode(text) || parseShareLink(text);
     if (!got || !got.ids.length) return { error: text.trim() ? 'not_found' : '' };
-    if (!LAYOUTS.some((l) => l.id === got.layoutId)) return { error: 'bad_layout' };
-    return { set: got };
+    const layoutId = layoutIdOf(got.layoutId); // 今は無いレイアウトは置き換え先にする (サーバーと同じ)
+    if (!layoutId) return { error: 'bad_layout' };
+    return { set: { ...got, layoutId } };
   }
 
   function update() {

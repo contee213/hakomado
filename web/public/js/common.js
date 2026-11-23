@@ -1,6 +1,6 @@
 // どの画面でも使うもの: API の呼び出し、レイアウトの形にサムネイルを並べた絵、文言
 // 先に js/i18n.js と js/ext/ (拡張機能の layouts-generated.js・layouts.js・share-code.js) を読み込んでおく
-/* global LAYOUTS, solveTracks, t, LANG, FEAT */
+/* global LAYOUTS, layoutIdOf, solveTracks, t, LANG, FEAT */
 /* exported api, layoutPreview, setCard, tagLinks, errorText, el, savedKeys, saveKey, forgetKey, copyText, timeAgo */
 'use strict';
 
@@ -35,7 +35,8 @@ function el(tag, props = {}, ...children) {
 
 /** レイアウトの形に、各枠の動画のサムネイルを並べた絵 (拡張機能のレイアウトの定義をそのまま使う) */
 function layoutPreview(layoutId, ids, { big = false } = {}) {
-  const l = LAYOUTS.find((x) => x.id === layoutId);
+  const id = layoutIdOf(layoutId); // 今は無いレイアウトは置き換え先で描く
+  const l = LAYOUTS.find((x) => x.id === id);
   const box = el('div', { class: 'layout', role: 'img', 'aria-label': t('count', ids.length) });
   if (!l) return box;
   const { colW, rowH, aspect } = solveTracks(l);

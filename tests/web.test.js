@@ -39,6 +39,8 @@ test('読めないもの・知らないレイアウトは受け付けない', ()
   assert.deepEqual(core.parseSubmission(''), { ok: false, error: 'not_found' });
   assert.deepEqual(core.parseSubmission(undefined), { ok: false, error: 'not_found' });
   assert.deepEqual(core.parseSubmission(`#Hakomado nosuch.${A}`), { ok: false, error: 'bad_layout' });
+  // 今は無いレイアウト (外した 8+8) は置き換え先で受け付ける
+  assert.equal(core.parseSubmission(`#Hakomado tl-m8s8-sw.${A}`).set.layoutId, 'u4x4');
   // hkl の無い watch_videos は Hakomado の共有リンクではない
   assert.deepEqual(core.parseSubmission(`https://www.youtube.com/watch_videos?video_ids=${A}`), { ok: false, error: 'not_found' });
 });
@@ -52,6 +54,7 @@ test('動画の並びから作る (API・MCP): URL と ID を読み、レイア�
   assert.equal(core.chooseLayout(1), 'u1x1');
   assert.equal(core.chooseLayout(2), 'u1x2');
   assert.equal(core.chooseLayout(16), 'u4x4');
+  assert.equal(core.chooseLayout(14), 'u3x5'); // 15 枠の均等 (おすすめ)
   // text を渡せばコード・リンクとして読む
   assert.equal(core.buildSubmission({ text: `#Hakomado u1x2.${A}${B}` }).set.layoutId, 'u1x2');
 });
