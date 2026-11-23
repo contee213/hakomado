@@ -542,6 +542,7 @@ function relayoutIfVerticalChanged() {
 function layout() {
   const l = state.layout;
   verticalShape = verticalKey();
+  setToggle(document.getElementById('fitFill'), state.fit === 'fill');
   if (state.fit === 'fill') {
     // ストレッチ: 格子を均等に割り、映像は枠に合わせて拡大 (端が切れる。縦長の映像は枠のプレイヤー側で切らずに収める)
     gridEl.style.gridTemplateColumns = `repeat(${l.cols}, minmax(0, 1fr))`;
@@ -4906,21 +4907,12 @@ function setupLayoutPicker() {
     anchorSeg.appendChild(b);
   }
 
-  const fitButtons = dialog.querySelectorAll('[data-fit]');
-  const refresh = () => {
-    for (const b of fitButtons) b.classList.toggle('selected', b.dataset.fit === state.fit);
-    renderTab();
-  };
-  for (const b of fitButtons) {
-    b.addEventListener('click', () => {
-      setFit(b.dataset.fit);
-      refresh();
-    });
-  }
   document.getElementById('openLayout').addEventListener('click', () => {
-    refresh();
+    renderTab();
     dialog.showModal();
   });
+  // 上部バーの「ストレッチ」: ON = 余白なしで画面を埋める / OFF = 標準 (どの枠も 16:9)
+  document.getElementById('fitFill').addEventListener('click', () => setFit(state.fit === 'fill' ? 'fit' : 'fill'));
   document.getElementById('layoutClose').addEventListener('click', () => dialog.close());
   closeOnBackdrop(dialog);
   document.getElementById('addTile').addEventListener('click', () => addTileSlot());
