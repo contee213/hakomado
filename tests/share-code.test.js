@@ -203,7 +203,7 @@ test('取り込み用リンクの名前: hakomado= が無ければ title= (YouTu
   assert.deepEqual(plain(link(`https://www.youtube.com/watch_videos?video_ids=${A}&title=x&hakomado=y`)), { ids: [A], name: 'y' });
 });
 
-test('QR 用のリンク: コードと同じ中身を読み戻せる (名前は title=、hakomado= は空でも付ける)', () => {
+test('QR 用のリンク: コードと同じ中身を読み戻せる (名前は title=。hakomado= は名前があれば 1、無ければ 0)', () => {
   const get = setup();
   const fmt = get('formatShareLink');
   const parse = get('parseShareLink');
@@ -213,7 +213,7 @@ test('QR 用のリンク: コードと同じ中身を読み戻せる (名前は 
     ['br-pip2', [A, B, C], [3, 0, 0], 2],
   ]) {
     const url = fmt(layout, ids, offs, ref, 'コラボ "A"');
-    assert.match(url, /^https:\/\/www\.youtube\.com\/watch_videos\?video_ids=[^&]+&hkl=.*&title=[^&]+&hakomado=$/);
+    assert.match(url, /^https:\/\/www\.youtube\.com\/watch_videos\?video_ids=[^&]+&hkl=.*&title=[^&]+&hakomado=1$/);
     const r = plain(parse(`見てね ${url} #Hakomado`));
     assert.equal(r.layoutId, layout);
     assert.deepEqual(r.ids, ids);
@@ -222,11 +222,18 @@ test('QR 用のリンク: コードと同じ中身を読み戻せる (名前は 
     if (offs.some(Boolean) || ref > 0) assert.deepEqual(r.offsets, ids.map((_, k) => offs[k] || 0));
     else assert.equal(r.offsets, null);
   }
-  // 名前が無ければ title は代わりの名前 (無ければ付けない)
-  assert.match(fmt('u1x1', [A], [], 0, '', 'Hakomado 視聴セット'), /&title=Hakomado%20視聴セット&/);
+  // 名前が無ければ title は代わりの名前 (無ければ付けない)。hakomado=0 なので、読み戻しても名前にはならない
+  const unnamed = fmt('u1x1', [A], [], 0, '', 'Hakomado 視聴セット');
+  assert.match(unnamed, /&title=Hakomado%20視聴セット&hakomado=0$/);
+  assert.equal(parse(unnamed).name, '');
+  assert.equal(parse(fmt('u1x1', [A], [], 0, '', 'Hakomado 視聴セット', true)).name, '');
+  assert.match(fmt('u1x1', [A], [], 0, ''), /&hkl=u1x1&hakomado=0$/);
+  // リンクのすぐ後ろに文字が続いても (hakomado= の値にくっつく)、名前は変わらない
+  assert.equal(parse(`${fmt('u1x1', [A], [], 0, '名前')}）見てね`).name, '名前');
+  assert.equal(parse(`${unnamed}）見てね`).name, '');
   // 日本語はそのまま、区切りになる文字だけ % にする (読み戻すと元の名前)
   const url = fmt('u1x1', [A], [], 0, "A&B #1 100% <x>+y'");
-  assert.match(url, /&title=A%26B%20%231%20100%25%20%3Cx%3E%2By%27&hakomado=$/);
+  assert.match(url, /&title=A%26B%20%231%20100%25%20%3Cx%3E%2By%27&hakomado=1$/);
   assert.equal(parse(`${url} の続き`).name, "A&B #1 100% <x>+y'");
   // ascii = true (X の本文用) なら名前を全部 % にし、URL は ASCII だけ (読み戻すと同じ名前)
   const ascii = fmt('u1x1', [A], [], 0, "テスト (A&B) 100%'", '', true);
@@ -374,4 +381,16 @@ test('URL から動画 ID を取り出す (右クリックのメニュー)', () 
   ]) {
     assert.equal(id(url), want, url);
   }
+});
+
+test('名前の 40 文字目が絵文字でも割れない (半端な 1 文字は落とし、リンク・コードに入れられる)', () => {
+  const get = setup();
+  const name = `${'あ'.repeat(39)}😀`; // 41 単位 (😀 は 2 単位)
+  const n = get('shareName')(name);
+  assert.equal(n, 'あ'.repeat(39));
+  assert.doesNotThrow(() => get('formatShareLink')('u1x1', [A], [], 0, name, '', true));
+  const ok = `${'あ'.repeat(38)}😀`; // ちょうど 40 単位なら絵文字ごと残る
+  assert.equal(get('shareName')(ok), ok);
+  assert.equal(get('parseShareCode')(get('formatShareCode')('u1x1', [A], [], 0, ok)).name, ok);
+  assert.equal(get('parseShareLink')(get('formatShareLink')('u1x1', [A], [], 0, ok, '', true)).name, ok);
 });
