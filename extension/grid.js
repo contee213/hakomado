@@ -38,7 +38,7 @@ const DEFAULT_SETTINGS = {
   autoMaxTiles: 8, // 自動再生で同時に再生する最大の枠数 (回線が細いときは少なく)
   autoTarget: 'all', // 自動再生の対象: 'all' = チャンネル全部 / 'fav' = ピックアップ (📌) だけ
   noticeTarget: 'all', // 通知の対象: 'all' = チャンネル全部 / 'fav' = ピックアップだけ / 'off' = 知らせない
-  layoutFavs: '', // レイアウト画面の「お気に入り」タブに出す形 (layouts.js の key をカンマでつないだもの。基準位置は問わない)
+  layoutFavs: '', // レイアウト画面の「お気に入り」タブに出すもの (レイアウトの id = 形 + 配置順 をカンマでつないだもの)
 };
 
 const state = {
@@ -4734,10 +4734,11 @@ function layoutThumb(l) {
 
 const KIND_LABEL = { focus: 'kindFocus', balance: 'kindBalance' };
 
-/** レイアウトの説明 (ツールチップ用): 「2+8 (10 枠) ・ メイン重視」 */
+/** レイアウトの説明 (ツールチップ用): 「2+8 (10 枠) ・ メイン重視 ・ 左上」 */
 function layoutTitle(l) {
   const kind = KIND_LABEL[l.kind] ? ` ・ ${tr(KIND_LABEL[l.kind])}` : '';
-  return tr('layoutTitle', l.name, l.slots.length) + kind;
+  const anchor = l.anchor ? ` ・ ${tr('anchor_' + l.anchor)}` : '';
+  return tr('layoutTitle', l.name, l.slots.length) + kind + anchor;
 }
 
 /** 上部バーのレイアウト名の幅を、一番長い名前に合わせて固定する (レイアウトを変えてもボタンが動かないように) */
@@ -4750,9 +4751,9 @@ function fixLayoutLabelWidth() {
   label.style.width = `${Math.ceil(w) + 2}px`;
 }
 
-// レイアウト画面のタブ。基準位置は選んでいるものに合わせて出す
+// レイアウト画面のタブ。お気に入り以外は、配置順 (基準位置) を選んでいるものに合わせて出す
 //  - おすすめ: 枠数ごとに選んだもの (layouts.js の tab)
-//  - お気に入り: 使う人が ☆ を付けたもの (設定 layoutFavs)
+//  - お気に入り: 使う人が ☆ を付けたもの (設定 layoutFavs)。形と配置順の組み合わせで覚え、配置順に関係なく全部出す
 //  - 1〜8 枠 / 9〜12 枠 / 13〜16 枠: PinP 以外を合計の枠数で分けたもの (どれも 40 個ほど)。枠数ごとに見出しを入れる
 //  - PinP
 const LAYOUT_TABS = ['recommend', 'fav', 'n1', 'n2', 'n3', 'pip'];
@@ -4768,17 +4769,20 @@ function layoutOrder(a, b) {
 }
 let layoutTab = 'recommend';
 
-/** お気に入りのレイアウト (key の集まり。今は無い形の key は除く) */
+/**
+ * お気に入りのレイアウト (id の集まり。今は無いものは除く)。
+ * 形だけで覚えていた前の版のもの (key) は、左上を基準にしたレイアウトとして読む
+ */
 function layoutFavs() {
-  const keys = String(state.settings.layoutFavs || '').split(',');
-  return new Set(keys.filter((k) => k && LAYOUTS.some((l) => l.key === k)));
+  const ids = String(state.settings.layoutFavs || '').split(',');
+  return new Set(ids.map((s) => (LAYOUTS.some((l) => l.id === s) ? s : layoutFor(s, 'tl')?.id)).filter(Boolean));
 }
 
-/** レイアウトをお気に入りに入れる / 外す */
-function toggleLayoutFav(key) {
+/** レイアウト (形 + 配置順) をお気に入りに入れる / 外す */
+function toggleLayoutFav(id) {
   const favs = layoutFavs();
-  if (favs.has(key)) favs.delete(key);
-  else favs.add(key);
+  if (favs.has(id)) favs.delete(id);
+  else favs.add(id);
   state.settings.layoutFavs = [...favs].join(',');
   saveSettings('layoutFavs');
 }
@@ -4811,7 +4815,7 @@ function setupLayoutPicker() {
       setLayout(l.id);
       dialog.close();
     });
-    const fav = layoutFavs().has(l.key);
+    const fav = layoutFavs().has(l.id);
     const star = document.createElement('button');
     star.type = 'button';
     star.className = 'layout-fav';
@@ -4820,7 +4824,7 @@ function setupLayoutPicker() {
     star.title = tr(fav ? 'layoutFavRemove' : 'layoutFavAdd');
     star.setAttribute('aria-pressed', String(fav));
     star.addEventListener('click', () => {
-      toggleLayoutFav(l.key);
+      toggleLayoutFav(l.id);
       renderTab();
     });
     cell.append(btn, star);
@@ -4857,7 +4861,7 @@ function setupLayoutPicker() {
       items = LAYOUTS.filter((l) => l.tab && at(l));
     } else if (layoutTab === 'fav') {
       const favs = layoutFavs();
-      items = LAYOUTS.filter((l) => favs.has(l.key) && at(l));
+      items = LAYOUTS.filter((l) => favs.has(l.id));
     } else if (layoutTab === 'pip') {
       items = LAYOUTS.filter((l) => l.group === 'pip' && at(l));
     } else {
