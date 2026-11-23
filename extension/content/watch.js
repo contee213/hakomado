@@ -106,6 +106,8 @@
       return;
     }
     const num = (v) => (v != null && Number.isFinite(Number(v)) ? Number(v) : null);
+    // 縦長の映像は、ストレッチ表示でも切らずに枠に収める (16:9 の枠いっぱいに広げると上下の大半が切れるため)
+    document.documentElement.classList.toggle('hakomado-vertical', d.vertical === true);
     window.parent.postMessage(
       {
         hakomado: 'info',
@@ -174,6 +176,9 @@
     sendMeta();
     if (++metaTicks > 30) clearInterval(metaTimer);
   }, 1000);
+
+  // 「ストレッチ」表示のときは映像を枠に合わせて拡大し、はみ出た端を切る
+  document.documentElement.classList.toggle('hakomado-fill', params.get('hakomado_fill') === '1');
 
   // ---- 枠ごとの音の遅延・左右 (パン)・音量。Web Audio で video → Delay → StereoPanner → Gain → outGain → 出力 とつなぐ
   // - 遅延はライブ配信の音ずれ用 (映像はそのまま、音だけ遅らせる)。追っかけ再生を切った配信は、YouTube が
@@ -368,6 +373,8 @@
       Mix.measure(!!e.data.on, !!e.data.muted);
     } else if (e.data?.hakomado === 'mix') {
       Mix.set(e.data.pan, e.data.gain, e.data.delay);
+    } else if (e.data?.hakomado === 'fill') {
+      document.documentElement.classList.toggle('hakomado-fill', !!e.data.on);
     } else if (e.data?.hakomado === 'social' && ['subscribe', 'like'].includes(e.data.act)) {
       document.dispatchEvent(new CustomEvent('hakomado:social-act', { detail: e.data.act }));
     } else if (e.data?.hakomado === 'playback') {

@@ -52,7 +52,7 @@ const state = {
   // order[k] = レイアウトの k 番目の場所に置く枠。枠の入れ替えはここを入れ替えるだけ
   // (iframe を DOM 上で動かすと再読み込みされるので、要素は動かさず CSS の位置だけ変える)
   order: Array.from({ length: MAX_TILES }, (_, i) => i),
-  // 'fit' = 標準: 各枠を 16:9 に合わせる (余白は外側にまとめる) / 'fill' = メイン拡大: サブを小さくして空いた分でメインを大きくする (映像は切らない)
+  // 'fit' = 標準: 各枠を 16:9 に合わせる (余白は外側にまとめる) / 'fill' = ストレッチ: 余白なしで画面を埋める (映像の端を切る)
   fit: 'fit',
   // メイン + サブ / PinP の基準位置 (メインを置く角): tl / bl / tr / br。均等を使っている間も覚えておく
   anchor: 'tl',
@@ -382,67 +382,6 @@ function filledArea(l, n) {
   return area / (W * H);
 }
 
-// メイン拡大で、サブの映像の幅をメインの何分の 1 まで小さくしてよいか (レイアウトの「サブはメインの 1/6 以上」と同じ)
-const FOCUS_SUB_MIN = 1 / 6;
-
-/** 列幅・行高 colW・rowH で、枠 [x, y, w, h] に縦横比を保って収めた 16:9 の映像の幅 */
-function videoWidthIn(colW, rowH, [x, y, w, h]) {
-  return Math.min(sumOf(colW.slice(x, x + w)), (sumOf(rowH.slice(y, y + h)) * 16) / 9);
-}
-
-/**
- * メイン拡大の列幅・行高 (layout() の形 {colW, rowH, scale})。大きくできない形 (均等・PinP・メインの無いもの) は null。
- * メイン枠のかかる列・行は 16:9 のまま倍率 s で大きくし、サブだけの列・行で画面の残りを分ける (元の幅の比で)。
- * s は、サブの映像の幅がメインの FOCUS_SUB_MIN 以上で、画面に収まる一番大きいもの (二分探索)。
- * サブの枠は 16:9 からずれるが、映像は切らずに枠の中に収める (残りは黒帯)。標準より 2% 以上大きくならなければ null
- */
-const focusCache = new Map();
-function mainFocusFit(l) {
-  if (l.overlap || !l.mains || l.group === 'uniform') return null;
-  const base = fitScale(l);
-  const key = `${l.id}|${Math.round(base.W)}x${Math.round(base.H)}`;
-  if (focusCache.has(key)) return focusCache.get(key);
-  if (focusCache.size > 64) focusCache.clear();
-  const mainCols = new Set(), mainRows = new Set();
-  for (const [x, y, w, h] of l.slots.slice(0, l.mains)) {
-    for (let i = x; i < x + w; i++) mainCols.add(i);
-    for (let j = y; j < y + h; j++) mainRows.add(j);
-  }
-  // 倍率 s のときの列幅 (px)。サブだけの列は、残りの幅を元の比で分ける (サブだけの列が無ければ残りは余白)
-  const tracks = (std, isMain, total, s) => {
-    const fixed = std.reduce((a, v, i) => a + (isMain(i) ? v * s : 0), 0);
-    const freeStd = std.reduce((a, v, i) => a + (isMain(i) ? 0 : v), 0);
-    if (fixed > total + 0.5) return null;
-    if (!freeStd) return std.map((v) => v * s);
-    return std.map((v, i) => (isMain(i) ? v * s : ((total - fixed) * v) / freeStd));
-  };
-  const at = (s) => {
-    const colW = tracks(base.colW, (i) => mainCols.has(i), base.W, s);
-    const rowH = tracks(base.rowH, (j) => mainRows.has(j), base.H, s);
-    if (!colW || !rowH) return null;
-    const mainW = Math.min(...l.slots.slice(0, l.mains).map((sl) => videoWidthIn(colW, rowH, sl)));
-    const subW = Math.min(...l.slots.slice(l.mains).map((sl) => videoWidthIn(colW, rowH, sl)));
-    return subW >= mainW * FOCUS_SUB_MIN - 0.5 ? { colW, rowH, scale: 1, mainW } : null;
-  };
-  let lo = base.scale;
-  let hi = Math.min(base.W / sumOf(base.colW.filter((_, i) => mainCols.has(i))), base.H / sumOf(base.rowH.filter((_, j) => mainRows.has(j))));
-  let best = at(lo);
-  for (let k = 0; k < 30 && hi - lo > 1e-3; k++) {
-    const mid = (lo + hi) / 2;
-    const t = at(mid);
-    if (t) {
-      best = t;
-      lo = mid;
-    } else {
-      hi = mid;
-    }
-  }
-  const stdMain = Math.min(...l.slots.slice(0, l.mains).map((sl) => videoWidthIn(base.colW, base.rowH, sl))) * base.scale;
-  const out = best && best.mainW > stdMain * 1.02 ? best : null;
-  focusCache.set(key, out);
-  return out;
-}
-
 /**
  * n 本の配信を並べるのに向いたレイアウトを選ぶ。優先する順に:
  *  1. メイン枠の数が基準 (ふつうは今のレイアウト) と同じ (無ければ近いもの)。サブ枠が空になるほどメイン枠が多いものは使わない
@@ -604,13 +543,17 @@ function layout() {
   const l = state.layout;
   verticalShape = verticalKey();
   setToggle(document.getElementById('fitFill'), state.fit === 'fill');
-  // 標準: どの枠もちょうど 16:9 になる列幅・行高を、画面に収まる最大の大きさで。
-  // ショートの枠があれば、その枠を 9:16 に寄せる (そのほうが映像が広く出るとき)。
-  // メイン拡大: ショートの枠が無ければ、サブを小さくして空いた分でメインを大きくする (mainFocusFit。大きくできなければ標準)
-  const vertical = verticalFit(l);
-  const { colW, rowH, scale } = vertical || (state.fit === 'fill' && mainFocusFit(l)) || fitScale(l);
-  gridEl.style.gridTemplateColumns = colW.map((v) => `${(v * scale).toFixed(2)}px`).join(' ');
-  gridEl.style.gridTemplateRows = rowH.map((v) => `${(v * scale).toFixed(2)}px`).join(' ');
+  if (state.fit === 'fill') {
+    // ストレッチ: 格子を均等に割り、映像は枠に合わせて拡大 (端が切れる。縦長の映像は枠のプレイヤー側で切らずに収める)
+    gridEl.style.gridTemplateColumns = `repeat(${l.cols}, minmax(0, 1fr))`;
+    gridEl.style.gridTemplateRows = `repeat(${l.rows}, minmax(0, 1fr))`;
+  } else {
+    // 標準: どの枠もちょうど 16:9 になる列幅・行高を、画面に収まる最大の大きさで。
+    // ショートの枠があれば、その枠を 9:16 に寄せる (そのほうが映像が広く出るとき)
+    const { colW, rowH, scale } = verticalFit(l) || fitScale(l);
+    gridEl.style.gridTemplateColumns = colW.map((v) => `${(v * scale).toFixed(2)}px`).join(' ');
+    gridEl.style.gridTemplateRows = rowH.map((v) => `${(v * scale).toFixed(2)}px`).join(' ');
+  }
   visibleIndexes().forEach((i, k) => {
     const [x, y, w, h] = l.slots[k];
     const el = views[i].el;
@@ -756,6 +699,10 @@ function addTileSlot(k = 1) {
 function setFit(mode) {
   if (state.fit === mode) return;
   state.fit = mode;
+  // 各枠のプレイヤーに、映像の拡大 (端を切る) の切り替えを伝える
+  for (const v of views) {
+    postToFrame(v.player, { hakomado: 'fill', on: mode === 'fill' });
+  }
   layout();
   save();
 }
@@ -852,6 +799,7 @@ function playerUrl(t) {
     app: 'desktop',
     hakomado: '1',
     hakomado_muted: t.muted ? '1' : '0',
+    hakomado_fill: state.fit === 'fill' ? '1' : '0',
   });
   return `${YT}/watch?${p}`;
 }
@@ -4963,7 +4911,7 @@ function setupLayoutPicker() {
     renderTab();
     dialog.showModal();
   });
-  // 上部バーの「メイン拡大」: ON = サブを小さくしてメインを大きく / OFF = 標準 (どの枠も 16:9)
+  // 上部バーの「ストレッチ」: ON = 余白なしで画面を埋める / OFF = 標準 (どの枠も 16:9)
   document.getElementById('fitFill').addEventListener('click', () => setFit(state.fit === 'fill' ? 'fit' : 'fill'));
   document.getElementById('layoutClose').addEventListener('click', () => dialog.close());
   closeOnBackdrop(dialog);

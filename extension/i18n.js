@@ -1162,8 +1162,8 @@ const HTML_EN = {
   'notice.empty': 'No notifications yet. When a channel goes live, it shows up here (checked while this page is open).',
   'progress.title': 'Preparing auto play',
   'layout.anchor': 'Placement',
-  'fit.fill': 'Bigger main',
-  'fit.fillTitle': 'Bigger main: shrink the sub tiles and use the space to make the main tiles bigger (videos are never cropped; subs stay at least 1/6 of the main). Layouts that cannot change, such as uniform grids, look the same as standard',
+  'fit.fill': 'Stretch',
+  'fit.fillTitle': 'Stretch: fill the screen with no margins. Videos are zoomed to fit their tiles and the edges are cropped (vertical videos are not cropped). When off (standard), every tile is exactly 16:9 and any leftover space goes to the outer margins',
   'layout.note': 'Darker tiles are main tiles. Streams fill tile 1 (main) first. Drag ⠿ on a tile to swap.',
 
   // チャンネル・ピックアップ
