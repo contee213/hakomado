@@ -490,7 +490,7 @@ const MESSAGES = {
   packRestore: ['戻す ({0})', 'Restore ({0})'],
   packCount: ['{0} ({1} 件)', '{0} ({1})'],
   packAllGroups: ['すべてのチャンネル', 'All channels'],
-  progressArchive: ['最近の配信を探しています ({0} / {1})', 'Looking for recent streams ({0} / {1})'],
+  progressArchive: ['最近の動画を探しています ({0} / {1})', 'Looking for recent videos ({0} / {1})'],
   progressTiles: ['枠を準備しています', 'Preparing tiles'],
   noticeStarted: ['▶ 配信開始: {0}', '▶ Now live: {0}'],
   noticeAt: ['{0} に開始', 'Started {0}'],
@@ -563,7 +563,7 @@ const MESSAGES = {
   tourLibraryT: ['📚 ライブラリ', '📚 Library'],
   tourLibrary: [
     '右上の「📚 ライブラリ」で開く画面です。最近終わった配信・視聴履歴・あとで見る・再生リストがまとまっています。再生リストの「⏱ まとめて同期再生」で、コラボのアーカイブを同じ瞬間にそろえて見られます。',
-    'This opens from “📚 Library” at the top right. Recent streams, watch history, Watch later and playlists are here. “⏱ All at once, in sync” on a playlist lines up collab archives to the same moment.',
+    'This opens from “📚 Library” at the top right. Recent videos, watch history, Watch later and playlists are here. “⏱ All at once, in sync” on a playlist lines up collab archives to the same moment.',
   ],
   tourAutoT: ['自動再生ではじめましょう', 'Start with auto play'],
   tourAuto: ['押すと、配信中のチャンネルが並びます。ほかの場所を押すと、押さずにツアーを終えます。このツアーは、右上の ? (使い方) からいつでも見直せます。', 'Press it to lay out the channels that are live. Click anywhere else to finish the tour without it. You can replay this tour any time from ? (Help) at the top right.'],
@@ -571,13 +571,13 @@ const MESSAGES = {
   pauseLabel: ['一時停止', 'Pause'],
   archiveBtn: ['最近 ⌄', 'Recent ⌄'],
   archiveBtnOpen: ['最近 ⌃', 'Recent ⌃'],
-  archiveOpen: ['最近の配信を見る', 'Show recent streams'],
-  archiveClose: ['最近の配信を閉じる', 'Hide recent streams'],
-  archiveLoading: ['最近の配信を取得しています…', 'Getting recent streams…'],
-  archiveError: ['最近の配信を取得できませんでした', 'Could not get recent streams'],
+  archiveOpen: ['最近の動画を見る', 'Show recent videos'],
+  archiveClose: ['最近の動画を閉じる', 'Hide recent videos'],
+  archiveLoading: ['最近の動画を取得しています…', 'Getting recent videos…'],
+  archiveError: ['最近の動画を取得できませんでした', 'Could not get recent videos'],
   archiveNone: ['終わった配信はありません', 'No past streams'],
   archiveProgress: ['取得中 {0} / {1}', 'Loading {0} / {1}'],
-  archiveEmpty: ['最近 {0} 日に終わった配信はありません。', 'No streams ended in the last {0} days.'],
+  archiveEmpty: ['最近 {0} 日に終わった配信・公開された動画はありません。', 'No streams or videos in the last {0} days.'],
   archiveNoMatch: ['「{0}」に一致する配信はありません。', 'No streams match "{0}".'],
   archiveNoPick: ['ピックアップ (📌) のチャンネルがありません。「すべて」に切り替えるか、チャンネルを 📌 でピックアップに入れてください。', 'No channels in pickup (📌). Switch to "All", or pick up channels with 📌.'],
   scopeNoPicked: ['ピックアップ (📌) のチャンネルのものはありません。「📺 すべて」に切り替えると、全部見られます。', 'Nothing from your pickup (📌) channels. Switch to "📺 All" to see everything.'],
@@ -615,12 +615,12 @@ const MESSAGES = {
   ],
   plSyncCut: ['{0} 本を外して同期再生にしました', 'Removed {0} and switched to sync'],
   plEmpty: [
-    '再生リストはまだありません。上の「＋ 新規」で空の再生リストを作るか、「▦ 今の枠から作る」で表示中の枠をそのまま再生リストにできます。枠のバーや、最近の配信・視聴履歴・あとで見るの 📃 からも作れます。',
-    'No playlists yet. Use "+ New" above to make an empty one, or "▦ From current tiles" to turn the shown tiles into a playlist. You can also make one with 📃 on a tile bar or in recent streams, watch history and Watch later.',
+    '再生リストはまだありません。上の「＋ 新規」で空の再生リストを作るか、「▦ 今の枠から作る」で表示中の枠をそのまま再生リストにできます。枠のバーや、最近の動画・視聴履歴・あとで見るの 📃 からも作れます。',
+    'No playlists yet. Use "+ New" above to make an empty one, or "▦ From current tiles" to turn the shown tiles into a playlist. You can also make one with 📃 on a tile bar or in recent videos, watch history and Watch later.',
   ],
   plNoItems: [
-    'この再生リストは空です。下の欄に URL を入れるか、「▦ 今の枠を追加」、枠のバーや最近の配信・視聴履歴・あとで見るの 📃 で入れられます。',
-    'This playlist is empty. Enter a URL in the box below, use "▦ Add current tiles", or 📃 on a tile bar or in recent streams, watch history and Watch later.',
+    'この再生リストは空です。下の欄に URL を入れるか、「▦ 今の枠を追加」、枠のバーや最近の動画・視聴履歴・あとで見るの 📃 で入れられます。',
+    'This playlist is empty. Enter a URL in the box below, use "▦ Add current tiles", or 📃 on a tile bar or in recent videos, watch history and Watch later.',
   ],
   plAddTitle: ['再生リストに入れる / 外す', 'Add to or remove from a playlist'],
   tilePlaylist: ['この配信を再生リストに入れる / 外す', 'Add this stream to a playlist, or remove it'],
@@ -738,11 +738,11 @@ const MESSAGES = {
     'Received {0} from the link. Check the name and press “📃 Save as playlist” (you can also lay them out in tiles)',
   ],
   importNothing: ['リンクに YouTube の動画が見つかりませんでした', 'No YouTube videos were found in the link'],
-  fillOnly: ['いま配信中のチャンネルはありません。最近の配信 {0} 件を流しています', 'None of your channels are live. Playing {0} recent streams'],
+  fillOnly: ['いま配信中のチャンネルはありません。最近の動画 {0} 件を流しています', 'None of your channels are live. Playing {0} recent videos'],
   pickSearching: ['🎲 探しています…', '🎲 Looking…'],
   pickNothing: ['ほかに入れられる配信が見つかりませんでした', 'No other stream to add'],
   pickedLive: ['🎲 ライブ: {0}', '🎲 Live: {0}'],
-  pickedArchive: ['🎲 最近の配信: {0}', '🎲 Recent stream: {0}'],
+  pickedArchive: ['🎲 最近の動画: {0}', '🎲 Recent video: {0}'],
   reasonEnded: ['配信終了', 'Ended'],
   reasonClosed: ['✕ で閉じた', 'Closed'],
   reasonMembers: ['メンバー限定', 'Members-only'],
@@ -838,7 +838,7 @@ const HTML_EN = {
   'auto.label': 'Auto play',
   'cruise.title': 'Cruise (C): move the main tile and audio to the next stream at a set interval',
   'cruise.label': 'Cruise',
-  'fav.title': 'Library (B): recent streams, watch history and watch later',
+  'fav.title': 'Library (B): recent videos, watch history and watch later',
   'ch.title': 'Channels (F): live and upcoming streams, and adding or picking up channels',
   'ch.label': 'Channels',
   'fav.label': 'Library',
@@ -921,8 +921,10 @@ const HTML_EN = {
   'chat.noav': 'Hide author icons',
   'auto.skip': "Skip members-only streams you're not a member of",
   'auto.skipNote': 'Streams your signed-in account cannot watch are not added',
-  'auto.archive': 'Play recent streams when nothing is live',
-  'auto.archiveNote': 'Plays 4 recent streams when nothing is live',
+  'auto.archive': 'Play recent videos when nothing is live',
+  'auto.archiveNote': 'Plays 4 recent videos when nothing is live',
+  'auto.archiveVideos': 'Include videos (premieres, MVs, etc.)',
+  'auto.archiveShorts': 'Include Shorts (including vertical streams)',
   'auto.maxTiles': 'Max tiles in auto play',
   'auto.maxTilesNote': 'Lower it if things get slow',
   'auto.prestart': 'Prepare tiles for upcoming streams',
@@ -1031,7 +1033,7 @@ const HTML_EN = {
 <li><b>Max tiles in auto play</b>: never plays more than this many, however many are live. Lower it on a slow connection or a busy computer</li>
 <li><b>Put pickup (📌) streams in the main tiles first</b>: puts pickup live streams in the big main tile and others in sub tiles. Pickup also goes first when the limit is reached. Not rearranged in uniform layouts (no main tile) or while cruising</li>
 <li><b>Prepare tiles for upcoming streams</b>: makes tiles before streams start, so you see them from the beginning. When nothing is live, shows the next upcoming stream and any starting within an hour after it</li>
-<li><b>Play recent streams when nothing is live</b>: when nothing is live (late at night, for example), plays 4 recently ended streams from your channels (pickup first, already watched ones skipped). They are cleared when a live stream starts</li>
+<li><b>Play recent videos when nothing is live</b>: when nothing is live (late at night, for example), plays 4 recently ended streams and new videos from your channels (pickup first, already watched ones skipped; choose in Settings whether to include videos and Shorts). They are cleared when a live stream starts</li>
 </ul>`,
   'helpPage.cruise': `<p>Turn on “Cruise” (<kbd>C</kbd>) to move the main tile and audio to the next stream at a set interval, so you can sample many streams. It works without auto play, with tiles you arranged yourself.</p>
 <ul>
@@ -1041,7 +1043,7 @@ const HTML_EN = {
 </ul>`,
   'helpPage.channels': `<ul>
 <li>“📺 Channels” (<kbd>F</kbd>) lists your channels: live, upcoming and the rest. Press a live or upcoming row to put it in an empty tile</li>
-<li>“Recent ⌄” on a row opens that channel’s recent streams, and 📌 adds it to pickup</li>
+<li>“Recent ⌄” on a row opens that channel’s recent videos, and 📌 adds it to pickup</li>
 <li><b>Pickup</b>: the channels you are following right now (e.g. the members of a group event). Filter the list with “📺 All / 📌 Pickup” at the top, and use it as the target of auto play and notifications</li>
 <li>Add a channel by entering an <code>@handle</code>, a channel URL or a video URL in the box at the bottom</li>
 <li><b>🔔 Notifications</b>: tell you when a channel goes live. Choose the target in Settings → Auto play → “Notifications for”</li>
@@ -1054,7 +1056,7 @@ const HTML_EN = {
 <li><b>Export a channel pack</b>: save the bundled Hololive pack, an imported pack, the channels you added, or all of them as a pack (JSON) to give to others or publish</li>
 </ul>`,
   'helpPage.library': `<ul>
-<li>“📚 Library” (<kbd>B</kbd>): 🎞 Recent streams (ended in the last 7 days) / 🕘 Watch history (100) / 🔖 Watch later (100) / 📃 Playlists</li>
+<li>“📚 Library” (<kbd>B</kbd>): 🎞 Recent videos (streams ended and videos published in the last 7 days) / 🕘 Watch history (100) / 🔖 Watch later (100) / 📃 Playlists</li>
 <li><b>Watch later</b>: add with 🔖 on tile bars and lists. “▶ Play in current tiles” fills the tiles you have in order and puts the next one in each tile that finishes. Items watched to the end are removed</li>
 <li><b>Playlists</b>: named lists (up to 30, 200 items each). Make one with “+ New”, “▦ From current tiles” or “📥 Import”, and add with the URL box or 📃 on tile bars and lists. Drag ⠿ to reorder; a row’s name is what its tile shows</li>
 <li>“▶ In order” fills the current tiles from the top and puts the next one in each tile that finishes (items watched to the end get ✓ and it continues from there next time). “⏱ All at once, in sync” lays out all of them and plays the archives in step (up to 16)</li>
@@ -1146,8 +1148,8 @@ const HTML_EN = {
   'settings.reset': 'Reset all to defaults',
   'settings.resetTitle': 'Reset all danmaku, outline, chat and auto play settings (the display language and channels are kept)',
   'fav.history': '🕘 Watch history',
-  'fav.archive': '🎞 Recent streams',
-  'fav.archiveTitle': 'Streams from your channels that ended in the last 7 days (newest first)',
+  'fav.archive': '🎞 Recent videos',
+  'fav.archiveTitle': 'Streams from your channels that ended, and videos (premieres etc.) published, in the last 7 days (newest first)',
   'scope.star': '📌 Pickup',
   'scope.all': '📺 All',
   'fav.playlists': '📃 Playlists',

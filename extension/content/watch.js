@@ -117,6 +117,7 @@
         publish: num(d.publish),
         dur: num(d.dur),
         t: num(d.t),
+        vertical: typeof d.vertical === 'boolean' ? d.vertical : null,
       },
       PARENT_ORIGIN,
     );
