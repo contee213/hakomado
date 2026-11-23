@@ -61,7 +61,7 @@ function formatShareCode(layoutId, ids, offs = [], refK = 0, name = '', movie = 
 
 /** 本編の位置 (コードの「~!」の後ろ・リンクの hkm=)。決めていない動画は空。基準が先頭以外なら「*」。1 つも無ければ '' */
 function movieTail(ids, anchors = [], refK = 0) {
-  const a = ids.map((_, k) => (Number.isFinite(anchors[k]) ? Math.round(anchors[k] * 10) / 10 : null));
+  const a = ids.map((_, k) => (Number.isFinite(anchors[k]) ? Math.round(anchors[k] * 100) / 100 : null)); // 0.01 秒単位
   if (!a.some((v) => v != null)) return '';
   return a.map((v, k) => (k === refK && k > 0 ? '*' : '') + (v == null ? '' : String(v))).join(',');
 }

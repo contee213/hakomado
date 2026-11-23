@@ -82,7 +82,7 @@
       return;
     }
     const [start, end, dur] = [Number(d.start), Number(d.end), Number(d.dur)];
-    if ([start, end, dur].every(Number.isFinite)) window.parent.postMessage({ hakomado: 'archive', start, end, dur }, PARENT_ORIGIN);
+    if ([start, end, dur].every(Number.isFinite)) window.parent.postMessage({ hakomado: 'archive', start, end, dur, premiere: d.premiere === true }, PARENT_ORIGIN);
   });
   document.addEventListener('hakomado:sync-state', (e) => {
     let d;

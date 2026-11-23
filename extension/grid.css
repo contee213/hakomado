@@ -1626,6 +1626,8 @@ body.grid-fs .sync-dock { top: 0; }
 .dr-num { flex: none; min-width: 1.2em; color: var(--muted); font-variant-numeric: tabular-nums; }
 .dr-name { flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .dr-ref-tag { flex: none; padding: 0 4px; border-radius: 3px; background: var(--g, #ffffff30); color: #111; font-size: 11px; font-weight: 700; line-height: 1.5; }
+/* 🎬 本編の枠 (プレミア公開) の印 */
+.dr-main-tag { background: #9ad4ff; }
 .dr-short { flex: none; color: var(--muted); font-variant-numeric: tabular-nums; display: none; }
 /* 設定したずれどおりの位置か (✓) / その位置へ寄せている途中か (↻)。グループの色と混ざらないよう、色ではなく記号で見せる */
 .dr-dot { flex: none; width: 1.1em; text-align: center; color: var(--muted); font-size: 12px; line-height: 1; }
