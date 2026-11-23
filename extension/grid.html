@@ -31,7 +31,7 @@
       <span id="syncNow" class="sync-time"></span>
       <input type="range" id="syncSeek" min="0" max="1" step="1" value="0" data-i18n-title="sync.seekTitle" title="同期している全部のアーカイブを、この時刻に動かす">
       <span id="syncEnd" class="sync-time"></span>
-      <button id="syncDockToggle" type="button" class="sync-dock-toggle" data-i18n-title="sync.dockTitle" title="同期の調整 (グループ・基準・ずれ・🎧 音で合わせる) を画面の右に出す / しまう">☰</button>
+      <button id="syncDockToggle" type="button" class="sync-dock-toggle" data-i18n-title="sync.dockTitle" title="同期の調整パネル (グループ・基準・補正・🎧 音で合わせる) を出す / しまう">☰</button>
     </div>
 
     <span class="spacer"></span>
@@ -61,7 +61,7 @@
       <button type="button" id="syncUndo" class="dock-undo" data-i18n="sync.undo" hidden>↶ 元に戻す</button>
       <!-- 行の ✓ / ↻ の意味 (grid.js が作る) -->
       <div id="syncLegend" class="dock-legend"></div>
-      <p class="dock-keys" data-i18n="sync.dockKeys">行を選んで ← → でずれを 0.1 秒 (Shift: 0.01 秒 / Ctrl: 1 秒)、↑ ↓ で行を移る</p>
+      <p class="dock-keys" data-i18n="sync.dockKeys">行を選んで ← → で補正を 0.1 秒 (Shift: 0.01 秒 / Ctrl: 1 秒)、↑ ↓ で行を移る</p>
     </div>
   </aside>
   <div id="globalToast" class="toast global-toast" role="status"></div>
@@ -304,7 +304,7 @@
             <ul>
               <li>上のバーの「▦」でレイアウトを選びます。濃い枠がメインで、読み込んだ配信は 1 番 (メイン) から順に入ります。「＋」「−」で枠を増やす・減らす</li>
               <li>配信の入った枠にマウスを乗せると、操作バーが出ます。左端の ⠿ をドラッグすると、枠を入れ替えます</li>
-              <li>枠のバー: 音のボタン (この枠の音を出す) / 🎚 音の左右・音量・遅延 / 💬 チャット欄 / ≋ 弾幕 / 📌 ピックアップ / 🔖 あとで見る / 📃 再生リストに入れる / ⏱ 同期のずれ (アーカイブのとき) / ⟳ 読み込み直し / ⛶ その枠だけ全画面 / ✕ 閉じる</li>
+              <li>枠のバー: 音のボタン (この枠の音を出す) / 🎚 音の左右・音量・遅延 / 💬 チャット欄 / ≋ 弾幕 / 📌 ピックアップ / 🔖 あとで見る / 📃 再生リストに入れる / ⏱ 同期の調整 (アーカイブのとき) / ⟳ 読み込み直し / ⛶ その枠だけ全画面 / ✕ 閉じる</li>
               <li>🎚 では、その枠の音を左・真ん中・右から聞こえるようにしたり、音量 (0〜200%) を変えたりできます。「⇆ 2 枠を左右に分ける」で、音の出ている 2 枠を画面の位置どおり左右に分けます。ライブ配信では「音の遅延」で、その枠の音だけを遅らせられます (映像はそのまま。コラボで、ほかの枠より声が先に聞こえるときに)</li>
               <li>「⛶」(<kbd>Shift</kbd> + <kbd>F</kbd>) で、分割したまま全画面にします。上端にマウスを寄せるとバーが出ます</li>
               <li>「ℹ️」(<kbd>I</kbd>) で、各枠の種類 (ライブ・アーカイブ・動画)・配信の時間・今の視聴者数・再生数・アーカイブ同期できるかを一覧で見られます</li>
@@ -362,8 +362,8 @@
             <ul>
               <li>上のバーの「⏱ アーカイブ同期」を押すと、配信の時間帯が重なるアーカイブを、配信していた実際の時刻でそろえて再生します。アーカイブが 2 本そろっていないときは薄く出ていて、押すと使えない理由 (ライブ配信中・ふつうの動画など) が出ます</li>
               <li>時間帯が重なるアーカイブどうしを自動でグループにまとめるので、別々のコラボの A・B と C・D を別々にそろえられます (4 組まで。枠に色と番号が出ます)。グループは同期の調整パネルの各行で付け替えられます</li>
-              <li>同期の調整パネル (上のバーの ☰ か、枠の ⏱) は、枠の上に浮かぶ半透明の小窓で出ます (見出しをつかんで動かせます。⇲ で画面の右の列にもできます)。グループごとに、そろえ方 (🕒 実際の時刻 / 🎬 本編)・⏸・🎧 音で合わせる・つまみ、枠ごとに、基準 (◉)・ずれ・⏸ 止めて待つ があります</li>
-              <li>合わせるのは基準でない枠です (基準の枠は時計を動かす側なので、ずれは見せるだけ)。行を選んで ← → でずれを 0.1 秒ずつ動かせます (Shift: 0.01 秒 / Ctrl: 1 秒)。行の ✓ は設定したずれどおりの位置で再生中、↻ はその位置へ寄せている途中です (声が合っているかは、聞いて確かめます)。「↶ 元に戻す」で直前の変更を戻せます。手で合わせてうまくいかなかったときは、行の ↺ (グループ全部なら見出しの ↺) で実際の時刻に戻せます。ずれは動画ごとに覚え、再生リストや共有するコードにも入ります</li>
+              <li>同期の調整パネル (上のバーの ☰ か、枠の ⏱) は、枠の上に浮かぶ半透明の小窓で出ます (見出しをつかんで動かせます。⇲ で画面の右の列にもできます)。グループごとに、そろえ方 (🕒 実際の時刻 / 🎬 本編)・⏸・🎧 音で合わせる・つまみ、枠ごとに、基準 (◉)・補正・⏸ 止めて待つ があります</li>
+              <li>合わせるのは基準でない枠です (基準の枠は時計を動かす側なので、補正は見せるだけ)。行を選んで ← → で補正を 0.1 秒ずつ動かせます (Shift: 0.01 秒 / Ctrl: 1 秒)。行の ✓ は設定した補正どおりの位置で再生中、↻ はその位置へ寄せている途中です (声が合っているかは、聞いて確かめます)。「↶ 元に戻す」で直前の変更を戻せます。手で合わせてうまくいかなかったときは、行の ↺ (グループ全部なら見出しの ↺) で実際の時刻に戻せます。補正は動画ごとに覚え、再生リストや共有するコードにも入ります</li>
               <li>上のバーのつまみは、音を出している枠のグループを動かします</li>
             </ul>
           </section>
@@ -372,7 +372,7 @@
             <ul>
               <li><b>画像</b>: X などに添えて投稿します。QR を読むと YouTube で開け、Hakomado では同じ並びで開けます。画像に付ける説明 (ALT) の文もコピーできます。「𝕏 に投稿」で、画像・名前・リンクを入れた X の投稿画面を開きます (投稿ボタンは自分で押します。初めてのときは x.com へのアクセスの許可を聞きます)</li>
               <li><b>コード</b>: <code>#Hakomado …</code> の 1 行 (16 本まで)。X での文字数も出します</li>
-              <li><b>テキスト</b>: 1 行に 1 本。名前・同期・レイアウト・ずれ・枠の名前まで全部入ります。AI チャットに渡して直してもらうこともできます</li>
+              <li><b>テキスト</b>: 1 行に 1 本。名前・同期・レイアウト・補正・枠の名前まで全部入ります。AI チャットに渡して直してもらうこともできます</li>
               <li><b>取り込み用リンク</b>: Hakomado が無い人も YouTube の再生リストとして見られます (50 本まで)</li>
             </ul>
             <p>受け取ったものは「📥 読み込む」に貼ります (画像はドロップでも。入力欄の外で <kbd>Ctrl</kbd> + <kbd>V</kbd> しても開きます)。読み取った内容を確かめて、「▦ 枠に並べる」か「📃 再生リストとして保存」を選びます。取り込み用リンクを開いたときもここに来ます。</p>
@@ -464,7 +464,7 @@
           <p class="settings-note" id="shareNoteImage"></p>
           <!-- 短縮リンク (sets-link.js の機能フラグがオンのときだけ出す) -->
           <div class="share-short" data-sets-link hidden>
-            <button type="button" id="shareImgShort" data-i18n="share.imgShort" data-i18n-title="share.imgShortTitle" title="このセット (動画・レイアウト・同期のずれ・名前) を Hakomado のサイトに送って短いリンクを作り、QR の中身をそのリンクにする (QR が小さく読み取りやすくなる)">✂ QR を短縮リンクにする</button>
+            <button type="button" id="shareImgShort" data-i18n="share.imgShort" data-i18n-title="share.imgShortTitle" title="このセット (動画・レイアウト・同期の補正・名前) を Hakomado のサイトに送って短いリンクを作り、QR の中身をそのリンクにする (QR が小さく読み取りやすくなる)">✂ QR を短縮リンクにする</button>
             <span id="shareImgShortState" class="share-status"></span>
           </div>
           <div class="share-buttons">
@@ -497,7 +497,7 @@
           </div>
           <!-- 短縮リンク (sets-link.js の機能フラグがオンのときだけ出す) -->
           <div class="share-short" data-sets-link hidden>
-            <p class="settings-note" data-i18n="share.shortNote">「短縮リンクを作る」を押すと、このセット (動画・レイアウト・同期のずれ・名前) を Hakomado のサイトに送り、短いリンクを作ります。リンクを知っている人だけが見られます (サイトの一覧には載りません)</p>
+            <p class="settings-note" data-i18n="share.shortNote">「短縮リンクを作る」を押すと、このセット (動画・レイアウト・同期の補正・名前) を Hakomado のサイトに送り、短いリンクを作ります。リンクを知っている人だけが見られます (サイトの一覧には載りません)</p>
             <div class="share-buttons">
               <button type="button" id="shareShortMake" data-i18n="share.shortMake">✂ 短縮リンクを作る</button>
               <input type="text" id="shareShort" class="share-short-url" readonly spellcheck="false" hidden>
@@ -602,7 +602,7 @@
         </span>
         <select id="plSelect" class="pl-select" data-i18n-title="pl.selectTitle" title="表示する再生リスト" hidden></select>
         <button type="button" id="plNew" class="pl-new" data-i18n="pl.new" data-i18n-title="pl.newTitle" title="空の再生リストを作る。下の欄や、枠・一覧の 📃 で中身を入れる" hidden>＋ 新規</button>
-        <button type="button" id="plFromTiles" class="pl-new" data-i18n="pl.fromTiles" data-i18n-title="pl.fromTilesTitle" title="表示中の枠の配信を、並び順・レイアウト・同期のずれごと新しい再生リストにする" hidden>▦ 今の枠から作る</button>
+        <button type="button" id="plFromTiles" class="pl-new" data-i18n="pl.fromTiles" data-i18n-title="pl.fromTilesTitle" title="表示中の枠の配信を、並び順・レイアウト・同期の補正ごと新しい再生リストにする" hidden>▦ 今の枠から作る</button>
         <button type="button" id="plImport" class="pl-new" data-i18n="pl.import" data-i18n-title="pl.importTitle" title="共有された画像・コード・テキスト・リンクや URL のリストを貼って、再生リストとして保存する。AI チャットに作ってもらうこともできる" hidden>📥 読み込む</button>
         <input type="search" id="favFilter" data-i18n-placeholder="fav.filter" placeholder="名前・@チャンネル名で絞り込み" spellcheck="false">
         <!-- 件数は一覧のすぐ上 (絞り込み欄の右) に。タブの横に出すとタブの位置と紛らわしいので -->
@@ -769,7 +769,7 @@
             <button type="button" data-act="playlist" class="toggle" title="この配信を再生リストに入れる">📃</button>
             <button type="button" data-act="subscribe" class="toggle social" disabled><svg class="sub-icon" viewBox="0 0 16 16" aria-hidden="true"><circle cx="6" cy="4.6" r="2.8"/><path d="M0.8 14.2c0-3.1 2.3-5.4 5.2-5.4s5.2 2.3 5.2 5.4z"/><path d="M12.25 5.5h1.5v2.25H16v1.5h-2.25v2.25h-1.5V9.25H10v-1.5h2.25z"/></svg></button>
             <button type="button" data-act="like" class="toggle social" disabled>👍</button>
-            <button type="button" data-act="syncAdj" class="sync-adj" hidden data-i18n-title="sync.adjTitle" title="同期の調整パネルを出して、この枠を選ぶ (ずれ・基準・グループ)">⏱</button>
+            <button type="button" data-act="syncAdj" class="sync-adj" hidden data-i18n-title="sync.adjTitle" title="同期の調整パネルを出して、この枠を選ぶ (補正・基準・グループ)">⏱</button>
             <button type="button" data-act="reload" data-i18n-title="tile.reload" title="再読み込み (映像やチャットの調子が悪いとき)">⟳</button>
             <button type="button" data-act="max" data-i18n-title="tile.max" title="この枠を全画面で見る (Shift+数字キーでも可。Esc で戻る)">⛶</button>
             <button type="button" data-act="clear" class="close" data-i18n-title="tile.clear" title="この枠を閉じる">✕</button>

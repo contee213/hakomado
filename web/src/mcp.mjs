@@ -84,7 +84,7 @@ const TOOLS = [
         videos: { type: 'array', items: { type: 'string' }, maxItems: MAX_VIDEOS, description: 'YouTube の URL か動画 ID (11 文字)。並び順 = 枠の番号' },
         layoutId: { type: 'string', description: '省くと本数に合う均等のレイアウト' },
         name: { type: 'string', maxLength: 40, description: 'セットの名前' },
-        offsets: { type: 'array', items: { type: 'number' }, description: '同期再生のずれ (秒)。videos と同じ数' },
+        offsets: { type: 'array', items: { type: 'number' }, description: '同期再生の補正 (秒。配信していた実際の時刻でそろえた上に足し引きする分。+ で先へ進める)。videos と同じ数' },
         ref: { type: 'integer', minimum: 0, description: '同期の基準にする動画の番号 (0 から)' },
         author: { type: 'string', maxLength: 30, description: '投稿者として出す名前' },
         tags: { type: 'array', items: { type: 'string', maxLength: TAG_LEN }, maxItems: TAGS_MAX, description: 'タグ (頭の # は要らない)', feature: 'tags' },
