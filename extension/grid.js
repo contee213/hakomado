@@ -771,7 +771,14 @@ function removeEmptySlot(prefer = null) {
 
 /** 表示する枠を n 個にするときの並び順 (枠の番号はなるべく変えない。TileSlots.keepNumbersOrder) */
 function keepNumbersOrder(n, prefer = null) {
-  return TileSlots.keepNumbersOrder(state, n, prefer);
+  const out = TileSlots.keepNumbersOrder(state, n, prefer);
+  // 隠れている空き枠が足りずに、前の中身が残った隠れ枠が見えるようになるときは、空にしてから見せる (勝手に再生し始めないように)
+  for (const j of TileSlots.revealedFilled(state, out, n)) {
+    if (state.tiles[j].videoId) WatchHistory.removed(state.tiles[j].videoId, 'replaced');
+    state.tiles[j] = newTileState();
+    views[j].danmaku.clear();
+  }
+  return out;
 }
 
 /**
