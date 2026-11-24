@@ -111,6 +111,8 @@ YouTube の配信・動画を 1 つの画面に最大 16 枠並べて、同時�
 「www.youtube.com のデータの読み取りと変更」は、YouTube のプレイヤーとライブチャットをマルチビュー画面の枠の中に表示し、再生・音量・同期を操作するためと、配信の一覧を取得するために使います。マルチビュー画面を開いているタブの中でだけ働きます。
 「schedule.hololive.tv のデータの読み取りと変更」は、初期データのチャンネルの配信予定をまとめて取得するために使います (設定の「アドオン」で OFF にすると取得しません)。
 「www.nijisanji.jp のデータの読み取りと変更」は、設定の「アドオン」で「にじさんじ」を ON にしたときだけ求めます。にじさんじ公式サイトのライブスケジュールを取得するために使います (初期値は OFF)。
+「www.vspo-schedule.com のデータの読み取りと変更」は、設定の「アドオン」で「ぶいすぽっ!」を ON にしたときだけ求めます。ぶいすぽっ!の配信スケジュール (有志による非公式のサイト) を取得するために使います (初期値は OFF)。
+「schedule-share-json.s3.ap-northeast-1.amazonaws.com のデータの読み取りと変更」は、設定の「アドオン」で「STPR (すとぷり)」を ON にしたときだけ求めます。STPR の公式の配信予定 (schedule.stpr.com のデータ) を取得するために使います (初期値は OFF)。
 「x.com のデータの読み取りと変更」は、共有画面の「𝕏 に投稿」を初めて押したときだけ求めます。開いた X の投稿画面に共有画像を入れるために使い、投稿はしません。
 
 ■ ご注意
@@ -154,6 +156,8 @@ PERMISSIONS
 "Read and change your data on www.youtube.com" is used to show the YouTube player and live chat inside the tiles of the multiview screen, to control playback, volume and sync, and to load stream lists. It only takes effect in tabs where the multiview screen is open.
 "Read and change your data on schedule.hololive.tv" is used to load the stream schedule of the bundled channels in one request (not loaded when turned off under Settings > Add-ons).
 "Read and change your data on www.nijisanji.jp" is only requested when you turn on the NIJISANJI add-on under Settings > Add-ons. It is used to load the live schedule from the NIJISANJI website (off by default).
+"Read and change your data on www.vspo-schedule.com" is only requested when you turn on the VSPO! add-on under Settings > Add-ons. It is used to load the VSPO! stream schedule from that unofficial fan site (off by default).
+"Read and change your data on schedule-share-json.s3.ap-northeast-1.amazonaws.com" is only requested when you turn on the STPR add-on under Settings > Add-ons. It is used to load the official STPR stream schedule (the data behind schedule.stpr.com; off by default).
 
 NOTE
 This is an unofficial tool made by an individual. It is not affiliated with YouTube / Google or with the operators of the bundled channels. Some features may stop working when YouTube changes its pages.
@@ -237,6 +241,8 @@ YouTube の複数の配信・動画を 1 つの画面に並べて同時に視聴
 | `scripting` | 共有画面の「𝕏 に投稿」を押したときだけ、そのボタンが開いた X の投稿画面のタブ 1 つにスクリプトを入れ、投稿欄の画像の入力欄に共有画像を入れる (人が画像を選んだのと同じ)。投稿ボタンは押さない。ほかのタブ・ページには入れない |
 | 任意のホスト権限 `https://x.com/*` (`optional_host_permissions`) | 上の `scripting` で X の投稿画面に画像を入れるため。インストール時には求めず、利用者が初めて「𝕏 に投稿」を押したときに `chrome.permissions.request` で聞く。許可しなくても、投稿画面を開いて画像をクリップボードに入れるところまでは動く (利用者が Ctrl+V で貼る) |
 | 任意のホスト権限 `https://www.nijisanji.jp/*` (`optional_host_permissions`) | アドオン「にじさんじ」(`addons/nijisanji.js`。初期値は OFF) が、にじさんじ公式サイトのライブスケジュール (サイトが使っている JSON `https://www.nijisanji.jp/api/streams?…`) を読み、名前に「にじさんじ」が入るチャンネルパックから足したチャンネルの配信状況を YouTube に問い合わせる回数を減らす。このサイトは CORS で読めないので権限が要る。インストール時には求めず、利用者が設定 → アドオンで ON にしたときに `chrome.permissions.request` で聞き、OFF にすると手放す。読み取りだけで、Cookie は送らない |
+| 任意のホスト権限 `https://www.vspo-schedule.com/*` (`optional_host_permissions`) | アドオン「ぶいすぽっ!」(`addons/vspo.js`。初期値は OFF) が、ぶいすぽっ!の配信スケジュールのサイト (有志による非公式のサイト) のページ `https://www.vspo-schedule.com/schedule/live`・`/schedule/upcoming` に埋め込まれた枠のデータを読み、名前に「ぶいすぽ」が入るチャンネルパックから足したチャンネルの配信状況を YouTube に問い合わせる回数を減らす。このサイトは CORS で読めないので権限が要る。インストール時には求めず、利用者が設定 → アドオンで ON にしたときに `chrome.permissions.request` で聞き、OFF にすると手放す。読み取りだけで、Cookie は送らない |
+| 任意のホスト権限 `https://schedule-share-json.s3.ap-northeast-1.amazonaws.com/*` (`optional_host_permissions`) | アドオン「STPR (すとぷり)」(`addons/stpr.js`。初期値は OFF) が、STPR の公式の配信予定のサイト (schedule.stpr.com) が読んでいる JSON `https://schedule-share-json.s3.ap-northeast-1.amazonaws.com/schedule/schedule_v2.json` を読み、名前に「STPR」か「すとぷり」が入るチャンネルパックから足したチャンネルの配信状況を YouTube に問い合わせる回数を減らす。この JSON の CORS は schedule.stpr.com にだけ開いているので権限が要る。読むのはこの 1 ファイルだけ。インストール時には求めず、利用者が設定 → アドオンで ON にしたときに `chrome.permissions.request` で聞き、OFF にすると手放す。読み取りだけで、Cookie は送らない |
 
 ### content scripts
 
@@ -258,6 +264,8 @@ YouTube の複数の配信・動画を 1 つの画面に並べて同時に視聴
 | `www.youtube.com` / `i.ytimg.com` / `yt3.googleusercontent.com` | 配信・動画の情報とサムネイル (上記)、チャンネルのアイコン (画像の読み込みだけ) |
 | `schedule.hololive.tv` | ホロライブの配信予定 (アドオン「ホロジュール」が ON のときだけ。初期値は ON)。Cookie は送らない |
 | `www.nijisanji.jp` | にじさんじのライブスケジュール (アドオン「にじさんじ」が ON のときだけ。初期値は OFF)。配信中・今日・明日の分を、マルチビュー画面を開いている間 1 分に 1 回まで取得する (タブが複数あっても 1 回)。Cookie は送らない |
+| `www.vspo-schedule.com` | ぶいすぽっ!の配信スケジュール (アドオン「ぶいすぽっ!」が ON のときだけ。初期値は OFF。有志による非公式のサイト)。配信中・これからの枠の 2 ページを、マルチビュー画面を開いている間 1 分に 1 回まで取得する (タブが複数あっても 1 回)。Cookie は送らない |
+| `schedule-share-json.s3.ap-northeast-1.amazonaws.com` | STPR の公式の配信予定 (schedule.stpr.com が使っている JSON 1 つ。アドオン「STPR (すとぷり)」が ON のときだけ。初期値は OFF)。マルチビュー画面を開いている間 1 分に 1 回まで取得する (タブが複数あっても 1 回)。Cookie は送らない |
 | `api.github.com` | 新しい版が出ていないかの確認 (1 日 1 回まで。ストア版 = `update_url` がある場合は行わない)。Cookie は送らない |
 | `raw.githubusercontent.com` | 「パックを探す」を押したときだけ、リポジトリの `packs/index.json` (パックの一覧) と、選んだパックを取得する。CORS で読めるので host 権限は使わない。Cookie は送らない |
 | `x.com` | 共有画面で利用者が「𝕏 に投稿」を押したときだけ、名前と取り込み用リンクを入れた投稿画面 (`https://x.com/intent/post?…`) を新しいタブで開き、許可があれば共有画像をその投稿欄に入れる。拡張機能からは投稿しない (投稿するかどうか・何を投稿するかは、利用者が X の画面で確かめて決める) |
@@ -308,6 +316,8 @@ Lets the user watch several YouTube streams and videos side by side on one scree
 | `scripting` | Only when the user presses "𝕏 Post" on the share screen: injects a script into the single X post tab that button just opened, and puts the share image into the post box's image input (the same as choosing the image by hand). It never presses Post and is not injected into any other tab or page. |
 | `https://x.com/*` (optional host permission) | Needed for the `scripting` use above. Not requested at install; asked with chrome.permissions.request the first time the user presses "𝕏 Post". Without it, the extension still opens the post screen and copies the image to the clipboard for the user to paste. |
 | `https://www.nijisanji.jp/*` (optional host permission) | Used only by the NIJISANJI add-on (`addons/nijisanji.js`, off by default) to read the live schedule from the NIJISANJI website (the JSON the site itself uses, `https://www.nijisanji.jp/api/streams?…`), which reduces requests to YouTube for channels added from a NIJISANJI channel pack. The site does not allow CORS, so host access is needed. Not requested at install; asked with chrome.permissions.request when the user turns the add-on on under Settings > Add-ons, and released when it is turned off. Read only; no cookies are sent. |
+| `https://www.vspo-schedule.com/*` (optional host permission) | Used only by the VSPO! add-on (`addons/vspo.js`, off by default) to read the stream data embedded in the pages `https://www.vspo-schedule.com/schedule/live` and `/schedule/upcoming` of the VSPO! schedule site (an unofficial fan site), which reduces requests to YouTube for channels added from a VSPO! channel pack. The site does not allow CORS, so host access is needed. Not requested at install; asked with chrome.permissions.request when the user turns the add-on on under Settings > Add-ons, and released when it is turned off. Read only; no cookies are sent. |
+| `https://schedule-share-json.s3.ap-northeast-1.amazonaws.com/*` (optional host permission) | Used only by the STPR add-on (`addons/stpr.js`, off by default) to read the JSON that the official STPR schedule site (schedule.stpr.com) loads, `https://schedule-share-json.s3.ap-northeast-1.amazonaws.com/schedule/schedule_v2.json`, which reduces requests to YouTube for channels added from an STPR channel pack. Its CORS only allows schedule.stpr.com, so host access is needed. Only that one file is read. Not requested at install; asked with chrome.permissions.request when the user turns the add-on on under Settings > Add-ons, and released when it is turned off. Read only; no cookies are sent. |
 
 ## 版の履歴 (ストアに出したもの)
 
