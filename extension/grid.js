@@ -398,13 +398,14 @@ function filledArea(l, n) {
  *  6. 映像が画面を占める割合が大きい (たいてい横長の形)
  * クルーズ中は、メイン枠を回して見られるよう「メイン + サブ」のレイアウトを優先する (合うものが無ければ均等)。
  * 自動再生が枠を組み替えるときと、上部バーの「＋」「−」で使う
- * PinP は、今 PinP を使っているときだけ選ぶ (小窓に入りきらなければメイン 1 のメイン + サブ)
+ * PinP は、今 PinP を使っているときだけ選ぶ (小窓に入りきらなければメイン 1 のメイン + サブ)。
+ * 縦長も、今縦長を使っているときだけ選び、そのときは縦長を優先する (16 枠を超えるなど無ければ他のもの)
  * @param {number} n
  * @param {{mains: number, group: string, anchor: string, kind?: string}} [base] 基準 (省略時は今のレイアウト)
  */
 function chooseLayoutFor(n, base = currentBase()) {
   let pool = LAYOUTS.filter(
-    (l) => l.slots.length >= n && (l.mains === 0 || l.mains < n) && (l.group !== 'pip' || base.group === 'pip'),
+    (l) => l.slots.length >= n && (l.mains === 0 || l.mains < n) && (l.group !== 'pip' || base.group === 'pip') && (l.group !== 'vertical' || base.group === 'vertical'),
   );
   if (state.cruise && n >= 3) {
     const withMain = pool.filter((l) => l.mains > 0);
@@ -412,6 +413,7 @@ function chooseLayoutFor(n, base = currentBase()) {
   }
   if (!pool.length) return getLayout(DEFAULT_LAYOUT_ID);
   const rank = (l) => [
+    base.group === 'vertical' && l.group !== 'vertical' ? 1 : 0,
     Math.abs(l.mains - base.mains),
     l.slots.length - n,
     base.kind === 'pip' && l.kind !== 'pip' ? 1 : 0,
@@ -431,9 +433,14 @@ function chooseLayoutFor(n, base = currentBase()) {
   return best.l;
 }
 
-/** 枠 k をメイン枠として見せるか。均等はどの枠も同じ大きさなので、全部メイン枠として見せる (選び方の mains は 0 のまま) */
+/** 均等・縦長 (どの枠も同じ大きさ) か */
+function isEvenLayout(l) {
+  return l.group === 'uniform' || l.group === 'vertical';
+}
+
+/** 枠 k をメイン枠として見せるか。均等・縦長はどの枠も同じ大きさなので、全部メイン枠として見せる (選び方の mains は 0 のまま) */
 function isMainSlot(l, k) {
-  return l.group === 'uniform' || k < l.mains;
+  return isEvenLayout(l) || k < l.mains;
 }
 
 /** 自動で選ぶときの基準 = 今のレイアウト (均等のときも、覚えている基準位置を使う) */
@@ -504,11 +511,12 @@ function isVerticalTile(i) {
 }
 
 /**
- * 標準表示で、ショートの枠を 9:16 に寄せた列幅・行高。縦長の枠が無いとき・PinP (枠が重なる) のときは null。
+ * 標準表示で、ショートの枠を 9:16 に寄せた列幅・行高。縦長の枠が無いとき・PinP (枠が重なる) のとき・
+ * 縦長のレイアウト (はじめから全部 9:16) のときは null。
  * 同じ列・行に横長の枠があると間の比で止まるので、映像が画面に出る広さの合計が今 (どれも 16:9) より広くなるときだけ使う
  */
 function verticalFit(l) {
-  if (l.overlap) return null;
+  if (l.overlap || l.aspects) return null;
   const shown = visibleIndexes();
   const aspects = l.slots.map((_, k) => (shown[k] != null && isVerticalTile(shown[k]) ? VERTICAL : 16 / 9));
   if (!aspects.includes(VERTICAL)) return null;
@@ -593,9 +601,9 @@ function shrinkTarget() {
   return null;
 }
 
-/** メイン枠の数 (均等はどの枠も同じ大きさなので、全部をメイン枠として数える) */
+/** メイン枠の数 (均等・縦長はどの枠も同じ大きさなので、全部をメイン枠として数える) */
 function mainCount(l) {
-  return l.group === 'uniform' ? l.slots.length : l.mains;
+  return isEvenLayout(l) ? l.slots.length : l.mains;
 }
 
 /**
@@ -604,11 +612,11 @@ function mainCount(l) {
  *  2. おすすめ
  *  3. 今と同じ基準位置
  *  4. 映像が画面を占める割合が大きい
- * PinP は、今 PinP を使っているときだけ選ぶ。クルーズ中 (3 枠以上) はメイン + サブを優先する (chooseLayoutFor と同じ)
+ * PinP・縦長は、今それを使っているときだけ選ぶ (縦長なら縦長を優先)。クルーズ中 (3 枠以上) はメイン + サブを優先する (chooseLayoutFor と同じ)
  */
 function shrinkLayoutFor(k) {
   const base = currentBase();
-  let pool = LAYOUTS.filter((l) => l.slots.length === k && (l.group !== 'pip' || base.group === 'pip'));
+  let pool = LAYOUTS.filter((l) => l.slots.length === k && (l.group !== 'pip' || base.group === 'pip') && (l.group !== 'vertical' || base.group === 'vertical'));
   if (state.cruise && k >= 3) {
     const withMain = pool.filter((l) => l.mains > 0);
     if (withMain.length) pool = withMain;
@@ -616,6 +624,7 @@ function shrinkLayoutFor(k) {
   if (!pool.length) return null;
   const cur = mainCount(base);
   const rank = (l) => [
+    base.group === 'vertical' && l.group !== 'vertical' ? 1 : 0,
     mainCount(l) >= cur ? 0 : 1,
     Math.abs(mainCount(l) - cur),
     l.recommended ? 0 : 1,
@@ -4919,7 +4928,7 @@ function layoutThumb(l) {
   return box;
 }
 
-const KIND_LABEL = { focus: 'kindFocus', balance: 'kindBalance' };
+const KIND_LABEL = { focus: 'kindFocus', balance: 'kindBalance', vertical: 'kindVertical' };
 
 /** レイアウトの説明 (ツールチップ用): 「2+8 (10 枠) ・ メイン重視 ・ 左上」 */
 function layoutTitle(l) {
@@ -4943,7 +4952,8 @@ function fixLayoutLabelWidth() {
 //  - お気に入り: 使う人が ☆ を付けたもの (設定 layoutFavs)。形と配置順の組み合わせで覚え、配置順に関係なく全部出す
 //  - 1〜8 枠 / 9〜12 枠 / 13〜16 枠: PinP 以外を合計の枠数で分けたもの (どれも 40 個ほど)。枠数ごとに見出しを入れる
 //  - PinP
-const LAYOUT_TABS = ['recommend', 'fav', 'n1', 'n2', 'n3', 'pip'];
+//  - 縦長: どの枠も 9:16 (ショート・縦型の配信向け)。枠数のタブにも出す
+const LAYOUT_TABS = ['recommend', 'fav', 'n1', 'n2', 'n3', 'pip', 'vertical'];
 const LAYOUT_RANGES = { n1: [1, 8], n2: [9, 12], n3: [13, 16] };
 
 /** 一覧の並び: 総枠数の少ない順 → 同じなら均等が先、メイン枠の少ない順 → 横長が先 */
@@ -5051,6 +5061,8 @@ function setupLayoutPicker() {
       items = LAYOUTS.filter((l) => favs.has(l.id));
     } else if (layoutTab === 'pip') {
       items = LAYOUTS.filter((l) => l.group === 'pip' && at(l));
+    } else if (layoutTab === 'vertical') {
+      items = LAYOUTS.filter((l) => l.group === 'vertical');
     } else {
       const [from, to] = LAYOUT_RANGES[layoutTab];
       items = LAYOUTS.filter((l) => l.group !== 'pip' && l.slots.length >= from && l.slots.length <= to && at(l));

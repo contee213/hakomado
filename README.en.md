@@ -10,7 +10,7 @@ This is an unofficial tool made by an individual. Please read the [Disclaimer](#
 
 ## Features
 
-- **Split view**: uniform, main + sub and PinP (small windows inside the main tile) layouts. Every tile is sized to 16:9 automatically
+- **Split view**: uniform, main + sub, PinP (small windows inside the main tile) and vertical (every tile 9:16, for Shorts and vertical streams) layouts. Every tile is sized to 16:9 automatically
 - **Danmaku / chat panel**: show each tile's live chat as scrolling comments, or open it next to the video to post
 - **Channels**: lists live and upcoming streams and recently ended streams of the channels you added (some channels are included as initial data. You can remove or restore them all at once in ⚙ Settings)
 - **Auto play**: lays out live channels automatically and adds / removes tiles as streams start and end

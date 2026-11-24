@@ -38,17 +38,35 @@ test('枠は格子からはみ出さず、PinP 以外は重ならない', () => 
   }
 });
 
-test('どの枠もほぼ 16:9 になる', () => {
+test('どの枠もほぼ 16:9 になる (縦長は 9:16)', () => {
   const get = setup();
   const solve = get('solveTracks');
   for (const l of get('LAYOUTS')) {
     const { colW, rowH } = solve(l);
+    const target = l.group === 'vertical' ? 9 / 16 : 16 / 9;
     for (const [x, y, w, h] of l.slots) {
       const sw = colW.slice(x, x + w).reduce((a, b) => a + b, 0);
       const sh = rowH.slice(y, y + h).reduce((a, b) => a + b, 0);
-      assert.ok(Math.abs(sw / sh / (16 / 9) - 1) < 0.01, `${l.id} の枠 ${[x, y, w, h]} が ${(sw / sh).toFixed(3)}`);
+      assert.ok(Math.abs(sw / sh / target - 1) < 0.01, `${l.id} の枠 ${[x, y, w, h]} が ${(sw / sh).toFixed(3)}`);
     }
   }
+});
+
+test('縦長: 基準位置は無く、どれも 16:9 の画面を 50% 以上使う', () => {
+  const get = setup();
+  const solve = get('solveTracks');
+  const V = get('LAYOUTS').filter((l) => l.group === 'vertical');
+  assert.equal(V.map((l) => l.id).join(','), 'v1x3,v1x4,v1x5,v1x6,v2x4,v2x5,v2x6,v2x7,v2x8');
+  for (const l of V) {
+    assert.equal(l.anchor, undefined);
+    assert.equal(l.mains, 0);
+    const { aspect } = solve(l);
+    // 映像の面積 / 画面の面積 = 全体の縦横比と画面の縦横比の小さいほう / 大きいほう
+    const used = Math.min(aspect, 16 / 9) / Math.max(aspect, 16 / 9);
+    assert.ok(used >= 0.5, `${l.id} は ${(used * 100).toFixed(1)}%`);
+  }
+  // 3 枚を横に並べると 27:16 で、画面の 95% ほど
+  assert.ok(Math.abs(solve(get('getLayout')('v1x3')).aspect - 27 / 16) < 0.01);
 });
 
 test('メイン + サブ・PinP は 4 つの基準位置がそろっている', () => {
@@ -80,6 +98,7 @@ test('おすすめ: 枠数 × メインの数 (均等は別) ごとにちょう�
   const L = get('LAYOUTS').filter((l) => !l.anchor || l.anchor === 'tl');
   const groups = new Map();
   for (const l of L) {
+    if (l.group === 'vertical') continue; // 縦長は、縦長を使っているときだけ選ぶのでおすすめは無い
     const g = `${l.slots.length}-${l.group === 'uniform' ? 'u' : l.mains}`;
     groups.set(g, (groups.get(g) || 0) + (l.recommended ? 1 : 0));
   }
