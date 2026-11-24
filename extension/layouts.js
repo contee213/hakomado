@@ -117,7 +117,8 @@ function mainCountOf(l) {
  *  6. 映像が画面を占める割合が大きい (area)
  *  7. LAYOUTS の並び順
  * 今のレイアウトにほとんど関係なく枠数ごとに形が決まるので、＋ してから − すれば元に戻る。
- * PinP・縦長は、今それを使っているときだけ選ぶ。クルーズ中 (3 枠以上) はメイン枠を回せるようメイン + サブだけ
+ * PinP・縦長は、今それを使っているときだけ選ぶ。縦長を使っているとき、3 枠以上は縦長だけ (縦長の無い 7・9・11・13・15 枠は null。
+ * 呼ぶ側がその枠数を飛ばす)。クルーズ中 (3 枠以上) はメイン枠を回せるようメイン + サブだけ
  * @param {number} k
  * @param {{mains: number, group: string, anchor: string, kind?: string, slots?: any[]}} base 今のレイアウト
  * @param {{cruise?: boolean, area?: (l: object) => number}} [opts] area = 映像が画面を占める割合
@@ -125,6 +126,7 @@ function mainCountOf(l) {
 function resizeLayoutFor(k, base, { cruise = false, area = () => 0 } = {}) {
   let pool = LAYOUTS.filter((l) => l.slots.length === k && (l.group !== 'pip' || base.group === 'pip') && (l.group !== 'vertical' || base.group === 'vertical'));
   if (cruise && k >= 3) pool = pool.filter((l) => l.mains > 0);
+  else if (base.group === 'vertical' && k >= 3) pool = pool.filter((l) => l.group === 'vertical');
   if (!pool.length) return null;
   const cur = base.slots ? mainCountOf(base) : base.mains;
   const keep = pool.some((l) => mainCountOf(l) >= cur);

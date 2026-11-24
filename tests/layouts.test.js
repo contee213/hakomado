@@ -157,6 +157,17 @@ test('「＋」「−」のレイアウト (resizeLayoutFor): 枠数がちょう
   assert.equal(resize(4, byId('v1x3')).id, 'v1x4');
   assert.equal(resize(3, byId('v1x4')).id, 'v1x3');
   assert.equal(resize(2, byId('v1x3')).group, 'uniform');
+  // 縦長の段: 縦長の無い枠数 (7・9・11・13・15) は null (呼ぶ側が飛ばす)。＋ → − で元に戻る
+  const vLadder = ['v1x3', 'v1x4', 'v1x5', 'v1x6', 'v2x4', 'v2x5', 'v2x6', 'v2x7', 'v2x8'];
+  for (const k of [7, 9, 11, 13, 15]) assert.equal(resize(k, byId('v1x6')), null, `縦長で ${k} 枠`);
+  vLadder.slice(1).forEach((id, i) => {
+    assert.equal(resize(byId(id).slots.length, byId(vLadder[i])).id, id, `${vLadder[i]} ＋`);
+    assert.equal(resize(byId(vLadder[i]).slots.length, byId(id)).id, vLadder[i], `${id} −`);
+  });
+  // 1×2 を縦長の段として扱えば (全部ショート)、＋ で ▯1×3
+  assert.equal(resize(3, { ...byId('u1x2'), group: 'vertical', kind: 'vertical' }).id, 'v1x3');
+  // クルーズ中は縦長でもメイン + サブ
+  assert.equal(resize(7, byId('v1x6'), { cruise: true }).group, 'main');
   // PinP は PinP のまま (4 枠には PinP が無いのでメイン + サブ)
   assert.equal(resize(3, byId('tl-pip1')).id, 'tl-pip2');
   assert.equal(resize(4, byId('tl-pip3')).slots.length, 4);
