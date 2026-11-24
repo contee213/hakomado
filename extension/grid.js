@@ -675,7 +675,8 @@ function layout() {
 
 /**
  * 空き枠を減らすときのレイアウト: 今より枠数の少ないレイアウトのうち、読み込んだ配信が全部入るもの。
- * 枠数を 1 つずつ減らしながら、枠数がちょうど合うレイアウトがある最初の枠数で選ぶ (ふつうは今の枠数 - 1)。減らせなければ null
+ * 枠数を 1 つずつ減らしながら、枠数がちょうど合うレイアウトがある最初の枠数で選ぶ (ふつうは今の枠数 - 1。
+ * 縦長は縦長の無い枠数を飛ばすので 2 つ減ることがある)。減らせなければ null
  */
 function shrinkTarget() {
   const shown = visibleIndexes();
@@ -689,10 +690,20 @@ function shrinkTarget() {
 
 /**
  * 「＋」「−」で枠数をちょうど k にするときのレイアウト (無ければ null)。
- * 今のレイアウトから、メイン枠が減らず一番多いものを選ぶ (選び方は layouts.js の resizeLayoutFor)
+ * 今のレイアウトから、メイン枠が減らず一番多いものを選ぶ (選び方は layouts.js の resizeLayoutFor)。
+ * 縦長を使っているときは縦長の段 (1×1・1×2 → ▯1×3 … ▯2×8) だけを上り下りする。
+ * 1×1・1×2 の均等で、読み込んだ枠が全部ショートなら、縦長の段にいるものとして扱う (＋ で ▯1×3 へ)
  */
 function layoutForCount(k) {
-  return resizeLayoutFor(k, currentBase(), { cruise: state.cruise, area: (l) => filledArea(l, k) });
+  let base = currentBase();
+  if (base.group === 'uniform' && base.slots.length <= 2 && allShortsShown()) base = { ...base, group: 'vertical', kind: 'vertical' };
+  return resizeLayoutFor(k, base, { cruise: state.cruise, area: (l) => filledArea(l, k) });
+}
+
+/** 表示中の枠に 1 つ以上読み込んでいて、読み込んだ枠が全部ショートか */
+function allShortsShown() {
+  const filled = visibleIndexes().filter((i) => tileFilled(state.tiles[i]));
+  return filled.length > 0 && filled.every((i) => !!state.tiles[i].short);
 }
 
 /** 表示中の枠に、1 つでも配信・動画を読み込んでいるか (無ければクルーズ・一時停止は押せない) */
@@ -748,14 +759,17 @@ function keepNumbersOrder(n, prefer = null) {
 
 /**
  * 上部バーの「＋」など: 枠を k 個 (16 枠まで) 足し、枠数がちょうどその数のレイアウトにする (選び方は layoutForCount)。
+ * 縦長でその枠数に縦長が無いときは、次に縦長がある枠数まで足す (▯1×6 ＋ → ▯2×4)。
  * 今見えている枠は並び順も中身 (空き枠も) もそのまま。足した位置には空き枠が来るようにする
  */
 function addTileSlot(k = 1) {
   if (state.count >= MAX_TILES) return;
-  const n = Math.min(MAX_TILES, state.count + k);
+  let n = Math.min(MAX_TILES, state.count + k);
+  let l = layoutForCount(n);
+  while (!l && n < MAX_TILES) l = layoutForCount(++n);
   // 隠れている枠に中身が残っていても、それは出さずに空き枠から使う
   state.order = TileSlots.growOrder(state);
-  setLayout((layoutForCount(n) || chooseLayoutFor(n)).id);
+  setLayout((l || chooseLayoutFor(n)).id);
 }
 
 function setFit(mode) {
