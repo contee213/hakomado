@@ -129,3 +129,37 @@ test('おすすめタブ: 1〜16 本のどれにも 1 つ以上あり、どれ�
   }
   for (let n = 1; n <= 16; n++) assert.ok(L.some((l) => l.tab && l.slots.length === n), `${n} 本`);
 });
+
+test('「＋」「−」のレイアウト (resizeLayoutFor): 枠数がちょうど合い、メイン枠が一番多い形になる', () => {
+  const get = setup();
+  const L = get('LAYOUTS');
+  const resize = get('resizeLayoutFor');
+  const byId = (id) => L.find((l) => l.id === id);
+  // 枠数ごとに決まる形 (縦長・PinP 以外はどこから押してもここに乗る)
+  const ladder = ['u1x1', 'u1x2', 'tl-m1s2-sw', 'u2x2', 'tl-m2s3-st', 'u2x3', 'tl-m4s3-sw', 'tl-m4s4-sw', 'u3x3', 'tl-m6s4-st', 'tl-m3s8-st', 'u3x4', 'tl-m4s9-sw', 'tl-m8s6-sw', 'u3x5', 'u4x4'];
+  const tl = (l) => ({ ...l, anchor: l.anchor || 'tl' });
+  for (const base of L.filter((l) => l.group === 'uniform' || l.group === 'main')) {
+    for (const k of [base.slots.length - 1, base.slots.length + 1]) {
+      if (k < 1 || k > 16) continue;
+      const got = resize(k, base.anchor ? base : tl(base));
+      assert.equal(got.slots.length, k, `${base.id} → ${k} 枠`);
+      if (base.anchor === 'tl' || !base.anchor) assert.equal(got.id, ladder[k - 1], `${base.id} → ${k} 枠`);
+    }
+  }
+  // 段の上では ＋ してから − すれば元に戻る
+  for (let k = 1; k < 16; k++) {
+    const up = resize(k + 1, tl(byId(ladder[k - 1])));
+    assert.equal(resize(k, tl(up)).id, ladder[k - 1], `${ladder[k - 1]} ＋ −`);
+  }
+  // 基準位置は今のまま
+  assert.equal(resize(5, byId('br-m1s3-sw')).id, 'br-m2s3-st');
+  // 縦長は縦長を優先し、無い枠数では他の形
+  assert.equal(resize(4, byId('v1x3')).id, 'v1x4');
+  assert.equal(resize(3, byId('v1x4')).id, 'v1x3');
+  assert.equal(resize(2, byId('v1x3')).group, 'uniform');
+  // PinP は PinP のまま (4 枠には PinP が無いのでメイン + サブ)
+  assert.equal(resize(3, byId('tl-pip1')).id, 'tl-pip2');
+  assert.equal(resize(4, byId('tl-pip3')).slots.length, 4);
+  // クルーズ中 (3 枠以上) は均等を選ばない
+  assert.equal(resize(4, tl(byId('tl-m1s2-sw')), { cruise: true }).group, 'main');
+});

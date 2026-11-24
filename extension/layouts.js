@@ -12,7 +12,7 @@
 // kind: uniform = 均等 / pip = PinP / vertical = 縦長 / main は focus = メイン重視 (サブが小さい)・balance = バランス (サブが大きい)・single = それ以外
 // recommended = 枠数 × メインの数ごとのおすすめ (本数が決まったときに自動で選ぶ。RECOMMENDED_LAYOUT_KEYS)
 // tab = レイアウト画面の「おすすめ」タブに出す (TAB_LAYOUT_KEYS)
-/* exported LAYOUTS, ANCHORS, DEFAULT_LAYOUT_ID, MAX_SLOTS, getLayout, layoutFor, layoutIdOf, solveTracks */
+/* exported LAYOUTS, ANCHORS, DEFAULT_LAYOUT_ID, MAX_SLOTS, getLayout, layoutFor, layoutIdOf, solveTracks, mainCountOf, resizeLayoutFor */
 /* global GENERATED_LAYOUTS, RECOMMENDED_LAYOUT_KEYS, TAB_LAYOUT_KEYS */
 'use strict';
 
@@ -100,6 +100,55 @@ function getLayout(id) {
 /** 同じ形 (key) で基準位置 anchor のレイアウト。均等など基準位置の無いものはそのまま */
 function layoutFor(key, anchor) {
   return LAYOUTS.find((l) => l.key === key && (!l.anchor || l.anchor === anchor)) || null;
+}
+
+/** メイン枠の数 (均等・縦長はどの枠も同じ大きさなので、全部をメイン枠として数える) */
+function mainCountOf(l) {
+  return l.group === 'uniform' || l.group === 'vertical' ? l.slots.length : l.mains;
+}
+
+/**
+ * 上部バーの「＋」「−」などで、枠数をちょうど k にするときのレイアウト (合うものが無ければ null)。優先する順に:
+ *  1. 縦長を使っているときは縦長、PinP を使っているときは PinP
+ *  2. メイン枠の数が今より減らない (均等・縦長は全部メイン枠。減らないものが無ければ、今に一番近いもの)
+ *  3. メイン枠の数が一番多い (均等がある枠数なら均等になる)
+ *  4. おすすめ
+ *  5. 今と同じ基準位置
+ *  6. 映像が画面を占める割合が大きい (area)
+ *  7. LAYOUTS の並び順
+ * 今のレイアウトにほとんど関係なく枠数ごとに形が決まるので、＋ してから − すれば元に戻る。
+ * PinP・縦長は、今それを使っているときだけ選ぶ。クルーズ中 (3 枠以上) はメイン枠を回せるようメイン + サブだけ
+ * @param {number} k
+ * @param {{mains: number, group: string, anchor: string, kind?: string, slots?: any[]}} base 今のレイアウト
+ * @param {{cruise?: boolean, area?: (l: object) => number}} [opts] area = 映像が画面を占める割合
+ */
+function resizeLayoutFor(k, base, { cruise = false, area = () => 0 } = {}) {
+  let pool = LAYOUTS.filter((l) => l.slots.length === k && (l.group !== 'pip' || base.group === 'pip') && (l.group !== 'vertical' || base.group === 'vertical'));
+  if (cruise && k >= 3) pool = pool.filter((l) => l.mains > 0);
+  if (!pool.length) return null;
+  const cur = base.slots ? mainCountOf(base) : base.mains;
+  const keep = pool.some((l) => mainCountOf(l) >= cur);
+  const rank = (l, i) => [
+    base.group === 'vertical' && l.group !== 'vertical' ? 1 : 0,
+    base.kind === 'pip' && l.kind !== 'pip' ? 1 : 0,
+    mainCountOf(l) >= cur ? 0 : 1,
+    keep ? 0 : Math.abs(mainCountOf(l) - cur),
+    -mainCountOf(l),
+    l.recommended ? 0 : 1,
+    (l.anchor ?? base.anchor) === base.anchor ? 0 : 1,
+    -area(l),
+    i,
+  ];
+  const better = (x, y) => {
+    for (let j = 0; j < x.length; j++) if (Math.abs(x[j] - y[j]) > 1e-3) return x[j] < y[j];
+    return false;
+  };
+  let best = null;
+  pool.forEach((l, i) => {
+    const r = rank(l, i);
+    if (!best || better(r, best.r)) best = { l, r };
+  });
+  return best.l;
 }
 
 /**
