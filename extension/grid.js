@@ -487,9 +487,9 @@ function chooseLayoutFor(n, base = currentBase()) {
   return best.l;
 }
 
-/** 均等・縦長 (どの枠も同じ大きさ) か */
+/** 均等・縦長の均等 (どの枠も同じ大きさ) か。縦長 + 大きな枠 (mains = 1) は、大きな枠だけがメイン枠 */
 function isEvenLayout(l) {
-  return l.group === 'uniform' || l.group === 'vertical';
+  return l.group === 'uniform' || (l.group === 'vertical' && !l.mains);
 }
 
 /** 枠 k をメイン枠として見せるか。均等・縦長はどの枠も同じ大きさなので、全部メイン枠として見せる (選び方の mains は 0 のまま) */
@@ -676,7 +676,7 @@ function layout() {
 /**
  * 空き枠を減らすときのレイアウト: 今より枠数の少ないレイアウトのうち、読み込んだ配信が全部入るもの。
  * 枠数を 1 つずつ減らしながら、枠数がちょうど合うレイアウトがある最初の枠数で選ぶ (ふつうは今の枠数 - 1。
- * 縦長は縦長の無い枠数を飛ばすので 2 つ減ることがある)。減らせなければ null
+ * 縦長はその枠数に縦長が無ければ飛ばす。今は 3〜16 枠のどれにも縦長がある)。減らせなければ null
  */
 function shrinkTarget() {
   const shown = visibleIndexes();
@@ -5584,7 +5584,7 @@ function setupLayoutPicker() {
     } else if (layoutTab === 'pip') {
       items = LAYOUTS.filter((l) => l.group === 'pip' && at(l));
     } else if (layoutTab === 'vertical') {
-      items = LAYOUTS.filter((l) => l.group === 'vertical');
+      items = LAYOUTS.filter((l) => l.group === 'vertical' && at(l));
     } else {
       const [from, to] = LAYOUT_RANGES[layoutTab];
       items = LAYOUTS.filter((l) => l.group !== 'pip' && l.slots.length >= from && l.slots.length <= to && at(l));
