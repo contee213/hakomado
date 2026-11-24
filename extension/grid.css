@@ -62,7 +62,7 @@ button:hover, select:hover { border-color: #444450; }
 /* クルーズの船・自動再生の舵輪・速度のメーターは、同じ大きさの単色の絵 */
 /* 枠のバーのチャンネル登録 (人 + の絵) */
 .bar-buttons .sub-icon { display: block; width: 1.1em; height: 1.1em; fill: currentColor; }
-.toolbar .tb-icon .ship, .toolbar .tb-icon .helm, .toolbar .tb-icon .gauge { display: block; width: 1.15em; height: 1.15em; margin: 0 -0.075em; fill: currentColor; }
+.toolbar .tb-icon .ship, .toolbar .tb-icon .helm, .toolbar .tb-icon .gauge, .toolbar .tb-icon .repeat, .toolbar .tb-icon .speakers { display: block; width: 1.15em; height: 1.15em; margin: 0 -0.075em; fill: currentColor; }
 .toolbar .icon-only { width: 28px; justify-content: center; padding: 0; }
 /* レイアウト名は長いものもあるので幅を抑えて省略 */
 /* 幅は grid.js がいちばん長いレイアウト名に合わせて固定する (切り替えても後ろのボタンが動かないように) */

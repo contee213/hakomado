@@ -834,6 +834,13 @@ const MESSAGES = {
   ],
   ended: ['■ 配信終了: {0}', '■ Ended: {0}'],
   movedFollow: ['↪ 移動先に切り替えました: {0} から', '↪ Followed to the next stream: from {0}'],
+  repeatOn: ['🔁 繰り返し ON: 動画・アーカイブが最後まで行ったら、最初から再生し直します', '🔁 Repeat ON: videos and archives start over when they reach the end'],
+  repeatOff: ['🔁 繰り返し OFF', '🔁 Repeat OFF'],
+  recentAutoPlaying: ['チャンネルの最近の{1} {0} 件を流しています', 'Playing {0} recent {1} from your channels'],
+  recentAutoNone: ['流せる最近の{0}がありません (最近 30 日・まだ見ていないもの)', 'No recent {0} to play (last 30 days, not yet watched)'],
+  kindWordVideo: ['動画', 'videos'],
+  kindWordShort: ['ショート', 'Shorts'],
+  kindWordBoth: ['動画・ショート', 'videos and Shorts'],
   cruiseOn: ['クルーズ ON: {0}ごとにメイン枠と音声を次の配信へ回します', 'Cruise ON: the main tile and audio move to the next stream every {0}'],
 
   // 視聴セッション
@@ -848,6 +855,8 @@ const MESSAGES = {
   startReadNote: ['共有された画像・リンク・テキストなどを貼って、枠に並べます', 'Paste a shared image, link, text and so on, and lay it out in tiles'],
   startAuto: ['自動再生で始める', 'Start with auto play'],
   startAutoNote: ['配信中のチャンネルを全部再生します', 'Play all your live channels'],
+  startAutoNoteRecent: ['チャンネルの最近の{0}を流します', 'Play recent {0} from your channels'],
+  startAutoNoteMixed: ['配信中のチャンネルを再生し、空いた枠に最近の{0}を流します', 'Play your live channels, and recent {0} in the free tiles'],
   inUse: [
     'ほかのタブ (ウィンドウ) で {0} つ使用中です。そちらとは別に、このタブで視聴します。',
     '{0} other tab(s) are in use. This tab will be a separate viewing session.',
@@ -964,11 +973,13 @@ const HTML_EN = {
   'auto.archiveNote': 'Plays 4 recent videos when nothing is live',
   'auto.archiveVideos': 'Include videos (premieres, MVs, etc.)',
   'auto.archiveShorts': 'Include Shorts',
-  'auto.kinds': 'Auto play content',
+  'auto.kinds': 'Auto play targets',
   'auto.kindLive': 'Streams',
   'auto.kindVideo': 'Videos',
   'auto.kindShort': 'Shorts',
-  'auto.kindsNote': 'Also play and notify scheduled videos and Shorts (premieres) like streams. Turn them off for fewer checks',
+  'auto.kindsNote': 'Recent videos and Shorts from your channels play newest first, and the next one fills a tile when it ends (streams come first if also checked)',
+  'auto.premiereVideos': 'Treat video premieres as streams',
+  'auto.premiereShorts': 'Treat Shorts premieres as streams',
   'auto.maxTiles': 'Max tiles in auto play',
   'auto.maxTilesNote': 'Lower it if things get slow',
   'auto.prestart': 'Prepare tiles for upcoming streams',
@@ -1059,6 +1070,7 @@ const HTML_EN = {
 <li>Each row of “ℹ️ Tile info” (<kbd>I</kbd>): left/right audio (L / C / R) / 📌 pickup / 🔖 watch later / 📃 add to a playlist / subscribe / 👍 like. Click a title to open that video on YouTube in a new tab</li>
 <li>🎚 makes that tile heard from the left, center or right and changes its volume (0–200%). You can also change left/right with L / C / R in “ℹ️ Tile info”. On a live stream, “Audio delay” delays only that tile’s audio (the picture stays as it is; for a collab whose voices come earlier than the other tiles)</li>
 <li>“⛶” (<kbd>Shift</kbd> + <kbd>F</kbd>) goes fullscreen with all tiles. Move the mouse to the top edge to show the bar</li>
+<li>“🔁 Repeat” (<kbd>R</kbd>) makes every tile’s video or archive start over when it reaches the end (not live streams, or tiles that auto play / watch later refill)</li>
 <li>“ℹ️” (<kbd>I</kbd>) lists each tile’s type (live, archive, video), stream times, current viewers, views and whether it can be archive-synced</li>
 </ul>`,
   'helpPage.auto': `<p>Turn on “Auto play” (<kbd>L</kbd>) to lay out every live channel. After that, every minute, tiles are added for streams that start and removed for streams that end.</p>
@@ -1068,8 +1080,9 @@ const HTML_EN = {
 </ul>
 <h3>Settings → Auto play</h3>
 <ul>
+<li><b>Auto play targets</b>: choose from streams, videos and Shorts (at least one). Recent videos and Shorts from the last 30 days play newest first, and when one ends the next fills its tile (pickup first, already watched ones skipped). Checked together with streams, streams go in first and videos/Shorts fill the rest up to the max tiles</li>
 <li><b>Auto play channels</b>: all channels, or pickup (📌) only</li>
-<li><b>Auto play content</b>: besides streams, whether scheduled videos and Shorts (premieres) are also added to tiles and notified like streams. Turning them off means fewer checks for upcoming premieres</li>
+<li><b>Treat video / Shorts premieres as streams</b>: whether scheduled videos and Shorts (premieres) are also added to tiles and notified like streams. Turning them off means fewer checks for upcoming premieres</li>
 <li><b>Skip members-only streams you're not a member of</b>: checks whether your signed-in account can watch a stream before adding it</li>
 <li><b>Max tiles in auto play</b>: never plays more than this many, however many are live. Lower it on a slow connection or a busy computer</li>
 <li><b>Put pickup (📌) streams in the main tiles first</b>: puts pickup live streams in the big main tile and others in sub tiles. Pickup also goes first when the limit is reached. Not rearranged in uniform layouts (no main tile) or while cruising</li>
@@ -1137,9 +1150,15 @@ const HTML_EN = {
   'key.tileFs': 'Fullscreen that tile (<kbd>Esc</kbd> to return)',
   'key.gridFs': 'Fullscreen with all tiles (move the mouse to the top edge to show the bar)',
   'key.mute': 'Mute ⇄ restore the previous audio',
+  'key.audioAll': 'Play audio from all tiles ⇄ mute all',
+  'audioAll.title': 'All audio (A): play audio from all tiles ⇄ mute all',
+  'audioAll.label': 'All audio',
   'key.pause': 'Pause ⇄ resume all tiles (live streams resume from the latest point)',
   'pauseAll.title': 'Pause / resume all tiles (Space). Live streams resume from the latest point',
   'pauseAll.label': 'Pause',
+  'repeat.title': 'Repeat all (R): videos and archives start over when they reach the end (not live streams, or tiles that auto play / watch later refill)',
+  'repeat.label': 'Repeat',
+  'key.repeat': 'Repeat all ON / OFF',
   'key.auto': 'Auto play ON / OFF',
   'key.cruise': 'Cruise ON / OFF',
   'key.fav': 'Open channels',
