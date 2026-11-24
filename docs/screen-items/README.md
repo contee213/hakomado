@@ -1,6 +1,6 @@
 # 画面項目表・画面項目状態表
 
-拡張機能 (`extension/`) の画面 (`grid.html` とそこから開くダイアログ) にある項目と、状態ごとの出方をまとめた表。画面の流れは [../screen-flow.md](../screen-flow.md) を、似ているのに操作や見た目が違うところは [../ui-consistency.md](../ui-consistency.md) を見る。
+拡張機能 (`extension/`) の画面 (`grid.html` とそこから開くダイアログ) にある項目と、状態ごとの出方をまとめた表。画面の流れは [../screen-flow.md](../screen-flow.md) を、保存するものと出し入れは [../data-io.md](../data-io.md) を、似ているのに操作や見た目が違うところは [../ui-consistency.md](../ui-consistency.md) を見る。
 
 画面の項目を足したり、出る条件を変えたりしたら、ここも直す。表は `grid.html`・`grid.js`・`tour.js` などのコードから起こしたもので、コードで確かめきれなかったところは備考に「未確認」と書いてある。
 
