@@ -220,7 +220,8 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
   const url = info.menuItemId === MENU_LINK ? info.linkUrl : info.menuItemId === MENU_PAGE ? info.frameUrl || info.pageUrl : null;
   const videoId = url ? videoIdFromUrl(url) : null;
   if (!videoId) return;
-  addToGrid(videoId, tab?.windowId).catch((e) => console.warn('hakomado: 枠に追加できませんでした', e));
+  // ショート (/shorts/ の URL) は、画面でも /shorts/ の URL で入れて最初から縦長の枠にする
+  addToGrid(videoId, tab?.windowId, /^https?:\/\/(www\.|m\.)?youtube\.com\/shorts\//i.test(url)).catch((e) => console.warn('hakomado: 枠に追加できませんでした', e));
 });
 
 /** 送り先の候補: 登録されているマルチビュー画面のタブ (同じウィンドウを先に、最後に使ったものから) */
@@ -229,12 +230,12 @@ async function gridTabsByRecent(windowId) {
   return tabs.sort((a, b) => (b.windowId === windowId) - (a.windowId === windowId) || (b.lastAccessed || 0) - (a.lastAccessed || 0));
 }
 
-async function addToGrid(videoId, windowId) {
+async function addToGrid(videoId, windowId, short = false) {
   for (const t of await gridTabsByRecent(windowId)) {
     let res = null;
     try {
       // 画面は全部が受け取るが、返事をするのは tabId が自分のものだけ (誰も返事をしなければ例外になる)
-      res = await chrome.runtime.sendMessage({ type: 'add-video', tabId: t.id, videoId });
+      res = await chrome.runtime.sendMessage({ type: 'add-video', tabId: t.id, videoId, ...(short ? { short: true } : {}) });
     } catch {
       /* 受け取る画面が無い (まだ起動中・閉じかけ) */
     }
@@ -244,6 +245,6 @@ async function addToGrid(videoId, windowId) {
       return;
     }
   }
-  const url = `${chrome.runtime.getURL('grid.html')}#add=${videoId}`;
+  const url = `${chrome.runtime.getURL('grid.html')}#add=${videoId}${short ? '&short' : ''}`;
   await chrome.tabs.create(windowId != null ? { url, windowId } : { url });
 }
