@@ -60,6 +60,12 @@ const MESSAGES = {
   channelReadFail: ['チャンネルの情報を読み取れませんでした', 'Could not read the channel info'],
   fetchFail: ['取得できませんでした ({0})', 'Could not fetch ({0})'],
   loading: ['読み込み中…', 'Loading…'],
+  webHttpsOnly: ['YouTube 以外のサイトは https の URL だけ入れられます', 'Only https URLs can be used for sites other than YouTube'],
+  webTooLong: ['URL が長すぎます ({0} 文字まで)', 'The URL is too long (up to {0} characters)'],
+  webDenied: ['このサイトを枠に入れるには、サイトへのアクセスを許可してください', 'Allow access to this site to show it in a tile'],
+  webSyncFail: ['このサイトを枠に入れる準備ができませんでした', 'Could not get this site ready for the tile'],
+  webNeedPermission: ['{0} を枠に入れるには、このサイトへのアクセスの許可が要ります', 'To show {0} in this tile, allow access to this site'],
+  webAllow: ['許可して読み込む', 'Allow and load'],
 
   // 枠
   slotMain: ['メイン {0}', 'Main {0}'],
@@ -249,6 +255,8 @@ const MESSAGES = {
   infoKind_blocked: ['見られない', 'Unavailable'],
   infoKind_loading: ['確認中', 'Checking'],
   infoKind_empty: ['空き', 'Empty'],
+  infoKind_web: ['サイト', 'Site'],
+  infoReload: ['読み込み直す (映像の調子が悪いとき)', 'Reload (if the video misbehaves)'],
   infoOpenChannel: ['YouTube でチャンネルを開く: {0}', 'Open the channel on YouTube: {0}'],
   infoDanmaku: ['この枠の弾幕の表示', 'Danmaku on this tile'],
   infoAudioOn: ['この枠の音を出す (ほかの枠はそのまま)', 'Unmute this tile (other tiles stay as they are)'],

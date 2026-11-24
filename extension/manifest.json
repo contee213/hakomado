@@ -41,7 +41,8 @@
   ],
   "optional_host_permissions": [
     "https://x.com/*",
-    "https://www.nijisanji.jp/*"
+    "https://www.nijisanji.jp/*",
+    "https://*/*"
   ],
   "content_scripts": [
     {

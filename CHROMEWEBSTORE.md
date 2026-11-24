@@ -216,6 +216,10 @@ About declarativeNetRequest: YouTube watch and live chat pages send X-Frame-Opti
 
 - **`X-Frame-Options` を外していること**: 拡張機能の作りそのものなので外せない。対象を「マルチビュー画面のタブ・`watch` / `live_chat` の iframe・このヘッダーだけ」に絞っていることを、権限の理由と審査向けのメモに書いてある。
   同じ仕組みのマルチビュー拡張機能はストアにほかにもあるが、通らなかったり、掲載後に取り下げられたりすることもありうる。その場合は ZIP の配布だけに戻す
+- **URL の枠 (YouTube 以外のサイト) と単一用途**: 任意のホスト権限 `https://*/*` を持ち、利用者が許可したサイトの `X-Frame-Options` を外す。
+  「YouTube の同時視聴」から用途が広がるので、単一用途の説明と合わせて「複数の動画を 1 画面で同時に見る」に言い換える必要があるかもしれない。
+  インストール時には何も求めず、利用者が URL を入れたサイトだけを、そのとき `chrome.permissions.request` で聞くことを権限の理由に書いてある。
+  サイトの利用規約 (動画配信サービスの埋め込み・同時視聴の扱い) は、サイトごとに利用者の責任になることも説明文に書く必要がある
 - **名前の「YouTube」**: 「〜 for YouTube」の形は、提供元と誤解させない書き方として一般に使われている。ロゴは使っていない。指摘されたら `extName` から外す
 - **ホロライブの初期データ**: チャンネル名・アイコンの URL と、配信予定の取得先 (`schedule.hololive.tv`)。説明文では「初期データのチャンネル」とだけ書き、事務所の名前は出していない。スクリーンショットにも写さない
 - **ユーザーの操作で読み込むデータ**: チャンネルパック・取り込み用リンクは JSON / テキストのデータとして読むだけで、スクリプトは読み込まない (リモートコードではない)
@@ -229,14 +233,15 @@ YouTube の複数の配信・動画を 1 つの画面に並べて同時に視聴
 | 権限 | 理由 |
 | --- | --- |
 | `storage` | 枠の並び・レイアウト・チャンネル一覧・視聴履歴・再生リスト・設定を `chrome.storage.local` に保存する。マルチビュー画面を開いているタブの一覧を `chrome.storage.session` に一時保存する。この拡張機能のエラーの記録 (新しい順に最大 100 件・7 日で消える。「? 使い方」→「不具合の報告」で見る) を `chrome.storage.local` に保存する。外部のサーバーには送らない |
-| `declarativeNetRequestWithHostAccess` | (1) マルチビュー画面のタブの中だけで、`www.youtube.com/watch` と `www.youtube.com/live_chat` の iframe 応答から `X-Frame-Options` ヘッダーを外し、拡張機能のページに YouTube のプレイヤーとチャットを埋め込めるようにする (セッションルール。`tabIds` で対象タブを限定し、CSP など他のヘッダーは触らない)。(2) `hakomado=` 付きの `https://www.youtube.com/watch_videos?…` (再生リストの共有リンク) だけを拡張機能内の取り込み画面へ転送する (動的ルール) |
+| `declarativeNetRequestWithHostAccess` | (1) マルチビュー画面のタブの中だけで、`www.youtube.com/watch` と `www.youtube.com/live_chat` の iframe 応答から `X-Frame-Options` ヘッダーを外し、拡張機能のページに YouTube のプレイヤーとチャットを埋め込めるようにする (セッションルール。`tabIds` で対象タブを限定し、CSP など他のヘッダーは触らない)。(2) `hakomado=` 付きの `https://www.youtube.com/watch_videos?…` (再生リストの共有リンク) だけを拡張機能内の取り込み画面へ転送する (動的ルール)。(3) URL の枠: 利用者が許可したサイト (下の任意のホスト権限) の iframe 応答から `X-Frame-Options` だけを外す ((1) と同じくマルチビュー画面のタブだけのセッションルール。CSP は外さないので、`frame-ancestors` で埋め込みを禁じているサイトは入らない) |
 | `contextMenus` | 右クリックのメニュー「Hakomado の空き枠に追加」を出す。YouTube の動画・配信へのリンク (`targetUrlPatterns` で watch / live / shorts / youtu.be に限定) と、YouTube の視聴ページ (`documentUrlPatterns`) でだけ表示する。押したときにリンクの URL から動画 ID を取り出し、開いているマルチビュー画面に渡す (画面が無ければ新しいタブで開く)。`tabs` 権限は使わず、タブの URL・タイトルは読まない |
 | ホスト権限 `https://www.youtube.com/*` | 上の declarativeNetRequest ルールの適用先。視聴ページ / ライブチャットに content script を入れて、プレイヤーの操作・弾幕用のチャット取得・同期再生を行う。ログイン中のアカウントで配信中 / 予定 / アーカイブの一覧、動画・再生リストの情報を取得する (メンバー限定配信も見られるようにするため Cookie 付き) |
 | ホスト権限 `https://schedule.hololive.tv/*` | 初期データのホロライブのチャンネルについて、配信予定 (ホロジュール) をまとめて 1 回で取得し、YouTube への問い合わせ回数を減らす。アドオン `addons/holodule.js` が使う (設定 → アドオンで OFF にすると取得しない。初期値は ON なので、インストール時から使えるよう必須の権限のままにしている) |
 | `activeTab` | 利用者がマルチビュー画面のタブで、この拡張機能のショートカットキー (既定 Alt+Shift+S。`commands` で登録し、chrome://extensions/shortcuts で変えられる) を押したときだけ、そのタブの表示中の画面を `chrome.tabs.captureVisibleTab` で撮る (マルチビュー画面のスクリーンショット)。撮った画像は枠の並びに切り抜いて、利用者のパソコンに PNG で保存し、クリップボードに入れるだけで、外部へは送らない。ほかのタブ (YouTube など) では何もしない |
-| `scripting` | 共有画面の「𝕏 に投稿」を押したときだけ、そのボタンが開いた X の投稿画面のタブ 1 つにスクリプトを入れ、投稿欄の画像の入力欄に共有画像を入れる (人が画像を選んだのと同じ)。投稿ボタンは押さない。ほかのタブ・ページには入れない |
+| `scripting` | 共有画面の「𝕏 に投稿」を押したときだけ、そのボタンが開いた X の投稿画面のタブ 1 つにスクリプトを入れ、投稿欄の画像の入力欄に共有画像を入れる (人が画像を選んだのと同じ)。投稿ボタンは押さない。ほかのタブ・ページには入れない。また、URL の枠のために、利用者が許可したサイトにだけ `content/web-player.js` を `chrome.scripting.registerContentScripts` で登録する (下の content scripts の表) |
 | 任意のホスト権限 `https://x.com/*` (`optional_host_permissions`) | 上の `scripting` で X の投稿画面に画像を入れるため。インストール時には求めず、利用者が初めて「𝕏 に投稿」を押したときに `chrome.permissions.request` で聞く。許可しなくても、投稿画面を開いて画像をクリップボードに入れるところまでは動く (利用者が Ctrl+V で貼る) |
 | 任意のホスト権限 `https://www.nijisanji.jp/*` (`optional_host_permissions`) | アドオン「にじさんじ」(`addons/nijisanji.js`。初期値は OFF) が、にじさんじ公式サイトのライブスケジュール (サイトが使っている JSON `https://www.nijisanji.jp/api/streams?…`) を読み、名前に「にじさんじ」が入るチャンネルパックから足したチャンネルの配信状況を YouTube に問い合わせる回数を減らす。このサイトは CORS で読めないので権限が要る。インストール時には求めず、利用者が設定 → アドオンで ON にしたときに `chrome.permissions.request` で聞き、OFF にすると手放す。読み取りだけで、Cookie は送らない |
+| 任意のホスト権限 `https://*/*` (`optional_host_permissions`) | URL の枠 (YouTube 以外の動画サイトのページを枠に入れて、中の動画を再生・一時停止・シーク・ミュートする)。インストール時には何も求めない。利用者が枠に https の URL を入れたときに、そのサイトだけ (`https://*.<サイト>/*`。先頭の `www.` を除いたドメインとそのサブドメイン) を `chrome.permissions.request` で聞く。サブドメインごとにするのは、動画サイトのプレイヤーが同じサイトの別のサブドメイン (視聴権の確認など) にログインの Cookie 付きでアクセスするため (許可の無いサブドメインへのアクセスはサードパーティ扱いになり、再生できない)。許可したサイトは `chrome.storage.local` の `webOrigins` に覚え、Chrome の設定で許可を取り消すと、登録とルールも外す。拡張機能からそのサイトのデータを読み取ったり送ったりはしない |
 
 ### content scripts
 
@@ -246,6 +251,7 @@ YouTube の複数の配信・動画を 1 つの画面に並べて同時に視聴
 | `https://www.youtube.com/watch*` (全フレーム) | `errlog.js`, `content/watch.js`, `content/watch.css` | 枠の中のプレイヤーの見た目を整え、再生状態をマルチビュー画面とやり取りする。利用者が枠の音の左右・音量を変えたときだけ、その枠の中で Web Audio (StereoPanner・Gain) に通す (音声はブラウザの中で処理するだけで、録音・送信はしない)。枠の中でだけ、この拡張機能のスクリプトで起きたエラーを記録する (`errlog.js`) |
 | `https://www.youtube.com/watch*` (全フレーム, MAIN world) | `content/watch-main.js` | ページ側のプレイヤー API (再生位置・音量など) を呼ぶ。「ℹ️ 枠の情報」・アーカイブ同期・ストレッチ表示で縦長の映像を切らずに収めるために、すでに読み込まれているページの情報 (配信か動画か・配信の時刻・公開日・視聴者数・再生数・映像が縦長か) を読み、マルチビュー画面に渡す (新しい通信はしない) |
 | `https://www.youtube.com/hakomado_import*` | `content/import.js` | 取り込み用リンクから転送されたときに、マルチビュー画面の「📥 読み込む」へ切り替える |
+| 利用者が URL の枠で許可したサイト (全フレーム。manifest には書かず、`chrome.scripting.registerContentScripts` で登録) | `content/web-player.js` | ページの中の `<video>` からそれらしいもの (見えている面積が大きく、読み込み中・再生中のもの) を 1 つ選び、マルチビュー画面からの指示で再生・一時停止・シーク・ミュート・速度を変え、再生位置などをマルチビュー画面に渡す。一番外側のページがこの拡張機能のマルチビュー画面のとき (`location.ancestorOrigins`) だけ動き、そのサイトを普通に開いたときは何もしない。サイトの内容は読まず、送らない |
 
 ## リモートコード
 
@@ -263,6 +269,7 @@ YouTube の複数の配信・動画を 1 つの画面に並べて同時に視聴
 | `x.com` | 共有画面で利用者が「𝕏 に投稿」を押したときだけ、名前と取り込み用リンクを入れた投稿画面 (`https://x.com/intent/post?…`) を新しいタブで開き、許可があれば共有画像をその投稿欄に入れる。拡張機能からは投稿しない (投稿するかどうか・何を投稿するかは、利用者が X の画面で確かめて決める) |
 | `github.com` | 「不具合の報告」で利用者が「GitHub で報告」を押したときだけ、エラーの記録と環境 (版・ブラウザ・OS) を書き込んだ Issue の作成画面を新しいタブで開く。拡張機能からは送信しない (送るかどうか・何を送るかは、利用者が GitHub の画面で確かめて決める) |
 | 利用者が指定した https の URL | チャンネルパックの読み込み、ドラッグした画像 (QR コード読み取り) の取得。Cookie は送らない |
+| 利用者が URL の枠に入れたサイト | そのページを枠 (iframe) に表示するだけ (ブラウザでそのサイトを開くのと同じ通信。ログインの Cookie はブラウザが付ける)。拡張機能からは何も送らない |
 
 開発者が運営するサーバー (Hakomado Feed `hakomado.contee.net`) とは通信しない。共有画面の「📮 サイトに投稿」は、
 Feed の投稿画面 (`https://hakomado.contee.net/post#text=<コード>`) を新しいタブで開くだけ (`x.com` の投稿画面と同じ形。コードは URL の `#` の後ろなのでサーバーに送られない)。
@@ -300,14 +307,15 @@ Lets the user watch several YouTube streams and videos side by side on one scree
 | 権限 | 理由 |
 | --- | --- |
 | `storage` | Saves the user's tile arrangement, layout, channel list, watch history, playlists and settings locally. Keeps the list of tabs showing the multiview screen for the current browser session. Keeps a local record of errors raised by the extension's own scripts (up to 100 entries, deleted after 7 days), shown in "Report a problem". Nothing is sent to any server. |
-| `declarativeNetRequestWithHostAccess` | (1) YouTube watch and live chat pages send X-Frame-Options, which blocks them from appearing in the extension's multiview page. A session rule removes only that header, only from www.youtube.com/watch and www.youtube.com/live_chat sub-frame responses, and only in tabs where the multiview screen is open (limited by tabIds). No other headers are changed. (2) A dynamic rule redirects only shared playlist links (https://www.youtube.com/watch_videos?... with a "hakomado=" parameter) to the extension's import screen. |
+| `declarativeNetRequestWithHostAccess` | (1) YouTube watch and live chat pages send X-Frame-Options, which blocks them from appearing in the extension's multiview page. A session rule removes only that header, only from www.youtube.com/watch and www.youtube.com/live_chat sub-frame responses, and only in tabs where the multiview screen is open (limited by tabIds). No other headers are changed. (2) A dynamic rule redirects only shared playlist links (https://www.youtube.com/watch_videos?... with a "hakomado=" parameter) to the extension's import screen. (3) URL tiles: for sites the user has allowed (optional host permission below), the same kind of session rule removes only X-Frame-Options from sub-frame responses, only in multiview tabs. Content-Security-Policy is never removed, so sites that forbid embedding with frame-ancestors are not shown. |
 | `contextMenus` | Adds "Add to an empty Hakomado tile" to the right-click menu, shown only on links to YouTube videos/streams and on YouTube watch pages. It takes the video ID from the clicked link and passes it to the open multiview screen. The extension does not use the tabs permission and does not read tab URLs or titles. |
 | `https://www.youtube.com/*` | Target of the rules above. Content scripts in the embedded watch and live chat frames control playback, volume, audio panning and archive sync, and read chat messages to show them as scrolling comments. Loads live / upcoming / archived stream lists and video and playlist details with the user's signed-in session, so members-only streams the user can access also work. |
 | `https://schedule.hololive.tv/*` | Loads the stream schedule for the bundled default channels in a single request, which reduces the number of requests made to YouTube. Used by the Holodule add-on, which is on by default and can be turned off under Settings > Add-ons (nothing is loaded from this site while it is off). |
 | `activeTab` | Only when the user presses the extension's keyboard shortcut (Alt+Shift+S by default, registered with `commands` and changeable at chrome://extensions/shortcuts) on the extension's own multiview tab: captures that tab with chrome.tabs.captureVisibleTab to take a screenshot of the tiles. The image is cropped to the tiles, saved as a PNG on the user's computer and copied to the clipboard; it is never sent anywhere. Nothing happens on other tabs (such as YouTube pages). |
-| `scripting` | Only when the user presses "𝕏 Post" on the share screen: injects a script into the single X post tab that button just opened, and puts the share image into the post box's image input (the same as choosing the image by hand). It never presses Post and is not injected into any other tab or page. |
+| `scripting` | Only when the user presses "𝕏 Post" on the share screen: injects a script into the single X post tab that button just opened, and puts the share image into the post box's image input (the same as choosing the image by hand). It never presses Post and is not injected into any other tab or page. Also, for URL tiles, registers `content/web-player.js` with chrome.scripting.registerContentScripts only for sites the user has allowed. |
 | `https://x.com/*` (optional host permission) | Needed for the `scripting` use above. Not requested at install; asked with chrome.permissions.request the first time the user presses "𝕏 Post". Without it, the extension still opens the post screen and copies the image to the clipboard for the user to paste. |
 | `https://www.nijisanji.jp/*` (optional host permission) | Used only by the NIJISANJI add-on (`addons/nijisanji.js`, off by default) to read the live schedule from the NIJISANJI website (the JSON the site itself uses, `https://www.nijisanji.jp/api/streams?…`), which reduces requests to YouTube for channels added from a NIJISANJI channel pack. The site does not allow CORS, so host access is needed. Not requested at install; asked with chrome.permissions.request when the user turns the add-on on under Settings > Add-ons, and released when it is turned off. Read only; no cookies are sent. |
+| `https://*/*` (optional host permission) | URL tiles: shows a video site's page in a tile and plays, pauses, seeks and mutes the video in it. Nothing is requested at install. When the user enters an https URL in a tile, only that site (`https://*.<site>/*`, the domain without a leading www. and its subdomains) is requested with chrome.permissions.request. Subdomains are included because video players call other subdomains of the same site (for example to check the user's access) with the user's sign-in cookies, and those calls fail as third-party without access. Allowed sites are remembered in chrome.storage.local; when the user revokes a site in Chrome, its script and rule are removed. The extension does not read or send any data from these sites. |
 
 ## 版の履歴 (ストアに出したもの)
 
