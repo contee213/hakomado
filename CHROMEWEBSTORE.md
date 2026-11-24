@@ -63,7 +63,7 @@ GitHub のリリースが先に出て、ストアは同じ版を後から追い�
   ふだんは `main` からそのまま出すだけでよく、リリース用のブランチは常には持たない
 - **新しい版のお知らせはストア版には出ない**: `update-check.js` は `update_url` のある版 (ストア版) では GitHub を確かめない
   (ストア版はブラウザが更新する)。ストア版の人に GitHub の新しい版を案内しないこと
-- **どちらの版かを見分ける**: 不具合の報告を受けたら、使い方 (?) か設定 (⚙) の画面の下の版 (例: `0.2.0 · build 120 (2026-11-22)`。ビルド番号と日付は `extension/build.js`) と、ストア版か ZIP 版か (拡張機能の ID) を聞く。
+- **どちらの版かを見分ける**: 不具合の報告を受けたら、使い方 (📖) か設定 (⚙) の画面の下の版 (例: `0.2.0 · build 120 (2026-11-22)`。ビルド番号と日付は `extension/build.js`) と、ストア版か ZIP 版か (拡張機能の ID) を聞く。
   不具合の報告 (エラーの記録) の本文にも同じ版とストア版かどうかが入る。`chrome://extensions` やストアに出る版は `version` (例: `0.2.0`) だけで、ビルド番号は入らない
 - ストアに出したら、下の「版の履歴」に版・日付・状態を書き足す
 
@@ -102,7 +102,7 @@ YouTube の配信・動画を 1 つの画面に最大 16 枠並べて、同時�
 2. 上の「自動再生」を押すと、配信中のチャンネルが自動で並びます
 3. 自分で選ぶときは、空いている枠に URL・動画 ID・@チャンネル名を貼るか、「チャンネルから選ぶ」「ライブラリから選ぶ」で選びます
 4. 音を出す枠は、枠のバーのスピーカーか数字キー (1〜9) で切り替えます
-細かい操作は、画面右上の「?」(使い方) で見られます。
+細かい操作は、画面右上の「📖」(使い方) で見られます。
 
 ■ プライバシー
 開発者は利用者の情報を一切集めません (アクセス解析・広告もありません)。設定・チャンネル・視聴履歴などは、すべてお使いのブラウザの中にだけ保存されます。
@@ -120,7 +120,7 @@ YouTube の配信・動画を 1 つの画面に最大 16 枠並べて、同時�
 個人が作った非公式のツールです。YouTube / Google や、初期データとして入っているチャンネルの運営元とは関係ありません。YouTube のページの構成が変わると、一部の機能が動かなくなることがあります。
 
 ■ 不具合・要望
-画面右上の「?」→「不具合の報告」から、エラーの記録を確かめて GitHub で報告できます。
+画面右上の「📖」→「不具合の報告」から、エラーの記録を確かめて GitHub で報告できます。
 https://github.com/contee213/hakomado/issues
 ```
 
@@ -148,7 +148,7 @@ HOW TO USE
 2. Press "Auto play" at the top to fill tiles with live channels
 3. To choose yourself, paste a URL, video ID or @handle into an empty tile, or use "Pick from channels" / "Pick from library"
 4. Pick the tile you hear with the speaker button on its bar or the number keys (1–9)
-Press "?" (Help) at the top right for all controls and shortcuts.
+Press "📖" (Help) at the top right for all controls and shortcuts.
 
 PRIVACY
 The developer collects no information about you (no analytics, no ads). Your settings, channels, watch history and so on are stored only in your own browser.
@@ -165,7 +165,7 @@ NOTE
 This is an unofficial tool made by an individual. It is not affiliated with YouTube / Google or with the operators of the bundled channels. Some features may stop working when YouTube changes its pages.
 
 BUGS AND REQUESTS
-Open "?" → "Report a problem" at the top right to review the error record and report it on GitHub.
+Open "📖" → "Report a problem" at the top right to review the error record and report it on GitHub.
 https://github.com/contee213/hakomado/issues
 ```
 
@@ -211,7 +211,7 @@ No account is needed; public streams can be watched without signing in to YouTub
 
 1. Click the Hakomado toolbar icon. The multiview screen opens in a new tab (a short tour is shown on first run; it can be skipped).
 2. Paste https://www.youtube.com/watch?v=jfKfPfyJRdk into an empty tile and press Enter. The YouTube player appears in the tile.
-3. Add a second video the same way (any public video or live stream). Hover over a tile to show its bar, and use the 🔊 button on each tile's bar or the number keys 1-9 to switch which tile you hear.
+3. Add a second video the same way (any public video or live stream). Hover over a tile to show its bar, and use the 🎧 button on each tile's bar or the number keys 1-9 to switch which tile you hear.
 4. "▦ Layout" at the top changes the arrangement. Hover over a tile to show its bar; for a live stream, the 💬 button opens the live chat beside the video.
 5. Right-click any YouTube video link on youtube.com and choose "Add to an empty Hakomado tile".
 
