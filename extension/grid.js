@@ -1592,26 +1592,18 @@ function setAudio(i, { solo, on } = {}) {
 const ARROW_DIRS = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
 
 /**
- * 矢印キー: 今音が出ている枠 (無ければ 1 番) から見て、その方向にある一番近い枠だけ音を出す。
- * 方向は画面上の枠の位置 (中心) で決めるので、どのレイアウトでも見た目どおりに動く (PinP の小窓も)。
- * その方向に枠が無ければ何もしない
+ * from の枠から見て、[dx, dy] の方向にある一番近い枠 (candidates の中から)。無ければ null。
+ * 方向は画面上の枠の位置 (中心) で決めるので、どのレイアウトでも見た目どおりに動く (PinP の小窓も)
  */
-function moveAudio([dx, dy]) {
-  const filled = visibleIndexes().filter((i) => state.tiles[i].videoId);
-  if (!filled.length) return;
-  const cur = audibleTiles()[0];
-  if (cur == null) {
-    setAudio(filled[0], { solo: true, on: true });
-    return;
-  }
+function tileInDirection(from, [dx, dy], candidates) {
   const center = (i) => {
     const r = views[i].el.getBoundingClientRect();
     return [r.left + r.width / 2, r.top + r.height / 2];
   };
-  const [cx, cy] = center(cur);
+  const [cx, cy] = center(from);
   let best = null;
-  for (const i of filled) {
-    if (i === cur) continue;
+  for (const i of candidates) {
+    if (i === from) continue;
     const [x, y] = center(i);
     const along = (x - cx) * dx + (y - cy) * dy; // 押した方向への距離
     if (along <= 1) continue;
@@ -1619,7 +1611,34 @@ function moveAudio([dx, dy]) {
     const score = along + across * 2; // まっすぐ先にある枠を優先
     if (!best || score < best.score) best = { i, score };
   }
-  if (best) setAudio(best.i, { solo: true, on: true });
+  return best ? best.i : null;
+}
+
+/**
+ * 矢印キー: 今音が出ている枠 (無ければ 1 番) から見て、その方向にある一番近い枠だけ音を出す。
+ * その方向に枠が無ければ何もしない
+ */
+function moveAudio(dir) {
+  const filled = visibleIndexes().filter((i) => state.tiles[i].videoId);
+  if (!filled.length) return;
+  const cur = audibleTiles()[0];
+  if (cur == null) {
+    setAudio(filled[0], { solo: true, on: true });
+    return;
+  }
+  const next = tileInDirection(cur, dir, filled);
+  if (next != null) setAudio(next, { solo: true, on: true });
+}
+
+/**
+ * Shift + 矢印キー: 今音が出ている枠を、その方向にある枠 (空き枠も) と入れ替えて動かす。
+ * 音は枠についていくので、続けて押すと同じ枠をさらに動かせる。音の出ている枠が無ければ何もしない
+ */
+function moveTileByKey(dir) {
+  const cur = audibleTiles()[0];
+  if (cur == null) return;
+  const next = tileInDirection(cur, dir, visibleIndexes());
+  if (next != null) swapTiles(cur, next);
 }
 
 /** list の枠だけ音を出す (他はミュート) */
@@ -7208,8 +7227,10 @@ function setupToolbar() {
       if (i != null) setAudio(i, { solo: true });
     } else if (ARROW_DIRS[e.key] && !isTileFullscreen()) {
       // 矢印キー: 今音が出ている枠の、その方向にある枠だけ音を出す (ページのスクロールはしない)
+      // Shift + 矢印キー: 今音が出ている枠をその方向へ動かす (隣の枠と入れ替え)
       e.preventDefault();
-      moveAudio(ARROW_DIRS[e.key]);
+      if (e.shiftKey) moveTileByKey(ARROW_DIRS[e.key]);
+      else moveAudio(ARROW_DIRS[e.key]);
     }
   });
 

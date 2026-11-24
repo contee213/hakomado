@@ -332,7 +332,7 @@
           <section class="help-page" data-help-page="tiles" role="tabpanel" data-i18n-html="helpPage.tiles" hidden>
             <ul>
               <li>上のバーの「▦」でレイアウトを選びます。濃い枠がメインで、読み込んだ配信は 1 番 (メイン) から順に入ります。「＋」「−」で枠を増やす・減らす</li>
-              <li>配信の入った枠にマウスを乗せると、操作バーが出ます。左端の ⠿ をドラッグすると、枠を入れ替えます</li>
+              <li>配信の入った枠にマウスを乗せると、操作バーが出ます。左端の ⠿ をドラッグすると、枠を入れ替えます (音が出ている枠は <kbd>Shift</kbd> + 矢印キーでも動かせます)</li>
               <li>枠のバー: 音のボタン (この枠の音を出す) / 🎚 音の左右・音量・遅延 / 1× 再生速度 / 💬 チャット欄 / ≋ 弾幕 / 🔖 あとで見る / 👍 高評価 / ⟳ 読み込み直し / ⛶ その枠だけ全画面 / ✕ 閉じる</li>
               <li>「ℹ️ 枠の情報」(<kbd>I</kbd>) の各行: 音の左右 (L / C / R) / 📌 ピックアップ / 🔖 あとで見る / 📃 再生リストに入れる / チャンネル登録 / 👍 高評価。タイトルを押すと、その動画を YouTube の新しいタブで開きます</li>
               <li>🎚 では、その枠の音を左・真ん中・右から聞こえるようにしたり、音量 (0〜200%) を変えたりできます。左右は「ℹ️ 枠の情報」の L / C / R でも変えられます。ライブ配信では「音の遅延」で、その枠の音だけを遅らせられます (映像はそのまま。コラボで、ほかの枠より声が先に聞こえるときに)</li>
@@ -439,6 +439,7 @@
             <table class="help-keys">
               <tr><th><kbd>1</kbd>〜<kbd>9</kbd></th><td data-i18n="key.audio">その枠だけ音を出す</td></tr>
               <tr><th><kbd>←</kbd><kbd>→</kbd><kbd>↑</kbd><kbd>↓</kbd></th><td data-i18n="key.arrows">今音が出ている枠の、その方向にある枠だけ音を出す</td></tr>
+              <tr><th><kbd>Shift</kbd> + <kbd>←</kbd><kbd>→</kbd><kbd>↑</kbd><kbd>↓</kbd></th><td data-i18n="key.moveTile">今音が出ている枠を、その方向の枠と入れ替えて動かす</td></tr>
               <tr><th><kbd>Shift</kbd> + <kbd>1</kbd>〜<kbd>9</kbd></th><td data-i18n-html="key.tileFs">その枠を全画面 (<kbd>Esc</kbd> で戻る)</td></tr>
               <tr><th><kbd>Shift</kbd> + <kbd>F</kbd></th><td data-i18n="key.gridFs">分割したまま全画面 (上端にマウスを寄せるとバーが出る)</td></tr>
               <tr><th><kbd>M</kbd></th><td data-i18n="key.mute">ミュート ⇄ 直前の状態に戻す</td></tr>

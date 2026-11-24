@@ -1070,7 +1070,7 @@ const HTML_EN = {
 </ul>`,
   'helpPage.tiles': `<ul>
 <li>Choose a layout with “▦” on the top bar. The darker tile is the main one, and loaded streams fill tiles from 1 (main) on. “+” / “−” add or remove a tile</li>
-<li>Hover over a tile with a stream to show its control bar. Drag ⠿ at the left to swap tiles</li>
+<li>Hover over a tile with a stream to show its control bar. Drag ⠿ at the left to swap tiles (the tile playing audio can also be moved with <kbd>Shift</kbd> + arrow keys)</li>
 <li>Tile bar: audio button (play audio from this tile) / 🎚 left/right, volume and delay / 1× playback speed / 💬 chat / ≋ danmaku / 🔖 watch later / 👍 like / ⟳ reload / ⛶ fullscreen this tile / ✕ close</li>
 <li>Each row of “ℹ️ Tile info” (<kbd>I</kbd>): left/right audio (L / C / R) / 📌 pickup / 🔖 watch later / 📃 add to a playlist / subscribe / 👍 like. Click a title to open that video on YouTube in a new tab</li>
 <li>🎚 makes that tile heard from the left, center or right and changes its volume (0–200%). You can also change left/right with L / C / R in “ℹ️ Tile info”. On a live stream, “Audio delay” delays only that tile’s audio (the picture stays as it is; for a collab whose voices come earlier than the other tiles)</li>
@@ -1158,6 +1158,7 @@ const HTML_EN = {
 </ul>`,
   'key.audio': 'Play audio only from that tile',
   'key.arrows': 'Play audio only from the next tile in that direction',
+  'key.moveTile': 'Move the tile playing audio in that direction (swaps with the tile there)',
   'key.tileFs': 'Fullscreen that tile (<kbd>Esc</kbd> to return)',
   'key.gridFs': 'Fullscreen with all tiles (move the mouse to the top edge to show the bar)',
   'key.mute': 'Mute ⇄ restore the previous audio',
