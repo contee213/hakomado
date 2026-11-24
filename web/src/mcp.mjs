@@ -75,13 +75,13 @@ const TOOLS = [
     name: 'post_set',
     title: 'セットを投稿',
     description:
-      'セットを投稿して公開する。text (Hakomado のコード #Hakomado … か取り込み用リンク) か、videos (YouTube の URL か動画 ID の並び。最大 16 本) のどちらかを渡す。' +
+      'セットを投稿して公開する。text (Hakomado のコード #Hakomado … か取り込み用リンク) か、videos (YouTube の URL か動画 ID、Twitch のチャンネル・VOD の URL の並び。最大 16 本) のどちらかを渡す。' +
       '名前を除いて同じセットがすでにあれば、新しく作らずにそれを返す (existed: true)。動画は YouTube にあるかを確かめてから入れる',
     inputSchema: {
       type: 'object',
       properties: {
         text: { type: 'string', description: 'コード (#Hakomado …) か取り込み用リンク。videos と一緒には使わない' },
-        videos: { type: 'array', items: { type: 'string' }, maxItems: MAX_VIDEOS, description: 'YouTube の URL か動画 ID (11 文字)。並び順 = 枠の番号' },
+        videos: { type: 'array', items: { type: 'string' }, maxItems: MAX_VIDEOS, description: 'YouTube の URL か動画 ID (11 文字)、Twitch のチャンネル・VOD の URL。並び順 = 枠の番号' },
         layoutId: { type: 'string', description: '省くと本数に合う均等のレイアウト' },
         name: { type: 'string', maxLength: 40, description: 'セットの名前' },
         offsets: { type: 'array', items: { type: 'number' }, description: '同期再生の補正 (秒。配信していた実際の時刻でそろえた上に足し引きする分。+ で先へ進める)。videos と同じ数' },

@@ -177,13 +177,16 @@ async function setPage(env, url, id) {
   }
   const title = `${set.name || set.videos[0]?.title || 'Hakomado のセット'} | Hakomado`;
   const desc = `${set.ids.length} 本 · ${set.layoutName}${set.author ? ` · ${set.author}` : ''}`;
-  const image = `https://i.ytimg.com/vi/${set.ids[0]}/hqdefault.jpg`;
+  // 画像は最初の YouTube の動画のサムネイル。Twitch だけのセットはチャンネルの配信のサムネイル (VOD だけなら画像なし)
+  const yt = set.ids.find((id) => !id.startsWith('tw:'));
+  const live = set.ids.find((id) => id.startsWith('tw:') && !id.startsWith('tw:v:'));
+  const image = yt ? `https://i.ytimg.com/vi/${yt}/hqdefault.jpg` : live ? `https://static-cdn.jtvnw.net/previews-ttv/live_user_${live.slice(3)}-640x360.jpg` : '';
   const page = await env.ASSETS.fetch(new URL('/', url));
   return new HTMLRewriter()
     .on('title', { element: (el) => el.setInnerContent(title) })
     .on('meta[property="og:title"]', { element: (el) => el.setAttribute('content', title) })
     .on('meta[property="og:description"], meta[name="description"]', { element: (el) => el.setAttribute('content', desc) })
-    .on('meta[property="og:image"]', { element: (el) => el.setAttribute('content', image) })
+    .on('meta[property="og:image"]', { element: (el) => (image ? el.setAttribute('content', image) : el.remove()) })
     .on('meta[property="og:url"]', { element: (el) => el.setAttribute('content', `${url.origin}/s/${id}`) })
     .on('head', { element: (el) => !set.listed && el.append('<meta name="robots" content="noindex">', { html: true }) })
     .transform(page);

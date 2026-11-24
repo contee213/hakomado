@@ -414,3 +414,84 @@ test('Twitch: チャンネル・VOD の URL から枠の ID (tw:…) を読む�
   assert.equal(get('twitchName')('tw:v:123'), 'Twitch VOD 123');
   assert.equal(get('twitchName')(A), '');
 });
+
+// ---- Twitch の枠 (コードの最後の「 ~t …」・リンクの hkt=)
+const TL = 'tw:lofigirl';
+const TV = 'tw:v:2938768445';
+
+test('Twitch の枠: コードの最後に「~t 枠の番号=名前」で入れ、全部の並びで読み戻せる', () => {
+  const get = setup();
+  const code = get('formatShareCode')('u2x2', [A, TL, B, TV], [], 0, '夜の部');
+  assert.equal(code, `#Hakomado u2x2.${A}${B} "夜の部" ~t 1=lofigirl,3=v:2938768445`);
+  assert.deepEqual(plain(get('parseShareCode')(code)), {
+    ids: [A, TL, B, TV],
+    offsets: null,
+    ref: 0,
+    layoutId: 'u2x2',
+    name: '夜の部',
+    movie: null,
+  });
+});
+
+test('Twitch の枠: 同期のずれ・基準は YouTube の動画だけで数え、読むと全部の並び (Twitch のずれは 0) に戻る', () => {
+  const get = setup();
+  // 全部の並び: A, TL, B (基準), ずれ A=5 B=0
+  const code = get('formatShareCode')('u3', [A, TL, B], [5, 0, 0], 2);
+  assert.equal(code, `#Hakomado u3.${A}${B}~5,*0 ~t 1=lofigirl`);
+  const r = plain(get('parseShareCode')(code));
+  assert.deepEqual(r.ids, [A, TL, B]);
+  assert.deepEqual(r.offsets, [5, 0, 0]);
+  assert.equal(r.ref, 2);
+});
+
+test('Twitch の枠: 以前の版の読み方 (「~t」を知らない) では、YouTube の動画だけを詰めて読める', () => {
+  const OLD =
+    /#?Hakomado\s+([a-z0-9-]{1,24})\.((?:[A-Za-z0-9_-]{11}){1,16})(?:~([-+*\d.,]{1,240}))?(?![A-Za-z0-9_-])(?: "([^"\r\n]{1,40})")?(?: ~!([-*\d.,]{1,240}))?/i;
+  const code = setup()('formatShareCode')('u2x2', [TL, A, TV, B], [0, 3, 0, 0], 3, '名前');
+  const m = code.match(OLD);
+  assert.equal(m[2], A + B);
+  assert.equal(m[3], '3,*0');
+  assert.equal(m[4], '名前');
+});
+
+test('Twitch の枠: 🎬 本編モードでも、本編の位置・本編にした動画を全部の並びに戻す', () => {
+  const get = setup();
+  const code = get('formatShareCode')('u3', [TL, A, B], [], 2, '', [null, 10, 20], 1);
+  assert.equal(code, `#Hakomado u3.${A}${B} ~!10,*20,*0 ~t 0=lofigirl`);
+  const r = plain(get('parseShareCode')(code));
+  assert.deepEqual(r.ids, [TL, A, B]);
+  assert.deepEqual(r.movie, [null, 10, 20]);
+  assert.equal(r.ref, 2);
+  assert.equal(r.main, 1);
+});
+
+test('Twitch の枠だけのセットも読み書きできる (YouTube の動画は 0 本)', () => {
+  const get = setup();
+  const code = get('formatShareCode')('u1x2', [TL, TV]);
+  assert.equal(code, '#Hakomado u1x2. ~t 0=lofigirl,1=v:2938768445');
+  assert.deepEqual(plain(get('parseShareCode')(code).ids), [TL, TV]);
+  // 何も入っていないコードは null
+  assert.equal(get('parseShareCode')('#Hakomado u1x2. ほかの文'), null);
+});
+
+test('Twitch の枠: 番号が飛んでいても詰める。同じ枠は 1 回だけ。壊れた「~t」は無視して YouTube の分を読む', () => {
+  const parse = setup()('parseShareCode');
+  assert.deepEqual(plain(parse(`#Hakomado u3.${A} ~t 9=lofigirl,0=abc,5=lofigirl`).ids), ['tw:abc', A, TL]);
+  assert.deepEqual(plain(parse(`#Hakomado u3.${A}${B} ~t 1=Bad!Name`).ids), [A, B]);
+  assert.deepEqual(plain(parse(`#Hakomado u3.${A}${B} ~t 1=LOFIGIRL`).ids), [A, B], '大文字は Twitch の名前ではない');
+});
+
+test('Twitch の枠: QR 用のリンクは hkt= に入れて読み戻せる (hakomado= はいつも最後)', () => {
+  const get = setup();
+  const link = get('formatShareLink')('u2x2', [A, TL, B], [], 0, '名前');
+  assert.match(link, /&hkt=1=lofigirl&title=名前&hakomado=1$/);
+  assert.match(link, new RegExp(`video_ids=${A},${B}&`));
+  const r = plain(get('parseShareLink')(link));
+  assert.deepEqual(r.ids, [A, TL, B]);
+  assert.equal(r.name, '名前');
+  // Twitch だけ: video_ids は空
+  const only = get('formatShareLink')('u1', [TV]);
+  assert.deepEqual(plain(get('parseShareLink')(only).ids), [TV]);
+  // 壊れた hkt= のリンクは読まない
+  assert.equal(get('parseShareLink')(`https://www.youtube.com/watch_videos?video_ids=${A}&hkl=u1&hkt=x&hakomado=0`), null);
+});

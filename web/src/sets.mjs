@@ -124,6 +124,7 @@ async function fetchVideos(ids) {
 
 /** 動画 1 本の oEmbed。見つからない (404・400) なら null、確かめられない (YouTube の不調など) なら false */
 async function oembed(id) {
+  if (id.startsWith('tw:')) return twitchInfo(id);
   try {
     const url = `https://www.youtube.com/oembed?format=json&url=${encodeURIComponent(`https://www.youtube.com/watch?v=${id}`)}`;
     const r = await fetch(url, { headers: { 'user-agent': 'HakomadoFeed/1.0' } });
@@ -134,6 +135,34 @@ async function oembed(id) {
     return { title: String(d.title || '').slice(0, 200), channel: String(d.author_name || '').slice(0, 100) };
   } catch {
     return false;
+  }
+}
+
+/**
+ * Twitch の枠 (tw:<名前> = チャンネルのライブ / tw:v:<数字> = VOD) の名前。Twitch には鍵なしで使える oEmbed が無いので、公開ページの
+ * og:title を読む (チャンネル「<名前> - Twitch…」/ VOD「<題名> - <名前> on Twitch」)。
+ * Twitch は、あるページでもときどき中身の無い共通のページを返すので、消えたとは決めない (読めなければ名前を空にする。null は返さない)
+ */
+async function twitchInfo(id) {
+  const vod = id.startsWith('tw:v:');
+  const empty = { title: '', channel: '' };
+  try {
+    const r = await fetch(vod ? `https://www.twitch.tv/videos/${id.slice(5)}` : `https://www.twitch.tv/${id.slice(3)}`, {
+      headers: { 'user-agent': 'Mozilla/5.0 (compatible; HakomadoFeed/1.0)', 'accept-language': 'en' },
+    });
+    if (!r.ok) return empty;
+    const html = (await r.text()).slice(0, 64 * 1024);
+    const og = html.match(/<meta property="og:title" content="([^"]*)"/)?.[1];
+    if (!og) return empty;
+    const text = og.replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>');
+    if (vod) {
+      const m = text.match(/^(.*) - (.+?) on Twitch$/);
+      return m ? { title: m[1].slice(0, 200), channel: m[2].slice(0, 100) } : empty;
+    }
+    if (text === 'Twitch') return empty; // 中身の無い共通のページ
+    return { title: '', channel: text.replace(/ - Twitch.*$/, '').slice(0, 100) };
+  } catch {
+    return empty;
   }
 }
 

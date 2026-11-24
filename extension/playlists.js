@@ -34,7 +34,7 @@ const Playlists = (() => {
   const NAME_MAX = 40; // 新しく付ける名前の長さ
   const LEGACY_NAME_MAX = 80; // 以前の版で付けた長い名前は、読むときには切らない
   const LABEL_MAX = 80;
-  const VIDEO_ID_RE = /^[A-Za-z0-9_-]{11}$/;
+  const VIDEO_ID_RE = /^(?:[A-Za-z0-9_-]{11}|tw:v:\d{1,12})$/; // YouTube の動画と Twitch の VOD (VideoEntry と同じ)
   const SEEDED_KEY = 'playlistSeeded'; // 既定の再生リストを作ったか (一度作ったら、全部消しても作り直さない)
   const keyOf = (id) => ITEM_PREFIX + id;
 
