@@ -13,7 +13,7 @@
 const Backup = (() => {
   const APP = 'hakomado';
   const FORMAT = 1; // ファイルの形を変えたら上げる (読み込むときに、知らない新しい形は断る)
-  const CHANNEL_RE = /^UC[\w-]{22}$/;
+  const CHANNEL_RE = /^(?:UC[\w-]{22}|tw:[a-z0-9_]{1,25})$/; // YouTube (UC…) と Twitch (tw:<名前>) のチャンネル
   const MAX_ITEMS = 100; // 履歴・あとで見るの上限 (history.js と同じ)
   const MAX_CHANNELS = 2000;
 

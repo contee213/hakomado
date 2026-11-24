@@ -132,6 +132,7 @@ function isShortHint(input) {
 
 /** 最近の動画 (fetchArchives の 1 件) を枠に入れるときの URL。ショートの再生リスト (UUSH) の分は /shorts/ の URL にする */
 function videoInput(v) {
+  if (isTwitchId(v.videoId)) return twitchPageUrl(v.videoId);
   return v.list === 'UUSH' ? `${YT}/shorts/${v.videoId}` : `${YT}/watch?v=${v.videoId}`;
 }
 
@@ -1040,13 +1041,16 @@ let twitchAllowed = false;
 const isTwitchId = (id) => typeof id === 'string' && TWITCH_ID_RE.test(id);
 const isTwitchTile = (i) => isTwitchId(state.tiles[i]?.videoId);
 
-/** twitch.tv の権限を聞く (許可済みなら聞かれない)。操作 (クリック・Enter) の中で、await より前に呼ぶ */
+/** twitch.tv の権限を聞く (許可済みなら聞かれない)。操作 (クリック・Enter) の中で、await より前に呼ぶ。許可されたかを返す */
 function requestTwitch() {
-  if (twitchAllowed) return;
-  chrome.permissions
+  if (twitchAllowed) return Promise.resolve(true);
+  return chrome.permissions
     .request({ origins: TWITCH_ORIGINS })
     .catch(() => false)
-    .then((ok) => ok && onTwitchPermission(true));
+    .then((ok) => {
+      if (ok) onTwitchPermission(true);
+      return !!ok;
+    });
 }
 
 async function refreshTwitchPermission() {
@@ -1078,6 +1082,30 @@ function twitchChatUrl(t) {
 /** 枠の Twitch の URL (新しいタブで開く用) */
 function twitchPageUrl(id) {
   return id.startsWith('tw:v:') ? `https://www.twitch.tv/videos/${id.slice(5)}` : `https://www.twitch.tv/${id.slice(3)}`;
+}
+
+/** Twitch のチャンネルの枠なら、そのチャンネルの ID (tw:<名前>。チャンネル一覧の ID と同じ)。VOD・YouTube なら null */
+const twitchChannelOfTile = (t) => (isTwitchId(t.videoId) && !t.videoId.startsWith('tw:v:') ? t.videoId : null);
+
+/**
+ * 一覧に出すサムネイルの URL ('' なら出さない)。
+ * Twitch のチャンネルは配信のサムネイル、VOD はチャンネルのページから取ったもの (thumb)
+ */
+function thumbUrl(videoId, thumb) {
+  if (!isTwitchId(videoId)) return `https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`;
+  if (videoId.startsWith('tw:v:')) return typeof thumb === 'string' && /^https:\/\/static-cdn\.jtvnw\.net\//.test(thumb) ? thumb : '';
+  return `https://static-cdn.jtvnw.net/previews-ttv/live_user_${videoId.slice(3)}-320x180.jpg`;
+}
+
+/** チャンネル一覧のチャンネルの配信を枠に入れるときの入力 (YouTube は @ハンドルかチャンネルのページ、Twitch はチャンネルのページ) */
+function channelInputOf(f) {
+  if (isTwitchId(f.channelId)) return twitchPageUrl(f.channelId);
+  return f.handle || `${YT}/channel/${f.channelId}`;
+}
+
+/** 自動再生などで入れる枠の入力 (YouTube は @ハンドルかチャンネル ID。ピックアップの判定にも使う。Twitch はチャンネルのページ) */
+function autoInputOf(f) {
+  return isTwitchId(f.channelId) ? twitchPageUrl(f.channelId) : f.handle || f.channelId;
 }
 
 // Twitch のプレイヤーへの命令 (公式の埋め込み用スクリプト embed.twitch.tv/embed/v1.js と同じ形。eventName は命令の番号)
@@ -1420,7 +1448,8 @@ function pickedChannelOf(i) {
   const t = state.tiles[i];
   const m = views[i].meta;
   // 自動再生で入れた枠などは入力 (@ハンドル / チャンネル ID) で、それ以外は枠のプレイヤーが知らせてきたチャンネルで判定
-  const keys = [t.input, m?.handle, m?.channelId].filter(Boolean).map(favKey);
+  // Twitch のチャンネルの枠は、枠の ID がチャンネルの ID と同じ
+  const keys = [t.input, m?.handle, m?.channelId, twitchChannelOfTile(t)].filter(Boolean).map(favKey);
   for (const k of keys) if (favKeyToId.has(k)) return favKeyToId.get(k);
   return null;
 }
@@ -7856,7 +7885,7 @@ function favItem({ f, st }) {
   icon.loading = 'lazy';
   icon.src = f.icon || blank;
   li.querySelector('.fav-name').textContent = f.name;
-  li.title = f.handle || f.name;
+  li.title = f.handle || (isTwitchId(f.channelId) ? `twitch.tv/${f.channelId.slice(3)}` : f.name);
 
   const badge = li.querySelector('.badge');
   const title = li.querySelector('.fav-title');
@@ -7874,7 +7903,8 @@ function favItem({ f, st }) {
     li.classList.add(st.state);
     badge.textContent = st.state === 'live' ? '● LIVE' : tr('upcomingAt', formatStart(st.startAt)).trim();
     title.textContent = st.title || '';
-    thumb.src = `https://i.ytimg.com/vi/${st.videoId}/mqdefault.jpg`;
+    const src = thumbUrl(st.videoId);
+    if (src) thumb.src = src;
     li.querySelector('.fav-where').textContent = whereShown(st.videoId);
     makeSelectable(li, favSelEntry(f, st), () => pickFavorite(f, st));
   }
@@ -8181,7 +8211,7 @@ function isFinishedArchive(v, f) {
 /** アーカイブの 1 行 (履歴と同じ見た目。🔖 で保存できる。✕ は無し) */
 function archiveItem(v, f) {
   // ショートは /shorts/ の URL で入れて、縦長の枠にする
-  const h = { videoId: v.videoId, title: v.title, label: f.name, channelId: f.channelId, handle: f.handle || '', at: v.at, input: videoInput(v), kind: v.kind };
+  const h = { videoId: v.videoId, title: v.title, label: f.name, channelId: f.channelId, handle: f.handle || '', at: v.at, input: videoInput(v), kind: v.kind, ...(v.thumb ? { thumb: v.thumb } : {}) };
   const li = videoItem(h, false, { entry: videoSelEntry(h, f, COLLAB_WIN.archive) });
   li.querySelector('.fav-del')?.remove();
   return li;
@@ -8299,7 +8329,9 @@ function videoItem(h, saved, { onRemove, removeTitle, entry } = {}) {
   li.querySelector('.fav-title').textContent = h.title || '';
   li.querySelector('.badge').textContent = !saved && h.reason ? tr(REASON_KEYS[h.reason] || 'reasonReplaced') : '';
   const star = li.querySelector('.fav-star');
-  if (saved) {
+  // Twitch の VOD (最近の配信) は、あとで見る・再生リストに入れられない (どちらも YouTube の動画だけ)
+  const twitch = isTwitchId(h.videoId);
+  if (saved || twitch) {
     star.remove();
   } else {
     const on = savedIds.has(h.videoId);
@@ -8326,7 +8358,7 @@ function videoItem(h, saved, { onRemove, removeTitle, entry } = {}) {
     e.stopPropagation();
     openPlaylistPicker(h);
   });
-  li.querySelector('.fav-del').before(plBtn);
+  if (!twitch) li.querySelector('.fav-del').before(plBtn);
   // 日時は灰色、「枠 N で表示中」はチャンネルの一覧と同じ青い文字で別に出す
   const whereEl = li.querySelector('.fav-where');
   whereEl.textContent = formatStart(h.at) || '';
@@ -8340,7 +8372,8 @@ function videoItem(h, saved, { onRemove, removeTitle, entry } = {}) {
   const thumb = li.querySelector('.fav-thumb');
   thumb.addEventListener('error', () => thumb.removeAttribute('src'), { once: true });
   thumb.loading = 'lazy';
-  thumb.src = `https://i.ytimg.com/vi/${h.videoId}/mqdefault.jpg`;
+  const src = thumbUrl(h.videoId, h.thumb);
+  if (src) thumb.src = src;
   if (entry) makeSelectable(li, entry, () => loadFromHistory(h));
   else li.addEventListener('click', () => loadFromHistory(h));
   const del = li.querySelector('.fav-del');
@@ -8705,7 +8738,7 @@ function loadSelection() {
     if (e.load.st) {
       const { f, st } = e.load;
       forgetAutoMarks(st.videoId);
-      setTileVideo(target, st.videoId, f.handle || `${YT}/channel/${f.channelId}`);
+      setTileVideo(target, st.videoId, channelInputOf(f));
     } else putHistoryInto(target, e.load.h);
     favSel.delete(e.id);
     n++;
@@ -9921,7 +9954,7 @@ async function renderChannelManage() {
       name.textContent = f.name;
       const sub = document.createElement('div');
       sub.className = 'fav-title';
-      sub.textContent = f.handle || '';
+      sub.textContent = f.handle || (isTwitchId(f.channelId) ? `twitch.tv/${f.channelId.slice(3)}` : '');
       main.append(name, sub);
       const group = document.createElement('span');
       group.className = 'cm-group';
@@ -10183,7 +10216,7 @@ function pickFavorite(f, st) {
     favErrorEl.textContent = tr('noEmptyTile');
     return;
   }
-  setTileVideo(target, st.videoId, f.handle || `https://www.youtube.com/channel/${f.channelId}`);
+  setTileVideo(target, st.videoId, channelInputOf(f));
   favDialog.close();
 }
 
@@ -10466,7 +10499,7 @@ async function startAllLiveInner() {
   lives.forEach(({ f, st }, k) => {
     const i = assigned[k];
     if (state.tiles[i].videoId !== st.videoId) {
-      Object.assign(state.tiles[i], { ...newTileState(), input: f.handle || f.channelId, videoId: st.videoId });
+      Object.assign(state.tiles[i], { ...newTileState(), input: autoInputOf(f), videoId: st.videoId });
       views[i].danmaku.clear();
       renderTile(i, { reloadPlayer: true, reloadChat: true });
     }
@@ -10749,7 +10782,7 @@ async function pickAnything(i) {
       const { ok } = await filterAccessible(shuffled, { limit: 1, onProgress: step('progressAccess', 0.55, 0.7) });
       if (ok.length) {
         const { f, st } = ok[0];
-        loadPicked(i, st.videoId, f.handle || f.channelId, f.name, true);
+        loadPicked(i, st.videoId, autoInputOf(f), f.name, true);
         return;
       }
     }
@@ -10845,6 +10878,10 @@ async function autoTickOnceInner() {
     const lives = fillIdle && auto.fallback ? auto.targets.filter(isSoonUpcoming) : auto.targets;
     const liveIds = new Set(lives.map((l) => l.st.videoId));
     const visible = visibleIndexes().filter((i) => state.tiles[i].videoId);
+    // Twitch の配信はチャンネルごとに同じ ID (tw:<名前>) なので、閉じた配信が終わったら (配信中でなくなったら)、
+    // 次の配信は入れ直す (YouTube は配信ごとに ID が変わる)
+    const liveNow = new Set(collected.lives.map((l) => l.st.videoId));
+    for (const id of autoDismissed) if (isTwitchId(id) && !liveNow.has(id) && !failedKeys.has(favKey(id))) autoDismissed.delete(id);
 
     // 終わった配信 (自動で入れた枠だけ。その配信のチャンネルの取得に失敗した回は消さない)
     const ended = [];
@@ -10857,7 +10894,7 @@ async function autoTickOnceInner() {
       // 自動で入れた枠だけ。その配信のチャンネルの取得に失敗した回は消さない
       if (!t.auto) continue;
       const m = views[i].meta;
-      if ([t.input, m?.handle, m?.channelId].some((k) => k && failedKeys.has(favKey(k)))) continue;
+      if ([t.input, m?.handle, m?.channelId, twitchChannelOfTile(t)].some((k) => k && failedKeys.has(favKey(k)))) continue;
       const n = (autoMissing.get(t.videoId) || 0) + 1;
       autoMissing.set(t.videoId, n);
       if (n >= AUTO_MISS_LIMIT) ended.push(i);
@@ -10923,7 +10960,7 @@ async function autoTickOnceInner() {
       if (state.tiles[i].videoId) WatchHistory.removed(state.tiles[i].videoId, 'replaced');
       Object.assign(state.tiles[i], {
         ...newTileState(),
-        input: l.f.handle || l.f.channelId,
+        input: autoInputOf(l.f),
         label: l.f.name,
         videoId: l.st.videoId,
         auto: true,
@@ -11262,7 +11299,9 @@ function detectStarts(collected, { quiet = false, baselineOnly = false } = {}) {
   const byAuto = (l) => state.autoMode && autoLiveOn() && (state.settings.autoTarget !== 'fav' || l.f.star);
   const announce = started.filter((l) => !byAuto(l));
   mutateNotices((list) => {
-    const fresh = started.filter((l) => !list.some((n) => n.videoId === l.st.videoId));
+    // Twitch の配信はチャンネルごとに同じ ID なので、前の配信の知らせ (今の配信が始まるより前) とは別に数える
+    const same = (n, l) => n.videoId === l.st.videoId && (!isTwitchId(n.videoId) || n.at >= (l.st.startAt || 0));
+    const fresh = started.filter((l) => !list.some((n) => same(n, l)));
     if (!fresh.length) return null;
     const add = fresh.map((l) => ({
       videoId: l.st.videoId,
@@ -11338,7 +11377,7 @@ async function renderNotices() {
         noticeDialog.close();
         if (visibleIndexes().some((i) => state.tiles[i].videoId === n.videoId)) return; // もう表示している
         favTarget = null;
-        loadFromHistory({ videoId: n.videoId, input: n.handle || `https://www.youtube.com/channel/${n.channelId}`, label: n.name });
+        loadFromHistory({ videoId: n.videoId, input: channelInputOf(n), label: n.name });
       });
       return li;
     }),
@@ -11509,8 +11548,11 @@ async function addTileToFavorites(i) {
   if (views[i].favBusy) return;
   views[i].favBusy = true;
   TileInfo.update();
+  // Twitch のチャンネルを調べるには twitch.tv の許可が要る (聞くのは押した操作の中で、await より前)
+  const picked = pickedChannelOf(i);
+  const allow = !picked && twitchChannelOfTile(t) ? requestTwitch() : null;
   try {
-    const picked = pickedChannelOf(i);
+    if (allow) await allow;
     if (picked) {
       const f = (await Favorites.list()).find((x) => x.channelId === picked);
       await Favorites.setStar(picked, false);
@@ -11540,9 +11582,12 @@ function showToast(i, text) {
 
 /** ⚙ チャンネルの管理の追加の欄から、チャンネルを登録する */
 async function addFavorite(raw, onSuccess) {
+  // Twitch のチャンネルを調べるには twitch.tv の許可が要る (聞くのは押した操作の中で、await より前)
+  const allow = twitchIdFromUrl(raw) || /^tw:/.test(raw.trim()) ? requestTwitch() : null;
   const out = document.getElementById('cmError');
   out.textContent = tr('adding');
   try {
+    if (allow) await allow;
     const { info, added } = await Favorites.add(raw);
     out.textContent = added ? tr('cmAdded', info.name) : tr('favExists', info.name);
     onSuccess?.();
