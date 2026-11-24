@@ -72,6 +72,8 @@ const state = {
   cruise: false,
   // 全枠繰り返し再生: 動画・アーカイブが最後まで行ったら最初に戻す (ライブ配信と、自動再生・あとで見るで次を入れる枠は除く)
   repeatAll: false,
+  // 枠のバー (各枠の操作バー) を出すか。OFF なら全部の枠で出さず、Twitch の枠の上の黒い帯も無くして映像を枠いっぱいにする
+  tileBars: true,
   danmakuAll: true,
   settings: { ...DEFAULT_SETTINGS },
   // 枠ごとの保存内容。枠数を減らしても全枠分保持しておき、増やしたときに復元する
@@ -169,6 +171,7 @@ function applySession(saved = {}) {
   state.autoMode = saved.autoMode === true;
   state.cruise = saved.cruise === true;
   state.repeatAll = saved.repeatAll === true;
+  state.tileBars = saved.tileBars !== false;
   if (saved.fit === 'fit' || saved.fit === 'fill') state.fit = saved.fit;
   state.anchor = ANCHORS.includes(saved.anchor) ? saved.anchor : 'tl';
   if (Array.isArray(saved.tiles)) {
@@ -284,6 +287,7 @@ function saveNow() {
       autoMode: state.autoMode,
       cruise: state.cruise,
       repeatAll: state.repeatAll,
+      tileBars: state.tileBars,
       dmAuto: true, // 枠の danmaku が null (自動) を使う版で保存した印
       tiles: state.tiles.map(({ muted, ...rest }) => rest),
       audible: audibleTiles(), // 音が出ている枠 (開き直したときに戻す。[] = 全部ミュート)
@@ -1770,9 +1774,25 @@ function updateTileName(i) {
 }
 
 function renderAll() {
+  applyTileBars();
   for (let i = 0; i < MAX_TILES; i++) renderTile(i);
   layout();
   Sync.refresh();
+}
+
+/** 枠のバーの ON / OFF を画面に出す (body.bars-off と上部バーの ▭) */
+function applyTileBars() {
+  document.body.classList.toggle('bars-off', !state.tileBars);
+  setToggle(document.getElementById('tileBars'), state.tileBars);
+}
+
+/** 枠のバーを出す / 隠す (上部バーの ▭・H キー)。notice = キーで切り替えた (知らせを出す) */
+function setTileBars(on, { notice = false } = {}) {
+  state.tileBars = !!on;
+  applyTileBars();
+  layout(); // Twitch の枠は黒い帯の分だけ映像の大きさが変わる
+  save();
+  if (notice) notify(tr(on ? 'keyBarsOn' : 'keyBarsOff'));
 }
 
 /**
@@ -7780,6 +7800,10 @@ function setupToolbar() {
     document.getElementById('help').close();
     startTour();
   });
+  document.getElementById('tileBars').addEventListener('click', (e) => {
+    e.currentTarget.blur(); // Space キーでボタンが押し直されないように
+    setTileBars(!state.tileBars);
+  });
   document.getElementById('gridFullscreen').addEventListener('click', (e) => {
     // 押したボタンにフォーカスを残さない (全画面中に上部バーを隠すため)
     e.currentTarget.blur();
@@ -7964,6 +7988,8 @@ function setupToolbar() {
       setRepeatAll(!state.repeatAll, { notice: true });
     } else if (e.key === 'i' || e.key === 'I') {
       TileInfo.open();
+    } else if (e.key === 'h' || e.key === 'H') {
+      setTileBars(!state.tileBars, { notice: true });
     } else if (/^[1-9]$/.test(e.key)) {
       const i = visibleIndexes()[parseInt(e.key, 10) - 1];
       if (i != null) setAudio(i, { solo: true });
@@ -12003,6 +12029,12 @@ async function addTileToFavorites(i) {
 }
 
 function showToast(i, text) {
+  // 枠のバーを隠している Twitch の枠は、枠の中に出さず画面の下のお知らせにする
+  // (Twitch の枠の中のお知らせはバーの場所に出していて、映像に重ねると Twitch が止まるため)
+  if (!state.tileBars && isTwitchTile(i)) {
+    notify(`${tr('slot', visibleIndexes().indexOf(i) + 1)}: ${text}`); // 「枠 2: …」
+    return;
+  }
   const el = views[i].el.querySelector('.toast');
   el.textContent = text;
   el.classList.add('show');

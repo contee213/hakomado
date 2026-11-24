@@ -729,6 +729,28 @@ test.describe('デザインガイドの決まり', () => {
     await expect(toast).toHaveText('繰り返し OFF');
   });
 
+  test('枠のバー (▭・H): 隠すと全部の枠の操作バーが消え、視聴セッションに残る。キーのときだけ知らせる', async ({ openGrid }) => {
+    const page = await openGrid();
+    await skipTour(page);
+    const btn = page.locator('#tileBars');
+    const bar = page.locator('.tile .bar').first();
+    await expect(btn).toHaveAttribute('aria-pressed', 'true');
+    await btn.click();
+    await expect(btn).toHaveAttribute('aria-pressed', 'false');
+    await expect(page.locator('body')).toHaveClass(/bars-off/);
+    await expect(bar).toBeHidden();
+    expect(await page.locator('#globalToast').evaluate((el) => el.matches(':popover-open'))).toBe(false);
+    // 視聴セッションに保存される
+    await expect
+      .poll(() => page.evaluate(async () => Object.entries(await chrome.storage.local.get(null)).find(([k]) => k.startsWith('session:'))?.[1].tileBars))
+      .toBe(false);
+    await page.locator('body').click({ position: { x: 5, y: 300 } });
+    await page.keyboard.press('h');
+    await expect(page.locator('#globalToast')).toHaveText('枠のバーを出しました');
+    await expect(btn).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('body')).not.toHaveClass(/bars-off/);
+  });
+
   test('ロゴから開いた起動画面は、背景のクリックでも閉じる (A8)', async ({ openGrid }) => {
     const page = await openGrid();
     await skipTour(page);
