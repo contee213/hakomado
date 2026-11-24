@@ -7209,9 +7209,10 @@ function handleImportLink() {
 
 /**
  * 動画を空き枠に入れる。空き枠が無ければ (16 枠未満なら) 枠を 1 つ足す。結果は画面に短く出す。
+ * quietFull: 16 枠が埋まっていても知らせない (background.js がほかの画面か新しいタブに回すので)
  * @returns {'added'|'already'|'full'}
  */
-function addVideoFromMenu(videoId, short = false) {
+function addVideoFromMenu(videoId, short = false, { quietFull = false } = {}) {
   const shown = visibleIndexes().find((i) => state.tiles[i].videoId === videoId);
   if (shown != null) {
     showToast(shown, tr('menuAlready'));
@@ -7219,7 +7220,7 @@ function addVideoFromMenu(videoId, short = false) {
   }
   const target = emptyTileOrAdd();
   if (target == null) {
-    notify(tr('menuFull', MAX_TILES));
+    if (!quietFull) notify(tr('menuFull', MAX_TILES));
     return 'full';
   }
   forgetAutoMarks(videoId);
@@ -7242,7 +7243,9 @@ function listenAddVideo(myTabId) {
   chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     if (msg?.type !== 'add-video' || sender.id !== chrome.runtime.id || sender.tab || msg.tabId !== myTabId) return false;
     if (!ID_RE.test(msg.videoId)) return false;
-    sendResponse({ handled: true, result: addVideoFromMenu(msg.videoId, msg.short === true) });
+    // 16 枠が埋まっていたら handled にしない (background.js が次の画面か新しいタブに回す)
+    const result = addVideoFromMenu(msg.videoId, msg.short === true, { quietFull: true });
+    sendResponse({ handled: result !== 'full', result });
     return false;
   });
 }
@@ -11703,6 +11706,13 @@ async function chooseSession() {
     startNew();
     startWithRead = picked === 'read';
     return picked === 'auto';
+  }
+
+  // 右クリックの追加 (#add=) と取り込み用リンク (#import=) で開いたときは、選ばせずに新しく始める
+  // (その動画だけ / 読み込む画面だけで始める。前の内容は残るので、ロゴからいつでも再開できる)
+  if (/^#(add|import)=/.test(location.hash)) {
+    startNew();
+    return false;
   }
 
   const resumable = sessions.filter((s) => describeSession(s.data).count > 0).slice(0, 3);
