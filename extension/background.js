@@ -144,28 +144,42 @@ async function syncWebPlayer() {
   await applyRules(await getGridTabs());
 }
 
-// ---- Twitch の枠の中のスクリプト (content/twitch-player.js。速度・音の経路・同期の状態)
+// ---- Twitch の枠の中のスクリプト (content/twitch-player.js。速度・音の経路・同期の状態・弾幕)
 // twitch.tv の任意の権限を許可している間だけ、公式の埋め込みプレイヤー (player.twitch.tv) に登録する
 // (manifest の content_scripts に書くと、インストール時に twitch.tv の権限を求めることになるため)。
 // スクリプトは、マルチビュー画面の枠に直接入ったときだけ動く
-const TWITCH_SCRIPT_ID = 'hakomado-twitch-player';
-async function syncTwitchPlayer() {
-  const allowed = await chrome.permissions.contains({ origins: ['https://*.twitch.tv/*'] }).catch(() => false);
-  const registered = await chrome.scripting.getRegisteredContentScripts({ ids: [TWITCH_SCRIPT_ID] });
-  if (!allowed) {
-    if (registered.length) await chrome.scripting.unregisterContentScripts({ ids: [TWITCH_SCRIPT_ID] });
-    return;
-  }
-  const script = {
-    id: TWITCH_SCRIPT_ID,
+// チャット欄 (www.twitch.tv/embed/<チャンネル>/chat) には、弾幕用にコメントを読むスクリプト (content/twitch-chat.js) を入れる
+const TWITCH_SCRIPTS = [
+  {
+    id: 'hakomado-twitch-player',
     matches: ['https://player.twitch.tv/*'],
-    js: ['errlog.js', 'content/mix.js', 'content/twitch-player.js'],
+    js: ['errlog.js', 'content/mix.js', 'danmaku.js', 'content/twitch-player.js'],
+    css: ['danmaku.css'],
     allFrames: true,
     runAt: 'document_start',
     persistAcrossSessions: true,
-  };
-  if (registered.length) await chrome.scripting.updateContentScripts([script]);
-  else await chrome.scripting.registerContentScripts([script]);
+  },
+  {
+    id: 'hakomado-twitch-chat',
+    matches: ['https://www.twitch.tv/embed/*'],
+    js: ['errlog.js', 'content/twitch-chat.js'],
+    allFrames: true,
+    runAt: 'document_idle',
+    persistAcrossSessions: true,
+  },
+];
+async function syncTwitchPlayer() {
+  const allowed = await chrome.permissions.contains({ origins: ['https://*.twitch.tv/*'] }).catch(() => false);
+  const ids = TWITCH_SCRIPTS.map((s) => s.id);
+  const registered = new Set((await chrome.scripting.getRegisteredContentScripts({ ids })).map((s) => s.id));
+  if (!allowed) {
+    if (registered.size) await chrome.scripting.unregisterContentScripts({ ids: [...registered] });
+    return;
+  }
+  const update = TWITCH_SCRIPTS.filter((s) => registered.has(s.id));
+  const add = TWITCH_SCRIPTS.filter((s) => !registered.has(s.id));
+  if (update.length) await chrome.scripting.updateContentScripts(update);
+  if (add.length) await chrome.scripting.registerContentScripts(add);
 }
 
 // twitch.tv の権限を許可したら、開いているマルチビュー画面のタブに Twitch のルールを入れ、枠の中のスクリプトを登録する

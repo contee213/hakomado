@@ -175,7 +175,9 @@ function isAllowedImage(src) {
       u.hostname.endsWith('.ggpht.com') ||
       u.hostname.endsWith('.googleusercontent.com') ||
       u.hostname.endsWith('.gstatic.com') ||
-      u.hostname.endsWith('.ytimg.com')
+      u.hostname.endsWith('.ytimg.com') ||
+      // Twitch の絵文字 (エモート)
+      (u.hostname === 'static-cdn.jtvnw.net' && u.pathname.startsWith('/emoticons/'))
     );
   } catch {
     return false;

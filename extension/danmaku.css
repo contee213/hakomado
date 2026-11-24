@@ -1,0 +1,46 @@
+/* 弾幕 (右から左へ流れるコメント) の見た目。danmaku.js が作る要素に効く。
+   マルチビュー画面 (grid.html。grid.css より前に読む) と、Twitch のプレイヤーの中 (content/twitch-player.js と一緒に
+   background.js が登録する) の両方で使う。Twitch の枠の弾幕は、プレイヤーの上に重ねると Twitch が止まるので、プレイヤーの中で描く */
+.danmaku-layer {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 2;
+}
+.danmaku-layer.off { display: none; }
+
+.dm {
+  position: absolute;
+  left: 0;
+  white-space: nowrap;
+  /* フォント・太さは設定から CSS 変数で (applyDanmakuLook)。文字色は白、縁取りは黒で固定 */
+  font-family: var(--dm-font, inherit);
+  font-weight: var(--dm-weight, 700);
+  line-height: 1.25;
+  color: #fff;
+  text-shadow:
+    -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000,
+    0 0 3px rgba(0, 0, 0, .8);
+  will-change: transform;
+}
+.dm img { height: 1.1em; vertical-align: -0.18em; margin: 0 1px; }
+.dm img.stamp {
+  height: 1.25em;
+  width: 1.25em;
+  vertical-align: -0.28em;
+  margin: 0 2px;
+  filter: drop-shadow(0 0 1px rgba(0, 0, 0, .9));
+}
+.dm .author { font-weight: 400; opacity: .75; margin-right: .4em; font-size: .8em; }
+/* 投稿者の種類で色分け (設定で ON のときだけ) */
+/* 投稿者の種類で色分け (配信者 = 黄、モデレーター = 青、メンバー = 緑) */
+.dm.owner { color: #ffd600; }
+.dm.moderator { color: #8ab4ff; }
+.dm.member { color: #6fe08a; }
+.dm.paid {
+  padding: 0 .35em;
+  border-radius: .3em;
+  text-shadow: 0 0 2px rgba(0, 0, 0, .9);
+}
+.dm .amount { margin-right: .4em; }

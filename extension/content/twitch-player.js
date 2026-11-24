@@ -4,7 +4,9 @@
 //   マルチビュー画面の枠に直接入れたときだけ動く。twitch.tv を普通に開いたとき・ほかのサイトに埋め込まれたときは何もしない
 // - 一時停止・シーク・消音は、親が公式の埋め込みの命令で送る (プレイヤーの表示とそろうように)。最後まで再生したこと
 //   (繰り返しもそこで行う) は、公式の埋め込みが親に知らせる ended で親が扱う (動画要素の ended は来ない)。ここで受けるのは、
-//   公式の命令に無いもの: 速度 (speed と同期の速度の補正)・音の遅延・左右・音量 (mix)・✨ 自動補正の音の記録 (measure)
+//   公式の命令に無いもの: 速度 (speed と同期の速度の補正)・音の遅延・左右・音量 (mix)・✨ 自動補正の音の記録 (measure)・
+//   弾幕 (danmaku で ON / OFF と設定、chat でコメント)。弾幕はプレイヤーの上 (親の画面) に重ねると Twitch が止まるので、
+//   このページの中に描く (danmaku.js・danmaku.css を一緒に登録してある)
 // - 親へ知らせるもの:
 //   syncState  VOD の再生位置・状態 (0.5 秒ごと。{t, ps, ad, r, up, sk, ts}。ps は YouTube のプレイヤーの状態の番号に合わせる:
 //              0 = 終わった / 1 = 再生中 / 2 = 一時停止 / 3 = 読み込み中)
@@ -87,6 +89,29 @@
     });
   }, 500);
 
+  // ---- 弾幕 (チャンネルのライブだけ。コメントは親がチャット欄 (content/twitch-chat.js) から回してくる)
+  let dmSettings = null;
+  let danmaku = null;
+  function setDanmaku(on, settings) {
+    dmSettings = settings && typeof settings === 'object' ? settings : dmSettings;
+    if (!on) {
+      danmaku?.setEnabled(false);
+      return;
+    }
+    if (!danmaku) {
+      const layer = document.createElement('div');
+      layer.className = 'danmaku-layer';
+      // ページのどこが動いても枠全体に出るよう、画面に固定して一番前に置く (操作は下のプレイヤーに通す)
+      layer.style.cssText = 'position: fixed; inset: 0; z-index: 2147483647;';
+      document.body.append(layer);
+      danmaku = new Danmaku(layer, () => dmSettings || {});
+    }
+    const look = dmSettings?.look || {};
+    danmaku.layer.style.setProperty('--dm-font', String(look.font || 'inherit'));
+    danmaku.layer.style.setProperty('--dm-weight', String(look.weight || '700'));
+    danmaku.setEnabled(true);
+  }
+
   window.addEventListener('message', (e) => {
     if (e.origin !== PARENT_ORIGIN || e.source !== window.parent) return;
     const d = e.data;
@@ -106,6 +131,10 @@
       applyRate();
     } else if (d.hakomado === 'infoReq') {
       info();
+    } else if (d.hakomado === 'danmaku') {
+      if (!vod) setDanmaku(!!d.on, d.s);
+    } else if (d.hakomado === 'chat' && Array.isArray(d.messages)) {
+      if (danmaku?.enabled) for (const m of d.messages.slice(0, 50)) danmaku.add(m);
     }
   });
 })();
