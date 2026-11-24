@@ -7,7 +7,7 @@
 
 importScripts('errlog.js'); // ErrLog (エラーの記録。最初に始めて、ほかのファイルのエラーも記録する)
 ErrLog.install('background');
-importScripts('share-code.js'); // videoIdFromUrl
+importScripts('share-code.js'); // videoIdFromUrl・twitchIdFromUrl
 
 const RULE_IDS = [1, 2, 3, 4, 5];
 
@@ -339,23 +339,28 @@ const VIDEO_URL_PATTERNS = [
   '*://m.youtube.com/shorts/*',
   '*://youtu.be/*',
 ];
+// Twitch のチャンネル・VOD (twitch.tv/<名前>・twitch.tv/videos/<番号> など)。URL の形だけでは、チャンネル以外のページ
+// (twitch.tv/directory など) と見分けられないので、Twitch のページ全部に出し、押したときに twitchIdFromUrl で見分ける
+// (チャンネル・VOD でなければ何もしない)
+const TWITCH_URL_PATTERNS = ['*://www.twitch.tv/*', '*://twitch.tv/*', '*://m.twitch.tv/*'];
 
 function createMenus() {
   chrome.contextMenus.removeAll(() => {
     const title = chrome.i18n.getMessage('menuAddToTile');
-    chrome.contextMenus.create({ id: MENU_LINK, title, contexts: ['link'], targetUrlPatterns: VIDEO_URL_PATTERNS });
+    chrome.contextMenus.create({ id: MENU_LINK, title, contexts: ['link'], targetUrlPatterns: [...VIDEO_URL_PATTERNS, ...TWITCH_URL_PATTERNS] });
     chrome.contextMenus.create({
       id: MENU_PAGE,
       title,
       contexts: ['page', 'video'],
-      documentUrlPatterns: VIDEO_URL_PATTERNS.filter((p) => p.startsWith('*://www.') || p.startsWith('*://m.')),
+      documentUrlPatterns: [...VIDEO_URL_PATTERNS.filter((p) => p.startsWith('*://www.') || p.startsWith('*://m.')), 'https://www.twitch.tv/*'],
     });
   });
 }
 
 chrome.contextMenus.onClicked.addListener((info, tab) => {
   const url = info.menuItemId === MENU_LINK ? info.linkUrl : info.menuItemId === MENU_PAGE ? info.frameUrl || info.pageUrl : null;
-  const videoId = url ? videoIdFromUrl(url) : null;
+  // Twitch のページの中の枠 (埋め込みプレイヤーなど) で押したときは、ページの URL で見る
+  const videoId = url ? videoIdFromUrl(url) || twitchIdFromUrl(url) || (info.menuItemId === MENU_PAGE ? twitchIdFromUrl(info.pageUrl || '') : null) : null;
   if (!videoId) return;
   // ショート (/shorts/ の URL) は、画面でも /shorts/ の URL で入れて最初から縦長の枠にする
   addToGrid(videoId, tab?.windowId, /^https?:\/\/(www\.|m\.)?youtube\.com\/shorts\//i.test(url)).catch((e) => console.warn('hakomado: 枠に追加できませんでした', e));

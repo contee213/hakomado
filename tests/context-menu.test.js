@@ -77,7 +77,20 @@ test('インストール・更新のときにメニューを作る (リンク用
     ['hakomado-add-page', ['page', 'video']],
   ]);
   assert.ok(log.menus[0].targetUrlPatterns.includes('*://youtu.be/*'));
-  assert.ok(log.menus[1].documentUrlPatterns.every((p) => /^\*:\/\/(www|m)\.youtube\.com\//.test(p)));
+  assert.ok(log.menus[0].targetUrlPatterns.includes('*://www.twitch.tv/*'));
+  assert.ok(log.menus[1].documentUrlPatterns.every((p) => /^\*:\/\/(www|m)\.youtube\.com\//.test(p) || p === 'https://www.twitch.tv/*'));
+});
+
+test('Twitch のチャンネル・VOD のリンクとページは tw:… で送る。チャンネルでない Twitch のページは何もしない', async () => {
+  const { log, click } = setup();
+  await click({ menuItemId: 'hakomado-add-link', linkUrl: 'https://www.twitch.tv/LofiGirl' }, { windowId: 1 });
+  await click({ menuItemId: 'hakomado-add-page', pageUrl: 'https://www.twitch.tv/videos/2938768445' }, { windowId: 1 });
+  await click({ menuItemId: 'hakomado-add-link', linkUrl: 'https://www.twitch.tv/directory/category/just-chatting' }, { windowId: 1 });
+  await click({ menuItemId: 'hakomado-add-page', pageUrl: 'https://www.twitch.tv/directory' }, { windowId: 1 });
+  assert.deepEqual(
+    log.created.map((c) => c.url.split('#')[1]),
+    ['add=tw:lofigirl', 'add=tw:v:2938768445'],
+  );
 });
 
 test('開いている画面のうち、同じウィンドウで最後に使ったタブに送り、そこに切り替える', async () => {

@@ -39,6 +39,7 @@
     "https://www.youtube.com/*",
     "https://schedule.hololive.tv/*"
   ],
+  "optional_permissions": ["identity"],
   "optional_host_permissions": [
     "https://x.com/*",
     "https://*.twitch.tv/*",

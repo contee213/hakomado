@@ -616,6 +616,14 @@
               <button type="button" id="subsOpen" data-i18n="subs.open">登録チャンネルから選ぶ</button>
               <span id="subsOpenStatus" class="share-status" role="status"></span>
             </div>
+            <div id="twFollows" hidden>
+              <span class="field-label" data-i18n="twf.h">Twitch のフォロー</span>
+              <p class="settings-note" data-i18n="twf.note">Twitch にログインして、フォローしているチャンネルから選んで足します (ログインは読むときだけ使い、覚えません)</p>
+              <div class="pack-row">
+                <button type="button" id="twFollowsOpen" data-i18n="twf.open">フォローから選ぶ</button>
+                <span id="twFollowsStatus" class="share-status" role="status"></span>
+              </div>
+            </div>
             <span class="field-label" data-i18n="pack.exportH">チャンネルパックを書き出す</span>
             <p class="settings-note" data-i18n="pack.exportNote">チャンネル一覧をパック (JSON) にして、ほかの人に配れます</p>
             <div class="pack-row">
@@ -921,6 +929,7 @@
   <script src="addons/stpr.js"></script>
   <script src="addons/youtube-subs.js"></script>
   <script src="favorites.js"></script>
+  <script src="twitch-follows.js"></script>
   <script src="history.js"></script>
   <script src="playlists.js"></script>
   <script src="sync-offsets.js"></script>
