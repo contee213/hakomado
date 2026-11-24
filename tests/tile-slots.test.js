@@ -69,12 +69,15 @@ test('keepNumbersOrder: 不変条件 (ランダムな 3000 通り)', () => {
       shown.slice(0, n).forEach((j, k) => {
         if (TileSlots.filled(s.tiles[j])) assert.equal(out[k], j, `枠 ${j} の位置が変わった: ${label}`);
       });
-      // 隠れていた中身のある枠は出てこない (勝手に再生し始めない)。
-      // ただし今より増やすのに隠れている空き枠が足りないときは、ほかに置ける枠が無いので出てくる
+      // 隠れていた中身のある枠は、見せる前に空にする (勝手に再生し始めない)。
+      // 今より増やすのに隠れている空き枠が足りないときだけ出てくるので、revealedFilled がそれをちょうど挙げるかを見る
       const hiddenEmpty = s.order.slice(s.count).filter((j) => !TileSlots.filled(s.tiles[j])).length;
-      if (n <= s.count + hiddenEmpty) {
-        for (const j of visible) assert.ok(shown.includes(j) || !TileSlots.filled(s.tiles[j]), `隠れていた枠 ${j} が出てきた: ${label}`);
-      }
+      const revealed = plain(TileSlots.revealedFilled(s, out, n));
+      const tiles = s.tiles.map((t, j) => (revealed.includes(j) ? {} : t)); // grid.js と同じく空にした後
+      for (const j of visible) assert.ok(shown.includes(j) || !TileSlots.filled(tiles[j]), `隠れていた枠 ${j} が出てきた: ${label}`);
+      if (n <= s.count + hiddenEmpty) assert.deepEqual(revealed, [], `空き枠が足りているのに空にする枠がある: ${label}`);
+      // 空にするのは、隠れていて中身のある枠だけ (見えている枠は空にしない)
+      for (const j of revealed) assert.ok(!shown.includes(j), `見えている枠 ${j} を空にしようとした: ${label}`);
       // はみ出す中身があれば、✕ を押した空き枠に先に入る
       const overflow = shown.slice(n).filter((j) => TileSlots.filled(s.tiles[j]));
       const at = shown.indexOf(prefer);
@@ -114,6 +117,15 @@ test('不具合の再現: [動画, 空き, URL, 動画] を 3 枠にしても UR
   const tiles = [{ videoId: 'aaaaaaaaaaa' }, {}, { web: 'https://example.com/' }, { videoId: 'bbbbbbbbbbb' }, ...Array.from({ length: 12 }, () => ({}))];
   const s = { tiles, order: Array.from({ length: MAX }, (_, i) => i), count: 4 };
   assert.deepEqual(plain(TileSlots.keepNumbersOrder(s, 3)).slice(0, 3), [0, 3, 2]);
+});
+
+test('境目: 隠れている空き枠が足りないまま増やすと、出てくる隠れ枠を revealedFilled が挙げる', () => {
+  // 見えている 2 枠 (どちらも配信) + 隠れている 14 枠 (どれも前の中身が残っている) を 4 枠にする
+  const tiles = Array.from({ length: MAX }, (_, k) => ({ videoId: `vid${String(k).padStart(8, '0')}` }));
+  const s = { tiles, order: Array.from({ length: MAX }, (_, i) => i), count: 2 };
+  const out = plain(TileSlots.keepNumbersOrder(s, 4));
+  assert.deepEqual(out.slice(0, 4), [0, 1, 2, 3]);
+  assert.deepEqual(plain(TileSlots.revealedFilled(s, out, 4)), [2, 3]);
 });
 
 test('不具合の再現: 隠れている URL の枠があっても、枠を足したあとの order は並べ替えのまま', () => {

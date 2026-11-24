@@ -38,6 +38,19 @@ const TileSlots = (() => {
   }
 
   /**
+   * 並び順を out に変えて n 個を表示したとき、隠れていたのに見えるようになる中身のある枠。
+   * 今より増やすのに隠れている空き枠が足りないと出てくる (keepNumbersOrder)。勝手に再生し始めないよう、呼ぶ側で空にする
+   * @param {{order: number[], count: number, tiles: object[]}} s 変える前
+   * @param {number[]} out 変えた後の並び順
+   * @param {number} n
+   * @returns {number[]}
+   */
+  function revealedFilled({ order, count, tiles }, out, n) {
+    const shown = new Set(order.slice(0, count));
+    return out.slice(0, n).filter((j) => !shown.has(j) && filled(tiles[j]));
+  }
+
+  /**
    * 枠を足すときの並び順。見えている枠は並びも中身もそのまま、その後ろに隠れている空き枠を先に置く
    * (隠れている枠に中身が残っていても、それは出さずに空き枠から使う)
    * @param {{order: number[], count: number, tiles: object[]}} s
@@ -60,5 +73,5 @@ const TileSlots = (() => {
     return [...rest.filter((j) => !filled(tiles[j])), ...rest.filter((j) => filled(tiles[j]))];
   }
 
-  return { filled, keepNumbersOrder, growOrder, freeTiles };
+  return { filled, keepNumbersOrder, revealedFilled, growOrder, freeTiles };
 })();
