@@ -85,7 +85,10 @@ test.describe('ツールバー', () => {
     const picker = page.locator('#layoutPicker');
     await page.locator('#openLayout').click();
     await picker.locator('[data-tab="vertical"]').click();
-    await expect(picker.locator('.layout-option')).toHaveCount(9);
+    // 縦長の均等 9 つと、縦長 + 大きな枠 5 つ (選んでいる基準位置 = 左上のものだけ)
+    await expect(picker.locator('.layout-option')).toHaveCount(14);
+    await expect(picker.locator('.layout-option[data-id="tl-vm2x5"]')).toHaveCount(1);
+    await expect(picker.locator('.layout-option[data-id="tr-vm2x5"]')).toHaveCount(0);
     await picker.locator('.layout-option[data-id="v1x3"]').click();
     await expect(page.locator('#layoutName')).toHaveText('▯1×3');
 
