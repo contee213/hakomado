@@ -79,6 +79,28 @@ test.describe('ツールバー', () => {
     await expect(picker.locator('.layout-option.current .layout-name')).toHaveText(name);
   });
 
+  test('縦長のレイアウト: 枠が 9:16 になり、＋・− でも縦長のまま', async ({ openGrid }) => {
+    const page = await openGrid();
+    await skipTour(page);
+    const picker = page.locator('#layoutPicker');
+    await page.locator('#openLayout').click();
+    await picker.locator('[data-tab="vertical"]').click();
+    await expect(picker.locator('.layout-option')).toHaveCount(9);
+    await picker.locator('.layout-option[data-id="v1x3"]').click();
+    await expect(page.locator('#layoutName')).toHaveText('▯1×3');
+
+    const ratios = () =>
+      page.locator('#grid .tile:not([hidden])').evaluateAll((els) => els.map((e) => e.offsetWidth / e.offsetHeight));
+    const r = await ratios();
+    expect(r).toHaveLength(3);
+    for (const v of r) expect(Math.abs(v - 9 / 16)).toBeLessThan(0.02);
+
+    await page.locator('#addTile').click();
+    await expect(page.locator('#layoutName')).toHaveText('▯1×4');
+    await page.locator('#removeTile').click();
+    await expect(page.locator('#layoutName')).toHaveText('▯1×3');
+  });
+
   // ボタン → 開くダイアログ。開いて Esc で閉じられること
   const DIALOGS = [
     ['openSettings', '#settings'],

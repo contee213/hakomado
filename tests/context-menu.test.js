@@ -97,6 +97,15 @@ test('返事が無ければ次の画面へ。どこも受け取らなければ�
   assert.deepEqual(plain(log.created), [{ url: `chrome-extension://self/grid.html#add=${A}`, windowId: 5 }]);
 });
 
+test('ショート (/shorts/) は short を付けて送る。新しいタブなら #add=<ID>&short', async () => {
+  const sent = setup({ gridTabs: [3], tabs: { 3: { windowId: 5 } }, answer: () => ({ handled: true, result: 'added' }) });
+  await sent.click({ menuItemId: 'hakomado-add-page', pageUrl: `https://www.youtube.com/shorts/${A}` }, { windowId: 5 });
+  assert.deepEqual(plain(sent.log.sent), [{ type: 'add-video', tabId: 3, videoId: A, short: true }]);
+  const opened = setup();
+  await opened.click({ menuItemId: 'hakomado-add-link', linkUrl: `https://m.youtube.com/shorts/${A}` }, { windowId: 5 });
+  assert.deepEqual(plain(opened.log.created), [{ url: `chrome-extension://self/grid.html#add=${A}&short`, windowId: 5 }]);
+});
+
 test('枠の中 (フレーム) で押したときはフレームの動画。動画でないリンクは何もしない', async () => {
   const { log, click } = setup();
   await click({ menuItemId: 'hakomado-add-page', pageUrl: 'chrome-extension://self/grid.html', frameUrl: `https://www.youtube.com/watch?v=${A}&hakomado=1` }, { windowId: 1 });
