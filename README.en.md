@@ -62,11 +62,11 @@ The store version and the zip version are separate extensions with different IDs
 1. Open the multi-view page with the Hakomado icon in the toolbar
 2. Press "Auto play" at the top to lay out the channels that are live
 3. To pick yourself, paste a URL / video ID / `@handle` into an empty tile, or use "📺 Pick from channels" for live streams and "📚 Pick from library" for past ones
-4. Switch which tile plays audio with 🔊 on the tile bar or the number keys (`1`–`9`)
+4. Switch which tile plays audio with 🎧 on the tile bar or the number keys (`1`–`9`)
 5. Change the arrangement from "▦ Layout" at the top
 
-For more controls and keys, open "?" (help) at the top right. The tour shown the first time you open it after installing can be replayed from there too. Settings are under "⚙".
-If you encounter a problem, check the error record under "?" → "Report a problem" and report it with "Report on GitHub" or "Copy" (the record is stored only on your computer and is never sent automatically).
+For more controls and keys, open "📖" (help; the `?` key works too) at the top right. The tour shown the first time you open it after installing can be replayed from there too. Settings are under "⚙".
+If you encounter a problem, check the error record under "📖" (Help) → "Report a problem" and report it with "Report on GitHub" or "Copy" (the record is stored only on your computer and is never sent automatically).
 
 > [!TIP]
 > - If a channel you want isn't listed, add it from "⚙ Manage" in the "📺 Channels" window
@@ -141,7 +141,7 @@ A pack is a JSON file like the one below. Besides submitting it to `packs/`, you
 - Main + sub layouts and the recommended ones are listed in `tools/layout-picks.json`; `tools/gen-layouts.js` writes them to `extension/layouts-generated.js`.
   After changing the list, regenerate them with `node tools/gen-layouts.js` (keep existing keys: they appear in share codes)
 - Versions: `version` in `manifest.json` is the release version (the only version shown in `chrome://extensions` and the store).
-  The build number (the commit count) and the date live in `extension/build.js` and are shown at the bottom of the help (?) and settings (⚙) windows,
+  The build number (the commit count) and the date live in `extension/build.js` and are shown at the bottom of the help (📖) and settings (⚙) windows,
   like "0.2.0 · build 120 (2026-11-22)". A hook (`.githooks/pre-commit` → `tools/stamp-version.js`) writes `build.js` only on commits that change files in `extension/`
   (not on commits that only touch `web/` or the README). If `build.js` conflicts in a merge, either side is fine
   After cloning, run `git config core.hooksPath .githooks` once (Node.js is required)
