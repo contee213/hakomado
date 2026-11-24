@@ -89,7 +89,35 @@ function newTileState() {
   // short = ショートとして縦長 (9:16) の枠で見せる。読み込む前に、URL (/shorts/) で決める (isShortHint)。
   //   /shorts/ 以外の URL で入ったショートは、読み込んで縦長のふつうの動画と分かったときに付ける ('info' の受け取り)
   // corner = ストレッチで映像の端を切るとき、残す角 (CORNERS)。配信者が映る角は配信ごとに違うので、動画を変えたら右下に戻す
-  return { input: '', videoId: null, chat: false, danmaku: null, muted: true, auto: false, queue: false, fill: false, label: '', pan: 0, gain: 1, delay: 0, speed: 1, short: false, corner: 'br' };
+  // web = URL の枠 (YouTube 以外のサイト。videoId は null のまま)。そのページをそのまま枠に入れ、
+  //   content/web-player.js が中の動画プレイヤーを操作する。YouTube 用の機能 (チャット・同期・共有など) は使えない
+  return { input: '', videoId: null, web: '', chat: false, danmaku: null, muted: true, auto: false, queue: false, fill: false, label: '', pan: 0, gain: 1, delay: 0, speed: 1, short: false, corner: 'br' };
+}
+
+/** URL の枠か (YouTube の動画が入っておらず、サイトの URL が入っている) */
+const isWebTile = (t) => !t.videoId && !!t.web;
+/** 何か入っている枠か (YouTube の動画か URL の枠) */
+const tileFilled = (t) => !!t.videoId || !!t.web;
+
+/** URL の枠に入れられる URL の長さの上限 (視聴セッション・バックアップに残るので、長すぎるものは入れない) */
+const WEB_URL_MAX = 2048;
+
+/**
+ * YouTube 以外のサイトの URL なら URL オブジェクト、そうでなければ null (YouTube として読む)。
+ * URL の形をしていないもの (動画 ID・@チャンネル名) も null
+ */
+function webUrlOf(raw) {
+  const input = String(raw || '').trim();
+  if (!/^https?:\/\//i.test(input)) return null;
+  let url;
+  try {
+    url = new URL(input);
+  } catch {
+    return null;
+  }
+  const host = url.hostname.replace(/^(www|m|music)\./, '');
+  if (host === 'youtube.com' || host === 'youtu.be') return null;
+  return url;
 }
 
 /**
@@ -157,6 +185,7 @@ function applySession(saved = {}) {
         if (k in picked && typeof picked[k] !== typeof v && v !== null) delete picked[k];
       }
       if (picked.videoId != null && !(typeof picked.videoId === 'string' && ID_RE.test(picked.videoId))) picked.videoId = null;
+      if (picked.web && (picked.web.length > WEB_URL_MAX || webUrlOf(picked.web)?.protocol !== 'https:')) picked.web = '';
       if ('pan' in picked) picked.pan = clampPan(picked.pan);
       if ('gain' in picked) picked.gain = clampGain(picked.gain);
       if ('delay' in picked) picked.delay = clampDelay(picked.delay);
@@ -494,7 +523,7 @@ function shortsToColumns(tiles, l) {
   tiles.filter(isShort).forEach((i, k) => (slots[colMajor[k]] = i));
   const others = tiles.filter((i) => !isShort(i));
   for (let k = 0; k < slots.length && others.length; k++) if (slots[k] == null) slots[k] = others.shift();
-  const spare = state.order.filter((j) => !tiles.includes(j)).sort((a, b) => !!state.tiles[a].videoId - !!state.tiles[b].videoId);
+  const spare = state.order.filter((j) => !tiles.includes(j)).sort((a, b) => tileFilled(state.tiles[a]) - tileFilled(state.tiles[b]));
   return slots.map((i) => i ?? spare.shift());
 }
 
@@ -644,7 +673,7 @@ function layout() {
  */
 function shrinkTarget() {
   const shown = visibleIndexes();
-  const filled = shown.filter((j) => state.tiles[j].videoId).length;
+  const filled = shown.filter((j) => tileFilled(state.tiles[j])).length;
   for (let k = shown.length - 1; k >= Math.max(1, filled); k--) {
     const l = shrinkLayoutFor(k);
     if (l) return l;
@@ -696,7 +725,7 @@ function shrinkLayoutFor(k) {
 
 /** 表示中の枠に、1 つでも配信・動画を読み込んでいるか (無ければクルーズ・一時停止は押せない) */
 function hasContent() {
-  return visibleIndexes().some((i) => state.tiles[i].videoId);
+  return visibleIndexes().some((i) => tileFilled(state.tiles[i]));
 }
 
 /** 上部バーの「＋」「−」・クルーズ・一時停止と、空き枠の ✕ を押せるかどうか (枠の中身が変わるたびにまとめて 1 回) */
@@ -715,7 +744,7 @@ function updateSlotButtons() {
     document.getElementById('pauseAll').disabled = !any && !pausedAll;
     for (let i = 0; i < MAX_TILES; i++) {
       const btn = views[i].el.querySelector('[data-act="clear"]');
-      const empty = !state.tiles[i].videoId;
+      const empty = !tileFilled(state.tiles[i]);
       btn.disabled = empty && !canShrink;
       btn.title = !empty ? tr('tileClear') : canShrink ? tr('tileRemove') : tr('tileRemoveNo');
     }
@@ -741,7 +770,7 @@ function removeEmptySlot(prefer = null) {
  */
 function keepNumbersOrder(n, prefer = null) {
   const shown = visibleIndexes();
-  const hiddenEmpty = state.order.slice(state.count).filter((j) => !state.tiles[j].videoId);
+  const hiddenEmpty = state.order.slice(state.count).filter((j) => !tileFilled(state.tiles[j]));
   const next = [...shown, ...hiddenEmpty].slice(0, n);
   const holes = next.map((j, k) => k).filter((k) => !state.tiles[next[k]].videoId).reverse();
   const at = next.indexOf(prefer);
@@ -765,7 +794,7 @@ function addTileSlot(k = 1) {
   if (state.count >= MAX_TILES) return;
   const shown = visibleIndexes();
   const hidden = state.order.slice(state.count);
-  const empty = hidden.filter((j) => !state.tiles[j].videoId);
+  const empty = hidden.filter((j) => !tileFilled(state.tiles[j]));
   // 隠れている枠に中身が残っていても、それは出さずに空き枠から使う
   state.order = [...shown, ...empty, ...hidden.filter((j) => state.tiles[j].videoId)];
   setLayout(chooseLayoutFor(Math.min(MAX_TILES, shown.length + k)).id);
@@ -863,6 +892,9 @@ function buildTiles() {
 
 async function loadInput(i, raw) {
   const errEl = views[i].el.querySelector('.error');
+  // YouTube 以外のサイト: サイトの許可は押した操作の中で求める必要があるので、await より前に分ける
+  const web = webUrlOf(raw);
+  if (web) return loadWebInput(i, web, (msg) => (errEl.textContent = msg));
   errEl.textContent = tr('loading');
   try {
     const id = await resolveVideoId(raw);
@@ -873,6 +905,136 @@ async function loadInput(i, raw) {
   }
 }
 
+/**
+ * URL の枠で許可を求める範囲: そのサイトのサブドメインごと ('https://*.example.com/*'。先頭の www. は除く)。
+ * プレイヤーは同じサイトの別のサブドメイン (視聴権の確認など) にもアクセスする。許可の無いサブドメインへのアクセスは
+ * Chrome がサードパーティとして扱い、ログインの Cookie が付かずに失敗する (Prime Video の「購入済みでない」エラーなど) ため
+ */
+function webSitePattern(url) {
+  return `https://*.${url.hostname.replace(/^www\./, '')}/*`;
+}
+
+/**
+ * URL の枠を入れる。サイトの許可を取ってから (grantWebSite) 読み込む。setMsg(文字) で途中の様子・読み込めない理由を出す
+ */
+async function loadWebInput(i, url, setMsg) {
+  if (url.protocol !== 'https:') {
+    setMsg(tr('webHttpsOnly'));
+    return;
+  }
+  if (url.href.length > WEB_URL_MAX) {
+    setMsg(tr('webTooLong', WEB_URL_MAX));
+    return;
+  }
+  if (!(await grantWebSite(url, setMsg))) return;
+  // 待つ間 (許可のダイアログなど) にほかの方法で埋まった・消された枠には入れない
+  if (tileFilled(state.tiles[i]) || !isVisible(i)) return;
+  setTileWeb(i, url.href);
+}
+
+/**
+ * サイト (webSitePattern) へのアクセスを使う人に許可してもらい (任意のホスト権限)、webOrigins に覚えて、
+ * background.js にプレイヤー操作の登録と X-Frame-Options を外すルールを済ませてもらう。済んだら true。
+ * 許可は押した操作の中でしか求められないので、呼ぶ側は await より前に呼ぶ (最初の await が許可のダイアログ)
+ */
+async function grantWebSite(url, setMsg) {
+  const origin = webSitePattern(url);
+  let granted = false;
+  try {
+    granted = await chrome.permissions.request({ origins: [origin] });
+  } catch (e) {
+    setMsg(e.message || String(e));
+    return false;
+  }
+  if (!granted) {
+    setMsg(tr('webDenied'));
+    return false;
+  }
+  setMsg(tr('loading'));
+  try {
+    const { webOrigins: list = [] } = await chrome.storage.local.get('webOrigins');
+    const next = Array.isArray(list) ? list.filter((o) => typeof o === 'string') : [];
+    if (!next.includes(origin)) await chrome.storage.local.set({ webOrigins: [...next, origin] });
+    const res = await chrome.runtime.sendMessage({ type: 'web-origins-changed' });
+    if (!res?.ok) throw new Error(res?.error || 'no response');
+  } catch (e) {
+    console.warn('hakomado: URL の枠の準備ができませんでした', e);
+    setMsg(tr('webSyncFail'));
+    return false;
+  }
+  setMsg('');
+  return true;
+}
+
+/**
+ * URL の枠の中身を作る。サイトの許可が残っていれば iframe を入れ、無ければ (Chrome の設定で取り消した・
+ * 前の版で狭く許可した など) 枠の中に案内と「許可して読み込む」を出す (そのまま入れると Chrome の「接続が拒否されました」になるため)
+ */
+async function mountWebTile(i) {
+  const v = views[i];
+  const web = state.tiles[i].web;
+  const token = (v.webToken = (v.webToken || 0) + 1);
+  const url = webUrlOf(web);
+  let ok = false;
+  try {
+    ok = !!url && (await chrome.permissions.contains({ origins: [webSitePattern(url)] }));
+  } catch {
+    /* 分からなければ案内を出す */
+  }
+  // 確かめている間に読み込み直した・別の中身にした・隠した
+  if (v.webToken !== token || !isWebTile(state.tiles[i]) || state.tiles[i].web !== web || !isVisible(i)) return;
+  const slot = v.el.querySelector('.player-slot');
+  if (ok) {
+    const f = document.createElement('iframe');
+    f.allow = 'autoplay; encrypted-media; picture-in-picture; fullscreen';
+    f.dataset.web = web;
+    f.src = web;
+    f.addEventListener('load', () => {
+      f.dataset.loaded = '1';
+    });
+    slot.appendChild(f);
+    v.player = f;
+    return;
+  }
+  const box = document.createElement('div');
+  box.className = 'web-perm';
+  const msg = document.createElement('p');
+  msg.textContent = tr('webNeedPermission', url?.hostname || web);
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.textContent = tr('webAllow');
+  const err = document.createElement('p');
+  err.className = 'error';
+  btn.addEventListener('click', async () => {
+    if (!url) return;
+    btn.disabled = true;
+    const done = await grantWebSite(url, (text) => (err.textContent = text));
+    btn.disabled = false;
+    if (done && state.tiles[i].web === web) renderTile(i, { reloadPlayer: true });
+  });
+  box.append(msg, btn, err);
+  slot.appendChild(box);
+  v.webPrompt = box;
+}
+
+/** URL の枠の中身 (iframe・許可の案内) を片付ける */
+function unmountWebTile(v) {
+  v.webToken = (v.webToken || 0) + 1; // 確かめている途中の mountWebTile を捨てる
+  v.webMounted = null;
+  v.webPrompt?.remove();
+  v.webPrompt = null;
+}
+
+function setTileWeb(i, href) {
+  const prev = state.tiles[i].videoId;
+  if (prev) WatchHistory.removed(prev, 'replaced');
+  views[i].danmaku.clear();
+  const anyAudible = state.tiles.some((t, j) => j !== i && isVisible(j) && tileFilled(t) && !t.muted);
+  state.tiles[i] = { ...newTileState(), input: href, web: href, muted: anyAudible };
+  renderTile(i, { reloadPlayer: true, reloadChat: true });
+  save();
+}
+
 function setTileVideo(i, videoId, input) {
   const prev = state.tiles[i].videoId;
   if (prev && prev !== videoId) WatchHistory.removed(prev, 'replaced');
@@ -880,7 +1042,7 @@ function setTileVideo(i, videoId, input) {
   views[i].danmaku.clear();
   // 手で読み込んだ枠は自動再生でも消さない
   // 音の遅延はその配信のずれに合わせた値なので、別の動画にしたら戻す。速度もその動画のために決めたものなので戻す
-  Object.assign(state.tiles[i], { input, videoId, auto: false, queue: false, fill: false, label: '', delay: 0, short: isShortHint(input), ...(prev !== videoId ? { speed: 1, corner: 'br' } : {}) });
+  Object.assign(state.tiles[i], { input, videoId, web: '', auto: false, queue: false, fill: false, label: '', delay: 0, short: isShortHint(input), ...(prev !== videoId ? { speed: 1, corner: 'br' } : {}) });
   // 新しく読み込んだ枠は、他に音の出ている枠が無ければ音を出す
   const anyAudible = state.tiles.some((t, j) => j !== i && isVisible(j) && t.videoId && !t.muted);
   state.tiles[i].muted = anyAudible;
@@ -998,7 +1160,8 @@ function renderTile(i, { reloadPlayer = false, reloadChat = false } = {}) {
   const el = v.el;
   const visible = isVisible(i);
   el.hidden = !visible;
-  el.classList.toggle('is-empty', !t.videoId);
+  el.classList.toggle('is-empty', !tileFilled(t));
+  el.classList.toggle('is-web', isWebTile(t));
   el.querySelector('.url-input').value = t.input;
   updateSlotButtons();
 
@@ -1007,7 +1170,21 @@ function renderTile(i, { reloadPlayer = false, reloadChat = false } = {}) {
   const needChat = visible && !!t.videoId && (t.chat || danmakuOn);
 
   // --- player
-  if (!visible || !t.videoId) {
+  if (visible && isWebTile(t)) {
+    // URL の枠: そのページをそのまま入れる。中の動画は content/web-player.js が見つけて知らせてくる (onWebMessage)
+    // (中身は許可を確かめてから作るので、作り始めた URL を覚えておき、ほかの描き直しで作り直さない)
+    if (reloadPlayer || v.webMounted !== t.web) {
+      v.player?.remove();
+      v.player = null;
+      unmountWebTile(v);
+      v.webMounted = t.web;
+      Object.assign(v, { archive: null, info: null, playStatus: '', ss: null, lv: null, meta: null, social: null, web: null });
+      Diagnose.clear(i);
+      el.classList.remove('is-live');
+      mountWebTile(i);
+    }
+  } else if (!visible || !t.videoId) {
+    unmountWebTile(v);
     v.player?.remove();
     v.player = null;
     v.archive = null;
@@ -1018,7 +1195,8 @@ function renderTile(i, { reloadPlayer = false, reloadChat = false } = {}) {
     Diagnose.clear(i);
     v.meta = null;
     v.social = null;
-  } else if (!v.player || reloadPlayer) {
+  } else if (!v.player || reloadPlayer || v.player.dataset.web || v.webMounted) {
+    unmountWebTile(v);
     v.player?.remove();
     const f = document.createElement('iframe');
     f.allow = 'autoplay; encrypted-media; picture-in-picture; fullscreen';
@@ -1079,7 +1257,7 @@ function renderTile(i, { reloadPlayer = false, reloadChat = false } = {}) {
   const audio = el.querySelector('.bar [data-act="audio"]');
   audio.textContent = t.muted ? '🔇' : '🔊';
   audio.classList.toggle('on', !t.muted);
-  el.classList.toggle('audible', visible && !!t.videoId && !t.muted && state.count > 1);
+  el.classList.toggle('audible', visible && tileFilled(t) && !t.muted && state.count > 1);
   setToggle(el.querySelector('.bar [data-act="chat"]'), t.chat);
   setToggle(el.querySelector('.bar [data-act="danmaku"]'), tileDanmaku(i));
   renderCornerButton(i);
@@ -1244,6 +1422,7 @@ function setTileAway(i, away) {
 /** 操作バーに出すその枠の名前 (チャンネル一覧での名前 → 配信のチャンネル名 → 入力した内容) */
 function tileName(i) {
   const t = state.tiles[i];
+  if (isWebTile(t)) return t.label || webUrlOf(t.web)?.hostname || '';
   return t.label || views[i].meta?.channel || t.input || '';
 }
 
@@ -1263,7 +1442,8 @@ function channelUrlOf(i) {
 
 function tileKind(i) {
   const v = views[i];
-  if (!v || !isVisible(i) || !state.tiles[i].videoId) return 'empty';
+  if (!v || !isVisible(i) || !tileFilled(state.tiles[i])) return 'empty';
+  if (isWebTile(state.tiles[i])) return 'web';
   if (v.el.classList.contains('is-live')) return 'live';
   if (v.archive) return 'archive';
   const st = v.playStatus;
@@ -1274,7 +1454,8 @@ function tileKind(i) {
 
 function updateTileName(i) {
   const el = views[i].el.querySelector('.tile-name');
-  const name = state.tiles[i].videoId ? tileName(i) : '';
+  const t = state.tiles[i];
+  const name = tileFilled(t) ? tileName(i) : '';
   // 同じ配信を別のタブでも表示しているときは印を付ける (複数のディスプレイで別々に並べるときの重複に気づけるように)
   const dup = shownInOtherTab(state.tiles[i].videoId);
   el.textContent = dup ? `${name} ⧉` : name;
@@ -1566,8 +1747,67 @@ function setupMixPanel(i, el) {
  */
 function postToFrame(frame, msg) {
   if (!frame || frame.dataset.loaded !== '1' || !frame.contentWindow) return;
+  if (frame.dataset.web) {
+    postToWebFrame(frame, msg);
+    return;
+  }
   frame.contentWindow.postMessage(msg, YT);
 }
+
+// ---- URL の枠 (YouTube 以外のサイト) とのやりとり
+// 枠の中の content/web-player.js が、動画を見つけた枠 (ページそのものか、その中の同じサイトの枠) から状態を知らせてくる。
+// 指示はその枠へ、YouTube の枠と同じ形の指示を読み替えて送る (音・一時停止・速度・シーク)。それ以外の指示 (YouTube 専用) は送らない
+
+/** 知らせてきたウィンドウが、枠 f の中 (枠そのものか、その内側の枠) か。内側は 3 段までたどる */
+function isInsideFrame(f, win) {
+  const walk = (w, depth) => {
+    if (w === win) return true;
+    if (depth >= 3) return false;
+    try {
+      for (let k = 0; k < w.frames.length; k++) if (walk(w.frames[k], depth + 1)) return true;
+    } catch {
+      /* 閉じかけの枠など */
+    }
+    return false;
+  };
+  return !!f.contentWindow && walk(f.contentWindow, 0);
+}
+
+function postToWebFrame(frame, msg) {
+  const target = frame.webTarget; // { win, origin } 動画を知らせてきた枠
+  if (!target) return;
+  let out = null;
+  if (msg.hakomado === 'audio') out = { hakomadoWeb: 'audio', muted: !!msg.muted };
+  else if (msg.hakomado === 'playback') out = { hakomadoWeb: 'playback', play: !!msg.play };
+  else if (msg.hakomado === 'speed') out = { hakomadoWeb: 'rate', r: Number(msg.r) };
+  else if (msg.hakomado === 'sync' && msg.op === 'seek') out = { hakomadoWeb: 'seek', t: Number(msg.t) };
+  if (out) target.win.postMessage(out, target.origin);
+}
+
+// Chrome の設定などでサイトの許可を取り消されたら、URL の枠を作り直して案内を出す
+// (許可したときは、この画面の「許可して読み込む」か枠に URL を入れたときに、準備が済んでから読み込むので、ここでは何もしない)
+chrome.permissions.onRemoved.addListener(() => {
+  state.tiles.forEach((t, i) => {
+    if (isWebTile(t) && isVisible(i)) renderTile(i, { reloadPlayer: true });
+  });
+});
+
+window.addEventListener('message', (e) => {
+  const d = e.data;
+  if (!d || d.hakomadoWeb !== 'state' || !e.source) return;
+  const i = views.findIndex((v) => v.player?.dataset.web && isInsideFrame(v.player, e.source));
+  if (i < 0) return;
+  const v = views[i];
+  const first = !v.player.webTarget || v.player.webTarget.win !== e.source;
+  v.player.webTarget = { win: e.source, origin: e.origin };
+  v.web = { t: Number(d.t) || 0, d: Number(d.d), paused: !!d.paused, muted: !!d.muted, w: Number(d.w) || 0, h: Number(d.h) || 0 };
+  // 動画が見つかった (入れ替わった) ら、音・速度・まとめて一時停止の状態を合わせる
+  if (first) {
+    applyAudio(i);
+    applySpeed(i, true);
+    if (pausedAll) postToFrame(v.player, { hakomado: 'playback', play: false });
+  }
+});
 
 // 音声の操作は 2 通り:
 //  - 拡張機能側 (枠の 🔊 / 数字キー / 上部バー / 全画面): solo。その枠だけ音を出し、他はミュート
@@ -1576,7 +1816,7 @@ function postToFrame(frame, msg) {
 /** i 番の枠の音を切り替える。solo なら i 番だけ音を出し、他はミュート */
 function setAudio(i, { solo, on } = {}) {
   const t = state.tiles[i];
-  if (!t.videoId) return;
+  if (!tileFilled(t)) return;
   if (solo) {
     const turnOn = on ?? t.muted;
     state.tiles.forEach((x, j) => {
@@ -1592,26 +1832,18 @@ function setAudio(i, { solo, on } = {}) {
 const ARROW_DIRS = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
 
 /**
- * 矢印キー: 今音が出ている枠 (無ければ 1 番) から見て、その方向にある一番近い枠だけ音を出す。
- * 方向は画面上の枠の位置 (中心) で決めるので、どのレイアウトでも見た目どおりに動く (PinP の小窓も)。
- * その方向に枠が無ければ何もしない
+ * from の枠から見て、[dx, dy] の方向にある一番近い枠 (candidates の中から)。無ければ null。
+ * 方向は画面上の枠の位置 (中心) で決めるので、どのレイアウトでも見た目どおりに動く (PinP の小窓も)
  */
-function moveAudio([dx, dy]) {
-  const filled = visibleIndexes().filter((i) => state.tiles[i].videoId);
-  if (!filled.length) return;
-  const cur = audibleTiles()[0];
-  if (cur == null) {
-    setAudio(filled[0], { solo: true, on: true });
-    return;
-  }
+function tileInDirection(from, [dx, dy], candidates) {
   const center = (i) => {
     const r = views[i].el.getBoundingClientRect();
     return [r.left + r.width / 2, r.top + r.height / 2];
   };
-  const [cx, cy] = center(cur);
+  const [cx, cy] = center(from);
   let best = null;
-  for (const i of filled) {
-    if (i === cur) continue;
+  for (const i of candidates) {
+    if (i === from) continue;
     const [x, y] = center(i);
     const along = (x - cx) * dx + (y - cy) * dy; // 押した方向への距離
     if (along <= 1) continue;
@@ -1619,7 +1851,34 @@ function moveAudio([dx, dy]) {
     const score = along + across * 2; // まっすぐ先にある枠を優先
     if (!best || score < best.score) best = { i, score };
   }
-  if (best) setAudio(best.i, { solo: true, on: true });
+  return best ? best.i : null;
+}
+
+/**
+ * 矢印キー: 今音が出ている枠 (無ければ 1 番) から見て、その方向にある一番近い枠だけ音を出す。
+ * その方向に枠が無ければ何もしない
+ */
+function moveAudio(dir) {
+  const filled = visibleIndexes().filter((i) => state.tiles[i].videoId);
+  if (!filled.length) return;
+  const cur = audibleTiles()[0];
+  if (cur == null) {
+    setAudio(filled[0], { solo: true, on: true });
+    return;
+  }
+  const next = tileInDirection(cur, dir, filled);
+  if (next != null) setAudio(next, { solo: true, on: true });
+}
+
+/**
+ * Shift + 矢印キー: 今音が出ている枠を、その方向にある枠 (空き枠も) と入れ替えて動かす。
+ * 音は枠についていくので、続けて押すと同じ枠をさらに動かせる。音の出ている枠が無ければ何もしない
+ */
+function moveTileByKey(dir) {
+  const cur = audibleTiles()[0];
+  if (cur == null) return;
+  const next = tileInDirection(cur, dir, visibleIndexes());
+  if (next != null) swapTiles(cur, next);
 }
 
 /** list の枠だけ音を出す (他はミュート) */
@@ -1642,7 +1901,7 @@ function refreshAudio() {
 
 /** 音の出ている (表示中の) 枠。表示順 */
 function audibleTiles() {
-  return visibleIndexes().filter((i) => state.tiles[i].videoId && !state.tiles[i].muted);
+  return visibleIndexes().filter((i) => tileFilled(state.tiles[i]) && !state.tiles[i].muted);
 }
 
 let lastAudibleSet = []; // ミュートを解除したときに戻す枠 (複数枠のこともある)
@@ -1848,13 +2107,13 @@ function onBarAction(i, act, e) {
       return;
     case 'clear':
       // 空き枠の ✕ は枠ごと消して、枠数の少ないレイアウトにする
-      if (!t.videoId) {
+      if (!tileFilled(t)) {
         removeEmptySlot(i);
         return;
       }
       // 自動再生 ON の間に自分で閉じた配信は入れ直さない
       if (t.videoId) autoDismissed.add(t.videoId);
-      WatchHistory.removed(t.videoId, 'closed');
+      if (t.videoId) WatchHistory.removed(t.videoId, 'closed');
       state.tiles[i] = newTileState();
       views[i].danmaku.clear();
       renderTile(i);
@@ -4446,6 +4705,19 @@ const TileInfo = (() => {
       const raw = input.value;
       if (!raw.trim()) return;
       input.blur();
+      // YouTube 以外のサイト: 許可は押した操作の中で求めるので、await より前に分ける
+      const web = webUrlOf(raw);
+      if (web) {
+        loadWebInput(i, web, (msg) => {
+          if (msg) errors.set(i, msg);
+          else {
+            errors.delete(i);
+            drafts.delete(i);
+          }
+          update();
+        });
+        return;
+      }
       errors.set(i, tr('loading'));
       update();
       try {
@@ -4453,7 +4725,7 @@ const TileInfo = (() => {
         errors.delete(i);
         drafts.delete(i);
         // 待つ間にほかの方法で埋まった・消された枠には入れない
-        if (!state.tiles[i].videoId && isVisible(i)) setTileVideo(i, id, raw.trim());
+        if (!tileFilled(state.tiles[i]) && isVisible(i)) setTileVideo(i, id, raw.trim());
       } catch (err) {
         errors.set(i, err.message || String(err));
       }
@@ -4488,6 +4760,63 @@ const TileInfo = (() => {
     const rest = document.createElement('td');
     rest.colSpan = 7;
     tr_.append(num, kind, v, ops, rest);
+    return tr_;
+  }
+
+  /**
+   * URL の枠の行: サイト名・URL (押すとそのページを新しいタブで開く)・操作 (音・⟳ 読み込み直し・✕ 閉じる)・再生位置。
+   * URL の枠には枠のバーを出さないので、枠ごとの操作はここでする (全画面は Shift+数字キー)
+   */
+  function webRow(i, n) {
+    const t = state.tiles[i];
+    const tr_ = document.createElement('tr');
+    tr_.dataset.i = String(i);
+    const td = (text, cls) => {
+      const c = document.createElement('td');
+      if (cls) c.className = cls;
+      c.textContent = text;
+      tr_.append(c);
+      return c;
+    };
+    td(String(n), 'info-num');
+    td(tr('infoKind_web'), 'info-kind kind-web');
+    const v = document.createElement('td');
+    v.className = 'info-video';
+    const site = document.createElement('div');
+    site.className = 'info-channel';
+    site.textContent = tileName(i);
+    const link = document.createElement('a');
+    link.className = 'info-title';
+    link.href = t.web;
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    link.textContent = t.web;
+    v.append(site, link);
+    tr_.append(v);
+    const ops = document.createElement('td');
+    ops.className = 'info-ops';
+    const btn = (act, text, title, { on = false, cls = '' } = {}) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.dataset.act = act;
+      b.textContent = text;
+      b.title = title;
+      if (cls) b.className = cls;
+      b.classList.toggle('on', on);
+      return b;
+    };
+    ops.append(
+      btn('infoAudio', t.muted ? '🔇' : '🔊', tr(t.muted ? 'infoAudioOn' : 'infoAudioOff'), { on: !t.muted }),
+      btn('reload', '⟳', tr('infoReload')),
+      btn('clear', '✕', tr('tileClear'), { cls: 'close' }),
+    );
+    tr_.append(ops);
+    for (let k = 0; k < 3; k++) td('—', 'info-time');
+    td('—', 'info-n');
+    td('—', 'info-n');
+    const w = views[i].web;
+    td(w ? (w.d > 0 ? `${hms(w.t)} / ${hms(w.d)}` : hms(w.t)) : '—', 'info-n');
+    td('—', 'info-sync');
     return tr_;
   }
 
@@ -4552,13 +4881,15 @@ const TileInfo = (() => {
     const list = visibleIndexes().map((i, k) => [i, k + 1]);
     // 埋まった・見えなくなった枠の入力中の文字は捨てる
     for (const m of [drafts, errors]) {
-      for (const i of [...m.keys()]) if (state.tiles[i].videoId || !isVisible(i)) m.delete(i);
+      for (const i of [...m.keys()]) if (tileFilled(state.tiles[i]) || !isVisible(i)) m.delete(i);
     }
     const canShrink = !!shrinkTarget();
     // 数秒ごとに書き直すので、操作のボタンに当たっていたキーボードの位置を戻す
     const f = rowsEl.contains(document.activeElement) ? document.activeElement : null;
     const focusKey = f?.dataset.act ? [f.closest('tr')?.dataset.i, f.dataset.act, f.dataset.pan ?? ''] : null;
-    rowsEl.replaceChildren(...list.map(([i, n]) => (state.tiles[i].videoId ? row(i, n) : emptyRow(i, n, canShrink))));
+    rowsEl.replaceChildren(
+      ...list.map(([i, n]) => (state.tiles[i].videoId ? row(i, n) : isWebTile(state.tiles[i]) ? webRow(i, n) : emptyRow(i, n, canShrink))),
+    );
     if (focusKey) {
       const [i, act, p] = focusKey;
       const sel = `tr[data-i="${i}"] button[data-act="${act}"]` + (p ? `[data-pan="${p}"]` : '');
@@ -4596,7 +4927,7 @@ const TileInfo = (() => {
       const i = Number(b?.closest('tr')?.dataset.i);
       if (!b || b.disabled || !Number.isInteger(i) || !isVisible(i)) return;
       const act = b.dataset.act;
-      if (!state.tiles[i].videoId) {
+      if (!tileFilled(state.tiles[i])) {
         // 空き枠の行の操作 (枠の中の「📺 チャンネルから選ぶ」などと同じ)
         if (act === 'pickCh') openFavorites(i, 'channels');
         else if (act === 'pickFav') openFavorites(i, 'library');
@@ -4606,7 +4937,7 @@ const TileInfo = (() => {
         return;
       }
       if (act === 'infoAudio') setAudio(i, { solo: false });
-      else if (['danmaku', 'pan', 'fav', 'save', 'playlist', 'subscribe', 'like', 'clear'].includes(act)) onBarAction(i, act, e);
+      else if (['danmaku', 'pan', 'fav', 'save', 'playlist', 'subscribe', 'like', 'clear', 'reload'].includes(act)) onBarAction(i, act, e);
       update();
     });
     // 表の下の ＋: 空き枠を 1 つ足す (上部バーの ＋ と同じ)
@@ -7020,6 +7351,7 @@ function setupToolbar() {
   setupRead();
   setupPlaylistPicker();
   setupPacks();
+  setupSubscriptions();
   setupAddons();
   Sync.setup();
   showAppVersion();
@@ -7208,8 +7540,10 @@ function setupToolbar() {
       if (i != null) setAudio(i, { solo: true });
     } else if (ARROW_DIRS[e.key] && !isTileFullscreen()) {
       // 矢印キー: 今音が出ている枠の、その方向にある枠だけ音を出す (ページのスクロールはしない)
+      // Shift + 矢印キー: 今音が出ている枠をその方向へ動かす (隣の枠と入れ替え)
       e.preventDefault();
-      moveAudio(ARROW_DIRS[e.key]);
+      if (e.shiftKey) moveTileByKey(ARROW_DIRS[e.key]);
+      else moveAudio(ARROW_DIRS[e.key]);
     }
   });
 
@@ -7234,7 +7568,7 @@ function displayNumber(i) {
 }
 
 function firstEmptyTile() {
-  return visibleIndexes().find((i) => !state.tiles[i].videoId);
+  return visibleIndexes().find((i) => !tileFilled(state.tiles[i]));
 }
 
 /** 空き枠。無ければ (16 枠未満なら) 枠を 1 つ足して、その枠。16 枠埋まっていれば null */
@@ -8251,7 +8585,7 @@ function updateSelMarks() {
 
 /** 選んだ配信を入れられる枠の数 (読み込み先の枠 + 空いている枠 + まだ足せる枠) */
 function selRoom() {
-  const empty = visibleIndexes().filter((i) => !state.tiles[i].videoId && i !== favTarget).length;
+  const empty = visibleIndexes().filter((i) => !tileFilled(state.tiles[i]) && i !== favTarget).length;
   return (favTarget != null ? 1 : 0) + empty + (MAX_TILES - state.count);
 }
 
@@ -8269,7 +8603,7 @@ function loadSelection() {
   }
   const todo = [...favSel.values()];
   const targets = favTarget != null && todo.length ? [favTarget] : [];
-  const emptyNow = () => visibleIndexes().filter((i) => !state.tiles[i].videoId && !targets.includes(i));
+  const emptyNow = () => visibleIndexes().filter((i) => !tileFilled(state.tiles[i]) && !targets.includes(i));
   const lack = todo.length - targets.length - emptyNow().length;
   if (lack > 0) addTileSlot(lack);
   targets.push(...emptyNow());
@@ -9427,6 +9761,131 @@ function setupPacks() {
   });
 }
 
+// ---- 📥 YouTube の登録チャンネルから選ぶ (設定 → チャンネル)
+// ログイン中のアカウントの登録チャンネルを読み、選んだものだけをチャンネル一覧に足す。
+// 足したチャンネルはパック「YouTube の登録チャンネル」の扱いにして、パックの一覧からまとめて外せるようにする。
+// パックの名前はアドオン「YouTube の登録チャンネル」(addons/youtube-subs.js) の covers と同じもの ([日本語, 英語])
+const SUBS_PACK_NAMES = Addons.list('schedule').find((a) => a.id === 'ytsubs').packNames;
+// これより多く選んだら、配信状況の確認が重くなることを確かめてから足す
+const SUBS_MANY = 100;
+
+function setupSubscriptions() {
+  const dialog = document.getElementById('subsDialog');
+  const openBtn = document.getElementById('subsOpen');
+  const openStatus = document.getElementById('subsOpenStatus');
+  const filterEl = document.getElementById('subsFilter');
+  const ul = document.getElementById('subsList');
+  const countEl = document.getElementById('subsCount');
+  const addBtn = document.getElementById('subsAdd');
+  const status = document.getElementById('subsStatus');
+  closeOnBackdrop(dialog);
+  let subs = [];
+  let have = new Set();
+  const selected = new Set();
+  const setOpenStatus = (text, isError = false) => {
+    openStatus.textContent = text;
+    openStatus.classList.toggle('share-error', isError);
+  };
+  const visible = () => {
+    const q = filterEl.value.trim().toLowerCase();
+    return q ? subs.filter((c) => c.name.toLowerCase().includes(q) || (c.handle || '').toLowerCase().includes(q)) : subs;
+  };
+  const updateCount = () => {
+    countEl.textContent = tr('subsCount', selected.size, subs.length - subs.filter((c) => have.has(c.channelId)).length);
+    addBtn.disabled = !selected.size;
+  };
+  const render = () => {
+    const list = visible();
+    if (!list.length) {
+      const li = document.createElement('li');
+      li.className = 'subs-empty';
+      li.textContent = tr(subs.length ? 'subsNoMatch' : 'subsEmpty');
+      ul.replaceChildren(li);
+    } else {
+      ul.replaceChildren(
+        ...list.map((c) => {
+          const owned = have.has(c.channelId);
+          const li = document.createElement('li');
+          li.classList.toggle('have', owned);
+          const label = document.createElement('label');
+          const box = Object.assign(document.createElement('input'), { type: 'checkbox', checked: owned || selected.has(c.channelId), disabled: owned });
+          box.addEventListener('change', () => {
+            if (box.checked) selected.add(c.channelId);
+            else selected.delete(c.channelId);
+            updateCount();
+          });
+          const img = Object.assign(document.createElement('img'), { alt: '', loading: 'lazy', referrerPolicy: 'no-referrer' });
+          if (c.icon) img.src = c.icon;
+          const name = Object.assign(document.createElement('span'), { className: 'subs-name', textContent: c.name });
+          if (c.handle) name.title = c.handle;
+          label.append(box, img, name);
+          if (owned) label.append(Object.assign(document.createElement('span'), { className: 'subs-have', textContent: tr('subsHave') }));
+          li.append(label);
+          return li;
+        }),
+      );
+    }
+    updateCount();
+  };
+
+  openBtn.addEventListener('click', async () => {
+    openBtn.disabled = true;
+    setOpenStatus(tr('packLoading'));
+    try {
+      const [r, favs] = await Promise.all([Favorites.fetchSubscriptions(), Favorites.list()]);
+      subs = r.channels;
+      have = new Set(favs.map((f) => f.channelId));
+      // まだ足していないものを先に (どちらの中も YouTube の並びのまま)
+      subs = [...subs.filter((c) => !have.has(c.channelId)), ...subs.filter((c) => have.has(c.channelId))];
+      selected.clear();
+      filterEl.value = '';
+      status.textContent = r.more ? tr('subsMore', subs.length) : '';
+      setOpenStatus(subs.length ? '' : tr('subsEmpty'));
+      if (subs.length) {
+        render();
+        dialog.showModal();
+        ul.scrollTop = 0;
+      }
+    } catch (e) {
+      const msg = { notLoggedIn: tr('subsNotLoggedIn'), readFail: tr('subsReadFail') }[e.message] || tr('subsFetchFail', e.message || e);
+      setOpenStatus(msg, true);
+    } finally {
+      openBtn.disabled = false;
+    }
+  });
+  filterEl.addEventListener('input', render);
+  // Enter で dialog が閉じないように
+  filterEl.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') e.preventDefault();
+  });
+  document.getElementById('subsAll').addEventListener('click', () => {
+    for (const c of visible()) if (!have.has(c.channelId)) selected.add(c.channelId);
+    render();
+  });
+  document.getElementById('subsNone').addEventListener('click', () => {
+    for (const c of visible()) selected.delete(c.channelId);
+    render();
+  });
+  addBtn.addEventListener('click', async () => {
+    const chosen = subs.filter((c) => selected.has(c.channelId) && !have.has(c.channelId));
+    if (!chosen.length) return;
+    if (chosen.length > SUBS_MANY && !confirm(tr('subsMany', chosen.length))) return;
+    addBtn.disabled = true;
+    try {
+      // 前に足したときの名前 (表示言語を変えたあとでも同じパックにまとめる)
+      const favs = await Favorites.list();
+      const name = favs.find((f) => SUBS_PACK_NAMES.includes(f.pack))?.pack || SUBS_PACK_NAMES[LANG === 'ja' ? 0 : 1];
+      const n = await Favorites.importPack({ name, channels: chosen.map((c) => ({ ...c, group: name })) });
+      dialog.close();
+      setOpenStatus(tr('subsAdded', n));
+      await afterPresetsChanged();
+    } catch (e) {
+      status.textContent = tr('subsFetchFail', e.message || e);
+      addBtn.disabled = false;
+    }
+  });
+}
+
 /** 初期データ・チャンネルパックのチャンネルを足した / 外したあと、📌 の表示や開いている一覧を直す */
 async function afterPresetsChanged() {
   await refreshFavKeys();
@@ -10174,7 +10633,7 @@ async function autoTickOnceInner() {
     // 新しい配信は空いている枠に入れて、今の並びの後ろ (サブ側) に足す
     // (空の枠を優先。足りなければ、今のレイアウトで隠れている枠の中身を上書きする)
     const others = state.order.filter((j) => !keep.includes(j));
-    const free = [...others.filter((j) => !state.tiles[j].videoId), ...others.filter((j) => state.tiles[j].videoId)];
+    const free = [...others.filter((j) => !tileFilled(state.tiles[j])), ...others.filter((j) => tileFilled(state.tiles[j]))];
     const added = started.map((l, k) => {
       const i = free[k];
       if (state.tiles[i].videoId) WatchHistory.removed(state.tiles[i].videoId, 'replaced');
@@ -10336,7 +10795,7 @@ async function refillArchives({ lock = true } = {}) {
       // 同じチャンネルの配信は同時に流さない (1 チャンネル 1 枠。ライブで表示中のチャンネルも除く)
       const busy = new Set([...lives, ...fills].map((i) => state.tiles[i].label).filter(Boolean));
       // 入れる先は空いている枠だけ (自分で読み込んだ枠を上書きしない)。隠れている枠を先に使う
-      const empty = state.order.filter((j) => !state.tiles[j].videoId);
+      const empty = state.order.filter((j) => !tileFilled(state.tiles[j]));
       const free = [...empty.filter((j) => !isVisible(j)), ...empty.filter((j) => isVisible(j))];
       let added = 0;
       // 動画・ショートだけを流すときは、1 チャンネル 1 枠で足りなければ、同じチャンネルの別の動画も入れる

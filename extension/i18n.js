@@ -60,6 +60,12 @@ const MESSAGES = {
   channelReadFail: ['チャンネルの情報を読み取れませんでした', 'Could not read the channel info'],
   fetchFail: ['取得できませんでした ({0})', 'Could not fetch ({0})'],
   loading: ['読み込み中…', 'Loading…'],
+  webHttpsOnly: ['YouTube 以外のサイトは https の URL だけ入れられます', 'Only https URLs can be used for sites other than YouTube'],
+  webTooLong: ['URL が長すぎます ({0} 文字まで)', 'The URL is too long (up to {0} characters)'],
+  webDenied: ['このサイトを枠に入れるには、サイトへのアクセスを許可してください', 'Allow access to this site to show it in a tile'],
+  webSyncFail: ['このサイトを枠に入れる準備ができませんでした', 'Could not get this site ready for the tile'],
+  webNeedPermission: ['{0} を枠に入れるには、このサイトへのアクセスの許可が要ります', 'To show {0} in this tile, allow access to this site'],
+  webAllow: ['許可して読み込む', 'Allow and load'],
 
   // 枠
   slotMain: ['メイン {0}', 'Main {0}'],
@@ -249,6 +255,8 @@ const MESSAGES = {
   infoKind_blocked: ['見られない', 'Unavailable'],
   infoKind_loading: ['確認中', 'Checking'],
   infoKind_empty: ['空き', 'Empty'],
+  infoKind_web: ['サイト', 'Site'],
+  infoReload: ['読み込み直す (映像の調子が悪いとき)', 'Reload (if the video misbehaves)'],
   infoOpenChannel: ['YouTube でチャンネルを開く: {0}', 'Open the channel on YouTube: {0}'],
   infoDanmaku: ['この枠の弾幕の表示', 'Danmaku on this tile'],
   infoAudioOn: ['この枠の音を出す (ほかの枠はそのまま)', 'Unmute this tile (other tiles stay as they are)'],
@@ -483,6 +491,22 @@ const MESSAGES = {
   packFetchFail: ['チャンネルパックを取得できませんでした: {0}', 'Could not get the channel pack: {0}'],
   packLoading: ['読み込んでいます…', 'Loading…'],
   packRemove: ['外す', 'Remove'],
+  subsCount: ['{0} 件を選択中 (まだ足していないもの {1} 件)', '{0} selected ({1} not in your list yet)'],
+  subsHave: ['追加済み', 'Added'],
+  subsEmpty: ['登録チャンネルがありません', 'You have no subscriptions'],
+  subsNoMatch: ['合うチャンネルがありません', 'No matching channels'],
+  subsMore: [
+    '先頭の {0} 件だけ読めました (残りは読み込めません)',
+    'Only the first {0} could be read (the rest could not be loaded)',
+  ],
+  subsMany: [
+    '{0} 件を足しますか？\nチャンネルが多いほど、配信状況の確認に時間がかかり、YouTube の制限にもかかりやすくなります',
+    'Add {0} channels?\nThe more channels you have, the longer checking stream status takes, and the more likely YouTube limits requests',
+  ],
+  subsAdded: ['登録チャンネルから {0} 件を追加しました', 'Added {0} channels from your subscriptions'],
+  subsNotLoggedIn: ['YouTube にログインしてから、もう一度押してください', 'Sign in to YouTube, then press again'],
+  subsReadFail: ['登録チャンネルを読めませんでした (YouTube のページの作りが変わったかもしれません)', 'Could not read your subscriptions (the YouTube page may have changed)'],
+  subsFetchFail: ['登録チャンネルを取得できませんでした: {0}', 'Could not get your subscriptions: {0}'],
   mixBlocked: [
     'この枠では左右・音量・遅延を変えられませんでした (ブラウザが音の処理を止めています)。枠をクリックしてから、もう一度試してください',
     "Couldn't change left/right, volume or delay in this tile (the browser is holding back audio processing). Click the tile and try again",
@@ -921,6 +945,14 @@ const HTML_EN = {
   'catalog.load': 'Get the list',
   'pack.listH': 'Channel packs',
   'pack.listNote': 'Packs in your channel list. Remove or bring back a whole pack',
+  'subs.h': 'Your YouTube subscriptions',
+  'subs.note': 'Pick channels from the subscriptions of the YouTube account you are signed in to',
+  'subs.open': 'Choose from subscriptions',
+  'subs.dialogH': '📥 Your YouTube subscriptions',
+  'subs.filter': 'Filter by name',
+  'subs.all': 'Select all',
+  'subs.none': 'Clear selection',
+  'subs.add': 'Add to channel list',
   'tab.addons': 'Add-ons',
   'addon.h': 'Schedule sites',
   'addon.note': 'Loads stream schedules from sites that list them in one place, so checking stream status is lighter. Stream status still works when off',
@@ -1070,7 +1102,7 @@ const HTML_EN = {
 </ul>`,
   'helpPage.tiles': `<ul>
 <li>Choose a layout with “▦” on the top bar. The darker tile is the main one, and loaded streams fill tiles from 1 (main) on. “+” / “−” add or remove a tile</li>
-<li>Hover over a tile with a stream to show its control bar. Drag ⠿ at the left to swap tiles</li>
+<li>Hover over a tile with a stream to show its control bar. Drag ⠿ at the left to swap tiles (the tile playing audio can also be moved with <kbd>Shift</kbd> + arrow keys)</li>
 <li>Tile bar: audio button (play audio from this tile) / 🎚 left/right, volume and delay / 1× playback speed / 💬 chat / ≋ danmaku / 🔖 watch later / 👍 like / ⟳ reload / ⛶ fullscreen this tile / ✕ close</li>
 <li>Each row of “ℹ️ Tile info” (<kbd>I</kbd>): left/right audio (L / C / R) / 📌 pickup / 🔖 watch later / 📃 add to a playlist / subscribe / 👍 like. Click a title to open that video on YouTube in a new tab</li>
 <li>🎚 makes that tile heard from the left, center or right and changes its volume (0–200%). You can also change left/right with L / C / R in “ℹ️ Tile info”. On a live stream, “Audio delay” delays only that tile’s audio (the picture stays as it is; for a collab whose voices come earlier than the other tiles)</li>
@@ -1113,6 +1145,7 @@ const HTML_EN = {
 <li><b>Find packs</b>: choose from the packs collected in the Hakomado repository (GitHub). They are unofficial, made by users, and not affiliated with any agency or streamer. Report mistakes or requests on GitHub</li>
 <li><b>Import a channel pack</b>: paste the URL or contents of a pack made by someone else, or choose a file. Channels you already have stay as they are</li>
 <li><b>Export a channel pack</b>: save the bundled Hololive pack, an imported pack, the channels you added, or all of them as a pack (JSON) to give to others or publish</li>
+<li><b>Your YouTube subscriptions</b>: reads the subscriptions of the YouTube account you are signed in to in the browser, and adds only the ones you pick. They are grouped in the pack “YouTube subscriptions”, so you can remove them all at once. With the “YouTube subscriptions” add-on on, stream checks keep up even if you add many</li>
 </ul>
 <h3>Settings → Add-ons</h3>
 <ul>
@@ -1121,6 +1154,7 @@ const HTML_EN = {
 <li><b>NIJISANJI</b> (off by default): loads the live schedule from the NIJISANJI website (www.nijisanji.jp). Channels added from a NIJISANJI channel pack (such as “にじさんじ” in Find packs) are checked less often on YouTube. Turning it on asks for access to www.nijisanji.jp</li>
 <li><b>VSPO!</b> (off by default): loads the VSPO! stream schedule from www.vspo-schedule.com (an unofficial fan site). Channels added from a VSPO! channel pack (such as “ぶいすぽっ!” in Find packs) are checked less often on YouTube. Turning it on asks for access to www.vspo-schedule.com</li>
 <li><b>STPR</b> (off by default): loads the official STPR stream schedule (schedule.stpr.com; the data is read from schedule-share-json.s3.ap-northeast-1.amazonaws.com). Channels added from an STPR channel pack (such as “STPR (すとぷり)” in Find packs) are checked less often on YouTube. Turning it on asks for access to schedule-share-json.s3.ap-northeast-1.amazonaws.com</li>
+<li><b>YouTube subscriptions</b> (on by default): reads the subscriptions feed of your signed-in YouTube account at most once every 2 minutes to learn about live and upcoming streams in one go. Channels added with “Choose from subscriptions” are checked less often on YouTube (so checks keep up even with hundreds of channels). It does not load the feed when you have none of those channels</li>
 </ul>`,
   'helpPage.library': `<ul>
 <li>“📚 Library” (<kbd>B</kbd>): 🎞 Recent videos (streams ended and videos published in the last 7 days) / 🕘 Watch history (100) / 🔖 Watch later (100) / 📃 Playlists</li>
@@ -1160,6 +1194,7 @@ const HTML_EN = {
 </ul>`,
   'key.audio': 'Play audio only from that tile',
   'key.arrows': 'Play audio only from the next tile in that direction',
+  'key.moveTile': 'Move the tile playing audio in that direction (swaps with the tile there)',
   'key.tileFs': 'Fullscreen that tile (<kbd>Esc</kbd> to return)',
   'key.gridFs': 'Fullscreen with all tiles (move the mouse to the top edge to show the bar)',
   'key.mute': 'Mute ⇄ restore the previous audio',

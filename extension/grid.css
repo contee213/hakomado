@@ -242,6 +242,23 @@ body.hl-animate .tile.audible::before { animation: hl-flow 6s ease-in-out infini
   border: 0;
 }
 
+/* URL の枠で、サイトの許可が無いときの案内 (枠の中に出す) */
+.web-perm {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 16px;
+  text-align: center;
+  color: var(--muted);
+}
+.web-perm p { margin: 0; }
+.web-perm .error { color: #ff8a80; font-size: 12px; }
+.web-perm .error:empty { display: none; }
+
 /* ---------- danmaku ---------- */
 .danmaku-layer {
   position: absolute;
@@ -393,6 +410,9 @@ body.shooting .global-toast { visibility: hidden; }
 /* 空の枠では、入れ替え (⠿) と、空き枠を消す ✕ だけ出す */
 .tile.is-empty .tile-name, .tile.is-empty .bar-buttons > :not(.close) { display: none; }
 .tile.is-empty .bar-buttons { margin-left: auto; }
+/* URL の枠 (YouTube 以外のサイト) では、枠のバーとつかむ範囲 (枠の上 2 割) を出さない。サイトのプレイヤーの操作が
+   どこにあるか (Prime Video は右上など) はサイトごとに違い、重ねると押せなくなるため。枠の操作は「ℹ️ 枠の情報」の一覧から */
+.tile.is-web .bar, .tile.is-web .drag-zone { display: none; }
 
 /* 名前は残りの幅いっぱいに出し、長ければ省略。ボタンは右に寄せて縮めない */
 .bar .tile-name {
@@ -1727,6 +1747,17 @@ button.dr-main-tag { border: 0; cursor: pointer; }
 
 /* 📃 再生リストに入れる (枠のバーや一覧の 📃 で開く) */
 dialog.pl-pick-dialog { width: min(420px, calc(100% - 32px)); }
+/* 登録チャンネルから選ぶ: 一覧の高さは決めておき、絞り込んでも画面の大きさが変わらないようにする */
+dialog.subs-dialog { width: min(520px, calc(100% - 32px)); }
+.subs-list { list-style: none; margin: 0; padding: 0; height: min(420px, 50vh); overflow-y: auto; border: 1px solid var(--line); border-radius: 6px; }
+.subs-list label { display: flex; align-items: center; gap: 8px; padding: 4px 8px; cursor: pointer; }
+.subs-list label:hover { background: var(--on-bg); }
+.subs-list img { width: 24px; height: 24px; border-radius: 50%; flex: none; background: #222; }
+.subs-list .subs-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.subs-list .subs-have { flex: none; color: var(--muted); font-size: 12px; }
+.subs-list li.have label { cursor: default; opacity: .6; }
+.subs-empty { padding: 12px; color: var(--muted); font-size: 12px; }
+.subs-count { flex: 1; color: var(--muted); font-size: 12px; }
 .pl-pick-target { margin: 0; color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pl-pick-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; max-height: 50vh; overflow-y: auto; }
 .pl-pick-list button { width: 100%; display: flex; align-items: center; gap: 8px; text-align: left; padding: 6px 10px; }
@@ -1871,6 +1902,7 @@ a.info-channel { display: block; text-decoration: none; color: inherit; }
 a.info-channel:hover, a.info-channel:focus-visible { text-decoration: underline; }
 /* 空き枠の行: URL などを入れて読み込む・選ぶ・おまかせ・✕ (空き枠を消す) */
 .info-kind.kind-empty { color: var(--muted); font-weight: 400; }
+.info-kind.kind-web { color: var(--muted); }
 .info-load { display: flex; gap: 4px; min-width: 0; }
 .info-load .url-input { flex: 1 1 auto; min-width: 0; height: 24px; font-size: 12px; }
 .info-load button { flex: none; height: 24px; padding: 0 8px; font-size: 12px; }
