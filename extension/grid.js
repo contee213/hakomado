@@ -772,14 +772,15 @@ function keepNumbersOrder(n, prefer = null) {
   const shown = visibleIndexes();
   const hiddenEmpty = state.order.slice(state.count).filter((j) => !tileFilled(state.tiles[j]));
   const next = [...shown, ...hiddenEmpty].slice(0, n);
-  const holes = next.map((j, k) => k).filter((k) => !state.tiles[next[k]].videoId).reverse();
+  // 中身 = 配信・動画 (videoId) と URL の枠 (web)。どちらも空き枠と見なさない・はみ出したら空き枠へ移す
+  const holes = next.map((j, k) => k).filter((k) => !tileFilled(state.tiles[next[k]])).reverse();
   const at = next.indexOf(prefer);
   if (at >= 0 && holes.includes(at)) {
     holes.splice(holes.indexOf(at), 1);
     holes.unshift(at);
   }
   for (const j of shown.slice(n)) {
-    if (state.tiles[j].videoId) next[holes.shift()] = j;
+    if (tileFilled(state.tiles[j])) next[holes.shift()] = j;
   }
   return [...next, ...state.order.filter((j) => !next.includes(j))];
 }
@@ -796,7 +797,7 @@ function addTileSlot(k = 1) {
   const hidden = state.order.slice(state.count);
   const empty = hidden.filter((j) => !tileFilled(state.tiles[j]));
   // 隠れている枠に中身が残っていても、それは出さずに空き枠から使う
-  state.order = [...shown, ...empty, ...hidden.filter((j) => state.tiles[j].videoId)];
+  state.order = [...shown, ...empty, ...hidden.filter((j) => tileFilled(state.tiles[j]))];
   setLayout(chooseLayoutFor(Math.min(MAX_TILES, shown.length + k)).id);
 }
 
@@ -10639,7 +10640,7 @@ function loadPicked(i, videoId, input, label, live) {
 
 /** 中身のある枠の件数に合ったレイアウトにする (枠の番号はなるべく変えない。keepNumbersOrder) */
 function compactToContent() {
-  const filled = visibleIndexes().filter((i) => state.tiles[i].videoId);
+  const filled = visibleIndexes().filter((i) => tileFilled(state.tiles[i]));
   if (filled.length === 0) {
     layout();
     return;
