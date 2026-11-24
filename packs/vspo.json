@@ -1,0 +1,240 @@
+{
+  "app": "hakomado",
+  "type": "channels",
+  "name": "ぶいすぽっ!",
+  "author": "Hakomado",
+  "updated": "2026-11-24",
+  "channels": [
+    {
+      "channelId": "UCyLGcqYs7RsBb3L0SJfzGYA",
+      "name": "花芽すみれ",
+      "handle": "@KagaSumire",
+      "group": "ぶいすぽっ!",
+      "icon": "https://yt3.googleusercontent.com/62gVOJZDVb-9pPCbljnoRlwqEuvcGk0pNl32GNi_GA_KQS3N7X6-B660Pk3crHh3zi1XSzHMNQ=s88-c-k-c0x00ffffff-no-rj"
+    },
+    {
+      "channelId": "UCiMG6VdScBabPhJ1ZtaVmbw",
+      "name": "花芽なずな",
+      "handle": "@nazunakaga",
+      "group": "ぶいすぽっ!",
+      "icon": "https://yt3.googleusercontent.com/AiM0dD6-tajxuBeozH1YberZhKAANawzH_WDwLo9zLaqlGaen_nxW6q1RQt7k79FXEeQLXPFOIM=s88-c-k-c0x00ffffff-no-rj"
+    },
+    {
+      "channelId": "UCgTzsBI0DIRopMylJEDqnog",
+      "name": "小雀とと",
+      "handle": "@totokogara",
+      "group": "ぶいすぽっ!",
+      "icon": "https://yt3.googleusercontent.com/ytc/AIdro_lEifEusAxSkqQg12z_wUO1bGfGIqo9Vv4OYz6X5BhCIg=s88-c-k-c0x00ffffff-no-rj"
+    },
+    {
+      "channelId": "UC5LyYg6cCA4yHEYvtUsir3g",
+      "name": "一ノ瀬うるは",
+      "handle": "@uruhaichinose",
+      "group": "ぶいすぽっ!",
+      "icon": "https://yt3.googleusercontent.com/ytc/AIdro_myySkwnJbRZM78Ct6Zqok5H0oegoEjLOtg6sdq117VRAM=s88-c-k-c0x00ffffff-no-rj"
+    },
+    {
+      "channelId": "UCIcAj6WkJ8vZ7DeJVgmeqKw",
+      "name": "胡桃のあ",
+      "handle": "@963Noah",
+      "group": "ぶいすぽっ!",
+      "icon": "https://yt3.googleusercontent.com/P0TCuLWSv_bK-G6p7j-wY2XM6w78G8Z-vtZ-XxkuIXfjFuScBCL3_LLCl1W6dgdMe3GcikiskQ=s88-c-k-c0x00ffffff-no-rj"
+    },
+    {
+      "channelId": "UCnvVG9RbOW3J6Ifqo-zKLiw",
+      "name": "兎咲ミミ",
+      "handle": "@tosakimimi3369",
+      "group": "ぶいすぽっ!",
+      "icon": "https://yt3.googleusercontent.com/9cJ6zJabky32vTsNMD4NdQQrCIttzqpmC_kW55tKwJuh6OUiCs8MVziidVYfJOa9dBLlgcNwHw=s88-c-k-c0x00ffffff-no-rj"
+    },
+    {
+      "channelId": "UCF_U2GCKHvDz52jWdizppIA",
+      "name": "空澄セナ",
+      "handle": "@asumi_sena",
+      "group": "ぶいすぽっ!",
+      "icon": "https://yt3.googleusercontent.com/lBR2WoXWscLmYRBvwkwJBQR8-hkPl3aWzEZWzIlRLLG2hJMY-JZxwQ7Cc_EGqcyxqbzfMEzi=s88-c-k-c0x00ffffff-no-rj"
+    },
+    {
+      "channelId": "UCvUc0m317LWTTPZoBQV479A",
+      "name": "橘ひなの",
+      "handle": "@hinanotachiba7",
+      "group": "ぶいすぽっ!",
+      "icon": "https://yt3.googleusercontent.com/qBHwrzfOske0YrfKhyd-tCBGcsoka2h1tHdX09EOdx7uAmAYpYeIEldA-aYYhBROPvADi9_4FA=s88-c-k-c0x00ffffff-no-rj"
+    },
+    {
+      "channelId": "UCurEA8YoqFwimJcAuSHU0MQ",
+      "name": "英リサ",
+      "handle": "@lisahanabusa",
+      "group": "ぶいすぽっ!",
+      "icon": "https://yt3.googleusercontent.com/ytc/AIdro_nDEKrUIjF9DlTu-bEc-DenqIj-md5YkUqhGhqwyBLBgQ=s88-c-k-c0x00ffffff-no-rj"
+    },
+    {
+      "channelId": "UCGWa1dMU_sDCaRQjdabsVgg",
+      "name": "如月れん",
+      "handle": "@ren_kisaragi__",
+      "group": "ぶいすぽっ!",
+      "icon": "https://yt3.googleusercontent.com/l2mkMKBJ9OKCEKuY2HhDx_i0oKYWvjXQontI0pi3_AZwisv6FOQArd13bNpU4ko_rMhfdR-v7zU=s88-c-k-c0x00ffffff-no-rj"
+    },
+    {
+      "channelId": "UCMp55EbT_ZlqiMS3lCj01BQ",
+      "name": "神成きゅぴ",
+      "handle": "@KaminariQpi",
+      "group": "ぶいすぽっ!",
+      "icon": "https://yt3.googleusercontent.com/5IgSXAOfwIFU60tdD88_gdEDZBvJs-3u-ogu3VWWSpWepyN1H9n6Gdyvlgya5PuR0ARtfNl9=s88-c-k-c0x00ffffff-no-rj"
+    },
+    {
+      "channelId": "UCjXBuHmWkieBApgBhDuJMMQ",
+      "name": "八雲べに",
+      "handle": "@八雲べに",
+      "group": "ぶいすぽっ!",
+      "icon": "https://yt3.googleusercontent.com/3DKslDQ-fYLyIA5WNS3cl3Hesu6QRWD74C1kU1MYgoLtzenCSdkz1H4mOmFJ3HT_3ZlhNfFR=s88-c-k-c0x00ffffff-no-rj"
+    },
+    {
+      "channelId": "UCPkKpOHxEDcwmUAnRpIu-Ng",
+      "name": "藍沢エマ",
+      "handle": "@AizawaEma",
+      "group": "ぶいすぽっ!",
+      "icon": "https://yt3.googleusercontent.com/wuec9EJq49vLP5Urd_Jtr-2-UcRnKA_Z0VffwgIV5OCkrdiYqKURoN8q431M6MxCnGzMGDtlLw=s88-c-k-c0x00ffffff-no-rj"
+    },
+    {
+      "channelId": "UCD5W21JqNMv_tV9nfjvF9sw",
+      "name": "紫宮るな",
+      "handle": "@shinomiyaruna",
+      "group": "ぶいすぽっ!",
+      "icon": "https://yt3.googleusercontent.com/Rgt9lslf7OZntxcW8A9mMFWDdXTG1IxqCq4tZ14Rd7rB1rm4gxQZPTc5kM9LdGTPmXGWkfyzWw=s88-c-k-c0x00ffffff-no-rj"
+    },
+    {
+      "channelId": "UCIjdfjcSaEgdjwbgjxC3ZWg",
+      "name": "猫汰つな",
+      "handle": "@tsuna_nekota",
+      "group": "ぶいすぽっ!",
+      "icon": "https://yt3.googleusercontent.com/t8oKW3u3BqieOUZ4j3d_qxV2fBEypIpVkq3vY2SYlOD2gblH-4fSjBOGW9O5eiOagOhhuUzA=s88-c-k-c0x00ffffff-no-rj"
+    },
+    {
+      "channelId": "UC61OwuYOVuKkpKnid-43Twg",
+      "name": "白波らむね",
+      "handle": "@shiranamiramune",
+      "group": "ぶいすぽっ!",
+      "icon": "https://yt3.googleusercontent.com/zkGtVL-NEnjNR53Bf02AeO5AlzwxXOcrTBbaY62YY9wQoQh7S13ASJdMGMsPXyw2U2zxNFUysg=s88-c-k-c0x00ffffff-no-rj"
+    },
+    {
+      "channelId": "UCzUNASdzI4PV5SlqtYwAkKQ",
+      "name": "小森めと",
+      "handle": "@Met_Komori",
+      "group": "ぶいすぽっ!",
+      "icon": "https://yt3.googleusercontent.com/8km4MzJjHfYgZ7gbACC42-p2iwGFjmRFL-mppdpn4y35mIWhDTg2qVxmrGV1WQCqrjV7ZB9_Bw=s88-c-k-c0x00ffffff-no-rj"
+    },
+    {
+      "channelId": "UCS5l_Y0oMVTjEos2LuyeSZQ",
+      "name": "夢野あかり",
+      "handle": "@akarindao",
+      "group": "ぶいすぽっ!",
+      "icon": "https://yt3.googleusercontent.com/hW-Z9l93zqxXn56bdRyo4OgVHn9XIMq7T991dsmnwJ-LTWACf306bVYRb8GSbWEATM3UNhqklw=s88-c-k-c0x00ffffff-no-rj"
+    },
+    {
+      "channelId": "UCX4WL24YEOUYd7qDsFSLDOw",
+      "name": "夜乃くろむ",
+      "handle": "@YanoKuromu",
+      "group": "ぶいすぽっ!",
+      "icon": "https://yt3.googleusercontent.com/1akMwH-5NFyiA_cSCHjkOi-h0ZygMVcxMdRHYmCgBtjfha__trYziilH92BCAYgYZQBGOWynsg=s88-c-k-c0x00ffffff-no-rj"
+    },
+    {
+      "channelId": "UC-WX1CXssCtCtc2TNIRnJzg",
+      "name": "紡木こかげ",
+      "handle": "@Kokage_Tsumugi",
+      "group": "ぶいすぽっ!",
+      "icon": "https://yt3.googleusercontent.com/k5cVF6C4_wfjYaf3iNU9ZfqTUZp6nwk_f4_Jid3VPIMJcjQj4Zll31sdE0J3yP1HEJoNtl0gyho=s88-c-k-c0x00ffffff-no-rj"
+    },
+    {
+      "channelId": "UCuDY3ibSP2MFRgf7eo3cojg",
+      "name": "千燈ゆうひ",
+      "handle": "@SendoYuuhi",
+      "group": "ぶいすぽっ!",
+      "icon": "https://yt3.googleusercontent.com/LwrClvbMurf6c81aevjCuKoy8CKwQbuChZlNExzHHeWfaeQQ1kQpbMZPjqBu24TmVeg0RBH7Cg=s88-c-k-c0x00ffffff-no-rj"
+    },
+    {
+      "channelId": "UCL9hJsdk9eQa0IlWbFB2oRg",
+      "name": "蝶屋はなび",
+      "handle": "@HanabiChoya",
+      "group": "ぶいすぽっ!",
+      "icon": "https://yt3.googleusercontent.com/N7qEUQMbq8z1lQdp4WBUz3vQ83gYiYmPt-alI5K1xMYnOh4uAxuQlUVPneZQKetzACogh6E_qA=s88-c-k-c0x00ffffff-no-rj"
+    },
+    {
+      "channelId": "UC8vKBjGY2HVfbW9GAmgikWw",
+      "name": "甘結もか",
+      "handle": "@Moka_Amayui",
+      "group": "ぶいすぽっ!",
+      "icon": "https://yt3.googleusercontent.com/e_Vc-qiRBWmj9PaysPGhh9b2bn5YDLs-FhmqDwZTiog6umosQzQEa7phbJwz4eaZsGwzfFze=s88-c-k-c0x00ffffff-no-rj"
+    },
+    {
+      "channelId": "UC2xXx1m1jeL0W84_0jTg-Yw",
+      "name": "銀城サイネ",
+      "handle": "@Saine_Ginjo",
+      "group": "ぶいすぽっ!",
+      "icon": "https://yt3.googleusercontent.com/1GsQmWJZ_ABGy-QkyuVM59_5F-iOPMMk5r5dR8bBVwRWjfY2u_Y-vuQptYrnezEvcDiTqXU7=s88-c-k-c0x00ffffff-no-rj"
+    },
+    {
+      "channelId": "UCoW8qQy80mKH0RJTKAK-nNA",
+      "name": "龍巻ちせ",
+      "handle": "@Chise_Tatsumaki",
+      "group": "ぶいすぽっ!",
+      "icon": "https://yt3.googleusercontent.com/iY4fKYP5hjgVTNz69v9pXqmndDfJgYj3YSA47zsDeROBIp3tzxgZQqG3x6W6UZFQum64Dse2b5k=s88-c-k-c0x00ffffff-no-rj"
+    },
+    {
+      "channelId": "UCCra1t-eIlO3ULyXQQMD9Xw",
+      "name": "青月レミア",
+      "handle": "@RemiaAotsuki",
+      "group": "VSPO! EN",
+      "icon": "https://yt3.googleusercontent.com/ffvhq1qySN1UZZpsfzXKewO7IqpI1l-19UCHVFhykmIY6Uhflua0u8tOLjEdz-fbJnclNxW_=s88-c-k-c0x00ffffff-no-rj"
+    },
+    {
+      "channelId": "UCLlJpxXt6L5d-XQ0cDdIyDQ",
+      "name": "黒刃アリヤ",
+      "handle": "@aryakuroha",
+      "group": "VSPO! EN",
+      "icon": "https://yt3.googleusercontent.com/O2vuL-OawwrhFQX3oiiVSUey9B3wJ4IBS2q5cPTb-igxsFnUFTSc2vtXSi8nnFdP3Vgik1hq1DM=s88-c-k-c0x00ffffff-no-rj"
+    },
+    {
+      "channelId": "UCeCWj-SiJG9SWN6wGORiLmw",
+      "name": "地崎ジラ",
+      "handle": "@jirajisaki",
+      "group": "VSPO! EN",
+      "icon": "https://yt3.googleusercontent.com/9fK7tc3-fqWBvNK9zMoaKevb3THmK3JRQCkkJrR-fdpSFQIJNhEhaxwlm1H9S3nn4AG72nq1=s88-c-k-c0x00ffffff-no-rj"
+    },
+    {
+      "channelId": "UCKSpM183c85d5V2cW5qaUjA",
+      "name": "美暮ナリン",
+      "handle": "@narinmikure",
+      "group": "VSPO! EN",
+      "icon": "https://yt3.googleusercontent.com/lapDvSvc2_Jb8XKiB7QRUsCiVsAENtyS1pR7fzjMV0znEJpcIVx4f-M8FeIviph5EOcqHU9sww=s88-c-k-c0x00ffffff-no-rj"
+    },
+    {
+      "channelId": "UC7Xglp1fske9zmRe7Oj8YyA",
+      "name": "ソラリリコ",
+      "handle": "@rikosolari",
+      "group": "VSPO! EN",
+      "icon": "https://yt3.googleusercontent.com/bGho6eDQPk7uQl3wvAPi2vt-upGXZr99KDjaHiWoQBKstD75_Em7GvT7svwM98WS1t6YHAjXBHc=s88-c-k-c0x00ffffff-no-rj"
+    },
+    {
+      "channelId": "UCp_3ej2br9l9L1DSoHVDZGw",
+      "name": "涼上エリス",
+      "handle": "@ErisSuzukami",
+      "group": "VSPO! EN",
+      "icon": "https://yt3.googleusercontent.com/jKrNovQP35Hum7uCdjVaYAHNmm3pZtY19JTW1_ThHdQK8TayZevDwDmdnwN93XFwIlNsgeATQA=s88-c-k-c0x00ffffff-no-rj"
+    },
+    {
+      "channelId": "UCRJV_1aV4aZjFAEUn6o5arw",
+      "name": "梅園ジュノ",
+      "handle": "@JunoUmezono",
+      "group": "VSPO! EN",
+      "icon": "https://yt3.googleusercontent.com/bztupxiQMfCNoxlX5ir_3qRpCzGPEzoTOs7gSq6jqgZ-oRAtbyS_seR_Jd9NlT0c0hUzS-kw=s88-c-k-c0x00ffffff-no-rj"
+    },
+    {
+      "channelId": "UCuI5XaO-6VkOEhHao6ij7JA",
+      "name": "ぶいすぽっ!【公式】",
+      "handle": "@Vspo77",
+      "group": "公式",
+      "icon": "https://yt3.googleusercontent.com/YxkHbTBTSYsQjMHOp269eQUReXvJsTfM9gTEeByvNDGl97N6fqatLGRMZnHx-RIA_oPikX-e=s88-c-k-c0x00ffffff-no-rj"
+    }
+  ]
+}

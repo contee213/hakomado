@@ -42,6 +42,8 @@
   "optional_host_permissions": [
     "https://x.com/*",
     "https://www.nijisanji.jp/*",
+    "https://www.vspo-schedule.com/*",
+    "https://schedule-share-json.s3.ap-northeast-1.amazonaws.com/*",
     "https://*/*"
   ],
   "content_scripts": [

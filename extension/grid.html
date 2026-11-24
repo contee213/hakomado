@@ -394,6 +394,8 @@
               <li>アドオンは、特定のサイトに頼る機能です。1 つずつ ON / OFF できます。ON にするとき、そのサイトへのアクセスの許可を求めることがあります</li>
               <li><b>ホロジュール</b> (初期値は ON): ホロライブの配信予定 (schedule.hololive.tv) をまとめて読み込み、初期データのチャンネルと、ホロライブのチャンネルパックから足したチャンネルを YouTube に確かめに行く回数を減らします。OFF でも、各チャンネルの RSS から配信状況を調べます (少し重くなります)</li>
               <li><b>にじさんじ</b> (初期値は OFF): にじさんじ公式サイトのライブスケジュール (www.nijisanji.jp) を読み込みます。名前に「にじさんじ」が入るチャンネルパック (「パックを探す」の「にじさんじ」など) から足したチャンネルは、YouTube に確かめに行く回数を減らします。ON にするとき、www.nijisanji.jp へのアクセスの許可を求めます</li>
+              <li><b>ぶいすぽっ!</b> (初期値は OFF): ぶいすぽっ!の配信スケジュール (有志による非公式のサイト www.vspo-schedule.com) を読み込みます。名前に「ぶいすぽ」が入るチャンネルパック (「パックを探す」の「ぶいすぽっ!」など) から足したチャンネルは、YouTube に確かめに行く回数を減らします。ON にするとき、www.vspo-schedule.com へのアクセスの許可を求めます</li>
+              <li><b>STPR (すとぷり)</b> (初期値は OFF): STPR の公式の配信予定 (schedule.stpr.com。データは schedule-share-json.s3.ap-northeast-1.amazonaws.com から読みます) を読み込みます。名前に「STPR」か「すとぷり」が入るチャンネルパック (「パックを探す」の「STPR (すとぷり)」など) から足したチャンネルは、YouTube に確かめに行く回数を減らします。ON にするとき、schedule-share-json.s3.ap-northeast-1.amazonaws.com へのアクセスの許可を求めます</li>
               <li><b>YouTube の登録チャンネル</b> (初期値は ON): ログイン中の YouTube アカウントの登録チャンネルのフィードを 2 分に 1 回まで読み込み、配信中・配信予定をまとめて知ります。「登録チャンネルから選ぶ」で足したチャンネルは、YouTube に確かめに行く回数を減らします (数百件あっても確認が追いつくように)。そのチャンネルが 1 つも無いときは読み込みません</li>
             </ul>
           </section>
@@ -849,6 +851,8 @@
   <script src="addons.js"></script>
   <script src="addons/holodule.js"></script>
   <script src="addons/nijisanji.js"></script>
+  <script src="addons/vspo.js"></script>
+  <script src="addons/stpr.js"></script>
   <script src="addons/youtube-subs.js"></script>
   <script src="favorites.js"></script>
   <script src="history.js"></script>
