@@ -4,7 +4,7 @@
     "description": "拡張機能の名前"
   },
   "extDescription": {
-    "message": "YouTube の配信を最大 16 枠で同時視聴。各枠にチャットの弾幕を流せます。",
+    "message": "YouTube・Twitch の配信を最大 16 枠で同時視聴。各枠にチャットの弾幕を流せます。",
     "description": "拡張機能の説明"
   },
   "actionTitle": {

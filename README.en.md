@@ -2,7 +2,7 @@
 
 English | [日本語](README.md)
 
-A Chrome / Edge extension for watching up to 16 YouTube streams side by side on one screen.
+A Chrome / Edge extension for watching up to 16 YouTube and Twitch streams side by side on one screen.
 Each tile can show its live chat as scrolling comments (danmaku), or open the chat panel next to the video so you can post.
 It uses the YouTube account you are signed in to in the browser, so members-only streams work too.
 
@@ -22,8 +22,9 @@ This is an unofficial tool made by an individual. Please read the [Disclaimer](#
 - **🔗 Share / 📥 Import**: pick the current tiles (a viewing set) or a playlist and turn it into one of four forms: an **image** (thumbnails filling the image in the layout's shape, with the name and a QR on top; the QR holds an import link with the same contents as the code, so a phone camera opens it on YouTube; you can also add an author name and draw the channel and title on each tile, and copy ALT text for X; “𝕏 Post” opens the X post screen with the image, the name and the link filled in — you press Post yourself, and it asks for access to x.com the first time), a **code** (one line, `#Hakomado u2x2.<video IDs>~<offsets> "name"`, up to 16, with its length on X), **text** (one per line, with the name, sync setting, layout, offsets and tile names) or an **import link** (`https://www.youtube.com/watch_videos?video_ids=ID,ID,…&title=name&hakomado=name`, up to 50, which opens as a temporary YouTube playlist without Hakomado; `title=` becomes its name). Paste what you receive into “📥 Import” (drop images too, or just press Ctrl+V anywhere): it shows what was read and lets you “▦ Lay out in tiles” or “📃 Save as playlist”. Opening an import link also lands here
 - **Left/right, volume and delay**: the 🎚 button on a tile bar makes that tile heard from the left, center or right (to tell two views of a collab apart; for headphones; also L / C / R on each row of “ℹ️ Tile info”) and changes its volume (0–200%). On a live stream, "Audio delay" in 🎚 delays only that tile's audio (the picture stays as it is), for a collab whose voices come earlier than the other tiles
 - **⏱ Archive sync**: plays the archives of each perspective of a collab stream aligned to when they were actually streamed. When it cannot be used (live now, a regular video, and so on) the button is dimmed and pressing it tells you why
-- **ℹ️ Tile info**: lists each tile's type (live, upcoming, archive, video), channel and title, stream times or publish date, current viewers, views, position and whether it can be archive-synced (<kbd>I</kbd>). Each row also has left/right audio (L / C / R), 📌 pickup, 🔖 watch later, 📃 playlists, subscribe and 👍 like, and clicking a title opens it on YouTube
-- **Right-click to add**: right-click a link to a YouTube video or stream, or a watch page, and choose "Add to an empty Hakomado tile" to put it in an empty tile of the open multi-view page (a tile is added if none is empty; a new tab opens if the page is not open)
+- **ℹ️ Tile info**: lists each tile's type (live, upcoming, archive, video), channel and title, stream times or publish date, current viewers, views, position and whether it can be archive-synced (<kbd>I</kbd>). Each row also has left/right audio (L / C / R), 📌 pickup, 🔖 watch later, 📃 playlists, subscribe and 👍 like, and clicking a title opens it on YouTube (Twitch tiles open on Twitch)
+- **Right-click to add**: right-click a link to a YouTube video or stream, or a watch page, or a Twitch channel or VOD link or page, and choose "Add to an empty Hakomado tile" to put it in an empty tile of the open multi-view page (a tile is added if none is empty; a new tab opens if the page is not open)
+- **Twitch**: Twitch channels (`twitch.tv/name`) and VODs (`twitch.tv/videos/number`) can go in tiles too. Adding channels, live detection, auto play, archive sync, speed, left/right audio, danmaku and sharing work much like YouTube tiles (access to twitch.tv is requested the first time you use it). For the differences, see the [YouTube and Twitch feature comparison](docs/platform-support.md) (Japanese)
 - **Japanese / English**: follows the browser language (can be fixed in settings)
 
 ## Requirements
@@ -118,7 +119,7 @@ A pack is a JSON file like the one below. Besides submitting it to `packs/`, you
 | `https://schedule-share-json.s3.ap-northeast-1.amazonaws.com/*` (optional) | Getting the official STPR stream schedule (the STPR add-on; where schedule.stpr.com keeps its data; off by default, access is asked for only when you turn it on under Settings > Add-ons) |
 | `contextMenus` | The right-click menu "Add to an empty Hakomado tile" |
 
-- Besides YouTube and the schedule site, it only connects to GitHub to check for new versions (`api.github.com`), to the pack list when you press "Get the list" in Find packs (`raw.githubusercontent.com`), and to pack URLs you enter. No data is sent to any other server. See the [privacy policy](docs/privacy.md) for details
+- Besides YouTube, the schedule site and Twitch (only when you use Twitch tiles or channels), it only connects to GitHub to check for new versions (`api.github.com`), to the pack list when you press "Get the list" in Find packs (`raw.githubusercontent.com`), and to pack URLs you enter. No data is sent to any other server. See the [privacy policy](docs/privacy.md) for details
 - Requests to YouTube use the browser's cookies (your sign-in). This is needed to show members-only streams and, in auto play, to check whether you can watch them
 - YouTube watch pages and live chat forbid embedding in other pages with the `X-Frame-Options` header, so a rule that removes this header
   (a declarativeNetRequest session rule) is registered **only for the multi-view page's tab**.

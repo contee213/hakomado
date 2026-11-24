@@ -634,7 +634,7 @@ const MESSAGES = {
   tourLibraryS: ['ライブラリ', 'Library'],
   tourAutoS: ['自動再生', 'Auto play'],
   tourWelcomeT: ['Hakomado へようこそ', 'Welcome to Hakomado'],
-  tourWelcome: ['YouTube の配信を最大 16 枠、並べて同時に見られます。たとえば、こんな見方ができます。', 'Watch up to 16 YouTube streams side by side. For example:'],
+  tourWelcome: ['YouTube・Twitch の配信を最大 16 枠、並べて同時に見られます。たとえば、こんな見方ができます。', 'Watch up to 16 YouTube and Twitch streams side by side. For example:'],
   tourUseLiveT: ['📺 ライブをまとめて見る', '📺 Many live streams at once'],
   tourUseLive: ['いくつもの配信を 1 画面に並べ、音を出す枠を切り替えながら見られます。', 'Line up several streams on one screen and switch which one you hear.'],
   tourUseSyncT: ['⏱ コラボを同時視聴', '⏱ Collab archives in sync'],
@@ -1138,10 +1138,10 @@ const HTML_EN = {
   'helpNav.look': 'Danmaku, chat and outlines',
   'helpNav.backup': 'Backup',
   'helpNav.keys': 'Keyboard',
-  'helpPage.start': `<p>Watch up to 16 YouTube streams side by side.</p>
+  'helpPage.start': `<p>Watch up to 16 YouTube and Twitch streams side by side.</p>
 <ul>
-<li>Paste a URL / video ID / <code>@handle</code> into an empty tile and press Load. Pick a live stream with “📺 Pick from channels”, a past one with “📚 Pick from library”, or let “🎲 Surprise me” add one not shown yet</li>
-<li>You can also right-click a link to a YouTube video or stream and choose “Add to an empty Hakomado tile”</li>
+<li>Paste a URL (YouTube or Twitch) / video ID / <code>@handle</code> into an empty tile and press Load. Pick a live stream with “📺 Pick from channels”, a past one with “📚 Pick from library”, or let “🎲 Surprise me” add one not shown yet</li>
+<li>You can also right-click a link to a YouTube video or stream, or a Twitch channel or VOD, and choose “Add to an empty Hakomado tile”</li>
 <li>Audio normally plays from one tile. Switch it with 🎧 on a tile bar or <kbd>1</kbd>–<kbd>9</kbd>. Use 🔊 in ℹ️ Tile info or the speaker in a tile’s player to hear several tiles at once</li>
 <li>For a quick look around the screen, try “Replay the tour” below</li>
 </ul>`,
