@@ -448,6 +448,8 @@
       setCorner(e.data.corner);
     } else if (e.data?.hakomado === 'social' && ['subscribe', 'like'].includes(e.data.act)) {
       document.dispatchEvent(new CustomEvent('hakomado:social-act', { detail: e.data.act }));
+    } else if (e.data?.hakomado === 'loop') {
+      document.dispatchEvent(new CustomEvent('hakomado:loop', { detail: e.data.on ? '1' : '0' }));
     } else if (e.data?.hakomado === 'playback') {
       document.dispatchEvent(new CustomEvent('hakomado:playback', { detail: e.data.play ? 'play' : 'pause' }));
     } else if (e.data?.hakomado === 'sync' && ['seek', 'play', 'pause', 'rate'].includes(e.data.op)) {

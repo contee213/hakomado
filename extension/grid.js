@@ -40,6 +40,11 @@ const DEFAULT_SETTINGS = {
   autoPremiereShorts: true,
   autoPickupMain: true, // 自動再生: ピックアップ (📌) のライブ配信をメイン枠に優先して置く
   autoMaxTiles: 8, // 自動再生で同時に再生する最大の枠数 (回線が細いときは少なく)
+  // 自動再生対象: 配信 (配信中のものを並べる) / 動画 / ショート (対象のチャンネルの最近のものを新しい順に流し、
+  // 最後まで見たら次を入れる)。配信と一緒に選んだときは、配信を先に入れて、最大枠数までの空きを動画・ショートで埋める
+  autoLive: true,
+  autoVideos: false,
+  autoShorts: false,
   autoTarget: 'all', // 自動再生のチャンネル: 'all' = チャンネル全部 / 'fav' = ピックアップ (📌) だけ
   noticeTarget: 'all', // 通知のチャンネル: 'all' = チャンネル全部 / 'fav' = ピックアップだけ / 'off' = 知らせない
   layoutFavs: '', // レイアウト画面の「お気に入り」タブに出すもの (レイアウトの id = 形 + 配置順 をカンマでつないだもの)
@@ -64,6 +69,8 @@ const state = {
   autoMode: false,
   // クルーズ: 一定時間ごとにメイン枠と音声を次の配信へ回す (いろいろな配信を少しずつ見る)
   cruise: false,
+  // 全枠繰り返し再生: 動画・アーカイブが最後まで行ったら最初に戻す (ライブ配信と、自動再生・あとで見るで次を入れる枠は除く)
+  repeatAll: false,
   danmakuAll: true,
   settings: { ...DEFAULT_SETTINGS },
   // 枠ごとの保存内容。枠数を減らしても全枠分保持しておき、増やしたときに復元する
@@ -130,6 +137,7 @@ function applySession(saved = {}) {
   state.danmakuAll = true;
   state.autoMode = saved.autoMode === true;
   state.cruise = saved.cruise === true;
+  state.repeatAll = saved.repeatAll === true;
   if (saved.fit === 'fit' || saved.fit === 'fill') state.fit = saved.fit;
   state.anchor = ANCHORS.includes(saved.anchor) ? saved.anchor : 'tl';
   if (Array.isArray(saved.tiles)) {
@@ -243,6 +251,7 @@ function saveNow() {
       fit: state.fit,
       autoMode: state.autoMode,
       cruise: state.cruise,
+      repeatAll: state.repeatAll,
       dmAuto: true, // 枠の danmaku が null (自動) を使う版で保存した印
       tiles: state.tiles.map(({ muted, ...rest }) => rest),
       audible: audibleTiles(), // 音が出ている枠 (開き直したときに戻す。[] = 全部ミュート)
@@ -276,12 +285,15 @@ function writeSettings() {
 /** 共通設定をまとめて差し替えて、画面に反映する (他のタブでの変更・初期値に戻す) */
 function replaceSettings(next) {
   const cruiseBefore = state.settings.cruiseSec;
+  const targetsBefore = autoTargetsKey();
   state.settings = { ...DEFAULT_SETTINGS, ...next };
   applyHighlight();
   applyChatLook();
   syncSettingsInputs();
   relayoutIfVerticalChanged();
   if (state.settings.cruiseSec !== cruiseBefore) restartCruise();
+  // 自動再生で流すものが (他のタブで) 変わったら、このタブの自動再生もやり直す
+  if (autoTargetsKey() !== targetsBefore && state.autoMode) setAutoMode(true);
 }
 
 /** 設定をすべて初期値に戻す (確認してから。表示言語とお気に入りのレイアウトはそのまま) */
@@ -450,6 +462,38 @@ function currentBase() {
   return { ...state.layout, anchor: state.layout.anchor || state.anchor };
 }
 
+/**
+ * 自動再生が枠を並べ直すときの基準。入れる枠が全部ショートなら縦長 (9:16) のレイアウトにする。
+ * ショートが混じるときは均等にして、shortsToColumns でショートを縦長の列にまとめる。
+ * ショートが無いのに今が縦長なら、均等に戻す (縦長は今縦長のときに優先されるので)
+ */
+function autoBaseFor(tiles) {
+  const anchor = state.anchor;
+  const shorts = tiles.filter((i) => state.tiles[i].short).length;
+  if (tiles.length && shorts === tiles.length) return { mains: 0, group: 'vertical', kind: 'vertical', anchor };
+  if (shorts || state.layout.group === 'vertical') return { mains: 0, group: 'uniform', kind: 'uniform', anchor };
+  return currentBase();
+}
+
+/**
+ * 均等のレイアウト l にショートと横長の枠が混じるとき、ショートを右の列から縦に詰めて置いた並び
+ * (空いた場所は中身の無い枠で埋める)。列が全部ショートになれば、その列は 9:16 の細い列になる (verticalFit)。
+ * 均等以外・ショートが無い・全部ショートのときは tiles のまま
+ */
+function shortsToColumns(tiles, l) {
+  const isShort = (i) => !!state.tiles[i].short;
+  if (l.group !== 'uniform' || !tiles.some(isShort) || tiles.every(isShort)) return tiles;
+  const slots = new Array(l.slots.length).fill(null);
+  // 均等の枠は左上から横に並ぶ (k = y × 列数 + x)。ショートは右の列の上から下へ、列が埋まったら左の列へ
+  const colMajor = [];
+  for (let x = l.cols - 1; x >= 0; x--) for (let y = 0; y < l.rows; y++) colMajor.push(y * l.cols + x);
+  tiles.filter(isShort).forEach((i, k) => (slots[colMajor[k]] = i));
+  const others = tiles.filter((i) => !isShort(i));
+  for (let k = 0; k < slots.length && others.length; k++) if (slots[k] == null) slots[k] = others.shift();
+  const spare = state.order.filter((j) => !tiles.includes(j)).sort((a, b) => !!state.tiles[a].videoId - !!state.tiles[b].videoId);
+  return slots.map((i) => i ?? spare.shift());
+}
+
 /** 自動再生でピックアップ (📌) を優先するか (設定が ON で、クルーズ中でないとき。クルーズはメイン枠を回すため) */
 function pickupPriority() {
   return !!state.settings.autoPickupMain && !state.cruise;
@@ -515,7 +559,7 @@ function isVerticalTile(i) {
 /**
  * 標準表示で、ショートの枠を 9:16 に寄せた列幅・行高。縦長の枠が無いとき・PinP (枠が重なる) のとき・
  * 縦長のレイアウト (はじめから全部 9:16) のときは null。
- * 同じ列・行に横長の枠があると間の比で止まるので、映像が画面に出る広さの合計が今 (どれも 16:9) より広くなるときだけ使う
+ * 同じ列・行に横長の枠があると間の比で止まるので、映像が画面に出る広さの合計が今 (どれも 16:9) より狭くならないときだけ使う
  */
 function verticalFit(l) {
   if (l.overlap || l.aspects) return null;
@@ -534,8 +578,9 @@ function verticalFit(l) {
     });
     return sum;
   };
+  // 広さが同じ (画面の高さで大きさが決まるときなど) でも、ショートは縦長の枠で見せる。狭くなるときだけ使わない
   const fit = fitScale(l, aspects);
-  return area(fit) > area(fitScale(l)) * 1.02 ? fit : null;
+  return area(fit) >= area(fitScale(l)) * 0.99 ? fit : null;
 }
 
 // layout() で縦長の枠として並べた枠 (変わったときだけ並べ直す)
@@ -985,6 +1030,7 @@ function renderTile(i, { reloadPlayer = false, reloadChat = false } = {}) {
         postToFrame(f, { hakomado: 'away', on: !el.matches(':hover') });
         // まとめて一時停止の間に読み込んだ枠も止めておく
         if (pausedAll) postToFrame(f, { hakomado: 'playback', play: false });
+        applyLoop(i);
       }, 800);
     });
     el.querySelector('.player-slot').appendChild(f);
@@ -1604,6 +1650,21 @@ function muteAll() {
   refreshAudio();
 }
 
+/** 中身のある表示中の枠が全部、音を出しているか */
+function allAudible() {
+  const filled = visibleIndexes().filter((i) => state.tiles[i].videoId);
+  return filled.length > 0 && filled.every((i) => !state.tiles[i].muted);
+}
+
+/** 上部バーの「全部の音」/ A キー: 全部の枠の音を出す ⇄ 全部ミュート */
+function toggleAudioAll() {
+  if (allAudible()) {
+    muteAll();
+    return;
+  }
+  setAudioSet(visibleIndexes().filter((i) => state.tiles[i].videoId));
+}
+
 /** 上部バーの音声ボタン / M キー: 音が出ていればミュート、全部ミュートなら直前の状態 (複数枠ならその全部) に戻す */
 // まとめて一時停止中か (開き直したときは再生に戻るので保存しない)
 let pausedAll = false;
@@ -1616,6 +1677,24 @@ function togglePauseAll() {
     postToFrame(views[i].player, { hakomado: 'playback', play: !pausedAll });
   }
   updatePauseButton();
+}
+
+/**
+ * 枠 i のプレイヤーに、最後まで行ったら最初に戻すかを伝える。
+ * 自動再生の「最近の動画」の枠 (fill)・あとで見るの順の再生の枠 (queue) は、終わったら次を入れるので繰り返さない
+ */
+function applyLoop(i) {
+  const t = state.tiles[i];
+  postToFrame(views[i]?.player, { hakomado: 'loop', on: state.repeatAll && !t.fill && !t.queue });
+}
+
+/** 全枠繰り返し再生の ON / OFF (上部バーの 🔁・R キー) */
+function setRepeatAll(on) {
+  state.repeatAll = on;
+  setToggle(document.getElementById('repeatAll'), on);
+  for (const i of state.tiles.keys()) applyLoop(i);
+  save();
+  notify(tr(on ? 'repeatOn' : 'repeatOff'));
 }
 
 function updatePauseButton() {
@@ -1647,6 +1726,9 @@ function updateNowPlaying() {
   if (!btn || views.length < MAX_TILES) return;
   const now = audibleTiles();
   btn.classList.toggle('on', now.length > 0);
+  const all = document.getElementById('audioAll');
+  setToggle(all, allAudible());
+  all.disabled = !visibleIndexes().some((i) => state.tiles[i].videoId);
   if (now.length === 0) {
     btn.replaceChildren(tr('muted'));
     btn.title = tr('mutedTitle');
@@ -4816,7 +4898,7 @@ function onEnded(i, reason) {
     views[i].danmaku.clear();
     if (document.fullscreenElement === views[i].el) document.exitFullscreen().catch(() => {});
     renderTile(i);
-    if (state.settings.autoArchive) refillArchives();
+    if (state.settings.autoArchive || autoVideoKinds().size) refillArchives();
     else compactToContent();
     save();
     return;
@@ -4849,6 +4931,11 @@ function onMoved(i, id, follow) {
   if (!t.videoId || !/^[\w-]{11}$/.test(id) || id === t.videoId) return;
   const from = t.videoId;
   if (!follow) {
+    // 繰り返し再生中の動画・アーカイブなら、終わったことにせず最初から開き直す
+    if (state.repeatAll && !t.fill && !t.queue && !isLiveTile(i) && views[i].info?.kind !== 'live') {
+      renderTile(i, { reloadPlayer: true });
+      return;
+    }
     onEnded(i, 'played');
     if (state.tiles[i].videoId !== from) return; // 自動再生・あとで見るで、枠を空けた・次を入れた
     views[i].atEnd = true;
@@ -6749,7 +6836,7 @@ function stepIndex(key, v) {
   return best;
 }
 
-const SETTING_CHECKBOXES = ['showPaid', 'chatHideAvatars', 'hlAnimate', 'verticalLiveFit', 'skipMembersOnly', 'autoArchive', 'autoArchiveVideos', 'autoArchiveShorts', 'autoPremiereVideos', 'autoPremiereShorts', 'autoPickupMain'];
+const SETTING_CHECKBOXES = ['showPaid', 'chatHideAvatars', 'hlAnimate', 'verticalLiveFit', 'skipMembersOnly', 'autoLive', 'autoVideos', 'autoShorts', 'autoArchive', 'autoArchiveVideos', 'autoArchiveShorts', 'autoPremiereVideos', 'autoPremiereShorts', 'autoPickupMain'];
 const SETTING_SELECTS = ['dmFont', 'dmWeight', 'authorName', 'autoTarget', 'noticeTarget'];
 
 /** 設定画面の入力欄を state.settings に合わせる (他のタブで設定が変わったときも呼ぶ) */
@@ -6768,6 +6855,9 @@ function syncSettingsInputs() {
     }
   }
   for (const key of SETTING_CHECKBOXES) document.getElementById(key).checked = !!state.settings[key];
+  // 自動再生対象に動画・ショートがあるときは、空いた枠をいつも埋めるので「配信中が無いときは、最近の動画を流す」は使わない
+  const kindsOn = autoVideoKinds().size > 0;
+  for (const id of ['autoArchive', 'autoArchiveVideos', 'autoArchiveShorts']) document.getElementById(id).disabled = kindsOn;
   for (const key of SETTING_SELECTS) document.getElementById(key).value = state.settings[key];
   for (const b of document.querySelectorAll('#hlSwatches .hl-swatch')) b.classList.toggle('selected', b.dataset.id === normalizeHlStyle(state.settings.hlStyle));
   const liveId = normalizeLiveStyle(state.settings.liveStyle);
@@ -6898,9 +6988,17 @@ function setupToolbar() {
   document.getElementById('brandHome').addEventListener('click', backToStart);
 
   document.getElementById('nowPlaying').addEventListener('click', toggleMuteAll);
+  document.getElementById('audioAll').addEventListener('click', (e) => {
+    e.currentTarget.blur();
+    toggleAudioAll();
+  });
   document.getElementById('pauseAll').addEventListener('click', (e) => {
     e.currentTarget.blur(); // Space キーでボタンが押し直されないように
     togglePauseAll();
+  });
+  document.getElementById('repeatAll').addEventListener('click', (e) => {
+    e.currentTarget.blur();
+    setRepeatAll(!state.repeatAll);
   });
   SpeedMenu.setup();
   document.getElementById('speedAll').addEventListener('click', (e) => SpeedMenu.open(e.currentTarget, { kind: 'all' }));
@@ -7007,8 +7105,17 @@ function setupToolbar() {
   for (const key of SETTING_CHECKBOXES) {
     const input = document.getElementById(key);
     input.addEventListener('change', () => {
+      // 自動再生対象は、どれか 1 つは残す
+      if (AUTO_TARGET_KEYS.includes(key) && !input.checked && AUTO_TARGET_KEYS.every((k) => k === key || !state.settings[k])) {
+        input.checked = true;
+        return;
+      }
       state.settings[key] = input.checked;
       onSettingChanged(key);
+      if (AUTO_TARGET_KEYS.includes(key)) {
+        syncSettingsInputs();
+        if (state.autoMode) setAutoMode(true); // 対象が変わったら、自動再生をやり直す
+      }
       // 対象が変わったら、通知の次の確認は今の状態を覚えるだけ (入れたばかりの種類の配信を「始まった」と知らせない)
       if (key === 'autoPremiereVideos' || key === 'autoPremiereShorts') knownLive = null;
     });
@@ -7071,6 +7178,8 @@ function setupToolbar() {
       if (!document.getElementById('pauseAll').disabled) togglePauseAll();
     } else if (e.key === 'm' || e.key === 'M') {
       toggleMuteAll();
+    } else if (e.key === 'a' || e.key === 'A') {
+      toggleAudioAll();
     } else if (e.key === 'd' || e.key === 'D') {
       toggleDanmakuAll();
     } else if (e.key === '>' || e.key === '<') {
@@ -7085,6 +7194,8 @@ function setupToolbar() {
       setAutoMode(!state.autoMode);
     } else if (e.key === 'c' || e.key === 'C') {
       if (!document.getElementById('cruise').disabled) setCruise(!state.cruise);
+    } else if (e.key === 'r' || e.key === 'R') {
+      setRepeatAll(!state.repeatAll);
     } else if (e.key === 'i' || e.key === 'I') {
       TileInfo.open();
     } else if (/^[1-9]$/.test(e.key)) {
@@ -7592,6 +7703,38 @@ function saveTileKind(i) {
   WatchHistory.update(t.videoId, { kind });
   if (savedIds.has(t.videoId)) SavedVideos.update(t.videoId, { kind });
   if (playlistIds.has(t.videoId)) Playlists.update(t.videoId, { kind });
+}
+
+/** 設定の「自動再生対象」のチェックボックス */
+const AUTO_TARGET_KEYS = ['autoLive', 'autoVideos', 'autoShorts'];
+
+/** 設定の「自動再生対象」で選んだ、最近のものを流す種類 ('video' / 'short') */
+function autoVideoKinds() {
+  const kinds = new Set();
+  if (state.settings.autoVideos) kinds.add('video');
+  if (state.settings.autoShorts) kinds.add('short');
+  return kinds;
+}
+
+/** 自動再生が配信を入れるか (どれも選ばれていない古い設定などは配信) */
+const autoLiveOn = () => state.settings.autoLive !== false || autoVideoKinds().size === 0;
+
+/** 自動再生が、配信を入れずに動画・ショートだけを流すか */
+const videoAutoMode = () => !autoLiveOn();
+
+/** 自動再生対象の組み合わせ (変わったかを見る用) */
+const autoTargetsKey = () => [autoLiveOn(), ...autoVideoKinds()].join();
+
+/** 起動画面の「自動再生で始める」の説明 (自動再生対象に合わせる) */
+function autoStartNote() {
+  if (!autoVideoKinds().size) return tr('startAutoNote');
+  return tr(autoLiveOn() ? 'startAutoNoteMixed' : 'startAutoNoteRecent', autoKindsWord());
+}
+
+/** 自動再生対象の種類の名前 (「動画」「ショート」「動画・ショート」) */
+function autoKindsWord() {
+  const kinds = autoVideoKinds();
+  return tr(kinds.size === 2 ? 'kindWordBoth' : kinds.has('short') ? 'kindWordShort' : 'kindWordVideo');
 }
 
 /** 自動再生・おまかせで流してよい種類か (設定の「動画も流す」「ショートも流す」) */
@@ -9355,7 +9498,54 @@ function withAutoLock(fn) {
   return navigator.locks.request('hakomado-auto-add', run);
 }
 
+/** 自分で入れた枠 (自動再生が入れたものではない枠) が置き換わることを確かめる。やめたら自動再生を OFF に戻して false */
+async function confirmAutoReplace(replaced) {
+  if (!replaced.length) return true;
+  hideAutoProgress();
+  const names = replaced.map((i) => tileName(i) || state.tiles[i].videoId);
+  const list = names.slice(0, 3).join(tr('sep')) + (names.length > 3 ? tr('andMore', names.length - 3) : '');
+  if (!confirm(tr('autoReplaceConfirm', replaced.length, list))) {
+    await setAutoMode(false);
+    notify(tr('autoReplaceCanceled'));
+    return false;
+  }
+  return state.autoMode; // 確かめている間に OFF にされた
+}
+
+/**
+ * 自動再生 (動画・ショートだけ) を始める: 今の枠を空けて、対象のチャンネルの最近の動画 (またはショート) を
+ * 新しい順に最大枠数まで流す。最後まで見た枠には次が入る (onEnded → refillArchives)
+ */
+async function startVideoAutoInner() {
+  showAutoProgress(tr('progressTiles'), 0.3);
+  const replaced = visibleIndexes().filter((i) => {
+    const t = state.tiles[i];
+    return t.videoId && !t.auto && !t.fill;
+  });
+  if (!(await confirmAutoReplace(replaced))) return;
+  for (const [j, t] of state.tiles.entries()) {
+    if (!t.videoId) continue;
+    WatchHistory.removed(t.videoId, 'replaced');
+    state.tiles[j] = newTileState();
+    views[j].danmaku.clear();
+    renderTile(j);
+  }
+  if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+  if (favDialog.open) favDialog.close();
+  const n = await refillArchives({ lock: false });
+  if (!state.autoMode) return;
+  if (!n) compactToContent();
+  renderAll();
+  save();
+  restartCruise();
+  notify(n ? tr('recentAutoPlaying', n, autoKindsWord()) : tr('recentAutoNone', autoKindsWord()));
+}
+
 async function startAllLiveInner() {
+  if (videoAutoMode()) {
+    await startVideoAutoInner();
+    return;
+  }
   // 進み具合: 配信状況の確認 0〜70% → 見られる配信かの確認 70〜95% → 枠の準備 95〜100%
   showAutoProgress(tr('progressStatus', 0, 0), 0);
   const collected = await collectLiveFavorites({
@@ -9367,7 +9557,9 @@ async function startAllLiveInner() {
   const auto = autoTargets(collected);
   // 最近の配信で埋めるときは、ライブが無いときの「先の配信予定」は出さない (代わりに最近の配信を流す)。
   // 「配信予定の枠を用意する」の時間内に始まるものは、いつもどおり用意する
-  if (state.settings.autoArchive && auto.fallback) auto.targets = auto.targets.filter(isSoonUpcoming);
+  // (動画・ショートも対象のときも同じ。空いた枠は最近の動画・ショートで埋める)
+  const fillIdle = state.settings.autoArchive || autoVideoKinds().size > 0;
+  if (fillIdle && auto.fallback) auto.targets = auto.targets.filter(isSoonUpcoming);
   const { targets: allTargets, fallback } = auto;
   // すでに表示している配信を先にしてから、見られるものを最大枠数まで選ぶ
   const shownFirst = visibleIndexes().map((i) => state.tiles[i].videoId);
@@ -9394,24 +9586,14 @@ async function startAllLiveInner() {
   // 自分で入れた枠 (自動再生が入れたものではない枠) が置き換わるなら、先に確かめる。やめたら自動再生は OFF に戻す。
   // ライブが無くて最近の配信で埋めるときは全部、ライブがあるときは配信中のものに入っていない枠が置き換わる
   const keepIds = new Set(lives.map((l) => l.st.videoId));
-  const archiveOnly = lives.length === 0 && state.settings.autoArchive;
+  const archiveOnly = lives.length === 0 && fillIdle;
   const replaced = visibleIndexes().filter((i) => {
     const t = state.tiles[i];
     return t.videoId && !t.auto && !t.fill && (archiveOnly || (lives.length > 0 && !keepIds.has(t.videoId)));
   });
-  if (replaced.length) {
-    hideAutoProgress();
-    const names = replaced.map((i) => tileName(i) || state.tiles[i].videoId);
-    const list = names.slice(0, 3).join(tr('sep')) + (names.length > 3 ? tr('andMore', names.length - 3) : '');
-    if (!confirm(tr('autoReplaceConfirm', replaced.length, list))) {
-      await setAutoMode(false);
-      notify(tr('autoReplaceCanceled'));
-      return;
-    }
-    if (!state.autoMode) return; // 確かめている間に OFF にされた
-  }
+  if (!(await confirmAutoReplace(replaced))) return;
   if (lives.length === 0) {
-    if (state.settings.autoArchive) {
+    if (fillIdle) {
       // ライブが無い → 最近の配信で
       for (const [j, t] of state.tiles.entries()) {
         if (t.videoId) {
@@ -9427,6 +9609,7 @@ async function startAllLiveInner() {
       notify(n ? tr('fillOnly', n) : tr('noneLive'));
       return;
     }
+    await refillArchives({ lock: false }); // 動画・ショートだけで流していた枠が残っていれば片付ける
     notify(
       blocked.length
         ? tr('onlyMembers', blocked.join(tr('sep')))
@@ -9664,7 +9847,10 @@ function stopQueue() {
   if (!queueMode) return;
   queueMode = false;
   queueDoneIds.clear();
-  for (const t of state.tiles) t.queue = false;
+  state.tiles.forEach((t, i) => {
+    t.queue = false;
+    applyLoop(i); // 順の再生の枠も、繰り返し再生の対象に戻る
+  });
 }
 
 function queueLoad(i, h) {
@@ -9834,11 +10020,17 @@ function autoTickOnce() {
 }
 
 async function autoTickOnceInner() {
+  if (videoAutoMode()) {
+    // 動画・ショートだけ: 配信状況は見ずに、空いた分を最近の動画で埋める
+    await refillArchives({ lock: false }).catch((e) => ErrLog.warnFetch('hakomado: 自動再生の確認に失敗', e));
+    return;
+  }
   try {
     const collected = await collectLiveFavorites({ force: true, auto: true, target: state.settings.autoTarget });
     const { failedKeys } = collected;
     const auto = autoTargets(collected); // 配信中 + まもなく始まる予定 (配信中が無ければ近い予定)
-    const lives = state.settings.autoArchive && auto.fallback ? auto.targets.filter(isSoonUpcoming) : auto.targets;
+    const fillIdle = state.settings.autoArchive || autoVideoKinds().size > 0;
+    const lives = fillIdle && auto.fallback ? auto.targets.filter(isSoonUpcoming) : auto.targets;
     const liveIds = new Set(lives.map((l) => l.st.videoId));
     const visible = visibleIndexes().filter((i) => state.tiles[i].videoId);
 
@@ -9876,8 +10068,9 @@ async function autoTickOnceInner() {
     if (!state.autoMode) return; // 確認している間に OFF にされた
     // 最大の枠数 (設定) を超えて足さない。設定を減らしても、表示中の枠は消さない (終わったものから減っていく)
     const started = accessible.slice(0, room);
-    // ライブが始まる → 最近の配信の枠は片付けて、空いた枠にライブを入れる
-    const fillTiles = keep.filter((i) => state.tiles[i].fill);
+    // ライブが始まる → 最近の配信の枠を (足りない分だけ、後ろから) 片付けて、空いた枠にライブを入れる
+    const allFills = keep.filter((i) => state.tiles[i].fill);
+    const fillTiles = allFills.slice(allFills.length - Math.min(allFills.length, Math.max(0, started.length - (autoMaxTiles() - keep.length))));
     if (started.length && fillTiles.length) {
       for (const i of fillTiles) {
         WatchHistory.removed(state.tiles[i].videoId, 'replaced');
@@ -9927,12 +10120,12 @@ async function autoTickOnceInner() {
     });
     let nextVisible = [...keep, ...added];
     if (nextVisible.length > 0) {
-      const next = chooseLayoutFor(nextVisible.length);
+      const next = chooseLayoutFor(nextVisible.length, autoBaseFor(nextVisible));
       // ピックアップ (📌) のライブ配信がサブ枠にあれば、メイン枠と入れ替える (今始まったもの・前から表示していたもの)
       const liveNow = new Set(collected.lives.map((l) => l.st.videoId));
       const pickAdded = new Set(added.filter((i, k) => isPickLive(started[k])));
       const isPick = (i) => pickAdded.has(i) || (keep.includes(i) && liveNow.has(state.tiles[i].videoId) && pickedChannelOf(i) != null);
-      nextVisible = promotePickups(nextVisible, next.mains, isPick);
+      nextVisible = shortsToColumns(promotePickups(nextVisible, next.mains, isPick), next);
       state.layoutId = next.id;
       state.order = [...nextVisible, ...state.order.filter((j) => !nextVisible.includes(j))];
     }
@@ -9969,6 +10162,8 @@ async function autoTickOnceInner() {
 // 最近終わった配信を ARCHIVE_IDLE_TILES 枠流す。ライブが始まったら片付けて、ライブだけにする。
 // ピックアップ (📌) のチャンネルを先に、1 チャンネル 1 枠、一度見たもの (視聴履歴にあるもの) は入れない
 const ARCHIVE_IDLE_TILES = 4;
+// 自動再生で動画・ショートだけを流すときに候補にする範囲 (日)。配信より出る数が少ないので、最近の配信より長め
+const VIDEO_AUTO_DAYS = 30;
 // 取得に失敗したチャンネルは、しばらく取りに行かない (何度も失敗を繰り返して YouTube に負担をかけないように)
 const archiveFailedAt = new Map(); // channelId -> 失敗した時刻
 const ARCHIVE_RETRY_MS = 5 * 60 * 1000;
@@ -9978,7 +10173,11 @@ const ARCHIVE_RETRY_MS = 5 * 60 * 1000;
  * 自動再生を一晩つけっぱなしにしても、新しく終わった配信が候補に入る
  */
 async function archiveCandidates(channels, { onProgress = null } = {}) {
-  const since = Date.now() - ARCHIVE_DAYS * 24 * 60 * 60 * 1000;
+  const kinds = autoVideoKinds();
+  const since = Date.now() - (kinds.size ? VIDEO_AUTO_DAYS : ARCHIVE_DAYS) * 24 * 60 * 60 * 1000;
+  // 自動再生対象に動画・ショートがあればその種類だけ。配信だけのときは、ライブが無い間の「最近の動画」の設定に従う
+  const kindOk = (v) => (kinds.size ? kinds.has(v.kind) : autoKindAllowed(v));
+  const shorts = kinds.size ? kinds.has('short') : state.settings.autoArchiveShorts;
   const queue = channels.filter((f) => Date.now() - (archiveFailedAt.get(f.channelId) || 0) > ARCHIVE_RETRY_MS);
   const total = queue.length;
   let done = 0;
@@ -9988,7 +10187,7 @@ async function archiveCandidates(channels, { onProgress = null } = {}) {
     for (let f = queue.shift(); f; f = queue.shift()) {
       let d;
       try {
-        d = await Favorites.fetchArchives(f.channelId, { shorts: state.settings.autoArchiveShorts });
+        d = await Favorites.fetchArchives(f.channelId, { shorts });
         archiveData.set(f.channelId, d);
         archiveFailedAt.delete(f.channelId);
       } catch {
@@ -9997,7 +10196,7 @@ async function archiveCandidates(channels, { onProgress = null } = {}) {
       } finally {
         onProgress?.(++done, total);
       }
-      for (const v of d) if (v.at >= since && autoKindAllowed(v) && isFinishedArchive(v, f)) out.push({ v, f });
+      for (const v of d) if (v.at >= since && kindOk(v) && isFinishedArchive(v, f)) out.push({ v, f });
     }
   };
   await Promise.all([worker(), worker(), worker()]);
@@ -10026,7 +10225,14 @@ async function refillArchives({ lock = true } = {}) {
   const run = async () => {
     if (!state.autoMode) return 0; // 順番待ちの間に OFF にされた
     let { lives, fills } = splitArchiveTiles();
-    const wantNow = () => (!state.settings.autoArchive || lives.length ? 0 : Math.min(ARCHIVE_IDLE_TILES, autoMaxTiles()));
+    // 自動再生対象に動画・ショートがある: 最大枠数までの空き全部 (配信・自分で入れた枠の分は除く)。
+    // 配信だけ: ライブが無い間だけ ARCHIVE_IDLE_TILES 枠 (設定「配信中が無いときは、最近の動画を流す」)
+    const wantNow = () =>
+      autoVideoKinds().size
+        ? Math.max(0, autoMaxTiles() - lives.length)
+        : !state.settings.autoArchive || lives.length
+          ? 0
+          : Math.min(ARCHIVE_IDLE_TILES, autoMaxTiles());
     let want = wantNow();
     if (fills.length === want) return fills.length;
 
@@ -10046,7 +10252,9 @@ async function refillArchives({ lock = true } = {}) {
       const usable = ({ v }) => !watched.has(v.videoId) && !autoDismissed.has(v.videoId) && !shownInOtherTab(v.videoId);
       let picks = (await archiveCandidates(favs.filter((f) => f.star))).filter(usable);
       // 1 チャンネル 1 枠なので、ピックアップのチャンネル数で足りなければ、すべてのチャンネルからも探す
-      if (new Set(picks.map((p) => p.f.channelId)).size < need) {
+      // (動画・ショートだけを流すときは、設定の「自動再生のチャンネル」がピックアップだけなら探さない)
+      const favOnly = autoVideoKinds().size > 0 && state.settings.autoTarget === 'fav';
+      if (!favOnly && new Set(picks.map((p) => p.f.channelId)).size < need) {
         picks = [...picks, ...(await archiveCandidates(favs.filter((f) => !f.star))).filter(usable)];
       }
       // 探している間に変わったかもしれないので、今の状態で数え直す
@@ -10061,25 +10269,32 @@ async function refillArchives({ lock = true } = {}) {
       const empty = state.order.filter((j) => !state.tiles[j].videoId);
       const free = [...empty.filter((j) => !isVisible(j)), ...empty.filter((j) => isVisible(j))];
       let added = 0;
-      for (const { v, f } of picks) {
-        if (fills.length >= want) break;
-        if (busy.has(f.name) || shown.has(v.videoId)) continue;
-        const i = free.shift();
-        if (i == null) break;
-        busy.add(f.name);
-        added++;
-        Object.assign(state.tiles[i], { ...newTileState(), input: videoInput(v), videoId: v.videoId, label: f.name, fill: true, short: v.list === 'UUSH' }); // = isShortHint(videoInput(v))
-        views[i].danmaku.clear();
-        renderTile(i, { reloadPlayer: true, reloadChat: true });
-        fills.push(i);
+      // 動画・ショートだけを流すときは、1 チャンネル 1 枠で足りなければ、同じチャンネルの別の動画も入れる
+      const rounds = autoVideoKinds().size ? [true, false] : [true];
+      fill: for (const perChannel of rounds) {
+        for (const { v, f } of picks) {
+          if (fills.length >= want) break fill;
+          if ((perChannel && busy.has(f.name)) || shown.has(v.videoId)) continue;
+          const i = free.shift();
+          if (i == null) break fill;
+          busy.add(f.name);
+          shown.add(v.videoId);
+          added++;
+          Object.assign(state.tiles[i], { ...newTileState(), input: videoInput(v), videoId: v.videoId, label: f.name, fill: true, short: v.list === 'UUSH' }); // = isShortHint(videoInput(v))
+          views[i].danmaku.clear();
+          renderTile(i, { reloadPlayer: true, reloadChat: true });
+          fills.push(i);
+        }
       }
       if (!added) return fills.length;
     }
     // 並び: ライブ (メイン側) → 最近の配信。枠の数が変わったら、その数に合ったレイアウトに
     const next = [...lives, ...fills];
     if (next.length) {
-      state.layoutId = chooseLayoutFor(next.length).id;
-      state.order = [...next, ...state.order.filter((j) => !next.includes(j))];
+      const l = chooseLayoutFor(next.length, autoBaseFor(next));
+      const placed = shortsToColumns(next, l);
+      state.layoutId = l.id;
+      state.order = [...placed, ...state.order.filter((j) => !placed.includes(j))];
       if (!audibleTiles().length) setAudioSet([next[0]]);
     }
     renderAll();
@@ -10228,7 +10443,8 @@ function detectStarts(collected, { quiet = false, baselineOnly = false } = {}) {
   knownLive = now;
   if (!started.length) return;
   // 自動再生が枠に入れる配信は、自動再生が「配信開始」と知らせるので、画面下のお知らせは出さない
-  const byAuto = (l) => state.autoMode && (state.settings.autoTarget !== 'fav' || l.f.star);
+  // 動画・ショートだけを流している間は、始まった配信を自動再生が枠に入れないので、いつもどおり知らせる
+  const byAuto = (l) => state.autoMode && autoLiveOn() && (state.settings.autoTarget !== 'fav' || l.f.star);
   const announce = started.filter((l) => !byAuto(l));
   mutateNotices((list) => {
     const fresh = started.filter((l) => !list.some((n) => n.videoId === l.st.videoId));
@@ -10584,7 +10800,7 @@ async function backToStart() {
     choices.push(
       { value: 'new', label: tr('startNew'), note: tr('startNewNote') },
       { value: 'read', label: tr('startRead'), note: tr('startReadNote') },
-      { value: 'auto', label: tr('startAuto'), note: tr('startAutoNote') },
+      { value: 'auto', label: tr('startAuto'), note: autoStartNote() },
     );
     const choice = await askChoice({ title: tr('chooseTitle'), body: [], choices, cancelValue: 'cancel' });
     if (!choice || choice === 'cancel') return;
@@ -10862,7 +11078,7 @@ async function chooseSession() {
   choices.push(
     { value: 'new', label: tr('startNew'), note: tr('startNewNote') },
     { value: 'read', label: tr('startRead'), note: tr('startReadNote') },
-    { value: 'auto', label: tr('startAuto'), note: tr('startAutoNote') },
+    { value: 'auto', label: tr('startAuto'), note: autoStartNote() },
   );
   const body = document.createElement('p');
   body.textContent = inUse.size > 0 ? tr('inUse', inUse.size) : tr('leftover');
@@ -10910,6 +11126,7 @@ async function chooseSession() {
   renderAll();
   save();
   setToggle(document.getElementById('cruise'), state.cruise);
+  setToggle(document.getElementById('repeatAll'), state.repeatAll);
   restartCruise();
   if (startAuto) setAutoMode(true);
   // 自動再生 ON のまま閉じたセッションを続けるときは、今の枠のまま確認を再開
