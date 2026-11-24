@@ -114,6 +114,8 @@ Hakomado の初期データはホロライブのチャンネルだけです。�
 | `https://www.youtube.com/*` | 視聴ページ・ライブチャットを枠に表示、チャンネル情報・配信状況の取得 |
 | `https://schedule.hololive.tv/*` | 初期データのチャンネルの配信予定の取得 (アドオン「ホロジュール」。設定 → アドオンで OFF にできる) |
 | `https://www.nijisanji.jp/*` (任意) | にじさんじのライブスケジュールの取得 (アドオン「にじさんじ」。初期値は OFF で、設定 → アドオンで ON にしたときだけ許可を求める) |
+| `https://www.vspo-schedule.com/*` (任意) | ぶいすぽっ!の配信スケジュールの取得 (アドオン「ぶいすぽっ!」。有志の非公式サイト。初期値は OFF で、設定 → アドオンで ON にしたときだけ許可を求める) |
+| `https://schedule-share-json.s3.ap-northeast-1.amazonaws.com/*` (任意) | STPR (すとぷり など) の公式の配信予定の取得 (アドオン「STPR (すとぷり)」。schedule.stpr.com が使っているデータの置き場所。初期値は OFF で、設定 → アドオンで ON にしたときだけ許可を求める) |
 | `contextMenus` | 右クリックのメニュー「Hakomado の空き枠に追加」 |
 
 - 通信先は YouTube と配信予定サイトのほか、新しい版の確認 (`api.github.com`)、「パックを探す」を押したときのパックの一覧 (`raw.githubusercontent.com`)、自分で指定したパックの URL だけです。データを外部のサーバーに送ることはありません。詳しくは [プライバシーポリシー](docs/privacy.md) を見てください

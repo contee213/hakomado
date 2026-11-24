@@ -23,6 +23,28 @@
       "channels": 200,
       "description": "にじさんじ・NIJISANJI EN のライバーのメインチャンネル (公式サイトのライバー一覧から作成。卒業した方は含みません)。アドオン「にじさんじ」と組み合わせると配信状況の確認が軽くなります",
       "descriptionEn": "Main channels of NIJISANJI and NIJISANJI EN livers (made from the talent list on the official website; graduated livers not included). Pairs with the NIJISANJI add-on to make stream checks lighter"
+    },
+    {
+      "id": "vspo",
+      "file": "vspo.json",
+      "name": "ぶいすぽっ!",
+      "nameEn": "VSPO!",
+      "author": "Hakomado",
+      "updated": "2026-11-24",
+      "channels": 33,
+      "description": "ぶいすぽっ!・VSPO! EN のメンバーのチャンネル (公式サイトのメンバー紹介から作成)。アドオン「ぶいすぽっ!」と組み合わせると配信状況の確認が軽くなります",
+      "descriptionEn": "Channels of VSPO! and VSPO! EN members (made from the member list on the official website). Pairs with the VSPO! add-on to make stream checks lighter"
+    },
+    {
+      "id": "stpr",
+      "file": "stpr.json",
+      "name": "STPR (すとぷり)",
+      "nameEn": "STPR",
+      "author": "Hakomado",
+      "updated": "2026-11-24",
+      "channels": 41,
+      "description": "STPR 所属のクリエイターとグループのチャンネル (すとぷり・騎士X・AMPTAKxCOLORS・めておら・すにすて・とぅるりぷ など。公式サイトから作成)。アドオン「STPR (すとぷり)」と組み合わせると配信状況の確認が軽くなります",
+      "descriptionEn": "Channels of STPR creators and groups (Strawberry Prince, Knight X, AMPTAKxCOLORS, Meteorites, SneakerStep, True&Lip and more; made from the official website). Pairs with the STPR add-on to make stream checks lighter"
     }
   ]
 }

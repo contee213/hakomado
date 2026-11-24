@@ -9,7 +9,7 @@ importScripts('errlog.js'); // ErrLog (エラーの記録。最初に始めて�
 ErrLog.install('background');
 importScripts('share-code.js'); // videoIdFromUrl
 
-const RULE_IDS = [1, 2, 3, 4];
+const RULE_IDS = [1, 2, 3, 4, 5];
 
 // アイコンを押すたびに新しいタブを開く (タブごとに別の視聴セッションになるので、いくつ開いてもよい)
 chrome.action.onClicked.addListener((current) => {
@@ -69,6 +69,18 @@ async function applyRules(tabIds) {
         condition: { urlFilter: '||www.youtube.com/watch', resourceTypes: ['sub_frame'], tabIds },
       },
     );
+    // URL の枠 (YouTube 以外) に入れることを使う人が許可したサイトも、X-Frame-Options だけを外す。
+    // Content-Security-Policy (frame-ancestors) は外さない (サイトの XSS 対策まで切らないため。それで入らないサイトは入らない)
+    // requestDomains はサブドメインも含む ('https://*.example.com/*' → example.com)
+    const domains = (await webOrigins()).map((o) => o.match(WEB_ORIGIN_RE)[1].toLowerCase());
+    if (domains.length > 0) {
+      addRules.push({
+        id: 3,
+        priority: 1,
+        action: stripFrameHeaders,
+        condition: { requestDomains: domains, resourceTypes: ['sub_frame'], tabIds },
+      });
+    }
     // Twitch の埋め込みプレイヤー / チャットは、応答の Content-Security-Policy (frame-ancestors だけが入っている) で
     // parent= に書いた https のサイトの中でしか開けない。拡張機能のページは https でないので、その 2 か所だけ外す。
     // twitch.tv の権限 (optional_host_permissions) を許可していないあいだは、このルールは効かない (declarativeNetRequestWithHostAccess)
@@ -81,13 +93,13 @@ async function applyRules(tabIds) {
     };
     addRules.push(
       {
-        id: 3,
+        id: 4,
         priority: 1,
         action: stripTwitchFrame,
         condition: { urlFilter: '|https://player.twitch.tv/', resourceTypes: ['sub_frame'], tabIds },
       },
       {
-        id: 4,
+        id: 5,
         priority: 1,
         action: stripTwitchFrame,
         condition: { urlFilter: '|https://www.twitch.tv/embed/', resourceTypes: ['sub_frame'], tabIds },
@@ -96,6 +108,46 @@ async function applyRules(tabIds) {
   }
   await chrome.declarativeNetRequest.updateSessionRules({ removeRuleIds: RULE_IDS, addRules });
 }
+
+// ---- URL の枠 (YouTube 以外のサイト)
+// 使う人が枠に URL を入れて許可したサイト (オリジンごとの任意のホスト権限) を storage.local の webOrigins に覚えておく
+// ('https://*.example.com/*' の形。サブドメインごと)。そのサイトにだけ:
+//  - 汎用のプレイヤー操作 (content/web-player.js) を登録する。一番外側が Hakomado の画面のときだけ動く
+//  - マルチビュー画面のタブで、枠 (sub_frame) の X-Frame-Options を外す (applyRules)
+// 許可を取り消されたサイトは使わない (権限が無ければ、登録もルールも効かないが、念のため外す)
+const WEB_SCRIPT_ID = 'hakomado-web-player';
+const WEB_ORIGIN_RE = /^https:\/\/(?:\*\.)?([a-z0-9-]+(?:\.[a-z0-9-]+)+)\/\*$/i;
+
+/** 覚えているサイトのうち、今も許可されているもの */
+async function webOrigins() {
+  const { webOrigins: list = [] } = await chrome.storage.local.get('webOrigins');
+  const out = [];
+  for (const o of Array.isArray(list) ? list : []) {
+    if (typeof o === 'string' && WEB_ORIGIN_RE.test(o) && (await chrome.permissions.contains({ origins: [o] }))) out.push(o);
+  }
+  return out;
+}
+
+async function syncWebPlayer() {
+  const origins = await webOrigins();
+  const registered = await chrome.scripting.getRegisteredContentScripts({ ids: [WEB_SCRIPT_ID] });
+  if (origins.length === 0) {
+    if (registered.length) await chrome.scripting.unregisterContentScripts({ ids: [WEB_SCRIPT_ID] });
+  } else {
+    const script = { id: WEB_SCRIPT_ID, matches: origins, js: ['content/web-player.js'], allFrames: true, runAt: 'document_idle', persistAcrossSessions: true };
+    if (registered.length) await chrome.scripting.updateContentScripts([script]);
+    else await chrome.scripting.registerContentScripts([script]);
+  }
+  await applyRules(await getGridTabs());
+}
+
+chrome.permissions.onRemoved.addListener(() => {
+  serialized(async () => {
+    // 許可を取り消されたサイトは、覚えている一覧からも消す
+    await chrome.storage.local.set({ webOrigins: await webOrigins() });
+    await syncWebPlayer();
+  }).catch((e) => console.warn('hakomado: URL の枠の設定を直せませんでした', e));
+});
 
 // 初めてインストールしたときだけ、マルチビュー画面でツアーを出す印を付ける (バージョンアップや再読み込みでは出さない)
 chrome.runtime.onInstalled.addListener(({ reason }) => {
@@ -156,6 +208,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       await setGridTabs([...tabs, tabId]);
     } else if (msg?.type === 'unregister-grid-tab') {
       await setGridTabs(tabs.filter((id) => id !== tabId));
+    } else if (msg?.type === 'web-origins-changed') {
+      // 画面がサイトの許可を取って webOrigins に足した → 枠を読み込む前に、登録とルールを済ませる
+      await syncWebPlayer();
     }
   })
     .then(() => sendResponse({ ok: true }))

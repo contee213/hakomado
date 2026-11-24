@@ -39,7 +39,7 @@ test('ON / OFF: 書いていなければ初期値。初期値と同じにした�
   assert.equal(off, 'holodule:off');
   A.setStates(off);
   assert.equal(A.isOn('holodule'), false);
-  assert.deepEqual(plain(A.enabled('schedule').map((a) => a.id)), []);
+  assert.deepEqual(plain(A.enabled('schedule').map((a) => a.id)), ['ytsubs'], 'ほかに初期値で ON なのは YouTube の登録チャンネルだけ');
   assert.equal(A.withState(off, 'holodule', true), '', '初期値に戻したら書かない');
   A.setStates('holodule:maybe,<bad>:on,,nosuch:on');
   assert.equal(A.isOn('holodule'), true);
@@ -137,6 +137,157 @@ test('にじさんじ: ライバーの一覧からパック用のチャンネル
   assert.equal(n.covers({ pack: n.pack.name }), true, 'パックの名前は covers の条件に合う');
 });
 
+/** vspo-schedule.com のページの形 (埋め込みデータを self.__next_f.push([1,"…"]) の文字列で、途中で 2 つに分けて入れる) */
+function vspoPage(streams) {
+  const text = `1c:T95d,説明文 {"id":"notanobject"\n5:["$","div",null,{"streams":${JSON.stringify(streams)}}]\n`;
+  const half = Math.floor(text.length / 2);
+  return [text.slice(0, half), text.slice(half)].map((t) => `<script>self.__next_f.push([1,${JSON.stringify(t)}])</script>`).join('');
+}
+
+test('ぶいすぽっ!: ページの埋め込みデータから YouTube の配信中・予定の枠を読む (Twitch・終わった枠・形の違うものは捨てる)', () => {
+  const A = env().get('Addons');
+  const v = A.list().find((a) => a.id === 'vspo');
+  assert.equal(v.defaultOn, false, '初期値は OFF');
+  const s = (id, status, extra = {}) => ({
+    id, type: 'livestream', title: 'タイトル {"id":"AAAAAAAAAAA","type":"x"}', description: '$1e', platform: 'youtube',
+    channelId: 'UCIcAj6WkJ8vZ7DeJVgmeqKw', channelTitle: ' 胡桃のあ ', channelThumbnailUrl: 'https://yt3.ggpht.com/abc=s800',
+    tags: [''], status, scheduledStartTime: '2026-11-24T06:40:56Z', ...extra,
+  });
+  const html = vspoPage([
+    s('b2IOS8weqtM', 'live'),
+    s('rABZaVS2fOI', 'upcoming', { channelId: 'bad', channelThumbnailUrl: 'https://evil.example/a.png', scheduledStartTime: '2026-11-25T10:50:00Z' }),
+    s('Q5PpnS5Hgq4', 'ended'),
+    s('2938393174', 'live', { platform: 'twitch' }),
+    s('xGX2_FepG_o', 'upcoming', { scheduledStartTime: 'soon' }),
+    s('b2IOS8weqtM', 'live'),
+  ]);
+  assert.deepEqual(plain(v.parse(html)), [
+    { videoId: 'b2IOS8weqtM', startAt: Date.UTC(2026, 10, 24, 6, 40, 56), live: true, name: '胡桃のあ', icon: 'https://yt3.ggpht.com/abc=s800', channelId: 'UCIcAj6WkJ8vZ7DeJVgmeqKw' },
+    { videoId: 'rABZaVS2fOI', startAt: Date.UTC(2026, 10, 25, 10, 50), live: false, name: '胡桃のあ', icon: '' },
+  ]);
+  assert.throws(() => v.parse('<html></html>'));
+  assert.deepEqual(plain(v.parse(vspoPage([]))), []);
+  assert.equal(v.covers({ pack: 'ぶいすぽっ!' }), true);
+  assert.equal(v.covers({ pack: 'VSPO! EN' }), true);
+  assert.equal(v.covers({ pack: 'にじさんじ' }), false);
+  assert.equal(v.covers({ preset: true }), false);
+  assert.equal(A.allowed(v, 'https://www.vspo-schedule.com/schedule/live'), true);
+  assert.equal(A.allowed(v, 'https://vspo.jp/member/'), false, 'メンバー紹介はパック作り専用 (拡張機能は取りに行かない)');
+});
+
+test('ぶいすぽっ!: 配信中・これからの 2 ページを取ってまとめる。1 つでも取れなければ失敗', async () => {
+  const v = env().get('Addons').list().find((a) => a.id === 'vspo');
+  const s = (id, status) => ({ id, type: 'livestream', platform: 'youtube', status, scheduledStartTime: '2026-11-24T11:00:00Z' });
+  const urls = [];
+  const fetchText = async (url) => {
+    urls.push(url);
+    return vspoPage(url.endsWith('/live') ? [s('AAAAAAAAAAA', 'live')] : [s('AAAAAAAAAAA', 'upcoming'), s('BBBBBBBBBBB', 'upcoming')]);
+  };
+  const got = plain(await v.fetchEntries({ fetchText }));
+  assert.deepEqual(urls.sort(), ['https://www.vspo-schedule.com/schedule/live', 'https://www.vspo-schedule.com/schedule/upcoming']);
+  assert.deepEqual(got.map((e) => [e.videoId, e.live]).sort(), [['AAAAAAAAAAA', true], ['BBBBBBBBBBB', false]]);
+  await assert.rejects(v.fetchEntries({ fetchText: async (url) => (url.endsWith('/upcoming') ? Promise.reject(new Error('502')) : vspoPage([])) }));
+});
+
+test('ぶいすぽっ!: 公式サイトのメンバー紹介からパック用のチャンネルを読む', async () => {
+  const v = env().get('Addons').list().find((a) => a.id === 'vspo');
+  const li = (cls, name, href) =>
+    `<li\n class="swiper-slide member__single__item ${cls}"\n data-id="x"\n data-name="${name}">\n<ul class="member__sns"><li><a href="https://twitter.com/x"></a></li>${href ? `<li><a href="${href}" target="_blank"></a></li>` : ''}</ul></li>`;
+  const html = [
+    li('--noah --japanese', '胡桃 のあ', 'https://www.youtube.com/channel/UCIcAj6WkJ8vZ7DeJVgmeqKw'),
+    li('--met --japanese', '小森 めと', 'https://www.youtube.com/@Met_Komori'),
+    li('--remia --english', '青月レミア', 'https://www.youtube.com/@RemiaAotsuki'),
+    li('--nolink --japanese', 'リンクなし', ''),
+  ].join('\n');
+  const urls = [];
+  const got = plain(await v.listChannels({ fetchText: async (url) => (urls.push(url), html) }));
+  assert.deepEqual(urls, ['https://vspo.jp/member/']);
+  assert.deepEqual(got.slice(0, 3), [
+    { name: '胡桃のあ', group: 'ぶいすぽっ!', channelId: 'UCIcAj6WkJ8vZ7DeJVgmeqKw' },
+    { name: '小森めと', group: 'ぶいすぽっ!', handle: '@Met_Komori' },
+    { name: '青月レミア', group: 'VSPO! EN', handle: '@RemiaAotsuki' },
+  ]);
+  assert.ok(got.slice(3).every((c) => c.group === '公式' && /^UC[\w-]{22}$/.test(c.channelId)), '残りは公式のチャンネル');
+  await assert.rejects(v.listChannels({ fetchText: async () => '<html></html>' }));
+  assert.equal(v.covers({ pack: v.pack.name }), true, 'パックの名前は covers の条件に合う');
+  assert.ok(v.pack.origins.every((o) => !v.origins.includes(o)));
+});
+
+test('STPR: schedule_v2.json から YouTube の配信中・予定の枠を読む (ツイキャス・終わった枠・形の違うものは捨てる)', async () => {
+  const A = env().get('Addons');
+  const st = A.list().find((a) => a.id === 'stpr');
+  assert.equal(st.defaultOn, false, '初期値は OFF');
+  const s = (videoId, status, extra = {}) => ({
+    serviceKind: 'youtube', channelId: 'UCz6sI0kRv-nNdf8MzBUDa3g', channelTitle: ' パルオ【とぅるりぷ】 ', videoId,
+    scheduledStartTime: '2026-11-24T18:00:00+09:00', status, channelThumbnails: { url: 'https://yt3.ggpht.com/abc=s800' }, ...extra,
+  });
+  const json = JSON.stringify({
+    last_updated: '2026-11-24T18:30:14+09:00',
+    items: [
+      { date: 'アーカイブ', items: [s('S--9weO2ztY', 'completed')] },
+      { date: '2026-11-24', items: [s('5aa7jVsO2Y8', 'live'), s('xxxxxxxxxxx', 'live', { serviceKind: 'twitcasting' }), s('bad', 'upcoming'), null] },
+      { date: '2026-11-25', items: [s('r-DiUhGwWbQ', 'upcoming', { channelId: 'x', channelThumbnails: { url: 'https://evil.example/a.png' }, scheduledStartTime: '2026-11-25T20:00:00+09:00' }), s('5aa7jVsO2Y8', 'live')] },
+      { date: '2026-11-26', items: null },
+    ],
+  });
+  assert.deepEqual(plain(st.parse(json)), [
+    { videoId: '5aa7jVsO2Y8', startAt: Date.UTC(2026, 10, 24, 9, 0), live: true, name: 'パルオ【とぅるりぷ】', icon: 'https://yt3.ggpht.com/abc=s800', channelId: 'UCz6sI0kRv-nNdf8MzBUDa3g' },
+    { videoId: 'r-DiUhGwWbQ', startAt: Date.UTC(2026, 10, 25, 11, 0), live: false, name: 'パルオ【とぅるりぷ】', icon: '' },
+  ]);
+  assert.throws(() => st.parse('<html>'));
+  assert.throws(() => st.parse('{"rankings":[]}'));
+  const urls = [];
+  await st.fetchEntries({ fetchText: async (url) => (urls.push(url), json) });
+  assert.deepEqual(urls, ['https://schedule-share-json.s3.ap-northeast-1.amazonaws.com/schedule/schedule_v2.json']);
+  assert.equal(A.allowed(st, urls[0]), true);
+  assert.equal(A.allowed(st, 'https://www.stpr.com/'), false, '公式サイトはパック作り専用 (拡張機能は取りに行かない)');
+  assert.equal(st.covers({ pack: 'STPR (すとぷり)' }), true);
+  assert.equal(st.covers({ pack: 'すとぷり' }), true);
+  assert.equal(st.covers({ pack: 'ぶいすぽっ!' }), false);
+  assert.equal(st.covers({ preset: true }), false);
+});
+
+test('STPR: 公式サイトのメニューと各ページから、パック用のチャンネル・グループを読む', async () => {
+  const st = env().get('Addons').list().find((a) => a.id === 'stpr');
+  const grid = (href, cls, name, members) =>
+    `<div class="creator-grid">\n<a href="${href}" class="name-group${cls}">${name}</a>\n<ul class="list--menu__creator">${members
+      .map(([id, n]) => `<li><a href="https://www.stpr.com/artist/detail/${id}">${n}</a></li>`)
+      .join('')}</ul>\n</div>`;
+  const top = [
+    grid('https://www.stpr.com/artist/detail/11', '', '騎士X - Knight X -', [['12', 'しゆん'], ['13', 'タケヤキ翔']]),
+    grid('https://www.stpr.com/artist/detail/55', '', 'とぅるりぷ -True&amp;Lip', [['59', 'パルオ']]),
+    grid('', ' not-group', 'STPR所属クリエイター', [['41', 'もりうさ'], ['3', 'ななもり。']]),
+  ].join('\n');
+  const sns = (yt) => `<h2 class="section-tit group-name">x</h2><ul class="list--sns">${yt ? `<li class="youtube"><a href="${yt}" target="_blank"></a></li>` : ''}<li><a href="https://x.com/a"></a></li></ul>`;
+  const pages = {
+    11: sns('https://www.youtube.com/@Knight_X_info'),
+    12: sns('https://www.youtube.com/@shiyun'),
+    13: sns('https://www.youtube.com/channel/UCEA8Umn4azMfY2-qic1lCOA'),
+    55: sns(''),
+    59: sns('https://www.youtube.com/@paruo_urusai'),
+    41: sns(''),
+    3: sns('https://www.youtube.com/@Nanamori_STPR'),
+  };
+  const urls = [];
+  const fetchText = async (url) => {
+    urls.push(url);
+    if (url === 'https://www.stpr.com/') return top;
+    return pages[url.match(/\/artist\/detail\/(\d+)$/)[1]];
+  };
+  const got = plain(await st.listChannels({ fetchText }));
+  assert.ok(urls.every((u) => u.startsWith('https://www.stpr.com/')), urls.join());
+  assert.deepEqual(got.slice(0, -1), [
+    { handle: '@Knight_X_info', name: '騎士X', group: '騎士X' },
+    { handle: '@shiyun', name: 'しゆん', group: '騎士X' },
+    { channelId: 'UCEA8Umn4azMfY2-qic1lCOA', name: 'タケヤキ翔', group: '騎士X' },
+    { handle: '@paruo_urusai', name: 'パルオ', group: 'とぅるりぷ' },
+    { handle: '@Nanamori_STPR', name: 'ななもり。', group: 'STPR' },
+  ]);
+  assert.equal(got.at(-1).group, 'すとぷり', '最後は公式のチャンネル (ページにリンクが無いもの)');
+  await assert.rejects(st.listChannels({ fetchText: async () => '<html></html>' }));
+  assert.equal(st.covers({ pack: st.pack.name }), true, 'パックの名前は covers の条件に合う');
+});
+
 test('ホロジュール: 公式サイトのタレントのページから、チャンネル (ID かハンドル)・名前・グループを読む', () => {
   const h = env().get('Addons').list().find((a) => a.id === 'holodule');
   const page = (h1, gp, gpName, sns) =>
@@ -172,4 +323,72 @@ test('パックを作るアドオン: pack の名前は covers の条件に合�
       assert.ok(!declared.has(o) || a.origins.includes(o), `${a.id}: ${o} はパック作り専用なので権限に入れない`);
     }
   }
+});
+
+// ---- YouTube の登録チャンネル (addons/youtube-subs.js)
+const subsPage = (items, { loggedIn = true } = {}) => {
+  const data = { contents: { twoColumnBrowseResultsRenderer: { tabs: [{ tabRenderer: { content: { richGridRenderer: { contents: items } } } }] } } };
+  return `<script>ytcfg.set({"LOGGED_IN":${loggedIn}});</script><script>var ytInitialData = ${JSON.stringify(data)};</script>`;
+};
+const lockup = (videoId, channelId, { live = false, texts = [] } = {}) => ({
+  richItemRenderer: {
+    content: {
+      lockupViewModel: {
+        contentId: videoId,
+        contentType: 'LOCKUP_CONTENT_TYPE_VIDEO',
+        contentImage: { thumbnailViewModel: { overlays: [{ thumbnailBadgeViewModel: { badgeStyle: live ? 'THUMBNAIL_OVERLAY_BADGE_STYLE_LIVE' : 'THUMBNAIL_OVERLAY_BADGE_STYLE_DEFAULT' } }] } },
+        metadata: {
+          lockupMetadataViewModel: {
+            image: { decoratedAvatarViewModel: { rendererContext: { commandContext: { onTap: { innertubeCommand: { browseEndpoint: { browseId: channelId } } } } } } },
+            metadata: { contentMetadataViewModel: { metadataRows: texts.map((t) => ({ metadataParts: [{ text: { content: t } }] })) } },
+          },
+        },
+      },
+    },
+  },
+});
+
+test('YouTube の登録チャンネル: 開始予定の文字 (日本語・英語) を、利用者の環境の時刻として読む', () => {
+  const y = env().get('Addons').list().find((a) => a.id === 'ytsubs');
+  assert.equal(y.parseStart('2026/11/24 21:00 に公開予定'), new Date(2026, 10, 24, 21, 0).getTime());
+  assert.equal(y.parseStart('2026/1/5 9:05 に配信予定'), new Date(2026, 0, 5, 9, 5).getTime());
+  assert.equal(y.parseStart('Scheduled for 11/24/26, 9:00 PM'), new Date(2026, 10, 24, 21, 0).getTime());
+  assert.equal(y.parseStart('Premieres 11/24/26, 12:30 AM'), new Date(2026, 10, 24, 0, 30).getTime());
+  assert.ok(Number.isNaN(y.parseStart('9 時間前')));
+  assert.ok(Number.isNaN(y.parseStart('585 人が視聴中')));
+});
+
+test('YouTube の登録チャンネル: フィードから配信中・配信予定だけを読む (ふつうの動画・形の違うものは捨てる)', () => {
+  const y = env().get('Addons').list().find((a) => a.id === 'ytsubs');
+  const A = 'UCAAAAAAAAAAAAAAAAAAAAAA';
+  const B = 'UCBBBBBBBBBBBBBBBBBBBBBB';
+  const html = subsPage([
+    lockup('live0000001', A, { live: true, texts: ['チャンネル A', '585 人が視聴中'] }),
+    lockup('soon0000001', B, { texts: ['チャンネル B', '2026/11/24 21:00 に公開予定'] }),
+    lockup('done0000001', B, { texts: ['チャンネル B', '1234 回視聴', '9 時間前'] }),
+    lockup('live0000001', A, { live: true }), // 同じ動画は 1 つ
+    lockup('noch0000001', 'bad', { live: true }), // チャンネルが分からない
+  ]);
+  assert.deepEqual(plain(y.parse(html)), [
+    { videoId: 'live0000001', channelId: A, live: true },
+    { videoId: 'soon0000001', channelId: B, live: false, startAt: new Date(2026, 10, 24, 21, 0).getTime() },
+  ]);
+  assert.throws(() => y.parse(subsPage([], { loggedIn: false })), /ログイン/);
+  assert.throws(() => y.parse('<html>"LOGGED_IN":true</html>'), /読めない/);
+});
+
+test('YouTube の登録チャンネル: 登録チャンネルから足したパックだけが載る。Cookie 付き・2 分に 1 回まで・載るものが無ければ取らない', () => {
+  const A = env().get('Addons');
+  const y = A.list().find((a) => a.id === 'ytsubs');
+  assert.equal(y.defaultOn, true);
+  for (const name of y.packNames) assert.equal(y.covers({ pack: name }), true, name);
+  assert.equal(y.covers({ pack: 'ホロライブ' }), false);
+  assert.equal(y.covers({ preset: true }), false);
+  assert.equal(y.covers({}), false);
+  assert.equal(y.signedIn, true);
+  assert.equal(y.onlyIfCovers, true);
+  assert.ok(y.minAgeMs >= 60 * 1000);
+  assert.equal(A.allowed(y, 'https://www.youtube.com/feed/subscriptions'), true);
+  // 画面 (grid.js) の「登録チャンネルから選ぶ」は、このパックの名前で足す
+  assert.match(readExt('grid.js'), /a\.id === 'ytsubs'\)\.packNames/);
 });
