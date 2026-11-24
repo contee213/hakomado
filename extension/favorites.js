@@ -26,6 +26,8 @@ const Favorites = (() => {
   const FEED_HOLO_MS = 15 * 60 * 1000; // ホロジュールで予定が分かるチャンネル
   const FEED_MANUAL_MS = 30 * 1000; // 「⟳ 更新」
   const FEED_GAP_MS = 200; // RSS (軽い) を取る間隔
+  // プレミア公開を探す「動画」「ショート」の RSS を見に行く間隔 (公開予定は前もって出るので長めでよい)
+  const FEED_PREMIERE_MS = 15 * 60 * 1000;
   const SCHED_AUTO_MS = 55 * 1000; // ホロジュールは 1 分ごと
   const SCHED_MANUAL_MS = 5 * 1000;
   const YT_GAP_MS = 1000; // YouTube へのページ取得の間隔
@@ -132,7 +134,7 @@ const Favorites = (() => {
    * そのチャンネルの最近の配信アーカイブと動画 (新しい順)。force = 覚えている結果を使わずに取り直す。
    * 「ライブ配信」の再生リスト (UULV) に加えて「動画」の再生リスト (UULF。プレミア公開・MV など。ショートは入らない) も見る。
    * プレミア公開 (同時視聴の本編になりやすい) は「ライブ配信」の方に入らないため。
-   * shorts = 「ショート」の再生リスト (UUSH) も見る (自動再生でショートも流す設定のときだけ)。
+   * shorts = 「ショート」の再生リスト (UUSH) も見る (ライブラリの最近の動画と、自動再生でショートも流す設定のとき)。
    * 各項目の kind = live (配信のアーカイブ) / video (動画) / short (ショート)、list = 取った再生リスト。
    * 縦型の配信はショートではなくふつうの配信 (「ライブ配信」の再生リストに入る) なので、live のまま
    */
@@ -504,6 +506,8 @@ const Favorites = (() => {
   function needsCheck(s, now) {
     if (!s) return true;
     const age = now - s.at;
+    // 種類 (配信・動画・ショート) がまだ分からないもの (前の版で覚えたもの・確かめる前に分かったもの) は確かめる
+    if ((s.state === 'live' || s.state === 'upcoming') && !s.kind) return true;
     if (s.state === 'live') return age > 5 * MIN;
     if (s.state !== 'upcoming') return false;
     const d = (s.startAt || now + 60 * MIN) - now; // 開始予定までの時間 (分からなければ 1 時間後とみなす)
@@ -532,6 +536,8 @@ const Favorites = (() => {
   /**
    * 動画のページから状態を読む。
    * state = live / upcoming / ended (配信のアーカイブ) / none (配信ではない・見られない)
+   * kind = 配信中・配信予定の種類: live (配信) / video (プレミア公開の動画) / short (プレミア公開のショート)。
+   *   プレミア公開は公開中・公開前も isLive / isUpcoming になるが、isLiveContent が false。ショートはページの正規 URL が /shorts/
    * avail = ok / gone (削除・非公開など) / members (メンバー限定でメンバーではない) / blocked (そのほかの理由で見られない)
    * channel / channelId = チャンネル名と ID (分かれば)
    */
@@ -556,10 +562,11 @@ const Favorites = (() => {
     const extra = { avail, ...(channel ? { channel: unjson(channel) } : {}), ...(channelId ? { channelId } : {}) };
     const title = meta(html, 'og:title') || meta(html, 'title');
     const started = html.match(/"liveBroadcastDetails":\{[^}]*"startTimestamp":"([^"]+)"/)?.[1];
-    if (/"isLive":true/.test(details)) return { state: 'live', title, startAt: started ? Date.parse(started) : undefined, ...extra };
+    const kind = /"isLiveContent":true/.test(details) ? 'live' : /<link rel="canonical" href="[^"]*\/shorts\//.test(html) ? 'short' : 'video';
+    if (/"isLive":true/.test(details)) return { state: 'live', kind, title, startAt: started ? Date.parse(started) : undefined, ...extra };
     if (/"isUpcoming":true/.test(details)) {
       const t = html.match(/"scheduledStartTime":"(\d+)"/)?.[1];
-      return { state: 'upcoming', title, startAt: t ? Number(t) * 1000 : undefined, ...extra };
+      return { state: 'upcoming', kind, title, startAt: t ? Number(t) * 1000 : undefined, ...extra };
     }
     if (/"isLiveContent":true/.test(details)) return { state: 'ended', title, ...extra };
     return { state: 'none', title, ...extra };
@@ -627,10 +634,11 @@ const Favorites = (() => {
 
   /**
    * チャンネルの今の配信状況。
-   * @param {{maxFeedAge: number, budget: {watch: number}|null, holo: Array|null}} o
-   *   holo = ホロジュールに載っているこのチャンネルの枠 [{videoId, live, startAt}] (ホロジュールを使わないチャンネルは null)
+   * @param {{maxFeedAge: number, budget: {watch: number}|null, holo: Array|null, kinds: {video: boolean, short: boolean}}} o
+   *   holo = ホロジュールに載っているこのチャンネルの枠 [{videoId, live, startAt}] (ホロジュールを使わないチャンネルは null)。
+   *   kinds = プレミア公開の動画・ショートも配信と同じに扱うか (設定の「自動再生のコンテンツ」)
    */
-  async function channelStatus(fav, { maxFeedAge, budget, holo, feedCacheOnly = false }) {
+  async function channelStatus(fav, { maxFeedAge, budget, holo, kinds, feedCacheOnly = false }) {
     let items = [];
     try {
       items = await fetchFeed(fav.channelId, { maxAge: maxFeedAge, cacheOnly: feedCacheOnly });
@@ -638,15 +646,34 @@ const Favorites = (() => {
       // RSS が取れなくても、ホロジュールで分かる分は使う
       if (!holo || e instanceof RateLimitedError) throw e;
     }
+    // プレミア公開は「ライブ配信」の再生リストに入らないので、動画・ショートを対象にしているときは「動画」「ショート」の
+    // 再生リストも見る (公開前 = 再生数 0 のものだけ確かめる)。ホロジュールで予定が分かるチャンネルは見ない (載っている)
+    const premieres = [];
+    if (!holo) {
+      for (const [on, list] of [[kinds.video, 'UULF'], [kinds.short, 'UUSH']]) {
+        if (!on) continue;
+        try {
+          premieres.push(...(await fetchFeed(fav.channelId, { maxAge: Math.max(maxFeedAge, FEED_PREMIERE_MS), list })));
+        } catch (e) {
+          if (e instanceof RateLimitedError) throw e;
+          console.warn('hakomado: プレミア公開の確認に失敗', list, fav.channelId, e);
+        }
+      }
+    }
     const now = Date.now();
     const known = await readStates();
     const updates = {};
     const state = (vid) => updates[vid] || known[vid];
-    // 調べる動画: 配信予定 (再生数 0)・24 時間以内に増えたもの・配信予定 / 配信中と分かっているもの・ホロジュールの枠
+    // 調べる動画: 配信予定 (再生数 0)・24 時間以内に増えたもの・配信予定 / 配信中と分かっているもの・ホロジュールの枠・
+    // 公開前のプレミア公開
     const cands = new Map();
     for (const it of items) {
       const s = known[it.videoId];
       if (it.views === 0 || now - it.at < RECENT_MS || s?.state === 'upcoming' || s?.state === 'live') cands.set(it.videoId, it);
+    }
+    for (const it of premieres) {
+      const s = known[it.videoId];
+      if (!cands.has(it.videoId) && (it.views === 0 || s?.state === 'upcoming' || s?.state === 'live')) cands.set(it.videoId, it);
     }
     for (const h of holo || []) {
       if (!cands.has(h.videoId)) cands.set(h.videoId, { videoId: h.videoId, title: '', at: 0 });
@@ -675,14 +702,16 @@ const Favorites = (() => {
     }
     if (Object.keys(updates).length) await saveStates(updates);
 
-    // 配信中があればそれ (新しく始まったもの)、無ければ一番近い配信予定
-    const list = [...cands.keys()].map((vid) => ({ vid, s: state(vid), title: cands.get(vid).title }));
+    // 配信中があればそれ (新しく始まったもの)、無ければ一番近い配信予定。
+    // 対象にしていない種類 (プレミア公開の動画・ショート) は除く (種類がまだ分からないものは除かない)
+    const allowed = (s) => !s?.kind || s.kind === 'live' || kinds[s.kind] !== false;
+    const list = [...cands.keys()].map((vid) => ({ vid, s: state(vid), title: cands.get(vid).title })).filter((x) => allowed(x.s));
     const live = list.filter((x) => x.s?.state === 'live').sort((a, b) => (b.s.startAt || 0) - (a.s.startAt || 0))[0];
-    if (live) return { state: 'live', videoId: live.vid, title: live.s.title || live.title, startAt: live.s.startAt };
+    if (live) return { state: 'live', kind: live.s.kind, videoId: live.vid, title: live.s.title || live.title, startAt: live.s.startAt };
     const soon = list
       .filter((x) => x.s?.state === 'upcoming' && (!x.s.startAt || x.s.startAt > now - 6 * 60 * MIN))
       .sort((a, b) => (a.s.startAt || Infinity) - (b.s.startAt || Infinity))[0];
-    if (soon) return { state: 'upcoming', videoId: soon.vid, title: soon.s.title || soon.title, startAt: soon.s.startAt };
+    if (soon) return { state: 'upcoming', kind: soon.s.kind, videoId: soon.vid, title: soon.s.title || soon.title, startAt: soon.s.startAt };
     return { state: 'offline' };
   }
 
@@ -811,16 +840,18 @@ const Favorites = (() => {
   /**
    * 今の配信状況
    * @param {{channelId: string, handle?: string, preset?: boolean}} fav
-   * @param {{force?: boolean, auto?: boolean, budget?: {watch: number}|null, quick?: boolean}} [o]
+   * @param {{force?: boolean, auto?: boolean, budget?: {watch: number}|null, quick?: boolean, kinds?: {video: boolean, short: boolean}}} [o]
+   *   kinds = プレミア公開の動画・ショートも配信と同じに扱うか (設定の「自動再生のコンテンツ」。省くと両方)。
    *   budget = この回に動画のページを確かめてよい件数。
    *   quick = 自動再生を ON にした最初の 1 回など、すぐ結果がほしいとき。ホロジュールで分かるチャンネルは RSS を取り直さず、
    *   ホロジュールと覚えている RSS で決める (RSS は 1 チャンネル 1 秒ほどかかり、全部取り直すと数十秒待たせるため。
    *   取り直しはその後の自動再生の確認に任せる)
    * @returns {Promise<{state: 'live'|'upcoming'|'offline', videoId?: string, title?: string, startAt?: number}>}
    */
-  async function fetchStatus(fav, { force = false, auto = false, budget = null, quick = false } = {}) {
+  async function fetchStatus(fav, { force = false, auto = false, budget = null, quick = false, kinds = { video: true, short: true } } = {}) {
+    const kk = `${!!kinds.video}${!!kinds.short}`;
     const cached = statusCache.get(fav.channelId);
-    if (!force && !auto && cached && Date.now() - cached.at < STATUS_TTL_MS) return cached.status;
+    if (!force && !auto && cached && cached.kk === kk && Date.now() - cached.at < STATUS_TTL_MS) return cached.status;
 
     // ホロジュールに載るチャンネル (既定のホロライブのチャンネル・載っている自分で追加したチャンネル) は、その枠も使う。
     // 既定のチャンネルは、載っていなければ「予定なし」が分かるので、RSS を見に行く間隔を長くする
@@ -832,8 +863,8 @@ const Favorites = (() => {
       if (mine || (schedule && fav.preset)) holo = mine || [];
     }
     const maxFeedAge = force && !auto ? FEED_MANUAL_MS : holo && fav.preset ? FEED_HOLO_MS : FEED_AUTO_MS;
-    const status = await channelStatus(fav, { maxFeedAge, budget, holo, feedCacheOnly: quick && !!holo });
-    statusCache.set(fav.channelId, { at: Date.now(), status });
+    const status = await channelStatus(fav, { maxFeedAge, budget, holo, kinds, feedCacheOnly: quick && !!holo });
+    statusCache.set(fav.channelId, { at: Date.now(), status, kk });
     return status;
   }
 

@@ -21,8 +21,8 @@ const DEFAULT_SETTINGS = {
   hlWidth: 2,
   hlGlow: 0.3,
   hlAnimate: false,
-  // 縦型の配信と分かったら (読み込んでから)、枠を縦長 (9:16) に寄せる。読み込んだ後に枠の大きさが変わるので既定は OFF
-  verticalLiveFit: false,
+  // 縦型の配信と分かったら (読み込んでから)、枠を縦長 (9:16) に寄せる。読み込んだ後に枠の大きさが変わるが、映像が広く出るので既定は ON
+  verticalLiveFit: true,
   // チャット欄
   chatZoom: 0.9,
   chatWidth: 0.3,
@@ -34,10 +34,14 @@ const DEFAULT_SETTINGS = {
   autoArchive: false, // 自動再生: 配信中が 1 本も無いときは、最近の動画 (配信のアーカイブなど) を流す
   autoArchiveVideos: true, // そのとき、動画 (プレミア公開・MV など) も流す
   autoArchiveShorts: false, // そのとき、ショートも流す (縦型の配信はふつうの配信として流す)
+  // 自動再生のコンテンツ: 配信 (いつも) に加えて、時間指定で公開される動画・ショート (プレミア公開) も、
+  // 配信と同じように自動再生・通知の対象にする。外すと、その分の確認 (「動画」「ショート」の RSS) をしないので軽くなる
+  autoPremiereVideos: true,
+  autoPremiereShorts: true,
   autoPickupMain: true, // 自動再生: ピックアップ (📌) のライブ配信をメイン枠に優先して置く
   autoMaxTiles: 8, // 自動再生で同時に再生する最大の枠数 (回線が細いときは少なく)
-  autoTarget: 'all', // 自動再生の対象: 'all' = チャンネル全部 / 'fav' = ピックアップ (📌) だけ
-  noticeTarget: 'all', // 通知の対象: 'all' = チャンネル全部 / 'fav' = ピックアップだけ / 'off' = 知らせない
+  autoTarget: 'all', // 自動再生のチャンネル: 'all' = チャンネル全部 / 'fav' = ピックアップ (📌) だけ
+  noticeTarget: 'all', // 通知のチャンネル: 'all' = チャンネル全部 / 'fav' = ピックアップだけ / 'off' = 知らせない
   layoutFavs: '', // レイアウト画面の「お気に入り」タブに出すもの (レイアウトの id = 形 + 配置順 をカンマでつないだもの)
 };
 
@@ -630,7 +634,12 @@ function shrinkLayoutFor(k) {
   return best.l;
 }
 
-/** 上部バーの「＋」「−」と、空き枠の ✕ を押せるかどうか (枠の中身が変わるたびにまとめて 1 回) */
+/** 表示中の枠に、1 つでも配信・動画を読み込んでいるか (無ければクルーズ・一時停止は押せない) */
+function hasContent() {
+  return visibleIndexes().some((i) => state.tiles[i].videoId);
+}
+
+/** 上部バーの「＋」「−」・クルーズ・一時停止と、空き枠の ✕ を押せるかどうか (枠の中身が変わるたびにまとめて 1 回) */
 let slotButtonsQueued = false;
 function updateSlotButtons() {
   if (slotButtonsQueued) return;
@@ -640,6 +649,10 @@ function updateSlotButtons() {
     const canShrink = !!shrinkTarget();
     document.getElementById('addTile').disabled = state.count >= MAX_TILES;
     document.getElementById('removeTile').disabled = !canShrink;
+    // 中身が無いときは押せない (ON のままなら OFF にはできるようにしておく)
+    const any = hasContent();
+    document.getElementById('cruise').disabled = !any && !state.cruise;
+    document.getElementById('pauseAll').disabled = !any && !pausedAll;
     for (let i = 0; i < MAX_TILES; i++) {
       const btn = views[i].el.querySelector('[data-act="clear"]');
       const empty = !state.tiles[i].videoId;
@@ -1177,6 +1190,15 @@ function tileName(i) {
  * 'empty' | 'live' (ライブ配信中) | 'upcoming' (配信前) | 'archive' (配信のアーカイブ) | 'video' (ふつうの動画) |
  * 'blocked' (メンバー限定などで見られない) | 'loading' (まだ分からない)
  */
+/** 枠 i の配信のチャンネルのページ (分からなければ '') */
+function channelUrlOf(i) {
+  const m = views[i].meta;
+  if (/^UC[\w-]{22}$/.test(m?.channelId || '')) return `${YT}/channel/${m.channelId}`;
+  const h = String(m?.handle || '');
+  if (/^@[^\s/?#]+$/.test(h)) return `${YT}/${encodeURIComponent(h).replace(/^%40/, '@')}`;
+  return '';
+}
+
 function tileKind(i) {
   const v = views[i];
   if (!v || !isVisible(i) || !state.tiles[i].videoId) return 'empty';
@@ -1587,6 +1609,7 @@ function togglePauseAll() {
 function updatePauseButton() {
   const btn = document.getElementById('pauseAll');
   setToggle(btn, pausedAll);
+  updateSlotButtons();
   // 再開の印は ⏯ (▶ は「前回の続きから」などの選択肢で使っているので、見分けがつくように)
   btn.querySelector('.tb-icon').textContent = pausedAll ? '⏯' : '⏸';
   btn.querySelector('.tb-label').textContent = tr(pausedAll ? 'resumeAll' : 'pauseLabel');
@@ -2879,7 +2902,7 @@ const Sync = (() => {
     const el = () => document.getElementById('syncDock');
     const body = () => document.getElementById('syncDockBody');
     let shown = false;
-    let wanted = true; // ✕ で閉じたら、次に同期を始めたときも出さない (上部バーの ☰ で出す)
+    let wanted = true; // ✕ で閉じたら、自動で同期を始めたとき (再開など) は出さない。上部バーのボタンで ON にしたときと ☰ では出す
     let mini = false;
     const PREF_KEY = 'hakomado.syncDock'; // 置き方と小窓の位置 (この画面のブラウザだけで覚える。消えても既定に戻るだけ)
     let floating = true;
@@ -3645,8 +3668,11 @@ const Sync = (() => {
     document.getElementById('syncToggle').addEventListener('click', (e) => {
       e.currentTarget.blur(); // Space キーでボタンが押し直されないように
       if (on) stop();
-      else if (canStart()) start();
-      else notify(whyNot().join('\n'));
+      else if (canStart()) {
+        start();
+        // ボタンで ON にしたときは、✕ で閉じていた同期の調整パネルも開き直す
+        if (on) Dock.show();
+      } else notify(whyNot().join('\n'));
     });
     bindSeek(document.getElementById('syncSeek'), document.getElementById('syncNow'));
     Dock.setup();
@@ -4238,7 +4264,10 @@ const TileInfo = (() => {
   const SUB_ICON =
     '<svg class="sub-icon" viewBox="0 0 16 16" aria-hidden="true"><circle cx="6" cy="4.6" r="2.8"/><path d="M0.8 14.2c0-3.1 2.3-5.4 5.2-5.4s5.2 2.3 5.2 5.4z"/><path d="M12.25 5.5h1.5v2.25H16v1.5h-2.25v2.25h-1.5V9.25H10v-1.5h2.25z"/></svg>';
 
-  /** 枠ごとの操作: 音の左右 (L / C / R)・📌・🔖・📃・チャンネル登録・高評価。押すと枠のバーと同じ動き (onBarAction) */
+  /**
+   * 枠ごとの操作: 弾幕・音声 (出す / ミュート)・音の左右 (L / C / R)・📌・🔖・📃・チャンネル登録・高評価・✕ (閉じる)。
+   * 押すと枠のバーと同じ動き (onBarAction)。音声だけは、表で何枠でも同時に聞けるように、ほかの枠はそのまま切り替える
+   */
   function opsCell(i) {
     const c = document.createElement('td');
     c.className = 'info-ops';
@@ -4253,6 +4282,9 @@ const TileInfo = (() => {
       b.classList.toggle('on', on);
       return b;
     };
+    const t = state.tiles[i];
+    const dm = btn('danmaku', { text: '≋', title: tr('infoDanmaku'), on: tileDanmaku(i) });
+    const audio = btn('infoAudio', { text: t.muted ? '🔇' : '🔊', title: tr(t.muted ? 'infoAudioOn' : 'infoAudioOff'), on: !t.muted });
     const pan = document.createElement('span');
     pan.className = 'info-pan';
     pan.title = tr('mixPanTitle');
@@ -4276,8 +4308,89 @@ const TileInfo = (() => {
       Object.assign(b, socialButtonState(i, act));
       return b;
     });
-    c.append(pan, fav, save, pl, ...social);
+    const close = btn('clear', { text: '✕', title: tr('tileClear'), cls: 'close' });
+    c.append(dm, audio, pan, fav, save, pl, ...social, close);
     return c;
+  }
+
+  // 空き枠の行で入力中の文字と、読み込めなかったときの理由 (数秒ごとに書き直しても消えないように)
+  const drafts = new Map(); // i -> 入力中の文字
+  const errors = new Map(); // i -> 読み込めなかった理由
+
+  /** 空き枠の行: URL などを入れて読み込む・📺 / 📚 から選ぶ・🎲 おまかせ・✕ (空き枠を消す) */
+  function emptyRow(i, n, canShrink) {
+    const tr_ = document.createElement('tr');
+    tr_.dataset.i = String(i);
+    tr_.className = 'info-empty-row';
+    const num = document.createElement('td');
+    num.className = 'info-num';
+    num.textContent = String(n);
+    const kind = document.createElement('td');
+    kind.className = 'info-kind kind-empty';
+    kind.textContent = tr('infoKind_empty');
+    const v = document.createElement('td');
+    v.className = 'info-video';
+    const form = document.createElement('form');
+    form.className = 'info-load';
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'url-input';
+    input.spellcheck = false;
+    input.placeholder = tr('infoInput');
+    input.value = drafts.get(i) || '';
+    input.addEventListener('input', () => drafts.set(i, input.value));
+    const go = document.createElement('button');
+    go.type = 'submit';
+    go.textContent = tr('infoLoad');
+    form.append(input, go);
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const raw = input.value;
+      if (!raw.trim()) return;
+      input.blur();
+      errors.set(i, tr('loading'));
+      update();
+      try {
+        const id = await resolveVideoId(raw);
+        errors.delete(i);
+        drafts.delete(i);
+        // 待つ間にほかの方法で埋まった・消された枠には入れない
+        if (!state.tiles[i].videoId && isVisible(i)) setTileVideo(i, id, raw.trim());
+      } catch (err) {
+        errors.set(i, err.message || String(err));
+      }
+      update();
+    });
+    v.append(form);
+    if (errors.has(i)) {
+      const p = document.createElement('div');
+      p.className = 'info-error';
+      p.textContent = errors.get(i);
+      v.append(p);
+    }
+    const ops = document.createElement('td');
+    ops.className = 'info-ops';
+    const btn = (act, text, title) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.dataset.act = act;
+      b.textContent = text;
+      if (title) b.title = title;
+      return b;
+    };
+    const del = btn('clear', '✕', tr(canShrink ? 'tileRemove' : 'tileRemoveNo'));
+    del.className = 'close';
+    del.disabled = !canShrink;
+    ops.append(
+      btn('pickCh', tr('infoPickCh'), tr('infoPickChTitle')),
+      btn('pickFav', tr('infoPickFav'), tr('infoPickFavTitle')),
+      Object.assign(btn('pickAny', tr('infoPickAny'), tr('infoPickAnyTitle')), { disabled: pickBusy }),
+      del,
+    );
+    const rest = document.createElement('td');
+    rest.colSpan = 7;
+    tr_.append(num, kind, v, ops, rest);
+    return tr_;
   }
 
   function row(i, n) {
@@ -4297,9 +4410,17 @@ const TileInfo = (() => {
     td(tr('infoKind_' + kind), 'info-kind kind-' + kind);
     const v = document.createElement('td');
     v.className = 'info-video';
-    const ch = document.createElement('div');
+    // チャンネル名を押すと、そのチャンネルを YouTube の新しいタブで開く (チャンネルが分からないうちは文字だけ)
+    const chUrl = channelUrlOf(i);
+    const ch = document.createElement(chUrl ? 'a' : 'div');
     ch.className = 'info-channel';
     ch.textContent = meta?.channel || tileName(i) || '—';
+    if (chUrl) {
+      ch.href = chUrl;
+      ch.target = '_blank';
+      ch.rel = 'noopener noreferrer';
+      ch.title = tr('infoOpenChannel', ch.textContent);
+    }
     // タイトルを押すと、その動画を YouTube の新しいタブで開く
     const ti = document.createElement('a');
     ti.className = 'info-title';
@@ -4323,21 +4444,31 @@ const TileInfo = (() => {
   function render() {
     renderQueued = false;
     if (!dialog.open) return;
-    const list = visibleIndexes()
-      .map((i, k) => [i, k + 1])
-      .filter(([i]) => state.tiles[i].videoId);
-    // 数秒ごとに書き直すので、操作のボタンに当たっていたキーボードの位置を戻す
     const rowsEl = document.getElementById('infoRows');
+    // 空き枠の欄に入力している間は書き直さない (文字の位置や変換中の文字が消えないように)。欄を離れたら書き直す
+    const typing = document.activeElement;
+    if (typing?.matches?.('#infoRows input')) {
+      typing.addEventListener('blur', update, { once: true });
+      return;
+    }
+    const list = visibleIndexes().map((i, k) => [i, k + 1]);
+    // 埋まった・見えなくなった枠の入力中の文字は捨てる
+    for (const m of [drafts, errors]) {
+      for (const i of [...m.keys()]) if (state.tiles[i].videoId || !isVisible(i)) m.delete(i);
+    }
+    const canShrink = !!shrinkTarget();
+    // 数秒ごとに書き直すので、操作のボタンに当たっていたキーボードの位置を戻す
     const f = rowsEl.contains(document.activeElement) ? document.activeElement : null;
     const focusKey = f?.dataset.act ? [f.closest('tr')?.dataset.i, f.dataset.act, f.dataset.pan ?? ''] : null;
-    rowsEl.replaceChildren(...list.map(([i, n]) => row(i, n)));
+    rowsEl.replaceChildren(...list.map(([i, n]) => (state.tiles[i].videoId ? row(i, n) : emptyRow(i, n, canShrink))));
     if (focusKey) {
       const [i, act, p] = focusKey;
       const sel = `tr[data-i="${i}"] button[data-act="${act}"]` + (p ? `[data-pan="${p}"]` : '');
       rowsEl.querySelector(sel)?.focus();
     }
-    document.getElementById('infoEmpty').hidden = list.length > 0;
-    dialog.querySelector('.info-scroll').hidden = !list.length;
+    const add = document.getElementById('infoAddTile');
+    add.disabled = state.count >= MAX_TILES;
+    add.title = tr(add.disabled ? 'infoAddTileNo' : 'infoAddTileTitle', MAX_TILES);
   }
   /** 知らせが続けて届いても、書き直すのは 1 回にまとめる */
   function update() {
@@ -4365,8 +4496,24 @@ const TileInfo = (() => {
     document.getElementById('infoRows').addEventListener('click', (e) => {
       const b = e.target.closest('button[data-act]');
       const i = Number(b?.closest('tr')?.dataset.i);
-      if (!b || b.disabled || !Number.isInteger(i) || !state.tiles[i].videoId) return;
-      onBarAction(i, b.dataset.act, e);
+      if (!b || b.disabled || !Number.isInteger(i) || !isVisible(i)) return;
+      const act = b.dataset.act;
+      if (!state.tiles[i].videoId) {
+        // 空き枠の行の操作 (枠の中の「📺 チャンネルから選ぶ」などと同じ)
+        if (act === 'pickCh') openFavorites(i, 'channels');
+        else if (act === 'pickFav') openFavorites(i, 'library');
+        else if (act === 'pickAny') pickAnything(i).finally(update);
+        else if (act === 'clear') onBarAction(i, 'clear', e);
+        update();
+        return;
+      }
+      if (act === 'infoAudio') setAudio(i, { solo: false });
+      else if (['danmaku', 'pan', 'fav', 'save', 'playlist', 'subscribe', 'like', 'clear'].includes(act)) onBarAction(i, act, e);
+      update();
+    });
+    // 表の下の ＋: 空き枠を 1 つ足す (上部バーの ＋ と同じ)
+    document.getElementById('infoAddTile').addEventListener('click', () => {
+      addTileSlot();
       update();
     });
     dialog.addEventListener('close', () => {
@@ -6579,7 +6726,7 @@ function stepIndex(key, v) {
   return best;
 }
 
-const SETTING_CHECKBOXES = ['showPaid', 'chatHideAvatars', 'hlAnimate', 'verticalLiveFit', 'skipMembersOnly', 'autoArchive', 'autoArchiveVideos', 'autoArchiveShorts', 'autoPickupMain'];
+const SETTING_CHECKBOXES = ['showPaid', 'chatHideAvatars', 'hlAnimate', 'verticalLiveFit', 'skipMembersOnly', 'autoArchive', 'autoArchiveVideos', 'autoArchiveShorts', 'autoPremiereVideos', 'autoPremiereShorts', 'autoPickupMain'];
 const SETTING_SELECTS = ['dmFont', 'dmWeight', 'authorName', 'autoTarget', 'noticeTarget'];
 
 /** 設定画面の入力欄を state.settings に合わせる (他のタブで設定が変わったときも呼ぶ) */
@@ -6839,6 +6986,8 @@ function setupToolbar() {
     input.addEventListener('change', () => {
       state.settings[key] = input.checked;
       onSettingChanged(key);
+      // 対象が変わったら、通知の次の確認は今の状態を覚えるだけ (入れたばかりの種類の配信を「始まった」と知らせない)
+      if (key === 'autoPremiereVideos' || key === 'autoPremiereShorts') knownLive = null;
     });
   }
   for (const key of SETTING_SELECTS) {
@@ -6896,7 +7045,7 @@ function setupToolbar() {
     }
     if (e.code === 'Space') {
       e.preventDefault(); // ページのスクロールやボタンの押し直しにしない
-      togglePauseAll();
+      if (!document.getElementById('pauseAll').disabled) togglePauseAll();
     } else if (e.key === 'm' || e.key === 'M') {
       toggleMuteAll();
     } else if (e.key === 'd' || e.key === 'D') {
@@ -6912,7 +7061,7 @@ function setupToolbar() {
     } else if (e.key === 'l' || e.key === 'L') {
       setAutoMode(!state.autoMode);
     } else if (e.key === 'c' || e.key === 'C') {
-      setCruise(!state.cruise);
+      if (!document.getElementById('cruise').disabled) setCruise(!state.cruise);
     } else if (e.key === 'i' || e.key === 'I') {
       TileInfo.open();
     } else if (/^[1-9]$/.test(e.key)) {
@@ -7048,7 +7197,7 @@ function queueFavStatuses(favs, force, { quick = false } = {}) {
 async function favWorker() {
   for (let q = favQueue.shift(); q; q = favQueue.shift()) {
     try {
-      favStatus.set(q.f.channelId, await Favorites.fetchStatus(q.f, { force: q.force, quick: q.quick }));
+      favStatus.set(q.f.channelId, await Favorites.fetchStatus(q.f, { force: q.force, quick: q.quick, kinds: premiereKinds() }));
     } catch (e) {
       console.warn('hakomado: 配信状況の取得に失敗', q.f.name, e);
       favStatus.set(q.f.channelId, 'error');
@@ -7210,7 +7359,7 @@ function favItem({ f, st }) {
   } else {
     const ul = document.createElement('ul');
     ul.className = 'fav-sub video-grid compact';
-    ul.append(...data.filter((v) => inLibrary(v) && isFinishedArchive(v, f)).map((v) => archiveItem(v, f)));
+    ul.append(...data.filter((v) => isFinishedArchive(v, f)).map((v) => archiveItem(v, f)));
     sub.append(ul);
   }
   return [li, sub];
@@ -7238,7 +7387,7 @@ function loadArchives(favs, { force = false } = {}) {
     (async () => {
       for (let q = archiveQueue.shift(); q; q = archiveQueue.shift()) {
         try {
-          archiveData.set(q.f.channelId, await Favorites.fetchArchives(q.f.channelId, { force: q.force }));
+          archiveData.set(q.f.channelId, await Favorites.fetchArchives(q.f.channelId, { force: q.force, shorts: true }));
         } catch (e) {
           console.warn('hakomado: アーカイブの取得に失敗', q.f.name, e);
           archiveData.set(q.f.channelId, 'error');
@@ -7326,7 +7475,7 @@ async function renderArchiveTab({ force = false } = {}) {
     if (d !== 'loading') done++;
     if (!Array.isArray(d)) continue;
     for (const v of d) {
-      if (v.at < since || !inLibrary(v) || !isFinishedArchive(v, f)) continue;
+      if (v.at < since || !isFinishedArchive(v, f)) continue;
       if (q && ![v.title, f.name, f.handle].some((s) => String(s ?? '').toLowerCase().includes(q))) continue;
       items.push({ v, f });
     }
@@ -7351,11 +7500,6 @@ async function renderArchiveTab({ force = false } = {}) {
   updateSelMarks();
 }
 
-/** 配信中・配信予定と分かっている配信は、アーカイブには出さない (チャンネルの配信状況と照らし合わせる) */
-/** ライブラリの「最近の動画」に出すか。ショートの再生リストの分 (自動再生でショートも流す設定のときに取ったもの) は出さない */
-function inLibrary(v) {
-  return v.list !== 'UUSH';
-}
 
 /** 自動再生・おまかせで流してよい種類か (設定の「動画も流す」「ショートも流す」) */
 function autoKindAllowed(v) {
@@ -7364,6 +7508,7 @@ function autoKindAllowed(v) {
   return true;
 }
 
+/** 配信中・配信予定と分かっている配信は、アーカイブには出さない (チャンネルの配信状況と照らし合わせる) */
 function isFinishedArchive(v, f) {
   const st = favStatus.get(f.channelId);
   return !(st && typeof st === 'object' && st.videoId === v.videoId && (st.state === 'live' || st.state === 'upcoming'));
@@ -7371,7 +7516,8 @@ function isFinishedArchive(v, f) {
 
 /** アーカイブの 1 行 (履歴と同じ見た目。🔖 で保存できる。✕ は無し) */
 function archiveItem(v, f) {
-  const h = { videoId: v.videoId, title: v.title, label: f.name, channelId: f.channelId, handle: f.handle || '', at: v.at, input: `${YT}/watch?v=${v.videoId}` };
+  // ショートは /shorts/ の URL で入れて、縦長の枠にする
+  const h = { videoId: v.videoId, title: v.title, label: f.name, channelId: f.channelId, handle: f.handle || '', at: v.at, input: videoInput(v) };
   const li = videoItem(h, false, { entry: videoSelEntry(h, f, COLLAB_WIN.archive) });
   li.querySelector('.fav-del')?.remove();
   return li;
@@ -7510,10 +7656,16 @@ function videoItem(h, saved, { onRemove, removeTitle, entry } = {}) {
     openPlaylistPicker(h);
   });
   li.querySelector('.fav-del').before(plBtn);
-  const where = [formatStart(h.at)];
+  // 日時は灰色、「枠 N で表示中」はチャンネルの一覧と同じ青い文字で別に出す
+  const whereEl = li.querySelector('.fav-where');
+  whereEl.textContent = formatStart(h.at) || '';
   const shown = whereShown(h.videoId);
-  if (shown) where.push(shown);
-  li.querySelector('.fav-where').textContent = where.filter(Boolean).join(' ・ ');
+  if (shown) {
+    const s = document.createElement('span');
+    s.className = 'fav-shown';
+    s.textContent = shown;
+    whereEl.after(s);
+  }
   const thumb = li.querySelector('.fav-thumb');
   thumb.addEventListener('error', () => thumb.removeAttribute('src'), { once: true });
   thumb.loading = 'lazy';
@@ -8998,6 +9150,11 @@ function pickFavorite(f, st) {
  * quick = 自動再生を ON にした最初の 1 回 (待たせないように、ホロジュールで分かるチャンネルの RSS は取り直さない。
  *   動画のページを確かめる件数も 1 分ごとの確認と同じに抑える)
  */
+/** 設定の「自動再生のコンテンツ」: プレミア公開の動画・ショートも配信と同じに扱うか */
+function premiereKinds() {
+  return { video: state.settings.autoPremiereVideos !== false, short: state.settings.autoPremiereShorts !== false };
+}
+
 async function collectLiveFavorites({ force = false, auto = false, quick = false, onProgress = null, target = 'all' } = {}) {
   const favs = (await Favorites.list()).filter((f) => target !== 'fav' || f.star);
   let done = 0;
@@ -9013,7 +9170,7 @@ async function collectLiveFavorites({ force = false, auto = false, quick = false
     while (next < favs.length) {
       const f = favs[next++];
       try {
-        const st = await Favorites.fetchStatus(f, { force, auto, budget, quick });
+        const st = await Favorites.fetchStatus(f, { force, auto, budget, quick, kinds: premiereKinds() });
         favStatus.set(f.channelId, st);
         results.push({ f, st });
       } catch (e) {
@@ -9851,6 +10008,7 @@ function formatCruise(sec) {
 function setCruise(on) {
   state.cruise = on;
   setToggle(document.getElementById('cruise'), on);
+  updateSlotButtons();
   save();
   // ON にしただけではレイアウトは変えない (空き枠もそのまま。回すのは中身のある枠だけ)
   restartCruise();
