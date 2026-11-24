@@ -1053,9 +1053,12 @@ async function refreshTwitchPermission() {
   onTwitchPermission(await chrome.permissions.contains({ origins: TWITCH_ORIGINS }).catch(() => false));
 }
 
-function onTwitchPermission(ok) {
+async function onTwitchPermission(ok) {
   if (twitchAllowed === ok) return;
   twitchAllowed = ok;
+  // 許可したばかりのときは、background.js がヘッダーを外すルールを入れ終えてから読み込む (先に読み込むと埋め込みを断られる)
+  if (ok) await chrome.runtime.sendMessage({ type: 'twitch-rules' }).catch(() => {});
+  if (twitchAllowed !== ok) return; // 待つ間に許可が変わった
   for (let i = 0; i < MAX_TILES; i++) if (views[i] && isTwitchTile(i)) renderTile(i, { reloadPlayer: true, reloadChat: true });
 }
 chrome.permissions.onAdded.addListener(() => refreshTwitchPermission());
