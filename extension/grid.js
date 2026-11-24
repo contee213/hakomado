@@ -1,4 +1,4 @@
-/* global SyncGroups, SyncChart, Danmaku, LAYOUTS, ANCHORS, DEFAULT_LAYOUT_ID, MAX_SLOTS, getLayout, layoutFor, layoutIdOf, solveTracks, LANG, LANG_PREF, tr, setLangPref, Backup, UpdateCheck, qrcode, jsQR, ChannelPack, SyncOffsets, MovieAnchors, AudioAlign, Addons */
+/* global SyncGroups, SyncChart, Danmaku, LAYOUTS, ANCHORS, DEFAULT_LAYOUT_ID, MAX_SLOTS, getLayout, layoutFor, layoutIdOf, solveTracks, resizeLayoutFor, LANG, LANG_PREF, tr, setLangPref, Backup, UpdateCheck, qrcode, jsQR, ChannelPack, SyncOffsets, MovieAnchors, AudioAlign, Addons */
 'use strict';
 
 const MAX_TILES = MAX_SLOTS;
@@ -451,7 +451,7 @@ function filledArea(l, n) {
  *  5. 基準と同じ基準位置 (左上 / 左下 / 右上 / 右下)
  *  6. 映像が画面を占める割合が大きい (たいてい横長の形)
  * クルーズ中は、メイン枠を回して見られるよう「メイン + サブ」のレイアウトを優先する (合うものが無ければ均等)。
- * 自動再生が枠を組み替えるときと、上部バーの「＋」「−」で使う
+ * 自動再生が枠を組み替えるときなどに使う (上部バーの「＋」「−」は枠数がちょうど合うものを選ぶ layoutForCount)
  * PinP は、今 PinP を使っているときだけ選ぶ (小窓に入りきらなければメイン 1 のメイン + サブ)。
  * 縦長も、今縦長を使っているときだけ選び、そのときは縦長を優先する (16 枠を超えるなど無ければ他のもの)
  * @param {number} n
@@ -675,59 +675,24 @@ function layout() {
 
 /**
  * 空き枠を減らすときのレイアウト: 今より枠数の少ないレイアウトのうち、読み込んだ配信が全部入るもの。
- * 枠数を 1 つずつ減らしながら、枠数がちょうど合うレイアウトがある最初の枠数で選ぶ (無い枠数は飛ばすので、
- * 空き枠が一度に 2 つ消えることがある)。減らせなければ null
+ * 枠数を 1 つずつ減らしながら、枠数がちょうど合うレイアウトがある最初の枠数で選ぶ (ふつうは今の枠数 - 1)。減らせなければ null
  */
 function shrinkTarget() {
   const shown = visibleIndexes();
   const filled = shown.filter((j) => tileFilled(state.tiles[j])).length;
   for (let k = shown.length - 1; k >= Math.max(1, filled); k--) {
-    const l = shrinkLayoutFor(k);
+    const l = layoutForCount(k);
     if (l) return l;
   }
   return null;
 }
 
-/** メイン枠の数 (均等・縦長はどの枠も同じ大きさなので、全部をメイン枠として数える) */
-function mainCount(l) {
-  return isEvenLayout(l) ? l.slots.length : l.mains;
-}
-
 /**
- * 枠数をちょうど k にするときのレイアウト (無ければ null)。優先する順に:
- *  1. メイン枠の数が今と同じか、今より多い (均等は全部メイン枠)。その中では今に近いもの。無ければ今に一番近いもの
- *  2. おすすめ
- *  3. 今と同じ基準位置
- *  4. 映像が画面を占める割合が大きい
- * PinP・縦長は、今それを使っているときだけ選ぶ (縦長なら縦長を優先)。クルーズ中 (3 枠以上) はメイン + サブを優先する (chooseLayoutFor と同じ)
+ * 「＋」「−」で枠数をちょうど k にするときのレイアウト (無ければ null)。
+ * 今のレイアウトから、メイン枠が減らず一番多いものを選ぶ (選び方は layouts.js の resizeLayoutFor)
  */
-function shrinkLayoutFor(k) {
-  const base = currentBase();
-  let pool = LAYOUTS.filter((l) => l.slots.length === k && (l.group !== 'pip' || base.group === 'pip') && (l.group !== 'vertical' || base.group === 'vertical'));
-  if (state.cruise && k >= 3) {
-    const withMain = pool.filter((l) => l.mains > 0);
-    if (withMain.length) pool = withMain;
-  }
-  if (!pool.length) return null;
-  const cur = mainCount(base);
-  const rank = (l) => [
-    base.group === 'vertical' && l.group !== 'vertical' ? 1 : 0,
-    mainCount(l) >= cur ? 0 : 1,
-    Math.abs(mainCount(l) - cur),
-    l.recommended ? 0 : 1,
-    (l.anchor ?? base.anchor) === base.anchor ? 0 : 1,
-    -filledArea(l, k),
-  ];
-  const better = (x, y) => {
-    for (let i = 0; i < x.length; i++) if (Math.abs(x[i] - y[i]) > 1e-3) return x[i] < y[i];
-    return false;
-  };
-  let best = null;
-  for (const l of pool) {
-    const r = rank(l);
-    if (!best || better(r, best.r)) best = { l, r };
-  }
-  return best.l;
+function layoutForCount(k) {
+  return resizeLayoutFor(k, currentBase(), { cruise: state.cruise, area: (l) => filledArea(l, k) });
 }
 
 /** 表示中の枠に、1 つでも配信・動画を読み込んでいるか (無ければクルーズ・一時停止は押せない) */
@@ -782,17 +747,15 @@ function keepNumbersOrder(n, prefer = null) {
 }
 
 /**
- * 上部バーの「＋」: 枠を 1 つ足し、今の枠数 + 1 に合ったレイアウトにする (枠数ごとの選び方は chooseLayoutFor)。
+ * 上部バーの「＋」など: 枠を k 個 (16 枠まで) 足し、枠数がちょうどその数のレイアウトにする (選び方は layoutForCount)。
  * 今見えている枠は並び順も中身 (空き枠も) もそのまま。足した位置には空き枠が来るようにする
- * (ちょうど合うレイアウトが無い枠数では、空き枠が 2 つ以上増えることがある)
  */
-/** 枠を k 個 (16 枠まで) 足す */
 function addTileSlot(k = 1) {
   if (state.count >= MAX_TILES) return;
-  const shown = state.count;
+  const n = Math.min(MAX_TILES, state.count + k);
   // 隠れている枠に中身が残っていても、それは出さずに空き枠から使う
   state.order = TileSlots.growOrder(state);
-  setLayout(chooseLayoutFor(Math.min(MAX_TILES, shown + k)).id);
+  setLayout((layoutForCount(n) || chooseLayoutFor(n)).id);
 }
 
 function setFit(mode) {
