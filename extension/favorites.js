@@ -6,7 +6,7 @@
 // - ホロライブのチャンネルは、ホロジュール (schedule.hololive.tv) を補助に使う (全員分の予定が 1 回で分かるので、
 //   RSS を見に行く間隔を長くできる。ホロジュールが取れなくても RSS だけで動く)
 /* exported Favorites */
-/* global PRESET_VERSION, PRESET_FAVORITES, LANG, tr */
+/* global PRESET_VERSION, PRESET_FAVORITES, LANG, tr, ErrLog */
 'use strict';
 
 const Favorites = (() => {
@@ -144,7 +144,7 @@ const Favorites = (() => {
       try {
         return await fetchFeed(channelId, { maxAge, list });
       } catch (e) {
-        console.warn('hakomado: チャンネルの動画の取得に失敗', list, channelId, e);
+        ErrLog.warnFetch('hakomado: チャンネルの動画の取得に失敗', list, channelId, e);
         return [];
       }
     };
@@ -620,7 +620,7 @@ const Favorites = (() => {
         onEach?.(vid, st);
       } catch (e) {
         if (e instanceof RateLimitedError) break;
-        console.warn('hakomado: 動画の状態の確認に失敗', vid, e);
+        ErrLog.warnFetch('hakomado: 動画の状態の確認に失敗', vid, e);
       }
     }
   }
@@ -670,7 +670,7 @@ const Favorites = (() => {
         updates[vid] = { ...r, title: r.title || cands.get(vid).title, at: Date.now() };
       } catch (e) {
         if (e instanceof RateLimitedError) throw e;
-        console.warn('hakomado: 動画の状態の確認に失敗', vid, e);
+        ErrLog.warnFetch('hakomado: 動画の状態の確認に失敗', vid, e);
       }
     }
     if (Object.keys(updates).length) await saveStates(updates);
@@ -872,7 +872,7 @@ const Favorites = (() => {
         result = 'members';
       }
     } catch (e) {
-      console.warn('hakomado: 視聴できるかの確認に失敗', videoId, e);
+      ErrLog.warnFetch('hakomado: 視聴できるかの確認に失敗', videoId, e);
     }
     // 判定できなかったときも 10 分は同じ結果を使う (1 分ごとの確認で毎回ページを取りに行かない)
     accessCache.set(videoId, { at: Date.now(), result });

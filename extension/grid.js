@@ -6633,7 +6633,7 @@ async function showUpdateLink() {
   try {
     info = await UpdateCheck.check();
   } catch (e) {
-    console.warn('hakomado: 新しいバージョンの確認に失敗', e);
+    ErrLog.warnFetch('hakomado: 新しいバージョンの確認に失敗', e);
   }
   if (!info) return;
   for (const el of document.querySelectorAll('.app-version')) {
@@ -7016,7 +7016,7 @@ async function favWorker() {
     try {
       favStatus.set(q.f.channelId, await Favorites.fetchStatus(q.f, { force: q.force, quick: q.quick }));
     } catch (e) {
-      console.warn('hakomado: 配信状況の取得に失敗', q.f.name, e);
+      ErrLog.warnFetch('hakomado: 配信状況の取得に失敗', q.f.name, e);
       favStatus.set(q.f.channelId, 'error');
     }
     if (favDialog.open) scheduleFavRender();
@@ -7206,7 +7206,7 @@ function loadArchives(favs, { force = false } = {}) {
         try {
           archiveData.set(q.f.channelId, await Favorites.fetchArchives(q.f.channelId, { force: q.force }));
         } catch (e) {
-          console.warn('hakomado: アーカイブの取得に失敗', q.f.name, e);
+          ErrLog.warnFetch('hakomado: アーカイブの取得に失敗', q.f.name, e);
           archiveData.set(q.f.channelId, 'error');
         }
         scheduleArchiveRender();
@@ -8983,7 +8983,7 @@ async function collectLiveFavorites({ force = false, auto = false, quick = false
         favStatus.set(f.channelId, st);
         results.push({ f, st });
       } catch (e) {
-        console.warn('hakomado: 配信状況の取得に失敗', f.name, e);
+        ErrLog.warnFetch('hakomado: 配信状況の取得に失敗', f.name, e);
         favStatus.set(f.channelId, 'error');
         errors++;
         for (const k of [f.channelId, f.handle]) if (k) failedKeys.add(favKey(k));
@@ -9671,7 +9671,7 @@ async function autoTickOnceInner() {
     notify(msgs.join(' / '));
     await refillArchives({ lock: false });
   } catch (e) {
-    console.warn('hakomado: 自動再生の確認に失敗', e);
+    ErrLog.warnFetch('hakomado: 自動再生の確認に失敗', e);
   }
 }
 
