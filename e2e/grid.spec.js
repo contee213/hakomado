@@ -537,6 +537,107 @@ test.describe('ライブラリの種類の絞り込み', () => {
   });
 });
 
+test.describe('チャンネルの管理', () => {
+  // 既定のチャンネル (同梱のホロライブ) のうち 2 つ
+  const SORA = 'UCp6993wxpyDPHUpavwDFqgg';
+  const ROBO = 'UCDqI2jOz0weumE8s7paEk6g';
+  const channels = (page) => page.evaluate(async () => (await chrome.storage.local.get('favorites')).favorites);
+  const row = (page, name) => page.locator('#cmList .cm-item', { hasText: name });
+
+  test('📺 チャンネルには ✕ と追加の欄が無く、⚙ 管理は絞り込みを引き継いで開き、閉じると 📺 に戻る', async ({ openGrid }) => {
+    const page = await openGrid();
+    await skipTour(page);
+    await page.locator('#openChannels').click();
+    await expect(page.locator('#favList .fav-item').first()).toBeVisible();
+    await expect(page.locator('#favList .fav-del')).toHaveCount(0);
+    await expect(page.locator('#favorites #favAdd')).toHaveCount(0);
+
+    await page.locator('#favFilter').fill('ときのそら');
+    await page.locator('#favManage').click();
+    await expect(page.locator('#chManage')).toBeVisible();
+    await expect(page.locator('#cmFilter')).toHaveValue('ときのそら');
+    await expect(page.locator('#cmList .cm-item')).toHaveCount(1);
+    await expect(page.locator('#packList li').first()).toBeVisible(); // パックもこの画面にある
+
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#chManage')).toBeHidden();
+    await expect(page.locator('#favorites')).toBeVisible();
+    // ライブラリでは ⚙ 管理 を出さない
+    await page.keyboard.press('Escape');
+    await page.locator('#openFavorites').click();
+    await expect(page.locator('#favManage')).toBeHidden();
+  });
+
+  test('まとめて外すと、確かめる画面を 1 回出し、📌 付きは既定で残す', async ({ openGrid }) => {
+    const page = await openGrid();
+    await skipTour(page);
+    await page.locator('#openSettings').click();
+    await page.locator('#settings [data-tab="channels"]').click();
+    await page.locator('#settingsChManage').click();
+    await expect(page.locator('#chManage')).toBeVisible();
+
+    // ときのそらに 📌 を付けて選び、絞り込みを替えてロボ子さんも選ぶ (選択は絞り込みを替えても残る)
+    await page.locator('#cmFilter').fill('ときのそら');
+    await row(page, 'ときのそら').locator('.fav-star').click();
+    await expect(row(page, 'ときのそら').locator('.fav-star')).toHaveClass(/\bon\b/);
+    await row(page, 'ときのそら').locator('.fav-check').check();
+    await page.locator('#cmFilter').fill('ロボ子');
+    await row(page, 'ロボ子さん').locator('.fav-check').check();
+    await expect(page.locator('#cmSelCount')).toHaveText('2 件を選択中');
+
+    // やめると何も外さない
+    await page.locator('#cmRemove').click();
+    await expect(page.locator('#cmConfirm')).toBeVisible();
+    await expect(page.locator('#cmConfirmStarRow')).toBeVisible();
+    await expect(page.locator('#cmConfirmStar')).not.toBeChecked();
+    await page.locator('#cmConfirm button[value="cancel"]').click();
+    expect((await channels(page)).some((f) => f.channelId === ROBO)).toBe(true);
+
+    // 外すと 📌 の無いロボ子さんだけ外れ、ときのそらは 📌 ごと残る
+    await page.locator('#cmRemove').click();
+    await page.locator('#cmConfirmOk').click();
+    await expect(page.locator('#cmConfirm')).toBeHidden();
+    await expect(page.locator('#cmError')).toContainText('1 件のチャンネルを外しました');
+    const after = await channels(page);
+    expect(after.some((f) => f.channelId === ROBO)).toBe(false);
+    expect(after.find((f) => f.channelId === SORA)?.star).toBe(true);
+    await expect(page.locator('#cmSelCount')).toHaveText('1 件を選択中');
+
+    // 📌 付きだけを選んでいるときは、「📌 付きも外す」に印を付けるまで外せない
+    await page.locator('#cmRemove').click();
+    await expect(page.locator('#cmConfirmOk')).toBeDisabled();
+    await page.locator('#cmConfirmStar').check();
+    await page.locator('#cmConfirmOk').click();
+    await expect.poll(async () => (await channels(page)).some((f) => f.channelId === SORA)).toBe(false);
+    // 同梱のチャンネルは、外したことを覚えている (「戻す」で戻せる)
+    const { removedPresets } = await page.evaluate(() => chrome.storage.local.get('removedPresets'));
+    expect(removedPresets).toEqual(expect.arrayContaining([SORA, ROBO]));
+  });
+
+  test('チャンネルが 1 つも無いと、📺 チャンネルに足し方のボタンを出す', async ({ openGrid }) => {
+    const page = await openGrid();
+    await skipTour(page);
+    await page.locator('#openChannels').click();
+    await expect(page.locator('#favEmptyActions')).toBeHidden();
+    await page.locator('#favManage').click();
+    await page.locator('#cmSelAll').click();
+    await page.locator('#cmRemove').click();
+    await page.locator('#cmConfirmOk').click();
+    await expect(page.locator('#cmList .cm-item')).toHaveCount(0);
+    await expect(page.locator('#cmEmpty')).toBeVisible();
+    await page.locator('#cmClose').click();
+
+    await expect(page.locator('#favEmptyActions')).toBeVisible();
+    await expect(page.locator('#favEmptyManage')).toBeVisible();
+    await expect(page.locator('#favEmptySubs')).toBeVisible();
+    const restore = page.locator('#favEmptyRestore');
+    await expect(restore).toBeVisible();
+    await restore.click();
+    await expect(page.locator('#favList .fav-item').first()).toBeVisible();
+    await expect(page.locator('#favEmptyActions')).toBeHidden();
+  });
+});
+
 test.describe('右クリックの「空き枠に追加」', () => {
   // 16 枠が埋まっている画面にする (空き枠も足す枠も無い)
   const makeFull = (page) => page.evaluate(() => (window.emptyTileOrAdd = () => null));

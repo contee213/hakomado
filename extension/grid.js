@@ -7435,7 +7435,6 @@ function setupToolbar() {
 
   const dialog = document.getElementById('settings');
   document.getElementById('openSettings').addEventListener('click', () => {
-    updatePacks();
     dialog.showModal();
   });
   document.getElementById('settingsReset').addEventListener('click', resetSettings);
@@ -7447,6 +7446,7 @@ function setupToolbar() {
   setupPlaylistPicker();
   setupPacks();
   setupSubscriptions();
+  setupChannelManage();
   setupAddons();
   Sync.setup();
   showAppVersion();
@@ -7841,7 +7841,8 @@ function renderFavorites(favs) {
   favListEl.replaceChildren(...sections);
   document.getElementById('favEmpty').textContent = q
     ? tr('favNoMatch', favFilter)
-    : tr(scope === 'star' ? 'starEmpty' : 'favEmpty');
+    : tr(scope === 'star' ? 'starEmpty' : 'chEmpty');
+  updateFavEmptyActions(!q && scope !== 'star' && !favs.length);
   document.getElementById('favLiveCount').textContent = live.length ? tr('liveCount', live.length) : '';
   updateSelMarks();
 }
@@ -7905,15 +7906,8 @@ function favItem({ f, st }) {
     renderFavorites(await Favorites.list());
   });
 
-  // ピックアップで絞っているときは ✕ (チャンネル一覧から外す) は出さない (📌 を外すのと紛らわしいので)
-  if (libScope === 'star') li.querySelector('.fav-del').remove();
-  li.querySelector('.fav-del')?.addEventListener('click', async (e) => {
-    e.stopPropagation();
-    await Favorites.remove(f.channelId);
-    favStatus.delete(f.channelId);
-    renderFavorites(await Favorites.list());
-    updatePacks();
-  });
+  // チャンネルを外すのは ⚙ チャンネルの管理の画面だけ (探す画面で消してしまわないように。📌 も一緒に消えるので)
+  li.querySelector('.fav-del').remove();
   if (!open) return li;
   // 開いているときは、行のすぐ下にアーカイブの一覧を足す
   const sub = document.createElement('li');
@@ -8225,7 +8219,9 @@ function setFavMode(mode, { render = true } = {}) {
   // 「⟳ 更新」はチャンネルとアーカイブで使う (アーカイブでは取り直し)
   document.getElementById('favRefresh').hidden = favMode === 'saved' || favMode === 'history' || favMode === 'playlists';
   document.getElementById('favLiveCount').hidden = isHistory;
-  document.getElementById('favAdd').hidden = isHistory;
+  // ⚙ 管理 と、チャンネルが無いときの足し方は 📺 チャンネルだけ
+  document.getElementById('favManage').hidden = favMode !== 'all';
+  if (favMode !== 'all') document.getElementById('favEmptyActions').hidden = true;
   document.getElementById('historyClear').hidden = favMode !== 'history';
   const queueBtn = document.getElementById('queuePlay');
   queueBtn.hidden = favMode !== 'saved' && favMode !== 'playlists';
@@ -9862,6 +9858,197 @@ function setupPacks() {
 // パックの名前はアドオン「YouTube の登録チャンネル」(addons/youtube-subs.js) の covers と同じもの ([日本語, 英語])
 const SUBS_PACK_NAMES = Addons.list('schedule').find((a) => a.id === 'ytsubs').packNames;
 // これより多く選んだら、配信状況の確認が重くなることを確かめてから足す
+// ---------------------------------------------------------------- ⚙ チャンネルの管理
+// チャンネルを足す・まとめて外す・チャンネルパック・登録チャンネルの取り込みをまとめた画面 (docs/channel-manage.md)。
+// 📺 チャンネル (探す画面) には外す・足す操作を置かない。開いた画面 (📺 / 設定) の上に重ねるので、閉じると元の画面に戻る
+const cmSelected = new Set(); // 選んだチャンネル ID (絞り込みを変えても残す)
+let cmShown = []; // 今の一覧に出しているチャンネル
+
+/** チャンネルの管理を開く。filter = 絞り込みの文字 (📺 チャンネルで絞り込んでいた文字を引き継ぐ) */
+async function openChannelManage({ filter = '' } = {}) {
+  const dialog = document.getElementById('chManage');
+  document.getElementById('cmFilter').value = filter;
+  document.getElementById('cmError').textContent = '';
+  cmSelected.clear();
+  await Promise.all([renderChannelManage(), updatePacks()]);
+  if (!dialog.open) dialog.showModal();
+}
+
+/** チャンネルの並び: 自分で足したもの → 読み込んだパック → 同梱 (中は登録した順) */
+const cmOrder = (f) => (f.preset ? 2 : f.pack ? 1 : 0);
+
+async function renderChannelManage() {
+  const favs = await Favorites.list();
+  const ids = new Set(favs.map((f) => f.channelId));
+  for (const id of cmSelected) if (!ids.has(id)) cmSelected.delete(id); // もう無いもの
+  const q = document.getElementById('cmFilter').value.trim().toLowerCase();
+  const hit = (f) => [f.name, f.nameJa, f.handle, f.group, f.pack].some((s) => String(s ?? '').toLowerCase().includes(q));
+  cmShown = (q ? favs.filter(hit) : favs)
+    .map((f, i) => ({ f, i }))
+    .sort((a, b) => cmOrder(a.f) - cmOrder(b.f) || a.i - b.i)
+    .map(({ f }) => f);
+  const blank = 'data:image/gif;base64,R0lGODlhAQABAAAAACw=';
+  document.getElementById('cmList').replaceChildren(
+    ...cmShown.map((f) => {
+      const li = document.createElement('li');
+      li.className = 'fav-item cm-item';
+      li.classList.toggle('selected', cmSelected.has(f.channelId));
+      // 行 (名前など) を押しても ☐ が切り替わるように、label でくるむ
+      const row = document.createElement('label');
+      row.className = 'cm-row';
+      row.title = f.handle || f.name;
+      const check = document.createElement('input');
+      check.type = 'checkbox';
+      check.className = 'fav-check';
+      check.checked = cmSelected.has(f.channelId);
+      check.addEventListener('change', () => {
+        if (check.checked) cmSelected.add(f.channelId);
+        else cmSelected.delete(f.channelId);
+        li.classList.toggle('selected', check.checked);
+        updateChannelManageSel();
+      });
+      const icon = document.createElement('img');
+      icon.className = 'fav-icon';
+      icon.alt = '';
+      icon.referrerPolicy = 'no-referrer';
+      icon.loading = 'lazy';
+      icon.addEventListener('error', () => (icon.src = blank), { once: true });
+      icon.src = f.icon || blank;
+      const main = document.createElement('div');
+      main.className = 'fav-main';
+      const name = document.createElement('div');
+      name.className = 'fav-name';
+      name.textContent = f.name;
+      const sub = document.createElement('div');
+      sub.className = 'fav-title';
+      sub.textContent = f.handle || '';
+      main.append(name, sub);
+      const group = document.createElement('span');
+      group.className = 'cm-group';
+      group.textContent = f.preset ? tr('packBuiltin') : f.pack || tr('cmMine');
+      row.append(check, icon, main, group);
+      // 📌 はここでも付け外しできる (外す前に、どれが 📌 付きか分かるように)
+      const star = document.createElement('button');
+      star.type = 'button';
+      star.className = 'fav-star';
+      star.textContent = '📌';
+      star.classList.toggle('on', !!f.star);
+      star.title = tr(f.star ? 'starOff' : 'starOn');
+      star.addEventListener('click', async () => {
+        await Favorites.setStar(f.channelId, !f.star);
+        await refreshFavKeys();
+        await renderChannelManage();
+        if (favDialog.open && !isVideoMode()) renderFavorites(await Favorites.list());
+      });
+      li.append(row, star);
+      return li;
+    }),
+  );
+  document.getElementById('cmEmpty').textContent = q ? tr('favNoMatch', document.getElementById('cmFilter').value.trim()) : tr('cmEmpty');
+  document.getElementById('cmCount').textContent = favs.length ? tr('cmCount', favs.length) : '';
+  document.getElementById('cmSelAll').disabled = !cmShown.length;
+  updateChannelManageSel();
+}
+
+function updateChannelManageSel() {
+  document.getElementById('cmSelBar').hidden = !cmSelected.size;
+  document.getElementById('cmSelCount').textContent = tr('cmSelCount', cmSelected.size);
+  document.getElementById('cmList').classList.toggle('selecting', cmSelected.size > 0);
+}
+
+/**
+ * 選んだチャンネルを、確かめてから外す。確かめるのはまとめて 1 回。
+ * 📌 付きは既定で残し、「📌 付きも外す」に印を付けたときだけ外す (パックを外すときと同じ)
+ */
+async function removeSelectedChannels() {
+  const favs = (await Favorites.list()).filter((f) => cmSelected.has(f.channelId));
+  if (!favs.length) return;
+  const starred = favs.filter((f) => f.star).length;
+  const dialog = document.getElementById('cmConfirm');
+  const check = document.getElementById('cmConfirmStar');
+  const ok = document.getElementById('cmConfirmOk');
+  const note = document.getElementById('cmConfirmNote');
+  document.getElementById('cmConfirmText').textContent = tr('cmConfirm', favs.length);
+  document.getElementById('cmConfirmStarRow').hidden = !starred;
+  document.getElementById('cmConfirmStarText').textContent = tr('cmConfirmStar', starred);
+  check.checked = false;
+  const update = () => {
+    const n = check.checked ? favs.length : favs.length - starred;
+    note.textContent = !n ? tr('cmConfirmOnlyStar') : starred && !check.checked ? tr('cmConfirmKeep', n, starred) : tr('cmConfirmAll', n);
+    ok.disabled = !n;
+  };
+  check.onchange = update;
+  update();
+  dialog.returnValue = '';
+  dialog.showModal();
+  if (!ok.disabled) ok.focus();
+  await new Promise((r) => dialog.addEventListener('close', r, { once: true }));
+  if (dialog.returnValue !== 'ok') return;
+  const ids = favs.filter((f) => check.checked || !f.star).map((f) => f.channelId);
+  const n = await Favorites.removeMany(ids);
+  for (const id of ids) {
+    favStatus.delete(id);
+    cmSelected.delete(id);
+  }
+  document.getElementById('cmError').textContent = starred && !check.checked ? tr('cmRemovedKeep', n, starred) : tr('cmRemoved', n);
+  await afterPresetsChanged();
+}
+
+/** 📺 チャンネルが 1 つも無いときの足し方を出す / 隠す */
+async function updateFavEmptyActions(show) {
+  const box = document.getElementById('favEmptyActions');
+  box.hidden = !show;
+  if (!show) return;
+  const n = await Favorites.removedPresetCount();
+  const restore = document.getElementById('favEmptyRestore');
+  restore.hidden = !n;
+  restore.textContent = tr('cmEmptyRestore', n);
+}
+
+function setupChannelManage() {
+  const dialog = document.getElementById('chManage');
+  closeOnBackdrop(dialog);
+  closeOnBackdrop(document.getElementById('cmConfirm'));
+  document.getElementById('cmClose').addEventListener('click', () => dialog.close());
+  dialog.addEventListener('close', async () => {
+    cmSelected.clear();
+    // 下の 📺 チャンネルに、足した・外したものを出す
+    if (favDialog.open && !isVideoMode()) await refreshFavorites(false);
+  });
+  document.getElementById('cmFilter').addEventListener('input', () => renderChannelManage());
+  document.getElementById('cmSelAll').addEventListener('click', () => {
+    for (const f of cmShown) cmSelected.add(f.channelId);
+    renderChannelManage();
+  });
+  document.getElementById('cmSelClear').addEventListener('click', () => {
+    cmSelected.clear();
+    renderChannelManage();
+  });
+  document.getElementById('cmRemove').addEventListener('click', () => removeSelectedChannels());
+
+  const form = document.getElementById('favAdd');
+  const input = form.querySelector('input');
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (!input.value.trim()) return;
+    await addFavorite(input.value, () => (input.value = ''));
+  });
+
+  // 入口: 📺 チャンネルの「⚙ 管理」(絞り込みの文字を引き継ぐ)・設定 → チャンネル・📺 の空の案内
+  document.getElementById('favManage').addEventListener('click', () => openChannelManage({ filter: favFilter.trim() }));
+  document.getElementById('settingsChManage').addEventListener('click', () => openChannelManage());
+  document.getElementById('favEmptyManage').addEventListener('click', () => openChannelManage());
+  document.getElementById('favEmptySubs').addEventListener('click', async () => {
+    // 結果や失敗は管理の画面の「登録チャンネルから選ぶ」の横に出るので、管理の画面を開いてから読む
+    await openChannelManage();
+    document.getElementById('subsOpen').click();
+  });
+  document.getElementById('favEmptyRestore').addEventListener('click', async () => {
+    await Favorites.restorePresets();
+    await afterPresetsChanged();
+  });
+}
+
 const SUBS_MANY = 100;
 
 function setupSubscriptions() {
@@ -9987,6 +10174,7 @@ async function afterPresetsChanged() {
   await updatePacks();
   await refreshCatalog();
   if (favDialog.open && !isVideoMode()) await refreshFavorites(false);
+  if (document.getElementById('chManage').open) await renderChannelManage();
 }
 
 function pickFavorite(f, st) {
@@ -11294,13 +11482,6 @@ function setupFavorites() {
   // 背景クリックで閉じる
   closeOnBackdrop(favDialog);
 
-  const form = document.getElementById('favAdd');
-  const input = form.querySelector('input');
-  form.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    await addFavorite(input.value, () => (input.value = ''));
-  });
-
   // 名前・@ハンドル・グループで絞り込み
   const filter = document.getElementById('favFilter');
   filter.addEventListener('input', async () => {
@@ -11357,16 +11538,18 @@ function showToast(i, text) {
   el._timer = setTimeout(() => el.classList.remove('show'), 2500);
 }
 
+/** ⚙ チャンネルの管理の追加の欄から、チャンネルを登録する */
 async function addFavorite(raw, onSuccess) {
-  favErrorEl.textContent = tr('adding');
+  const out = document.getElementById('cmError');
+  out.textContent = tr('adding');
   try {
-    const { info, added } = await Favorites.add(raw, { star: libScope === 'star' }); // ピックアップで絞っているときはピックアップにも入れる
-    favErrorEl.textContent = added ? '' : tr('favExists', info.name);
+    const { info, added } = await Favorites.add(raw);
+    out.textContent = added ? tr('cmAdded', info.name) : tr('favExists', info.name);
     onSuccess?.();
     favStatus.delete(info.channelId);
-    await refreshFavorites(false);
+    await afterPresetsChanged();
   } catch (e) {
-    favErrorEl.textContent = e.message || String(e);
+    out.textContent = e.message || String(e);
   }
 }
 
