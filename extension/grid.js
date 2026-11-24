@@ -7190,10 +7190,11 @@ async function aiPromptText(want = '') {
  * 取り込み用リンクから開いたとき (#import=…)。リンクの中身を読み込み画面の貼り付け欄に入れて開き、名前を確かめて保存してもらう
  * (枠に並べることもできる)。
  * (YouTube の watch_videos の URL を、background.js がこの画面に付け替えて開く)
+ * @returns {boolean} 読み込む画面を開いたか
  */
 function handleImportLink() {
   const PREFIX = '#import=';
-  if (!location.hash.startsWith(PREFIX)) return;
+  if (!location.hash.startsWith(PREFIX)) return false;
   const raw = location.hash.slice(PREFIX.length);
   // 再読み込みでもう一度出さないよう、先に URL から外す
   history.replaceState(null, '', location.pathname + location.search);
@@ -7207,12 +7208,12 @@ function handleImportLink() {
   }
   if (!link?.ids.length) {
     notify(tr('importNothing'));
-    return;
+    return false;
   }
   // 共有画像の QR のリンク (レイアウト・ずれ入り) は、リンクのまま入れる (コードと同じに読める)
   if (parseShareLink(url)) {
     openReadDialog({ primary: 'apply', text: url, lead: tr('importReceived', link.ids.length) });
-    return;
+    return true;
   }
   // 名前は「# playlist=」の行にして入れる (読み取った内容と名前欄にそのまま出る)
   const name = link.name.replace(/[\r\n]/g, ' ').trim();
@@ -7221,6 +7222,7 @@ function handleImportLink() {
     text: [...(name ? [`# playlist=${name}`] : []), ...link.ids.map((id) => `${YT}/watch?v=${id}`)].join('\n'),
     lead: tr('importReceived', link.ids.length),
   });
+  return true;
 }
 
 // ---- 右クリックのメニュー「Hakomado の空き枠に追加」(background.js から届く / 画面が無ければ #add=<ID> で開く)
@@ -11788,9 +11790,10 @@ async function chooseSession() {
   // 自動再生 ON のまま閉じたセッションを続けるときは、今の枠のまま確認を再開
   else if (state.autoMode) setAutoMode(true, { resume: true });
   startNoticeWatch();
-  handleImportLink();
+  const imported = handleImportLink();
   handleAddLink();
-  if (startWithRead) openReadDialog({ primary: 'apply' });
+  // 取り込み用リンクで読み込む画面を開いたときは、そちらを優先する (主ボタンと受け取った本数の一文を上書きしない)
+  if (startWithRead && !imported) openReadDialog({ primary: 'apply' });
   // 右クリックのメニューからの追加を受け取る (起動し終えてから。それまでに押されたものは新しいタブで開く)
   chrome.tabs
     .getCurrent()
@@ -11801,10 +11804,31 @@ async function chooseSession() {
     })
     .catch(() => {});
 
-  // インストール直後の 1 回だけ、使い方ツアーを出す (先に印を消して、他のタブでは出さない)
+  // インストール直後の 1 回だけ、使い方ツアーを出す (先に印を消して、他のタブでは出さない)。
+  // 取り込み用リンクで開いたときなど、ダイアログが開いていれば、全部閉じてから出す
+  // (モーダルの後ろではツアーのボタンが押せないので)
   const { tourPending } = await chrome.storage.local.get('tourPending');
   if (tourPending) {
     await chrome.storage.local.remove('tourPending');
-    startTour();
+    whenNoDialogOpen(startTour);
   }
 })();
+
+/** 開いているダイアログが無くなったら fn を 1 回呼ぶ (閉じた直後に次のダイアログが開く流れも待つ) */
+function whenNoDialogOpen(fn) {
+  const anyOpen = () => !!document.querySelector('dialog[open]');
+  if (!anyOpen()) {
+    fn();
+    return;
+  }
+  let done = false;
+  const onClose = () =>
+    setTimeout(() => {
+      if (done || anyOpen()) return;
+      done = true;
+      document.removeEventListener('close', onClose, true);
+      fn();
+    }, 300);
+  // close は伝わらないイベントなので、捕捉の段階で受ける
+  document.addEventListener('close', onClose, true);
+}

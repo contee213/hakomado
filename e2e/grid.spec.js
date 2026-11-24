@@ -282,6 +282,42 @@ test.describe('視聴セッション', () => {
     await expect(visibleTiles(next).first().locator('.url-input')).toHaveValue('');
   });
 
+  // 取り込み用リンク (background.js が #import=<watch_videos のクエリ> に付け替えて開く)
+  const IMPORT_HASH = `#import=${encodeURIComponent('video_ids=dQw4w9WgXcQ,9bZkp7q5f_w&hakomado=テスト')}`;
+
+  test('取り込み用リンクで開いて「読み込んで始める」を選んでも、リンクの中身と保存の主ボタンのまま', async ({ openGrid }) => {
+    const page = await openGrid();
+    await skipTour(page);
+    const input = visibleTiles(page).first().locator('.url-input');
+    await input.fill('dQw4w9WgXcQ');
+    await input.press('Enter');
+    await expect
+      .poll(() => page.evaluate(async () => JSON.stringify(await chrome.storage.local.get(null)).includes('dQw4w9WgXcQ')))
+      .toBe(true);
+    await page.close();
+
+    const next = await openGrid(IMPORT_HASH);
+    const start = next.locator('#startDialog');
+    await expect(start).toBeVisible();
+    await start.locator('#startChoices button[value="read"]').click();
+    await expect(next.locator('#readPane')).toBeVisible();
+    await expect(next.locator('#readSummary')).toContainText('2 本を受け取りました');
+    await expect(next.locator('#readSave')).toHaveClass(/primary-action/);
+    await expect(next.locator('#readApply')).not.toHaveClass(/primary-action/);
+  });
+
+  test('インストール直後に取り込み用リンクで開くと、読み込む画面を閉じてから使い方ツアーが出る', async ({ openGrid }) => {
+    const page = await openGrid(IMPORT_HASH);
+    await expect(page.locator('#readPane')).toBeVisible();
+    await expect(page.locator('#readSummary')).toContainText('2 本を受け取りました');
+    // 読み込む画面 (モーダル) の後ろでは押せないので、まだ出さない
+    await page.waitForTimeout(500);
+    await expect(page.locator('.tour')).toHaveCount(0);
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#xferDialog')).toBeHidden();
+    await skipTour(page);
+  });
+
   test('2 つ目のタブは別の視聴セッションになる (同じものを取り合わない)', async ({ openGrid }) => {
     const first = await openGrid();
     await skipTour(first);
