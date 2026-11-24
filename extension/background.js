@@ -219,6 +219,10 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     } else if (msg?.type === 'web-origins-changed') {
       // 画面がサイトの許可を取って webOrigins に足した → 枠を読み込む前に、登録とルールを済ませる
       await syncWebPlayer();
+    } else if (msg?.type === 'twitch-rules') {
+      // 画面が twitch.tv の許可を確かめた → Twitch の枠を読み込む前に、ヘッダーを外すルールを入れておく
+      // (permissions.onAdded でも入れるが、画面の描き直しのほうが先に走るので、ここで待てるようにする)
+      await applyRules(await getGridTabs());
     }
   })
     .then(() => sendResponse({ ok: true }))

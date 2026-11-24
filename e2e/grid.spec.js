@@ -134,7 +134,7 @@ test.describe('ツールバー', () => {
     await skipTour(page);
   });
 
-  // 設定のタブ → 「? 詳しい説明」で開く使い方の項目 (どのタブからも「はじめに」以外の、そのタブの説明が開く)
+  // 設定のタブ → 「詳しい説明」で開く使い方の項目 (どのタブからも「はじめに」以外の、そのタブの説明が開く)
   const HELP_OF_SETTINGS_TAB = [
     ['danmaku', 'look'],
     ['audio', 'look'],
@@ -145,7 +145,7 @@ test.describe('ツールバー', () => {
     ['addons', 'channels'],
     ['backup', 'backup'],
   ];
-  test('設定の「? 詳しい説明」は、開いているタブの説明を使い方で開く', async ({ openGrid }) => {
+  test('設定の「詳しい説明」は、開いているタブの説明を使い方で開く', async ({ openGrid }) => {
     const page = await openGrid();
     await skipTour(page);
     await page.locator('#openSettings').click();
@@ -178,7 +178,7 @@ test.describe('ツールバー', () => {
 });
 
 test.describe('空き枠', () => {
-  test('幅の狭い空き枠では、「📚 ライブラリから選ぶ」が 📚 のアイコンだけになる', async ({ openGrid }) => {
+  test('幅の狭い空き枠では、「📺 チャンネルから選ぶ」「📚 ライブラリから選ぶ」が記号だけになる', async ({ openGrid }) => {
     const page = await openGrid();
     await skipTour(page);
     await page.setViewportSize({ width: 480, height: 600 });
@@ -188,6 +188,7 @@ test.describe('空き枠', () => {
     await expect.poll(() => tile.evaluate((el) => el.querySelector('.stage').offsetWidth)).toBeLessThanOrEqual(260);
     const icon = (sel) => tile.locator(sel).evaluate((el) => getComputedStyle(el, '::before').content);
     await expect.poll(() => icon('.pick-fav')).toBe('"📚"');
+    await expect.poll(() => icon('.pick-ch')).toBe('"📺"');
   });
 });
 
@@ -508,14 +509,14 @@ test.describe('ライブラリの種類の絞り込み', () => {
   ];
   const shownIds = (page) => page.locator('#favList .fav-item').evaluateAll((els) => els.map((e) => e.dataset.sel));
 
-  test('🔴 ライブ / 🎬 動画 / 📱 ショート で出す種類を切り替え、最後の 1 つは外せず、次に開いたときも覚えている', async ({ openGrid }) => {
+  test('🔴 配信 / 🎬 動画 / 📱 ショート で出す種類を切り替え、最後の 1 つは外せず、次に開いたときも覚えている', async ({ openGrid }) => {
     const page = await openGrid();
     await skipTour(page);
     await page.evaluate((h) => chrome.storage.local.set({ history: h }), HISTORY);
     await page.locator('#openFavorites').click();
     await page.locator('[data-favtab="history"]').click();
     const kinds = page.locator('#libKind [data-kind]');
-    await expect(kinds).toHaveText(['🔴 ライブ', '🎬 動画', '📱 ショート']);
+    await expect(kinds).toHaveText(['🔴 配信', '🎬 動画', '📱 ショート']);
     await expect(page.locator('#favList .fav-item')).toHaveCount(4); // 全部出すときは種類の分からないものも出す
     await page.locator('#libKind [data-kind="short"]').click();
     await expect.poll(() => shownIds(page)).toEqual(['live0000001', 'video000002']);
@@ -667,5 +668,75 @@ test.describe('右クリックの「空き枠に追加」', () => {
     await expect(c.locator('#grid .tile').first()).toBeAttached();
     await expect.poll(() => tileIds(c).catch(() => null)).toEqual(['9bZkp7q5f_w']);
     await expect(c.locator('#startDialog')).toBeHidden();
+  });
+});
+
+// docs/design-guide.md の決まり (docs/ui-consistency.md で決めたもの) どおりに動くか
+test.describe('デザインガイドの決まり', () => {
+  test('空き枠が無いときにチャンネルの行を押すと、枠を足して入れる (A1)', async ({ openGrid }) => {
+    const page = await openGrid();
+    await skipTour(page);
+    const before = await page.evaluate(() => {
+      for (const i of visibleIndexes()) setTileVideo(i, 'dQw4w9WgXcQ');
+      return state.count;
+    });
+    await page.evaluate(() => pickFavorite({ channelId: 'UCabcdefghijklmnopqrstuv', handle: '@x' }, { videoId: 'aaaaaaaaaaa' }));
+    await expect.poll(() => page.evaluate(() => state.count)).toBe(before + 1);
+    expect(await page.evaluate(() => state.tiles.some((t) => t.videoId === 'aaaaaaaaaaa'))).toBe(true);
+  });
+
+  test('通知の「全部消す」は件数を見せて確かめる。やめれば消えない (A3)', async ({ openGrid }) => {
+    const page = await openGrid();
+    await skipTour(page);
+    const notice = { videoId: 'dQw4w9WgXcQ', channelId: 'UCabcdefghijklmnopqrstuv', name: 'テスト', title: 'テスト配信', at: Date.now() };
+    await page.evaluate((n) => chrome.storage.local.set({ notices: [n] }), notice);
+    await page.locator('#openNotices').click();
+    const messages = [];
+    page.once('dialog', (d) => {
+      messages.push(d.message());
+      d.dismiss();
+    });
+    await page.locator('#noticeClear').click();
+    await expect.poll(() => messages).toEqual(['通知を全部 (1 件) 消しますか？']);
+    expect(await page.evaluate(async () => (await chrome.storage.local.get('notices')).notices.length)).toBe(1);
+    page.once('dialog', (d) => d.accept());
+    await page.locator('#noticeClear').click();
+    await expect.poll(() => page.evaluate(async () => (await chrome.storage.local.get('notices')).notices.length)).toBe(0);
+  });
+
+  test('画面の下の知らせは、開いているダイアログより前に出る (A6)', async ({ openGrid }) => {
+    const page = await openGrid();
+    await skipTour(page);
+    await page.locator('#openSettings').click();
+    await expect(page.locator('#settings')).toBeVisible();
+    await page.evaluate(() => notify('テストの知らせ'));
+    const toast = page.locator('#globalToast');
+    await expect(toast).toHaveText('テストの知らせ');
+    expect(await toast.evaluate((el) => el.matches(':popover-open'))).toBe(true);
+    // ダイアログを開いた後に出したので、最前面 (top layer) の一番上に積まれている
+    // (ダイアログの外は inert になり当たり判定から外れるので、elementFromPoint では確かめられない。見た目はスクリーンショットで確かめた)
+  });
+
+  test('全体の切り替えは、キーのときだけ知らせる (A7)', async ({ openGrid }) => {
+    const page = await openGrid();
+    await skipTour(page);
+    const toast = page.locator('#globalToast');
+    await page.locator('#repeatAll').click();
+    await expect(page.locator('#repeatAll')).toHaveAttribute('aria-pressed', 'true');
+    expect(await toast.evaluate((el) => el.matches(':popover-open'))).toBe(false);
+    await page.locator('body').click({ position: { x: 5, y: 300 } });
+    await page.keyboard.press('r');
+    await expect(toast).toHaveText('繰り返し OFF');
+  });
+
+  test('ロゴから開いた起動画面は、背景のクリックでも閉じる (A8)', async ({ openGrid }) => {
+    const page = await openGrid();
+    await skipTour(page);
+    await page.locator('#brandHome').click();
+    const start = page.locator('#startDialog');
+    await expect(start).toBeVisible();
+    await expect(page.locator('#startClose')).toBeVisible();
+    await page.mouse.click(5, 5);
+    await expect(start).toBeHidden();
   });
 });
