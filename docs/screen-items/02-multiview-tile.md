@@ -13,7 +13,7 @@
 | 2 | URL / 動画 ID / @チャンネル名 を貼り付け | 入力 (1 行) | `.url-input` | 読み込む URL などを入れる。YouTube の URL・動画 ID・@チャンネル名・チャンネルの URL (ライブを探す)・Twitch の URL・ほかのサイトの https の URL (URL の枠) を受け付ける | 初期値は枠の入力 (`state.tiles[i].input`)。maxlength なし (URL の枠は 2048 文字まで) | Enter で読み込む | `loadInput`・`resolveVideoId`。spellcheck なし |
 | 3 | 読み込む | ボタン | `.empty-actions [type="submit"]` | 入力を読み込んで枠に入れる。Twitch の URL は twitch.tv の権限を聞いてから、ほかのサイトはサイトの許可を聞いてから入れる | | | `loadInput`・`loadWebInput`・`grantWebSite` |
 | 4 | 📺 チャンネルから選ぶ | ボタン | `.pick-ch` | チャンネル一覧 (ダイアログ) を、この枠に入れる先として開く | | | `openFavorites(i, 'channels')` |
-| 5 | 📚 ライブラリから選ぶ | ボタン | `.pick-fav` | ライブラリ (ダイアログ) を、この枠に入れる先として開く | | | `openFavorites(i, 'library')`。幅 260px 以下の枠では文字を隠して「📺」だけ出す (CSS の `::before`) |
+| 5 | 📚 ライブラリから選ぶ | ボタン | `.pick-fav` | ライブラリ (ダイアログ) を、この枠に入れる先として開く | | | `openFavorites(i, 'library')`。幅 260px 以下の枠では文字を隠して「📚」だけ出す (CSS の `::before`) |
 | 6 | 🎲 おまかせ | ボタン | `.pick-any` | まだ出ていない配信を 1 本選んで入れる。ピックアップのライブ → ほかのライブ → ピックアップの最近の配信 → ほかの最近の配信 の順に探す。入れたらトースト「🎲 ライブ: …」/「🎲 最近の動画: …」、見つからなければ「ほかに入れられる配信が見つかりませんでした」 | | | `pickAnything`・`loadPicked`。title「まだ出ていない配信を 1 本入れる (ピックアップのライブを優先)」 |
 | 7 | 進み具合 | 表示 | `.pick-progress` (`.pick-progress-text`・`.pick-progress-bar`) | 🎲 おまかせで探している間の文字 (「🎲 探しています…」など) と横棒 (0〜100%) | 初期は hidden | | `pickProgress`。role="status"・aria-live="polite" |
 | 8 | エラー | 表示 | `.error` | 読み込み中は「読み込み中…」、読み込めないときは理由 (https だけ・長すぎる・許可されなかった など) | 空 | | 中身が空のときは高さだけ取る。高さ 190px 以下の枠では空なら隠す |

@@ -130,6 +130,62 @@ test.describe('ツールバー', () => {
     await expect(page.locator('#help')).toBeHidden();
     await skipTour(page);
   });
+
+  // 設定のタブ → 「? 詳しい説明」で開く使い方の項目 (どのタブからも「はじめに」以外の、そのタブの説明が開く)
+  const HELP_OF_SETTINGS_TAB = [
+    ['danmaku', 'look'],
+    ['audio', 'look'],
+    ['chat', 'look'],
+    ['view', 'tiles'],
+    ['auto', 'auto'],
+    ['channels', 'channels'],
+    ['addons', 'channels'],
+    ['backup', 'backup'],
+  ];
+  test('設定の「? 詳しい説明」は、開いているタブの説明を使い方で開く', async ({ openGrid }) => {
+    const page = await openGrid();
+    await skipTour(page);
+    await page.locator('#openSettings').click();
+    for (const [tab, help] of HELP_OF_SETTINGS_TAB) {
+      await page.locator(`#settings [data-tab="${tab}"]`).click();
+      await page.locator('#settingsHelp').click();
+      await expect(page.locator(`#help [data-help-page="${help}"]`), `設定の ${tab} タブ`).toBeVisible();
+      await page.keyboard.press('Escape');
+      await expect(page.locator('#help')).toBeHidden();
+    }
+  });
+
+  test('設定を「すべて初期値に戻す」と、OFF に戻ったアドオンの任意の権限を手放し、必須の権限は手放さない', async ({ openGrid }) => {
+    const page = await openGrid();
+    await skipTour(page);
+    // にじさんじ (任意の権限・初期値 OFF) を ON にしておく。権限の取り外しは記録するだけにする
+    await page.evaluate(() => {
+      state.settings.addons = Addons.withState(state.settings.addons, 'nijisanji', true);
+      Addons.setStates(state.settings.addons);
+      window.__removed = [];
+      chrome.permissions.remove = async ({ origins }) => (window.__removed.push(...origins), true);
+    });
+    page.once('dialog', (d) => d.accept());
+    await page.locator('#openSettings').click();
+    await page.locator('#settings [data-tab="backup"]').click();
+    await page.locator('#settingsReset').click();
+    await expect.poll(() => page.evaluate(() => window.__removed)).toEqual(['https://www.nijisanji.jp/*']);
+    expect(await page.evaluate(() => Addons.isOn('nijisanji'))).toBe(false);
+  });
+});
+
+test.describe('空き枠', () => {
+  test('幅の狭い空き枠では、「📚 ライブラリから選ぶ」が 📚 のアイコンだけになる', async ({ openGrid }) => {
+    const page = await openGrid();
+    await skipTour(page);
+    await page.setViewportSize({ width: 480, height: 600 });
+    // 枠を足して、どの枠も幅 260px 以下にする
+    for (let n = 0; n < 3; n++) await page.locator('#addTile').click();
+    const tile = visibleTiles(page).first();
+    await expect.poll(() => tile.evaluate((el) => el.querySelector('.stage').offsetWidth)).toBeLessThanOrEqual(260);
+    const icon = (sel) => tile.locator(sel).evaluate((el) => getComputedStyle(el, '::before').content);
+    await expect.poll(() => icon('.pick-fav')).toBe('"📚"');
+  });
 });
 
 test.describe('視聴セッション', () => {
