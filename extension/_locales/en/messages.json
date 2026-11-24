@@ -4,7 +4,7 @@
     "description": "Extension name"
   },
   "extDescription": {
-    "message": "Watch up to 16 YouTube streams at once, with scrolling live chat (danmaku) on each tile.",
+    "message": "Watch up to 16 YouTube and Twitch streams at once, with scrolling live chat (danmaku) on each tile.",
     "description": "Extension description"
   },
   "actionTitle": {

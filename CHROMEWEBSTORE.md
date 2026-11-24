@@ -70,7 +70,7 @@ GitHub のリリースが先に出て、ストアは同じ版を後から追い�
 ## ストアの掲載情報
 
 - 名前: `manifest.json` の `extName` がそのまま使われる (ja: `Hakomado – YouTube配信の複窓・マルチビュー(最大16枠)` / en: `Hakomado – Multiview for YouTube (up to 16 streams)`)
-- 概要 (short description): `manifest.json` の `extDescription` がそのまま使われる (ja 41 文字 / en 88 文字。上限 132 文字)
+- 概要 (short description): `manifest.json` の `extDescription` がそのまま使われる (ja 48 文字 / en 99 文字。上限 132 文字)
 - カテゴリ: エンターテイメント
 - 言語: 日本語 / 英語 (既定は英語 `default_locale: en`)。ダッシュボードで言語ごとに詳しい説明を入れる
 - ホームページの URL: https://github.com/contee213/hakomado
@@ -81,7 +81,7 @@ GitHub のリリースが先に出て、ストアは同じ版を後から追い�
 ストアは Markdown を使えないので、そのまま貼る。
 
 ```text
-YouTube の配信・動画を 1 つの画面に最大 16 枠並べて、同時に視聴できます。
+YouTube・Twitch の配信・動画を 1 つの画面に最大 16 枠並べて、同時に視聴できます。
 
 コラボ配信の各視点や、同じ時間に重なった推しの配信を、タブを切り替えずにまとめて見るための拡張機能です。ブラウザでログインしている YouTube アカウントがそのまま使われるので、メンバー限定配信も見られます。
 
@@ -96,6 +96,7 @@ YouTube の配信・動画を 1 つの画面に最大 16 枠並べて、同時�
 ・共有: 今の枠や再生リストを、画像・リンク・テキストにして人に渡せます
 ・スクリーンショット: Alt+Shift+S で枠の並び全体を PNG で保存 (クリップボードにもコピー)
 ・右クリックで追加: YouTube・Twitch のリンクを右クリック →「Hakomado の空き枠に追加」
+・Twitch: チャンネル・VOD も枠に入れられます。チャンネルの登録・配信中の検知・自動再生・アーカイブ同期・速度・音の左右・弾幕・共有まで、YouTube の枠とほぼ同じように使えます (twitch.tv へのアクセスは、初めて使うときに許可を求めます)
 
 ■ 使い方
 1. ツールバーの Hakomado のアイコンを押すと、マルチビュー画面が開きます
@@ -127,7 +128,7 @@ https://github.com/contee213/hakomado/issues
 ### 詳しい説明 (英語)
 
 ```text
-Watch up to 16 YouTube streams and videos side by side on one screen.
+Watch up to 16 YouTube and Twitch streams and videos side by side on one screen.
 
 Built for watching every point of view of a collab stream, or several overlapping streams, without switching tabs. It uses the YouTube account you are already signed in to in your browser, so members-only streams work too.
 
@@ -142,6 +143,7 @@ FEATURES
 • Sharing: turn your current tiles or a playlist into an image, a link or text
 • Screenshots: press Alt+Shift+S to save all the tiles as a PNG (also copied to the clipboard)
 • Right-click to add: right-click a YouTube or Twitch link and choose "Add to an empty Hakomado tile"
+• Twitch: Twitch channels and VODs can go in tiles too. Adding channels, live detection, auto play, archive sync, speed, left/right audio, danmaku and sharing work much like YouTube tiles (access to twitch.tv is requested the first time you use it)
 
 HOW TO USE
 1. Click the Hakomado icon in the toolbar to open the multiview screen

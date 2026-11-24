@@ -2,13 +2,13 @@
 
 [日本語](#日本語) | [English](#english)
 
-最終更新 / Last updated: 2026-11-24
+最終更新 / Last updated: 2026-11-25
 
 ---
 
 ## 日本語
 
-Hakomado (以下「この拡張機能」) は、YouTube の配信・動画を 1 つの画面に並べて同時に視聴するための Chrome / Edge 拡張機能です。
+Hakomado (以下「この拡張機能」) は、YouTube・Twitch の配信・動画を 1 つの画面に並べて同時に視聴するための Chrome / Edge 拡張機能です。
 個人が作った非公式のツールです。この拡張機能は、開発者が運営するサーバーとは通信しません。
 
 ### 集める情報
@@ -35,7 +35,7 @@ Hakomado (以下「この拡張機能」) は、YouTube の配信・動画を 1 
 | にじさんじ公式サイト (`www.nijisanji.jp`) | にじさんじのライブスケジュール (設定の「アドオン」で「にじさんじ」を ON にしたときだけ。初期値は OFF)。Cookie は送りません |
 | ぶいすぽっ!のスケジュールサイト (`www.vspo-schedule.com`。有志による非公式のサイト) | ぶいすぽっ!の配信スケジュール (設定の「アドオン」で「ぶいすぽっ!」を ON にしたときだけ。初期値は OFF)。Cookie は送りません |
 | STPR の配信予定のデータ (`schedule-share-json.s3.ap-northeast-1.amazonaws.com`。schedule.stpr.com が使っているもの) | STPR の公式の配信予定 (設定の「アドオン」で「STPR (すとぷり)」を ON にしたときだけ。初期値は OFF)。Cookie は送りません |
-| Twitch (`www.twitch.tv`, `player.twitch.tv`, `static-cdn.jtvnw.net`) | 枠に Twitch の URL を入れたときだけ、Twitch の公式の埋め込みプレイヤーとチャットを表示します。チャンネル一覧に Twitch のチャンネルを登録したときは、そのチャンネルの公開ページを読み、名前・アイコン・配信中かどうか・最近の VOD を調べます (1 チャンネル 2 分に 1 回まで)。枠に入れた VOD は、アーカイブ同期のために VOD の公開ページから配信の開始時刻を読みます。弾幕を ON にしたチャンネルのライブでは、埋め込みチャット欄に出たコメントを読んで枠の中に流します (保存も送信もしません)。「Twitch のフォロー」の「フォローから選ぶ」を押して Twitch にログインしたときだけ、Twitch の公式の API でフォローしているチャンネルを読みます (ログインで受け取った鍵は読み終えたらすぐ無効にし、保存しません。選んだチャンネルだけをブラウザの中に保存します)。チャンネルのアイコンとサムネイルを表示します。Cookie は送りません |
+| Twitch (`www.twitch.tv`, `player.twitch.tv`, `static-cdn.jtvnw.net`, `id.twitch.tv`, `api.twitch.tv`) | 枠に Twitch の URL を入れたときだけ、Twitch の公式の埋め込みプレイヤーとチャットを表示します。チャンネル一覧に Twitch のチャンネルを登録したときは、そのチャンネルの公開ページを読み、名前・アイコン・配信中かどうか・最近の VOD を調べます (1 チャンネル 2 分に 1 回まで)。枠に入れた VOD は、アーカイブ同期のために VOD の公開ページから配信の開始時刻を読みます。弾幕を ON にしたチャンネルのライブでは、埋め込みチャット欄に出たコメントを読んで枠の中に流します (保存も送信もしません)。「Twitch のフォロー」の「フォローから選ぶ」を押して Twitch にログインしたときだけ、Twitch の公式の API でフォローしているチャンネルを読みます (ログインで受け取った鍵は読み終えたらすぐ無効にし、保存しません。選んだチャンネルだけをブラウザの中に保存します)。チャンネルのアイコンとサムネイルを表示します。この拡張機能からの取得では Cookie を送りません (埋め込みプレイヤーとチャット欄は、Twitch のページを開くのと同じく、ブラウザでログインしている Twitch アカウントのまま表示されます) |
 | GitHub (`api.github.com`) | 新しい版が出ていないかの確認 (1 日 1 回まで。Chrome ウェブストアから入れた版では行いません)。Cookie は送りません |
 | GitHub (`raw.githubusercontent.com`) | 「パックを探す」を押したときだけ、チャンネルパックの一覧と選んだパック。Cookie は送りません |
 | 利用者が指定した URL | 利用者が URL を入れて読み込んだチャンネルパックや画像。Cookie は送りません |
@@ -76,7 +76,7 @@ Hakomado (以下「この拡張機能」) は、YouTube の配信・動画を 1 
 
 ## English
 
-Hakomado ("the extension") is a Chrome / Edge extension for watching several YouTube streams and videos side by side on one screen.
+Hakomado ("the extension") is a Chrome / Edge extension for watching several YouTube and Twitch streams and videos side by side on one screen.
 It is an unofficial tool made by an individual. The extension does not connect to any server run by the developer.
 
 ### Information we collect
@@ -103,6 +103,7 @@ The extension only connects to the following. Each connection fetches what is ne
 | NIJISANJI website (`www.nijisanji.jp`) | The NIJISANJI live schedule (only while the NIJISANJI add-on is on under Settings > Add-ons; off by default). No cookies are sent |
 | VSPO! schedule site (`www.vspo-schedule.com`, an unofficial fan site) | The VSPO! stream schedule (only while the VSPO! add-on is on under Settings > Add-ons; off by default). No cookies are sent |
 | STPR schedule data (`schedule-share-json.s3.ap-northeast-1.amazonaws.com`, used by schedule.stpr.com) | The official STPR stream schedule (only while the STPR add-on is on under Settings > Add-ons; off by default). No cookies are sent |
+| Twitch (`www.twitch.tv`, `player.twitch.tv`, `static-cdn.jtvnw.net`, `id.twitch.tv`, `api.twitch.tv`) | Only when you put a Twitch URL into a tile: shows Twitch's official embedded player and chat. For Twitch channels you add to the channel list: reads the channel's public page to get its name, icon, whether it is live and its recent VODs (at most once every 2 minutes per channel). For VODs in tiles: reads the VOD's public page for its title and stream start time (for archive sync). With danmaku on for a live channel: reads the comments shown in the embedded chat and scrolls them in the tile (not stored or sent anywhere). Only when you press "Choose from follows" and sign in to Twitch: reads the channels you follow with Twitch's official API (the access token is revoked right after and never stored; only the channels you pick are saved in the browser). Shows channel icons and thumbnails. The extension's own requests send no cookies (the embedded player and chat appear with the Twitch account you are signed in to in the browser, the same as opening Twitch) |
 | GitHub (`api.github.com`) | Checking for a newer version (at most once a day; not done in the version installed from the Chrome Web Store). No cookies are sent |
 | GitHub (`raw.githubusercontent.com`) | Only when you press "Find packs": the list of channel packs and the pack you choose. No cookies are sent |
 | URLs you enter | Channel packs or images you load from a URL. No cookies are sent |
