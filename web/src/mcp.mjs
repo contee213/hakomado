@@ -66,7 +66,7 @@ const TOOLS = [
   {
     name: 'list_layouts',
     title: 'レイアウトの一覧',
-    description: '使えるレイアウト。id を post_set の layoutId に使う。slots = 枠の数、kind = uniform (均等) / focus・balance・single (メイン + サブ) / pip (小窓)。id の頭の tl・tr・bl・br はメイン枠を置く角',
+    description: '使えるレイアウト。id を post_set の layoutId に使う。slots = 枠の数、kind = uniform (均等) / focus・balance・single (メイン + サブ) / pip (小窓) / vertical (縦長。どの枠も 9:16 でショート・縦型の配信向け)。id の頭の tl・tr・bl・br はメイン枠を置く角',
     inputSchema: { type: 'object', properties: {}, additionalProperties: false },
     annotations: { readOnlyHint: true, openWorldHint: false },
     run: async () => ({ layouts: layoutList() }),
