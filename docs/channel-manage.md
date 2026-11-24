@@ -2,7 +2,7 @@
 
 📺 チャンネルの画面 (`#favorites`、`openFavorites(…, 'channels')`) から、チャンネルを足す・外す管理の操作を切り出し、「チャンネルの管理」の画面に分ける設計。[ui-consistency.md の A4](ui-consistency.md#a4-一覧の--で-1-件消す) の続き。2026-11-25 に `main` (69ac7a2) のコードから書いた。
 
-**状態:** 決定 (2026-11-25)。実装は未
+**状態:** 決定 (2026-11-25)・実装済み。画面の項目は [screen-items/04-channels-library.md](screen-items/04-channels-library.md) の「⚙ チャンネルの管理」
 
 ## なぜ分けるか
 

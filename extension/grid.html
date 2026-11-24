@@ -237,38 +237,10 @@
       </section>
       <section class="settings-panel" data-panel="channels" role="tabpanel" hidden>
         <div class="settings-col">
-          <span class="field-label" data-i18n="pack.listH">チャンネルパック</span>
-          <p class="settings-note" data-i18n="pack.listNote">チャンネル一覧に入っているパック。まとめて外したり戻したりできます</p>
-          <ul id="packList" class="pack-list"></ul>
-          <span class="field-label" data-i18n="subs.h">YouTube の登録チャンネル</span>
-          <p class="settings-note" data-i18n="subs.note">ログイン中の YouTube アカウントの登録チャンネルから選んで足します</p>
+          <span class="field-label" data-i18n="cm.settingsH">チャンネルの管理</span>
+          <p class="settings-note" data-i18n="cm.settingsNote">チャンネルの追加・まとめて外す・チャンネルパック・YouTube の登録チャンネルからの取り込みは、「チャンネルの管理」の画面で行います</p>
           <div class="pack-row">
-            <button type="button" id="subsOpen" data-i18n="subs.open">登録チャンネルから選ぶ</button>
-            <span id="subsOpenStatus" class="share-status" role="status"></span>
-          </div>
-          <span class="field-label" data-i18n="pack.exportH">チャンネルパックを書き出す</span>
-          <p class="settings-note" data-i18n="pack.exportNote">チャンネル一覧をパック (JSON) にして、ほかの人に配れます</p>
-          <div class="pack-row">
-            <select id="packGroup"></select>
-            <button type="button" id="packExport" data-i18n="pack.export">⬇ 書き出す</button>
-          </div>
-        </div>
-        <div class="settings-col">
-          <span class="field-label" data-i18n="catalog.h">パックを探す</span>
-          <p class="settings-note" data-i18n="catalog.note">利用者が投稿した非公式のパックです (各事務所・配信者とは関係ありません)</p>
-          <div class="pack-row">
-            <button type="button" id="catalogLoad" data-i18n="catalog.load">一覧を取得</button>
-            <span id="catalogStatus" class="share-status" role="status"></span>
-          </div>
-          <ul id="catalogList" class="pack-list catalog-list"></ul>
-          <span class="field-label" data-i18n="pack.h">チャンネルパックを読み込む</span>
-          <p class="settings-note" data-i18n="pack.note">ほかの人のパックを URL・中身・ファイルから足します (登録済みはそのまま)</p>
-          <textarea id="packIn" class="share-text pack-in" rows="2" spellcheck="false" data-i18n-placeholder="pack.placeholder" placeholder="https://… (パックの URL) / { &quot;app&quot;: &quot;hakomado&quot;, … }"></textarea>
-          <div class="pack-row">
-            <button type="button" id="packLoad" data-i18n="pack.load">読み込む</button>
-            <button type="button" id="packFileBtn" data-i18n="pack.file">ファイルを選ぶ</button>
-            <input type="file" id="packFile" accept=".json,application/json" hidden>
-            <span id="packStatus" class="share-status" role="status"></span>
+            <button type="button" id="settingsChManage" data-i18n="cm.open">⚙ チャンネルの管理を開く</button>
           </div>
         </div>
       </section>
@@ -378,11 +350,13 @@
               <li>「📺 チャンネル」(<kbd>F</kbd>) で、追加したチャンネルの配信中・配信予定と、それ以外を一覧します。配信中・予定の行を押すと、空いている枠に入ります</li>
               <li>行の「最近 ⌄」でそのチャンネルの最近の動画を開き、📌 でピックアップに入れます</li>
               <li><b>ピックアップ</b>: 今注目しているチャンネル (箱企画の参加者など)。上の「📺 すべて / 📌 ピックアップ」で一覧を絞れて、自動再生や通知の対象にもできます</li>
-              <li>下の欄に <code>@チャンネル名</code>・チャンネルの URL・動画の URL を入れると追加できます</li>
               <li><b>🔔 通知</b>: チャンネルの配信が始まると知らせます。どのチャンネルを知らせるかは 設定 → 自動再生 →「通知のチャンネル」で選びます</li>
             </ul>
-            <h3>設定 → チャンネル (チャンネルパック)</h3>
+            <h3>⚙ チャンネルの管理</h3>
             <ul>
+              <li>「📺 チャンネル」の「⚙ 管理」か、設定 → チャンネル から開きます。チャンネルを足す・外すのはこの画面で行います (配信を探している途中に、間違えて外さないように)</li>
+              <li>下の欄に <code>@チャンネル名</code>・チャンネルの URL・動画の URL を入れると追加できます</li>
+              <li><b>外す</b>: 外したいチャンネルの ☐ に印を付けて (「表示中をすべて選ぶ」も使えます)、「選んだチャンネルを外す」を押します。確かめるのはまとめて 1 回です。📌 付きのチャンネルは、「📌 付きも外す」に印を付けない限り残します。外した同梱のチャンネルは「戻す」で戻せます。ほかのチャンネルは、足し直せば戻ります</li>
               <li>チャンネルパックは、チャンネルの一覧をまとめたものです。ホロライブ (同梱版) は最初から入っています。パックごとに、まとめて外したり戻したりできます。自分で追加したチャンネルと、ピックアップに入れたチャンネルは外しません</li>
               <li><b>パックを探す</b>: Hakomado のリポジトリ (GitHub) に集めたパックの一覧から選べます。利用者が作って投稿した非公式のもので、各事務所・配信者とは関係ありません。誤りや追加の希望は GitHub で知らせてください</li>
               <li><b>チャンネルパックを読み込む</b>: ほかの人が作ったパックの URL か中身を貼るか、ファイルを選んで足します。登録済みのチャンネルはそのままです</li>
@@ -596,7 +570,95 @@
     </form>
   </dialog>
 
-  <!-- 📥 YouTube の登録チャンネルから選ぶ: 設定 → チャンネルの「登録チャンネルから選ぶ」で開く。選んだものだけをチャンネル一覧に足す -->
+  <!-- ⚙ チャンネルの管理: チャンネルを足す・まとめて外す・チャンネルパック・登録チャンネルの取り込み。
+       📺 チャンネルの「⚙ 管理」・設定 → チャンネル・📺 の空の案内から開く (開いた画面の上に重ね、閉じると元の画面に戻る)。
+       探す画面 (📺 チャンネル) には、外す・足す操作を置かない (docs/channel-manage.md) -->
+  <dialog id="chManage" class="fav-dialog cm-dialog">
+    <div class="fav">
+      <header class="fav-head">
+        <h2 data-i18n="cm.h">⚙ チャンネルの管理</h2>
+        <span class="spacer"></span>
+        <button type="button" id="cmClose" class="dialog-close" data-i18n-title="close" title="閉じる (Esc)">✕</button>
+      </header>
+      <div class="cm-body">
+        <div class="cm-main">
+          <div class="fav-tools">
+            <input type="search" id="cmFilter" data-i18n-placeholder="fav.filter" placeholder="名前・@チャンネル名で絞り込み" spellcheck="false">
+            <span id="cmCount" class="fav-count"></span>
+            <button type="button" id="cmSelAll" data-i18n="cm.selAll" data-i18n-title="cm.selAllTitle" title="表示しているチャンネルを全部選ぶ (絞り込んでいれば、絞り込んだものだけ)">表示中をすべて選ぶ</button>
+          </div>
+          <ul id="cmList" class="fav-list cm-list"></ul>
+          <p id="cmEmpty" class="fav-empty"></p>
+          <!-- 1 件以上選んでいる間だけ出す -->
+          <div id="cmSelBar" class="fav-selbar" hidden>
+            <span id="cmSelCount" class="fav-selcount"></span>
+            <span class="spacer"></span>
+            <button type="button" id="cmSelClear" data-i18n="sel.clear">選択を外す</button>
+            <button type="button" id="cmRemove" data-i18n="cm.remove">選んだチャンネルを外す</button>
+          </div>
+          <footer class="fav-foot">
+            <form id="favAdd" class="fav-add">
+              <input type="text" data-i18n-placeholder="fav.addInput" placeholder="追加: @チャンネル名 / チャンネルの URL / 動画の URL" spellcheck="false">
+              <button type="submit" data-i18n="fav.add">追加</button>
+            </form>
+            <div id="cmError" class="fav-error" role="status"></div>
+          </footer>
+        </div>
+        <div class="cm-side">
+          <div class="settings-col">
+            <span class="field-label" data-i18n="pack.listH">チャンネルパック</span>
+            <p class="settings-note" data-i18n="pack.listNote">チャンネル一覧に入っているパック。まとめて外したり戻したりできます</p>
+            <ul id="packList" class="pack-list"></ul>
+            <span class="field-label" data-i18n="subs.h">YouTube の登録チャンネル</span>
+            <p class="settings-note" data-i18n="subs.note">ログイン中の YouTube アカウントの登録チャンネルから選んで足します</p>
+            <div class="pack-row">
+              <button type="button" id="subsOpen" data-i18n="subs.open">登録チャンネルから選ぶ</button>
+              <span id="subsOpenStatus" class="share-status" role="status"></span>
+            </div>
+            <span class="field-label" data-i18n="pack.exportH">チャンネルパックを書き出す</span>
+            <p class="settings-note" data-i18n="pack.exportNote">チャンネル一覧をパック (JSON) にして、ほかの人に配れます</p>
+            <div class="pack-row">
+              <select id="packGroup"></select>
+              <button type="button" id="packExport" data-i18n="pack.export">⬇ 書き出す</button>
+            </div>
+          </div>
+          <div class="settings-col">
+            <span class="field-label" data-i18n="catalog.h">パックを探す</span>
+            <p class="settings-note" data-i18n="catalog.note">利用者が投稿した非公式のパックです (各事務所・配信者とは関係ありません)</p>
+            <div class="pack-row">
+              <button type="button" id="catalogLoad" data-i18n="catalog.load">一覧を取得</button>
+              <span id="catalogStatus" class="share-status" role="status"></span>
+            </div>
+            <ul id="catalogList" class="pack-list catalog-list"></ul>
+            <span class="field-label" data-i18n="pack.h">チャンネルパックを読み込む</span>
+            <p class="settings-note" data-i18n="pack.note">ほかの人のパックを URL・中身・ファイルから足します (登録済みはそのまま)</p>
+            <textarea id="packIn" class="share-text pack-in" rows="2" spellcheck="false" data-i18n-placeholder="pack.placeholder" placeholder="https://… (パックの URL) / { &quot;app&quot;: &quot;hakomado&quot;, … }"></textarea>
+            <div class="pack-row">
+              <button type="button" id="packLoad" data-i18n="pack.load">読み込む</button>
+              <button type="button" id="packFileBtn" data-i18n="pack.file">ファイルを選ぶ</button>
+              <input type="file" id="packFile" accept=".json,application/json" hidden>
+              <span id="packStatus" class="share-status" role="status"></span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- まとめて外す前の確かめ。📌 付きは既定で残す (パックを外すときと同じ) -->
+  <dialog id="cmConfirm" class="cm-confirm">
+    <form method="dialog" class="help-form">
+      <p id="cmConfirmText"></p>
+      <label id="cmConfirmStarRow" class="cm-confirm-star"><input type="checkbox" id="cmConfirmStar"> <span id="cmConfirmStarText"></span></label>
+      <p id="cmConfirmNote" class="settings-note"></p>
+      <div class="share-buttons cm-confirm-buttons">
+        <button value="cancel" data-i18n="cm.cancel">やめる</button>
+        <button value="ok" id="cmConfirmOk" data-i18n="cm.removeOk">外す</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- 📥 YouTube の登録チャンネルから選ぶ: チャンネルの管理の「登録チャンネルから選ぶ」で開く。選んだものだけをチャンネル一覧に足す -->
   <dialog id="subsDialog" class="subs-dialog">
     <form method="dialog" class="help-form">
       <div class="settings-title">
@@ -648,6 +710,7 @@
         </div>
         <span class="spacer"></span>
         <button type="button" id="queuePlay" class="primary-action" data-i18n="queue.play" data-i18n-title="queue.playTitle" title="あとで見るを、今ある枠で入れた順に再生する。最後まで見た枠には次が入る (枠は増やさない。自動再生は止める)" hidden>▶ 今の枠で順に再生</button>
+        <button type="button" id="favManage" data-i18n="cm.btn" data-i18n-title="cm.btnTitle" title="チャンネルを足す・まとめて外す・チャンネルパックを開く">⚙ 管理</button>
         <button type="button" id="favRefresh" data-i18n="fav.refresh" data-i18n-title="fav.refreshTitle" title="配信状況を取り直す">⟳ 更新</button>
         <button type="button" id="favClose" class="dialog-close" data-i18n-title="close" title="閉じる (Esc)">✕</button>
       </header>
@@ -669,7 +732,13 @@
       </div>
 
       <div id="favList" class="fav-list"></div>
-      <p id="favEmpty" class="fav-empty" data-i18n="fav.empty">まだチャンネルがありません。下の欄にチャンネルを入力して追加してください。</p>
+      <p id="favEmpty" class="fav-empty" data-i18n="fav.empty">まだチャンネルがありません。「📺 チャンネル」の「⚙ 管理」から足してください。</p>
+      <!-- 📺 チャンネルが 1 つも無いときだけ出す (足し方) -->
+      <div id="favEmptyActions" class="fav-empty-actions" hidden>
+        <button type="button" id="favEmptyManage" class="primary-action" data-i18n="cm.open">⚙ チャンネルの管理を開く</button>
+        <button type="button" id="favEmptySubs" data-i18n="cm.emptySubs">📥 登録チャンネルから選ぶ</button>
+        <button type="button" id="favEmptyRestore" hidden></button>
+      </div>
       <!-- 複数選択 (行の ☐ / 🤝 で選ぶ) をしている間だけ出す -->
       <div id="favSelBar" class="fav-selbar" hidden>
         <span id="favSelCount" class="fav-selcount"></span>
@@ -679,10 +748,6 @@
       </div>
 
       <footer class="fav-foot">
-        <form id="favAdd" class="fav-add">
-          <input type="text" data-i18n-placeholder="fav.addInput" placeholder="追加: @チャンネル名 / チャンネルの URL / 動画の URL" spellcheck="false">
-          <button type="submit" data-i18n="fav.add">追加</button>
-        </form>
         <button type="button" id="historyClear" class="fav-restore" data-i18n="fav.historyClear" hidden>視聴履歴を全部消す</button>
         <div id="favError" class="fav-error"></div>
       </footer>

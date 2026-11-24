@@ -818,6 +818,36 @@ dialog.fav-dialog.tour-preview {
 .fav-selcount { font-size: 13px; font-weight: 700; }
 .fav-error:empty { display: none; }
 
+/* 📺 チャンネルが 1 つも無いときの足し方 (空の案内のすぐ下) */
+/* 案内文のすぐ下に並べ、残りの高さはボタンの側で埋める */
+.fav-empty-actions { display: flex; flex-wrap: wrap; align-items: flex-start; align-content: flex-start; gap: 8px; padding: 0 14px 16px; }
+.fav-empty:has(+ .fav-empty-actions:not([hidden])) { flex: none; }
+.fav-empty-actions:not([hidden]) { flex: 1; }
+/* 📺 チャンネル・ライブラリの下の帯は、出すもの (知らせ・視聴履歴を全部消す) があるときだけ */
+#favorites .fav-foot:has(> .fav-error:empty):not(:has(> button:not([hidden]))) { display: none; }
+
+/* ---------- ⚙ チャンネルの管理 ---------- */
+/* 左に一覧 (☐ で選んでまとめて外す・足す)、右にチャンネルパックと登録チャンネル。狭ければ縦に並べる */
+.cm-body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 420px); flex: 1 1 auto; min-height: 0; }
+.cm-main { display: flex; flex-direction: column; min-height: 0; min-width: 0; }
+.cm-side { display: flex; flex-direction: column; gap: 20px; padding: 12px 14px; overflow-y: auto; border-left: 1px solid var(--line); }
+.cm-side .field-label { color: var(--text); font-weight: 600; }
+@media (max-width: 760px) {
+  .cm-body { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) minmax(0, 40%); }
+  .cm-side { border-left: 0; border-top: 1px solid var(--line); }
+}
+.cm-list .fav-item { padding: 4px 8px; cursor: default; }
+.cm-list .fav-icon { width: 30px; height: 30px; }
+.cm-row { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; cursor: pointer; }
+.cm-list .fav-item .fav-check:not(:checked) { opacity: .6; }
+.cm-group { flex: none; color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 40%; }
+.cm-list .fav-star { flex: none; }
+dialog.cm-confirm { width: min(440px, calc(100% - 32px)); }
+.cm-confirm p { margin: 0 0 10px; }
+.cm-confirm-star { display: flex; align-items: center; gap: 6px; margin-bottom: 10px; cursor: pointer; }
+.cm-confirm-star[hidden] { display: none; }
+.cm-confirm-buttons { justify-content: flex-end; }
+
 /* ---------- 自動再生を始めるときの進み具合 (画面中央。大きさを固定して、文字が変わっても動かない) ---------- */
 .auto-progress {
   position: fixed;

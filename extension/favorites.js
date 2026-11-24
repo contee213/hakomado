@@ -386,21 +386,26 @@ const Favorites = (() => {
     return found.size;
   }
 
-  function remove(channelId) {
-    return withListLock(() => removeLocked(channelId));
-  }
-
-  async function removeLocked(channelId) {
-    const favs = await list();
-    const target = favs.find((f) => f.channelId === channelId);
-    await saveList(favs.filter((f) => f.channelId !== channelId));
-    statusCache.delete(channelId);
-    if (target?.preset) {
-      const { removedPresets = [] } = await chrome.storage.local.get('removedPresets');
-      if (!removedPresets.includes(channelId)) {
-        await chrome.storage.local.set({ removedPresets: [...removedPresets, channelId] });
+  /**
+   * チャンネルをまとめて外す (チャンネルの管理の画面)。外した数を返す。
+   * 📌 付きを外すかは呼ぶ側で決める (ここでは渡されたものを全部外す)。
+   * 同梱のチャンネルは、外したことを覚えておく (設定の更新で入れ直さず、「戻す」で戻せるように)
+   */
+  function removeMany(channelIds) {
+    return withListLock(async () => {
+      const ids = new Set(channelIds);
+      const favs = await list();
+      const drop = favs.filter((f) => ids.has(f.channelId));
+      if (!drop.length) return 0;
+      await saveList(favs.filter((f) => !ids.has(f.channelId)));
+      for (const f of drop) statusCache.delete(f.channelId);
+      const presets = drop.filter((f) => f.preset).map((f) => f.channelId);
+      if (presets.length) {
+        const { removedPresets = [] } = await chrome.storage.local.get('removedPresets');
+        await chrome.storage.local.set({ removedPresets: [...new Set([...removedPresets, ...presets])] });
       }
-    }
+      return drop.length;
+    });
   }
 
   // ------------------------------------------------------------ YouTube
@@ -1010,7 +1015,7 @@ const Favorites = (() => {
   }
 
   return {
-    list, add, remove, setStar, seedPresets, restorePresets, removeAllPresets, presetCount, removedPresetCount, fetchStatus, fetchArchives,
+    list, add, removeMany, setStar, seedPresets, restorePresets, removeAllPresets, presetCount, removedPresetCount, fetchStatus, fetchArchives,
     previewPack, importPack, packs, removePack, fillIcons,
     checkAccess, rememberMembersOnly, isMembersBlock,
     videoStates, inspectVideos, fetchYouTubePlaylist, fetchSubscriptions,
