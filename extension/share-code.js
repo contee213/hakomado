@@ -2,7 +2,7 @@
 // 画面 (DOM) に触らない関数だけをここに置く (grid.js から切り出し。tests/ から読み込んで試せるように)。
 // 読み込む順: grid.html で grid.js より前。background.js も importScripts で読む (右クリックのメニューで videoIdFromUrl を使う)。
 // parseVideoLines は呼ばれたときに grid.js の resolveVideoId と favorites.js の Favorites を使う
-/* exported SHARE_TAG, SHARE_CODE_RE, shareName, videoIdFromUrl, formatShareCode, parseShareCode, formatShareLink, parseShareLink, formatXPostUrl, parseWatchVideosLink, youtubePlaylistId, parseVideoLines, metaOn */
+/* exported SHARE_TAG, SHARE_CODE_RE, shareName, videoIdFromUrl, TWITCH_ID_RE, twitchIdFromUrl, twitchName, formatShareCode, parseShareCode, formatShareLink, parseShareLink, formatXPostUrl, parseWatchVideosLink, youtubePlaylistId, parseVideoLines, metaOn */
 /* global resolveVideoId, Favorites */
 'use strict';
 
@@ -32,6 +32,49 @@ function videoIdFromUrl(raw) {
     return v && SHARE_ID_RE.test(v) ? v : null;
   }
   return url.pathname.match(/^\/(?:live|shorts|embed)\/([A-Za-z0-9_-]{11})\/?$/)?.[1] || null;
+}
+
+// ---- Twitch の枠 (見るだけ。共有コード・履歴・同期などは YouTube の動画だけ)
+// 枠の videoId に「tw:<ログイン名>」(チャンネルのライブ) か「tw:v:<数字>」(過去の配信 = VOD) を入れる。
+// YouTube の動画 ID (11 文字) とは「:」が入るので重ならない
+const TWITCH_ID_RE = /^tw:(?:[a-z0-9_]{1,25}|v:\d{1,12})$/;
+// twitch.tv/<ここ> がチャンネルでない (サイトのページ) もの
+const TWITCH_RESERVED = new Set(['directory', 'videos', 'settings', 'search', 'downloads', 'jobs', 'turbo', 'p', 'subscriptions', 'inventory', 'wallet', 'drops', 'friends', 'messages', 'login', 'signup', 'embed', 'popout', 'moderator', 'u']);
+
+/**
+ * Twitch のチャンネル・VOD の URL から枠の ID (tw:…) を取り出す (Twitch の URL でなければ null)。
+ * twitch.tv/<名前> (www・m)、twitch.tv/videos/<数字>、twitch.tv/<名前>/video/<数字>、player.twitch.tv/?channel=…|video=… を読む。
+ * 「twitch.tv/」を省いた入力 (twitch.tv/名前) も読む
+ */
+function twitchIdFromUrl(raw) {
+  let url;
+  try {
+    const s = String(raw || '').trim();
+    url = new URL(/^https?:\/\//i.test(s) ? s : 'https://' + s);
+  } catch {
+    return null;
+  }
+  if (url.protocol !== 'https:' && url.protocol !== 'http:') return null;
+  const host = url.hostname.toLowerCase().replace(/^(www|m)\./, '');
+  const ok = (id) => (TWITCH_ID_RE.test(id) ? id : null);
+  if (host === 'player.twitch.tv') {
+    const video = url.searchParams.get('video');
+    if (video) return ok('tw:v:' + video.replace(/^v/, ''));
+    const ch = url.searchParams.get('channel');
+    return ch ? ok('tw:' + ch.toLowerCase()) : null;
+  }
+  if (host !== 'twitch.tv') return null;
+  const vod = url.pathname.match(/^\/(?:videos|[A-Za-z0-9_]+\/v(?:ideo)?)\/(\d{1,12})\/?$/);
+  if (vod) return ok('tw:v:' + vod[1]);
+  const ch = url.pathname.match(/^\/([A-Za-z0-9_]{1,25})\/?$/);
+  if (!ch || TWITCH_RESERVED.has(ch[1].toLowerCase())) return null;
+  return ok('tw:' + ch[1].toLowerCase());
+}
+
+/** Twitch の枠の、画面に出す短い名前 (チャンネルなら名前、VOD なら「VOD 123…」)。Twitch でなければ '' */
+function twitchName(id) {
+  if (typeof id !== 'string' || !TWITCH_ID_RE.test(id)) return '';
+  return id.startsWith('tw:v:') ? `Twitch VOD ${id.slice(5)}` : id.slice(3);
 }
 
 const SHARE_TAG = 'Hakomado';

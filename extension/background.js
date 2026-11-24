@@ -9,7 +9,7 @@ importScripts('errlog.js'); // ErrLog (エラーの記録。最初に始めて�
 ErrLog.install('background');
 importScripts('share-code.js'); // videoIdFromUrl
 
-const RULE_IDS = [1, 2];
+const RULE_IDS = [1, 2, 3, 4];
 
 // アイコンを押すたびに新しいタブを開く (タブごとに別の視聴セッションになるので、いくつ開いてもよい)
 chrome.action.onClicked.addListener((current) => {
@@ -67,6 +67,30 @@ async function applyRules(tabIds) {
         priority: 1,
         action: stripFrameHeaders,
         condition: { urlFilter: '||www.youtube.com/watch', resourceTypes: ['sub_frame'], tabIds },
+      },
+    );
+    // Twitch の埋め込みプレイヤー / チャットは、応答の Content-Security-Policy (frame-ancestors だけが入っている) で
+    // parent= に書いた https のサイトの中でしか開けない。拡張機能のページは https でないので、その 2 か所だけ外す。
+    // twitch.tv の権限 (optional_host_permissions) を許可していないあいだは、このルールは効かない (declarativeNetRequestWithHostAccess)
+    const stripTwitchFrame = {
+      type: 'modifyHeaders',
+      responseHeaders: [
+        { header: 'content-security-policy', operation: 'remove' },
+        { header: 'x-frame-options', operation: 'remove' },
+      ],
+    };
+    addRules.push(
+      {
+        id: 3,
+        priority: 1,
+        action: stripTwitchFrame,
+        condition: { urlFilter: '|https://player.twitch.tv/', resourceTypes: ['sub_frame'], tabIds },
+      },
+      {
+        id: 4,
+        priority: 1,
+        action: stripTwitchFrame,
+        condition: { urlFilter: '|https://www.twitch.tv/embed/', resourceTypes: ['sub_frame'], tabIds },
       },
     );
   }

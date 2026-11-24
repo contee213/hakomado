@@ -156,7 +156,7 @@ function applySession(saved = {}) {
       for (const [k, v] of Object.entries(newTileState())) {
         if (k in picked && typeof picked[k] !== typeof v && v !== null) delete picked[k];
       }
-      if (picked.videoId != null && !(typeof picked.videoId === 'string' && ID_RE.test(picked.videoId))) picked.videoId = null;
+      if (picked.videoId != null && !(typeof picked.videoId === 'string' && (ID_RE.test(picked.videoId) || TWITCH_ID_RE.test(picked.videoId)))) picked.videoId = null;
       if ('pan' in picked) picked.pan = clampPan(picked.pan);
       if ('gain' in picked) picked.gain = clampGain(picked.gain);
       if ('delay' in picked) picked.delay = clampDelay(picked.delay);
@@ -863,6 +863,14 @@ function buildTiles() {
 
 async function loadInput(i, raw) {
   const errEl = views[i].el.querySelector('.error');
+  // Twitch の URL なら、そのまま枠に入れる (twitch.tv の権限は、入れる操作の中で最初に聞く。await の後では聞けない)
+  const tw = twitchIdFromUrl(raw);
+  if (tw) {
+    requestTwitch();
+    errEl.textContent = '';
+    setTileVideo(i, tw, raw.trim());
+    return;
+  }
   errEl.textContent = tr('loading');
   try {
     const id = await resolveVideoId(raw);
@@ -886,6 +894,66 @@ function setTileVideo(i, videoId, input) {
   state.tiles[i].muted = anyAudible;
   renderTile(i, { reloadPlayer: true, reloadChat: true });
   save();
+}
+
+// ---- Twitch の枠 (見るだけ): 公式の埋め込みプレイヤー (player.twitch.tv) とチャット (www.twitch.tv/embed/…/chat) を入れる。
+// 埋め込みは parent= に書いたサイトの中でしか開けない (応答の Content-Security-Policy: frame-ancestors https://<parent>)。
+// 拡張機能のページは https でないので、マルチビュー画面のタブだけでそのヘッダーを外す (background.js)。
+// そのため twitch.tv の権限 (optional_host_permissions) が要る。Twitch の URL を入れたときに聞く
+const TWITCH_ORIGINS = ['https://*.twitch.tv/*'];
+const TWITCH_PLAYER = 'https://player.twitch.tv';
+let twitchAllowed = false;
+const isTwitchId = (id) => typeof id === 'string' && TWITCH_ID_RE.test(id);
+const isTwitchTile = (i) => isTwitchId(state.tiles[i]?.videoId);
+
+/** twitch.tv の権限を聞く (許可済みなら聞かれない)。操作 (クリック・Enter) の中で、await より前に呼ぶ */
+function requestTwitch() {
+  if (twitchAllowed) return;
+  chrome.permissions
+    .request({ origins: TWITCH_ORIGINS })
+    .catch(() => false)
+    .then((ok) => ok && onTwitchPermission(true));
+}
+
+async function refreshTwitchPermission() {
+  onTwitchPermission(await chrome.permissions.contains({ origins: TWITCH_ORIGINS }).catch(() => false));
+}
+
+function onTwitchPermission(ok) {
+  if (twitchAllowed === ok) return;
+  twitchAllowed = ok;
+  for (let i = 0; i < MAX_TILES; i++) if (views[i] && isTwitchTile(i)) renderTile(i, { reloadPlayer: true, reloadChat: true });
+}
+chrome.permissions.onAdded.addListener(() => refreshTwitchPermission());
+chrome.permissions.onRemoved.addListener(() => refreshTwitchPermission());
+
+function twitchPlayerUrl(t) {
+  const id = t.videoId;
+  const p = new URLSearchParams({ parent: chrome.runtime.id, autoplay: 'true', muted: t.muted ? 'true' : 'false' });
+  if (id.startsWith('tw:v:')) p.set('video', 'v' + id.slice(5));
+  else p.set('channel', id.slice(3));
+  return `${TWITCH_PLAYER}/?${p}`;
+}
+
+/** Twitch のチャット欄 (ライブのチャンネルだけ。VOD のチャットは埋め込めないので null) */
+function twitchChatUrl(t) {
+  if (t.videoId.startsWith('tw:v:')) return null;
+  return `https://www.twitch.tv/embed/${encodeURIComponent(t.videoId.slice(3))}/chat?parent=${encodeURIComponent(chrome.runtime.id)}&darkpopout`;
+}
+
+/** 枠の Twitch の URL (新しいタブで開く用) */
+function twitchPageUrl(id) {
+  return id.startsWith('tw:v:') ? `https://www.twitch.tv/videos/${id.slice(5)}` : `https://www.twitch.tv/${id.slice(3)}`;
+}
+
+// Twitch のプレイヤーへの命令 (公式の埋め込み用スクリプト embed.twitch.tv/embed/v1.js と同じ形。eventName は命令の番号)
+const TWITCH_CMD = { pause: 2, play: 3, setMuted: 10 };
+
+/** YouTube の枠向けの知らせを、Twitch のプレイヤーの命令に直して送る (ミュートと一時停止だけ。ほかは Twitch では使わない) */
+function postToTwitch(frame, msg) {
+  const send = (eventName, params) => frame.contentWindow.postMessage({ namespace: 'twitch-embed-player-proxy', eventName, params }, TWITCH_PLAYER);
+  if (msg.hakomado === 'audio') send(TWITCH_CMD.setMuted, !!msg.muted);
+  else if (msg.hakomado === 'playback' && typeof msg.play === 'boolean') send(msg.play ? TWITCH_CMD.play : TWITCH_CMD.pause);
 }
 
 // プレイヤーは YouTube の視聴ページをそのまま枠に入れ、content/watch.js でプレイヤー以外を隠す。
@@ -970,6 +1038,7 @@ function applyHighlight() {
   const root = document.documentElement.style;
   root.setProperty('--hl-gradient', hlGradient(p));
   root.setProperty('--hl-width', `${s.hlWidth}px`);
+  root.setProperty('--hl-solid', `rgb(${p.glow.join(', ')})`); // 1 色の線 (Twitch の枠。grid.css)
   const blur = Math.round(4 + s.hlGlow * 16);
   root.setProperty('--hl-glow', s.hlGlow > 0 ? `0 0 ${blur}px rgba(${p.glow.join(', ')}, ${(s.hlGlow * 0.9).toFixed(2)})` : 'none');
   document.body.classList.toggle('hl-animate', !!s.hlAnimate);
@@ -1002,13 +1071,18 @@ function renderTile(i, { reloadPlayer = false, reloadChat = false } = {}) {
   el.querySelector('.url-input').value = t.input;
   updateSlotButtons();
 
-  const danmakuOn = state.danmakuAll && tileDanmaku(i);
+  const twitch = isTwitchId(t.videoId);
+  el.classList.toggle('is-twitch', twitch);
+  el.classList.toggle('is-twitch-vod', twitch && t.videoId.startsWith('tw:v:'));
+  // Twitch の枠は弾幕を出さない (コメントを読み取らない)。チャット欄はライブのチャンネルだけ
+  const danmakuOn = !twitch && state.danmakuAll && tileDanmaku(i);
   v.dmOn = danmakuOn;
-  const needChat = visible && !!t.videoId && (t.chat || danmakuOn);
+  const needChat = visible && !!t.videoId && (t.chat || danmakuOn) && !(twitch && (!twitchAllowed || !twitchChatUrl(t)));
 
   // --- player
   if (!visible || !t.videoId) {
     v.player?.remove();
+    el.querySelector('.twitch-ask')?.remove();
     v.player = null;
     v.archive = null;
     v.info = null;
@@ -1018,8 +1092,43 @@ function renderTile(i, { reloadPlayer = false, reloadChat = false } = {}) {
     Diagnose.clear(i);
     v.meta = null;
     v.social = null;
-  } else if (!v.player || reloadPlayer) {
+  } else if (twitch && (!v.player || reloadPlayer)) {
     v.player?.remove();
+    el.querySelector('.twitch-ask')?.remove();
+    v.player = null;
+    for (const k of ['archive', 'info', 'ss', 'lv', 'meta', 'social']) v[k] = null;
+    v.playStatus = '';
+    v.replay = '';
+    Diagnose.clear(i);
+    el.classList.remove('is-live');
+    if (twitchAllowed) {
+      const f = document.createElement('iframe');
+      f.allow = 'autoplay; encrypted-media; picture-in-picture; fullscreen';
+      f.dataset.twitch = '1';
+      f.src = twitchPlayerUrl(t);
+      f.addEventListener('load', () => {
+        f.dataset.loaded = '1';
+        // まとめて一時停止の間に読み込んだ枠も止めておく (プレイヤーが命令を受け付けるまで少し待つ)
+        if (pausedAll) setTimeout(() => postToFrame(f, { hakomado: 'playback', play: false }), 2000);
+      });
+      el.querySelector('.player-slot').appendChild(f);
+      v.player = f;
+    } else {
+      // twitch.tv の権限がまだ無い (保存しておいた視聴セッションを開いた・権限を外した など) → 押して許可してもらう
+      const ask = document.createElement('div');
+      ask.className = 'twitch-ask';
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.textContent = tr('twitchAllow');
+      btn.addEventListener('click', () => requestTwitch());
+      const note = document.createElement('p');
+      note.textContent = tr('twitchAllowNote');
+      ask.append(btn, note);
+      el.querySelector('.player-slot').appendChild(ask);
+    }
+  } else if (!twitch && (!v.player || reloadPlayer)) {
+    v.player?.remove();
+    el.querySelector('.twitch-ask')?.remove();
     const f = document.createElement('iframe');
     f.allow = 'autoplay; encrypted-media; picture-in-picture; fullscreen';
     Diagnose.playerCreated(i, f);
@@ -1061,12 +1170,12 @@ function renderTile(i, { reloadPlayer = false, reloadChat = false } = {}) {
   } else if (!v.chatFrame || reloadChat) {
     v.chatFrame?.remove();
     const f = document.createElement('iframe');
-    f.src = chatUrl(t, v.replay || '');
+    f.src = twitch ? twitchChatUrl(t) : chatUrl(t, v.replay || '');
     f.addEventListener('load', () => {
       f.dataset.loaded = '1';
-      Diagnose.chatLoaded(i, f);
+      if (!twitch) Diagnose.chatLoaded(i, f);
     });
-    Diagnose.chatCreated(i, f);
+    if (!twitch) Diagnose.chatCreated(i, f);
     el.querySelector('.chat-slot').appendChild(f);
     v.chatFrame = f;
   }
@@ -1244,13 +1353,13 @@ function setTileAway(i, away) {
 /** 操作バーに出すその枠の名前 (チャンネル一覧での名前 → 配信のチャンネル名 → 入力した内容) */
 function tileName(i) {
   const t = state.tiles[i];
-  return t.label || views[i].meta?.channel || t.input || '';
+  return t.label || views[i].meta?.channel || twitchName(t.videoId) || t.input || '';
 }
 
 /**
  * 枠の種類 (「ℹ 枠の情報」と、アーカイブ同期ボタンが使えない理由に使う)
  * 'empty' | 'live' (ライブ配信中) | 'upcoming' (配信前) | 'archive' (配信のアーカイブ) | 'video' (ふつうの動画) |
- * 'blocked' (メンバー限定などで見られない) | 'loading' (まだ分からない)
+ * 'blocked' (メンバー限定などで見られない) | 'loading' (まだ分からない) | 'twitch' (Twitch の枠。同期などには使えない)
  */
 /** 枠 i の配信のチャンネルのページ (分からなければ '') */
 function channelUrlOf(i) {
@@ -1264,6 +1373,7 @@ function channelUrlOf(i) {
 function tileKind(i) {
   const v = views[i];
   if (!v || !isVisible(i) || !state.tiles[i].videoId) return 'empty';
+  if (isTwitchTile(i)) return 'twitch';
   if (v.el.classList.contains('is-live')) return 'live';
   if (v.archive) return 'archive';
   const st = v.playStatus;
@@ -1326,7 +1436,7 @@ const clampSpeed = (v) => (Number.isFinite(v) && v > 0 ? Math.max(0.25, Math.min
 const speedText = (r) => `${Number(r.toFixed(2))}×`;
 const isLiveTile = (i) => !!views[i]?.el.classList.contains('is-live');
 /** 枠の速度を変えられるか (動画が入っていて、ライブ配信でない) */
-const speedAdjustable = (i) => isVisible(i) && !!state.tiles[i].videoId && !isLiveTile(i);
+const speedAdjustable = (i) => isVisible(i) && !!state.tiles[i].videoId && !isLiveTile(i) && !isTwitchTile(i);
 /** 枠の今の速度 (ライブは等速) */
 const speedOf = (i) => (isLiveTile(i) ? 1 : state.tiles[i].speed);
 
@@ -1566,6 +1676,7 @@ function setupMixPanel(i, el) {
  */
 function postToFrame(frame, msg) {
   if (!frame || frame.dataset.loaded !== '1' || !frame.contentWindow) return;
+  if (frame.dataset.twitch === '1') return postToTwitch(frame, msg);
   frame.contentWindow.postMessage(msg, YT);
 }
 
@@ -2724,6 +2835,7 @@ const Sync = (() => {
     if (count('upcoming')) lines.push(tr('syncWhyUpcoming', count('upcoming')));
     if (count('video')) lines.push(tr('syncWhyVideo', count('video')));
     if (count('blocked')) lines.push(tr('syncWhyBlocked', count('blocked')));
+    if (count('twitch')) lines.push(tr('syncWhyTwitch', count('twitch')));
     if (count('loading')) lines.push(tr('syncWhyLoading', count('loading')));
     return lines;
   }
@@ -4446,10 +4558,12 @@ const TileInfo = (() => {
       const raw = input.value;
       if (!raw.trim()) return;
       input.blur();
+      const tw = twitchIdFromUrl(raw);
+      if (tw) requestTwitch(); // await の前に聞く (loadInput と同じ)
       errors.set(i, tr('loading'));
       update();
       try {
-        const id = await resolveVideoId(raw);
+        const id = tw || (await resolveVideoId(raw));
         errors.delete(i);
         drafts.delete(i);
         // 待つ間にほかの方法で埋まった・消された枠には入れない
@@ -4522,7 +4636,8 @@ const TileInfo = (() => {
     // タイトルを押すと、その動画を YouTube の新しいタブで開く
     const ti = document.createElement('a');
     ti.className = 'info-title';
-    ti.href = `${YT}/watch?v=${encodeURIComponent(state.tiles[i].videoId)}`;
+    const tid = state.tiles[i].videoId;
+    ti.href = isTwitchId(tid) ? twitchPageUrl(tid) : `${YT}/watch?v=${encodeURIComponent(tid)}`;
     ti.target = '_blank';
     ti.rel = 'noopener noreferrer';
     ti.textContent = meta?.title || ti.href;
@@ -5439,7 +5554,8 @@ const SHARE_MAX = MAX_TILES;
 // コードの読み書き (formatShareCode / parseShareCode / shareName)・取り込み用リンク・1 行 1 本のテキストの読み取りは share-code.js
 
 /** 表示中の枠のうち、配信の入っている枠 (並び順。空き枠は詰める) */
-const shareTiles = () => visibleIndexes().filter((i) => state.tiles[i].videoId);
+// Twitch の枠は共有しない (コードは YouTube の動画 ID だけを並べる形)
+const shareTiles = () => visibleIndexes().filter((i) => state.tiles[i].videoId && !isTwitchTile(i));
 
 /** 今の枠を共有セットにする (同期中か、ずれを決めた動画があれば同期再生として、基準とずれも入れる) */
 function tilesShareSet(name = '') {
@@ -11167,6 +11283,7 @@ async function chooseSession() {
 (async function main() {
   // 再生リスト: 以前の版の形 (全部で 1 つの項目) なら 1 つずつに分けて移す。1 つも無ければ既定の「新規マイリスト」を作る
   await Promise.all([loadSettings(), Favorites.seedPresets(), SyncOffsets.load(), MovieAnchors.load(), Playlists.setup(tr('plSeedName'))]);
+  twitchAllowed = await chrome.permissions.contains({ origins: TWITCH_ORIGINS }).catch(() => false);
   buildTiles();
   refreshFavKeys().catch(() => {});
   refreshSavedIds().catch(() => {});

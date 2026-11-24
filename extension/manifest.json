@@ -41,6 +41,7 @@
   ],
   "optional_host_permissions": [
     "https://x.com/*",
+    "https://*.twitch.tv/*",
     "https://www.nijisanji.jp/*"
   ],
   "content_scripts": [

@@ -4,7 +4,7 @@ Chrome ウェブストアのデベロッパー ダッシュボードに入れる
 **限定公開 (Unlisted) で 0.2.0 を公開しました** (2026-11-22)。掲載ページ: https://chromewebstore.google.com/detail/bhmbchggpdficakjfllkmfkpbdpddomp
 (README の「インストール」から案内している)。GitHub のリリースの ZIP (開発者モードで読み込む) の配布も続けます。拡張機能を変えたらここも合わせて直します。
 
-- 最終更新: 2026-11-22
+- 最終更新: 2026-11-24
 - 対象バージョン: 0.2.0 (`extension/manifest.json`)
 - 最低 Chrome バージョン: 128 (Manifest V3)
 
@@ -112,6 +112,7 @@ YouTube の配信・動画を 1 つの画面に最大 16 枠並べて、同時�
 「schedule.hololive.tv のデータの読み取りと変更」は、初期データのチャンネルの配信予定をまとめて取得するために使います (設定の「アドオン」で OFF にすると取得しません)。
 「www.nijisanji.jp のデータの読み取りと変更」は、設定の「アドオン」で「にじさんじ」を ON にしたときだけ求めます。にじさんじ公式サイトのライブスケジュールを取得するために使います (初期値は OFF)。
 「x.com のデータの読み取りと変更」は、共有画面の「𝕏 に投稿」を初めて押したときだけ求めます。開いた X の投稿画面に共有画像を入れるために使い、投稿はしません。
+「twitch.tv のデータの読み取りと変更」は、枠に Twitch のチャンネル・VOD の URL を初めて入れたときだけ求めます。Twitch の公式の埋め込みプレイヤーとチャットを、マルチビュー画面の枠の中に表示するために使います。
 
 ■ ご注意
 個人が作った非公式のツールです。YouTube / Google や、初期データとして入っているチャンネルの運営元とは関係ありません。YouTube のページの構成が変わると、一部の機能が動かなくなることがあります。
@@ -154,6 +155,7 @@ PERMISSIONS
 "Read and change your data on www.youtube.com" is used to show the YouTube player and live chat inside the tiles of the multiview screen, to control playback, volume and sync, and to load stream lists. It only takes effect in tabs where the multiview screen is open.
 "Read and change your data on schedule.hololive.tv" is used to load the stream schedule of the bundled channels in one request (not loaded when turned off under Settings > Add-ons).
 "Read and change your data on www.nijisanji.jp" is only requested when you turn on the NIJISANJI add-on under Settings > Add-ons. It is used to load the live schedule from the NIJISANJI website (off by default).
+"Read and change your data on twitch.tv" is only requested the first time you put a Twitch channel or VOD URL into a tile. It is used to show the official Twitch embedded player and chat inside the tiles of the multiview screen.
 
 NOTE
 This is an unofficial tool made by an individual. It is not affiliated with YouTube / Google or with the operators of the bundled channels. Some features may stop working when YouTube changes its pages.
@@ -229,7 +231,7 @@ YouTube の複数の配信・動画を 1 つの画面に並べて同時に視聴
 | 権限 | 理由 |
 | --- | --- |
 | `storage` | 枠の並び・レイアウト・チャンネル一覧・視聴履歴・再生リスト・設定を `chrome.storage.local` に保存する。マルチビュー画面を開いているタブの一覧を `chrome.storage.session` に一時保存する。この拡張機能のエラーの記録 (新しい順に最大 100 件・7 日で消える。「? 使い方」→「不具合の報告」で見る) を `chrome.storage.local` に保存する。外部のサーバーには送らない |
-| `declarativeNetRequestWithHostAccess` | (1) マルチビュー画面のタブの中だけで、`www.youtube.com/watch` と `www.youtube.com/live_chat` の iframe 応答から `X-Frame-Options` ヘッダーを外し、拡張機能のページに YouTube のプレイヤーとチャットを埋め込めるようにする (セッションルール。`tabIds` で対象タブを限定し、CSP など他のヘッダーは触らない)。(2) `hakomado=` 付きの `https://www.youtube.com/watch_videos?…` (再生リストの共有リンク) だけを拡張機能内の取り込み画面へ転送する (動的ルール) |
+| `declarativeNetRequestWithHostAccess` | (1) マルチビュー画面のタブの中だけで、`www.youtube.com/watch` と `www.youtube.com/live_chat` の iframe 応答から `X-Frame-Options` ヘッダーを外し、拡張機能のページに YouTube のプレイヤーとチャットを埋め込めるようにする (セッションルール。`tabIds` で対象タブを限定し、CSP など他のヘッダーは触らない)。(2) `hakomado=` 付きの `https://www.youtube.com/watch_videos?…` (再生リストの共有リンク) だけを拡張機能内の取り込み画面へ転送する (動的ルール)。(3) twitch.tv の任意の権限を許可したときだけ、同じくマルチビュー画面のタブの中だけで、Twitch の公式の埋め込みプレイヤー (`https://player.twitch.tv/`) とチャット (`https://www.twitch.tv/embed/`) の iframe 応答から `Content-Security-Policy` (中身は埋め込み先を https のサイトに限る `frame-ancestors` だけ) と `X-Frame-Options` を外す (セッションルール。拡張機能のページは https でないため) |
 | `contextMenus` | 右クリックのメニュー「Hakomado の空き枠に追加」を出す。YouTube の動画・配信へのリンク (`targetUrlPatterns` で watch / live / shorts / youtu.be に限定) と、YouTube の視聴ページ (`documentUrlPatterns`) でだけ表示する。押したときにリンクの URL から動画 ID を取り出し、開いているマルチビュー画面に渡す (画面が無ければ新しいタブで開く)。`tabs` 権限は使わず、タブの URL・タイトルは読まない |
 | ホスト権限 `https://www.youtube.com/*` | 上の declarativeNetRequest ルールの適用先。視聴ページ / ライブチャットに content script を入れて、プレイヤーの操作・弾幕用のチャット取得・同期再生を行う。ログイン中のアカウントで配信中 / 予定 / アーカイブの一覧、動画・再生リストの情報を取得する (メンバー限定配信も見られるようにするため Cookie 付き) |
 | ホスト権限 `https://schedule.hololive.tv/*` | 初期データのホロライブのチャンネルについて、配信予定 (ホロジュール) をまとめて 1 回で取得し、YouTube への問い合わせ回数を減らす。アドオン `addons/holodule.js` が使う (設定 → アドオンで OFF にすると取得しない。初期値は ON なので、インストール時から使えるよう必須の権限のままにしている) |
@@ -237,6 +239,7 @@ YouTube の複数の配信・動画を 1 つの画面に並べて同時に視聴
 | `scripting` | 共有画面の「𝕏 に投稿」を押したときだけ、そのボタンが開いた X の投稿画面のタブ 1 つにスクリプトを入れ、投稿欄の画像の入力欄に共有画像を入れる (人が画像を選んだのと同じ)。投稿ボタンは押さない。ほかのタブ・ページには入れない |
 | 任意のホスト権限 `https://x.com/*` (`optional_host_permissions`) | 上の `scripting` で X の投稿画面に画像を入れるため。インストール時には求めず、利用者が初めて「𝕏 に投稿」を押したときに `chrome.permissions.request` で聞く。許可しなくても、投稿画面を開いて画像をクリップボードに入れるところまでは動く (利用者が Ctrl+V で貼る) |
 | 任意のホスト権限 `https://www.nijisanji.jp/*` (`optional_host_permissions`) | アドオン「にじさんじ」(`addons/nijisanji.js`。初期値は OFF) が、にじさんじ公式サイトのライブスケジュール (サイトが使っている JSON `https://www.nijisanji.jp/api/streams?…`) を読み、名前に「にじさんじ」が入るチャンネルパックから足したチャンネルの配信状況を YouTube に問い合わせる回数を減らす。このサイトは CORS で読めないので権限が要る。インストール時には求めず、利用者が設定 → アドオンで ON にしたときに `chrome.permissions.request` で聞き、OFF にすると手放す。読み取りだけで、Cookie は送らない |
+| 任意のホスト権限 `https://*.twitch.tv/*` (`optional_host_permissions`) | 枠に Twitch のライブ・VOD を表示するため (見るだけ。共有コード・同期・弾幕・履歴などは YouTube の動画だけ)。上の declarativeNetRequest (3) の適用先。公式の埋め込みプレイヤー (`player.twitch.tv`) とチャット (`www.twitch.tv/embed/<チャンネル>/chat`) を iframe で入れ、ミュート・一時停止は公式の埋め込み API と同じ postMessage で送る。content script は入れない。インストール時には求めず、利用者が枠に Twitch の URL を初めて入れたとき (または Twitch の枠の「Twitch を表示する」を押したとき) に `chrome.permissions.request` で聞く。ログイン中の Twitch アカウントで見られるもの (サブスク限定など) は、Twitch のページで見るのと同じように見られる |
 
 ### content scripts
 
@@ -258,6 +261,7 @@ YouTube の複数の配信・動画を 1 つの画面に並べて同時に視聴
 | `www.youtube.com` / `i.ytimg.com` / `yt3.googleusercontent.com` | 配信・動画の情報とサムネイル (上記)、チャンネルのアイコン (画像の読み込みだけ) |
 | `schedule.hololive.tv` | ホロライブの配信予定 (アドオン「ホロジュール」が ON のときだけ。初期値は ON)。Cookie は送らない |
 | `www.nijisanji.jp` | にじさんじのライブスケジュール (アドオン「にじさんじ」が ON のときだけ。初期値は OFF)。配信中・今日・明日の分を、マルチビュー画面を開いている間 1 分に 1 回まで取得する (タブが複数あっても 1 回)。Cookie は送らない |
+| `player.twitch.tv` / `www.twitch.tv` | 利用者が枠に Twitch の URL を入れたときだけ、公式の埋め込みプレイヤーとチャットを iframe で開く (中の通信は Twitch のページが行う)。拡張機能から Twitch の API は呼ばない |
 | `api.github.com` | 新しい版が出ていないかの確認 (1 日 1 回まで。ストア版 = `update_url` がある場合は行わない)。Cookie は送らない |
 | `raw.githubusercontent.com` | 「パックを探す」を押したときだけ、リポジトリの `packs/index.json` (パックの一覧) と、選んだパックを取得する。CORS で読めるので host 権限は使わない。Cookie は送らない |
 | `x.com` | 共有画面で利用者が「𝕏 に投稿」を押したときだけ、名前と取り込み用リンクを入れた投稿画面 (`https://x.com/intent/post?…`) を新しいタブで開き、許可があれば共有画像をその投稿欄に入れる。拡張機能からは投稿しない (投稿するかどうか・何を投稿するかは、利用者が X の画面で確かめて決める) |
@@ -300,7 +304,7 @@ Lets the user watch several YouTube streams and videos side by side on one scree
 | 権限 | 理由 |
 | --- | --- |
 | `storage` | Saves the user's tile arrangement, layout, channel list, watch history, playlists and settings locally. Keeps the list of tabs showing the multiview screen for the current browser session. Keeps a local record of errors raised by the extension's own scripts (up to 100 entries, deleted after 7 days), shown in "Report a problem". Nothing is sent to any server. |
-| `declarativeNetRequestWithHostAccess` | (1) YouTube watch and live chat pages send X-Frame-Options, which blocks them from appearing in the extension's multiview page. A session rule removes only that header, only from www.youtube.com/watch and www.youtube.com/live_chat sub-frame responses, and only in tabs where the multiview screen is open (limited by tabIds). No other headers are changed. (2) A dynamic rule redirects only shared playlist links (https://www.youtube.com/watch_videos?... with a "hakomado=" parameter) to the extension's import screen. |
+| `declarativeNetRequestWithHostAccess` | (1) YouTube watch and live chat pages send X-Frame-Options, which blocks them from appearing in the extension's multiview page. A session rule removes only that header, only from www.youtube.com/watch and www.youtube.com/live_chat sub-frame responses, and only in tabs where the multiview screen is open (limited by tabIds). No other headers are changed. (2) A dynamic rule redirects only shared playlist links (https://www.youtube.com/watch_videos?... with a "hakomado=" parameter) to the extension's import screen. (3) Only after the user grants the optional twitch.tv permission: the official Twitch embedded player (https://player.twitch.tv/) and chat (https://www.twitch.tv/embed/) send a Content-Security-Policy containing only frame-ancestors, which limits embedding to https sites. The extension page is not https, so a session rule removes that header and X-Frame-Options from those sub-frame responses, only in tabs where the multiview screen is open (limited by tabIds). |
 | `contextMenus` | Adds "Add to an empty Hakomado tile" to the right-click menu, shown only on links to YouTube videos/streams and on YouTube watch pages. It takes the video ID from the clicked link and passes it to the open multiview screen. The extension does not use the tabs permission and does not read tab URLs or titles. |
 | `https://www.youtube.com/*` | Target of the rules above. Content scripts in the embedded watch and live chat frames control playback, volume, audio panning and archive sync, and read chat messages to show them as scrolling comments. Loads live / upcoming / archived stream lists and video and playlist details with the user's signed-in session, so members-only streams the user can access also work. |
 | `https://schedule.hololive.tv/*` | Loads the stream schedule for the bundled default channels in a single request, which reduces the number of requests made to YouTube. Used by the Holodule add-on, which is on by default and can be turned off under Settings > Add-ons (nothing is loaded from this site while it is off). |
@@ -308,6 +312,7 @@ Lets the user watch several YouTube streams and videos side by side on one scree
 | `scripting` | Only when the user presses "𝕏 Post" on the share screen: injects a script into the single X post tab that button just opened, and puts the share image into the post box's image input (the same as choosing the image by hand). It never presses Post and is not injected into any other tab or page. |
 | `https://x.com/*` (optional host permission) | Needed for the `scripting` use above. Not requested at install; asked with chrome.permissions.request the first time the user presses "𝕏 Post". Without it, the extension still opens the post screen and copies the image to the clipboard for the user to paste. |
 | `https://www.nijisanji.jp/*` (optional host permission) | Used only by the NIJISANJI add-on (`addons/nijisanji.js`, off by default) to read the live schedule from the NIJISANJI website (the JSON the site itself uses, `https://www.nijisanji.jp/api/streams?…`), which reduces requests to YouTube for channels added from a NIJISANJI channel pack. The site does not allow CORS, so host access is needed. Not requested at install; asked with chrome.permissions.request when the user turns the add-on on under Settings > Add-ons, and released when it is turned off. Read only; no cookies are sent. |
+| `https://*.twitch.tv/*` (optional host permission) | Lets a tile show a Twitch live channel or VOD (viewing only; sharing codes, sync, danmaku and history stay YouTube only). Target of declarativeNetRequest rule (3) above. The official Twitch embedded player (player.twitch.tv) and chat (www.twitch.tv/embed/<channel>/chat) are put in iframes; mute and pause are sent with the same postMessage commands as Twitch's official embed API. No content scripts. Not requested at install; asked with chrome.permissions.request the first time the user puts a Twitch URL into a tile (or presses "Show Twitch" on a Twitch tile). Content the user's signed-in Twitch account can watch (such as subscriber-only streams) works as it does on Twitch. |
 
 ## 版の履歴 (ストアに出したもの)
 

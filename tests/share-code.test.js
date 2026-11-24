@@ -394,3 +394,23 @@ test('名前の 40 文字目が絵文字でも割れない (半端な 1 文字�
   assert.equal(get('parseShareCode')(get('formatShareCode')('u1x1', [A], [], 0, ok)).name, ok);
   assert.equal(get('parseShareLink')(get('formatShareLink')('u1x1', [A], [], 0, ok, '', true)).name, ok);
 });
+
+test('Twitch: チャンネル・VOD の URL から枠の ID (tw:…) を読む。YouTube やサイトのページは null', () => {
+  const get = setup();
+  const tw = get('twitchIdFromUrl');
+  assert.equal(tw('https://www.twitch.tv/SomeOne'), 'tw:someone');
+  assert.equal(tw('twitch.tv/some_one/'), 'tw:some_one');
+  assert.equal(tw('https://m.twitch.tv/someone?ref=x'), 'tw:someone');
+  assert.equal(tw('https://www.twitch.tv/videos/2345678901'), 'tw:v:2345678901');
+  assert.equal(tw('https://www.twitch.tv/someone/video/123456'), 'tw:v:123456');
+  assert.equal(tw('https://player.twitch.tv/?channel=SomeOne&parent=x'), 'tw:someone');
+  assert.equal(tw('https://player.twitch.tv/?video=v123456&parent=x'), 'tw:v:123456');
+  // v123 という名前のチャンネルは VOD と取り違えない
+  assert.equal(tw('https://www.twitch.tv/v123'), 'tw:v123');
+  for (const bad of ['https://www.twitch.tv/directory', 'https://www.twitch.tv/someone/clips', 'https://www.youtube.com/watch?v=AAAAAAAAAAA', 'AAAAAAAAAAA', 'javascript:alert(1)', 'https://evil.example/twitch.tv/x', 'https://twitch.tv.evil.example/x']) {
+    assert.equal(tw(bad), null, bad);
+  }
+  assert.equal(get('twitchName')('tw:someone'), 'someone');
+  assert.equal(get('twitchName')('tw:v:123'), 'Twitch VOD 123');
+  assert.equal(get('twitchName')(A), '');
+});

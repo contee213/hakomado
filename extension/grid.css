@@ -333,6 +333,43 @@ body.hl-animate .tile.audible::before { animation: hl-flow 6s ease-in-out infini
   background: #101013;
 }
 .tile.is-empty .empty { display: flex; }
+
+/* Twitch の枠 (見るだけ): YouTube の枠の中のスクリプトで動く機能のボタンは出さない */
+.tile.is-twitch .bar [data-act="mix"],
+.tile.is-twitch .bar [data-act="speed"],
+.tile.is-twitch .bar [data-act="corner"],
+.tile.is-twitch .bar [data-act="danmaku"],
+.tile.is-twitch .bar [data-act="save"],
+.tile.is-twitch .bar [data-act="like"],
+.tile.is-twitch .bar [data-act="playlist"],
+.tile.is-twitch .bar [data-act="fav"],
+.tile.is-twitch-vod .bar [data-act="chat"] { display: none; }
+/* Twitch のプレイヤーは、ほかの要素が少しでも重なっていると (透明でも) 自動再生しない (IntersectionObserver v2 で確かめている)。
+   そこで Twitch の枠は、操作バーをいつも出して映像の上に置き、プレイヤーはその下に置く。上 2 割のつかみ範囲は無くし (バーでつかむ)、
+   枠内のお知らせはバーの上に出す */
+.tile.is-twitch { --tw-bar: 34px; }
+.tile.is-twitch .bar { height: var(--tw-bar); opacity: 1; background: #0e0e10; }
+.tile.is-twitch .player-slot { top: var(--tw-bar); height: auto; }
+.tile.is-twitch .drag-zone { display: none; }
+.tile.is-twitch .toast { top: 4px; bottom: auto; }
+/* 音の出ている枠の線 (::before) も枠全体に重なるので、Twitch の枠は枠自体の影で 1 色の線を引く */
+.tile.is-twitch.audible::before { display: none; }
+.tile.is-twitch.audible { box-shadow: 0 0 0 var(--hl-width) var(--hl-solid, #29a9ff); }
+.twitch-ask {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 16px;
+  text-align: center;
+  color: #ddd;
+  background: #18181b;
+}
+.twitch-ask button { font: inherit; padding: 6px 14px; border-radius: 6px; border: 0; background: #9146ff; color: #fff; cursor: pointer; }
+.twitch-ask p { margin: 0; font-size: 12px; opacity: 0.8; }
 .empty-title { color: var(--muted); font-size: 12px; }
 .empty .url-input {
   width: min(420px, 100%);

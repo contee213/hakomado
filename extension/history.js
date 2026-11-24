@@ -58,7 +58,7 @@ const WatchHistory = (() => {
 
   /** 枠に読み込んだ: 先頭に移して日時を更新 (前に外れた理由は消す) */
   function opened(videoId, info) {
-    if (!videoId) return chain;
+    if (!videoId || !VIDEO_ID_RE.test(videoId)) return chain; // Twitch の枠 (tw:…) は残さない
     return mutate((list) => {
       const prev = list.find((h) => h.videoId === videoId);
       const { reason, removedAt, ...keep } = prev || {};
