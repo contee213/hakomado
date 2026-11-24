@@ -24,8 +24,10 @@
     <button id="autoMode" class="toggle" type="button" aria-pressed="false" data-i18n-title="auto.title" title="自動再生 (L): 配信中のチャンネルを並べ、始まった・終わった配信に合わせて枠を増減する"><span class="tb-icon"><svg class="helm" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="4.3" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="8" cy="8" r="1.4"/><path d="M7.25 0.6h1.5v14.8h-1.5z M0.6 7.25h14.8v1.5H0.6z"/><path transform="rotate(45 8 8)" d="M7.25 0.6h1.5v14.8h-1.5z M0.6 7.25h14.8v1.5H0.6z"/></svg></span><span class="tb-label" data-i18n="auto.label">自動再生</span></button>
     <button id="cruise" class="toggle" type="button" aria-pressed="false" data-i18n-title="cruise.title" title="クルーズ (C): 一定時間ごとに、メイン枠と音声を次の配信へ回す"><span class="tb-icon"><svg class="ship" viewBox="0 0 16 16" aria-hidden="true"><path d="M9 2.5h2v2.5H9z"/><path d="M4.5 5h8v2h-8z"/><path d="M3.5 7.5h10v2h-10z"/><path d="M1 10h14l-2.4 3.5H3.4z"/></svg></span><span class="tb-label" data-i18n="cruise.label">クルーズ</span><i class="cruise-progress" aria-hidden="true"></i></button>
     <button id="pauseAll" class="toggle" type="button" aria-pressed="false" data-i18n-title="pauseAll.title" title="全部の枠をまとめて一時停止 / 再開 (Space)。再開するとき、ライブ配信は最新の位置に戻ります"><span class="tb-icon">⏸</span><span class="tb-label" data-i18n="pauseAll.label">一時停止</span></button>
+    <button id="repeatAll" class="toggle" type="button" aria-pressed="false" data-i18n-title="repeat.title" title="全枠繰り返し再生 (R): 動画・アーカイブが最後まで行ったら、最初から再生し直す (ライブ配信と、自動再生・あとで見るの順の再生で次を入れる枠は除く)"><span class="tb-icon"><svg class="repeat" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 7.5V6.2A2.2 2.2 0 0 1 4.7 4H11" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M10.2 1.6 13.4 4l-3.2 2.4z"/><path d="M13.5 8.5v1.3A2.2 2.2 0 0 1 11.3 12H5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M5.8 9.6 2.6 12l3.2 2.4z"/></svg></span><span class="tb-label" data-i18n="repeat.label">繰り返し</span></button>
     <button id="speedAll" class="speed-all" type="button" data-i18n-title="speedAll.title" title="全部の枠の再生速度をまとめて変える (同期しているグループはグループごと。ライブ配信は等速のまま)"><span class="tb-icon"><svg class="gauge" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.2A7 7 0 0 0 1 9.2c0 1.6.55 3.1 1.5 4.3l1.2-.95A5.4 5.4 0 0 1 2.6 9.2a5.4 5.4 0 0 1 10.8 0c0 1.25-.42 2.4-1.12 3.35l1.2.95A7 7 0 0 0 8 2.2z"/><path d="M11.9 4.6 8.9 8.4a1.5 1.5 0 1 1-1.2-.95z"/></svg></span><span class="tb-label">1×</span></button>
     <button id="nowPlaying" class="now-playing" type="button" data-i18n="nowPlaying">🔇 ミュート中</button>
+    <button id="audioAll" class="toggle" type="button" aria-pressed="false" data-i18n-title="audioAll.title" title="全部の音 (A): 全部の枠の音を出す ⇄ 全部ミュート"><span class="tb-icon"><svg class="speakers" viewBox="0 0 16 16" aria-hidden="true"><path d="M1 5.6h2.4L6.6 3v10L3.4 10.4H1z"/><path d="M8.6 5.4a3.4 3.4 0 0 1 0 5.2M10.6 3.4a6.2 6.2 0 0 1 0 9.2M12.6 1.6a8.8 8.8 0 0 1 0 12.8" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg></span><span class="tb-label" data-i18n="audioAll.label">全部の音</span></button>
     <button id="syncToggle" class="toggle unavailable" type="button" aria-pressed="false" aria-disabled="true" data-i18n-title="sync.title" title="アーカイブ同期: 配信のアーカイブを、配信していた実際の時刻でそろえて再生する"><span class="tb-icon">⏱</span><span class="tb-label" data-i18n="sync.label">アーカイブ同期</span></button>
     <!-- 同期中だけ: 音を出している枠のグループの時刻とつまみ (グループが 2 つ以上なら、その番号と色)。☰ = 同期の調整パネル (画面の右の列) -->
     <div id="syncBar" class="sync-bar" hidden>
@@ -198,14 +200,17 @@
         <label><span data-i18n="notice.target">通知のチャンネル</span>
           <select id="noticeTarget"><option value="all" data-i18n="target.all">チャンネル全部</option><option value="fav" data-i18n="target.fav">ピックアップ (📌) だけ</option><option value="off" data-i18n="target.off">知らせない</option></select>
         </label>
-        <!-- 自動再生のコンテンツ: 配信はいつも。時間指定で公開される動画・ショート (プレミア公開) も対象にするか -->
+        <!-- 自動再生対象: 配信 = 配信中のものを並べる / 動画・ショート = 最近のものを新しい順に流す (配信と一緒なら空いた枠に)。どれか 1 つは残す -->
         <div class="auto-kinds">
-          <span class="field-label" data-i18n="auto.kinds">自動再生のコンテンツ</span>
-          <label class="check"><input type="checkbox" checked disabled> <span data-i18n="auto.kindLive">配信</span></label>
-          <label class="check"><input type="checkbox" id="autoPremiereVideos"> <span data-i18n="auto.kindVideo">動画</span></label>
-          <label class="check"><input type="checkbox" id="autoPremiereShorts"> <span data-i18n="auto.kindShort">ショート</span></label>
+          <span class="field-label" data-i18n="auto.kinds">自動再生対象</span>
+          <label class="check"><input type="checkbox" id="autoLive"> <span data-i18n="auto.kindLive">配信</span></label>
+          <label class="check"><input type="checkbox" id="autoVideos"> <span data-i18n="auto.kindVideo">動画</span></label>
+          <label class="check"><input type="checkbox" id="autoShorts"> <span data-i18n="auto.kindShort">ショート</span></label>
         </div>
-        <p class="settings-note" data-i18n="auto.kindsNote">時間指定で公開される動画・ショート (プレミア公開) も、配信と同じように流して知らせます。外すと確認が減って軽くなります</p>
+        <p class="settings-note" data-i18n="auto.kindsNote">動画・ショートは、チャンネルの最近のものを新しい順に流し、見終わった枠には次を入れます (配信もあれば配信が先)</p>
+        <!-- 時間指定で公開される動画・ショート (プレミア公開) も、配信と同じに扱うか -->
+        <label class="check sub-check"><input type="checkbox" id="autoPremiereVideos"> <span data-i18n="auto.premiereVideos">プレミア公開の動画も配信として扱う</span></label>
+        <label class="check sub-check"><input type="checkbox" id="autoPremiereShorts"> <span data-i18n="auto.premiereShorts">プレミア公開のショートも配信として扱う</span></label>
         <label class="check"><input type="checkbox" id="skipMembersOnly"> <span data-i18n="auto.skip">メンバーになっていないメンバー限定配信は再生しない</span></label>
         <p class="settings-note" data-i18n="auto.skipNote">ログイン中のアカウントで見られない配信は入れません</p>
         <label><span data-i18n="auto.maxTiles">自動再生の最大枠数</span> <output id="autoMaxTilesOut"></output>
@@ -332,6 +337,7 @@
               <li>「ℹ️ 枠の情報」(<kbd>I</kbd>) の各行: 音の左右 (L / C / R) / 📌 ピックアップ / 🔖 あとで見る / 📃 再生リストに入れる / チャンネル登録 / 👍 高評価。タイトルを押すと、その動画を YouTube の新しいタブで開きます</li>
               <li>🎚 では、その枠の音を左・真ん中・右から聞こえるようにしたり、音量 (0〜200%) を変えたりできます。左右は「ℹ️ 枠の情報」の L / C / R でも変えられます。ライブ配信では「音の遅延」で、その枠の音だけを遅らせられます (映像はそのまま。コラボで、ほかの枠より声が先に聞こえるときに)</li>
               <li>「⛶」(<kbd>Shift</kbd> + <kbd>F</kbd>) で、分割したまま全画面にします。上端にマウスを寄せるとバーが出ます</li>
+              <li>「🔁 繰り返し」(<kbd>R</kbd>) を ON にすると、全部の枠の動画・アーカイブが最後まで行ったら最初から再生し直します (ライブ配信と、自動再生・あとで見るの順の再生で次を入れる枠は除く)</li>
               <li>「ℹ️」(<kbd>I</kbd>) で、各枠の種類 (ライブ・アーカイブ・動画)・配信の時間・今の視聴者数・再生数・アーカイブ同期できるかを一覧で見られます</li>
             </ul>
           </section>
@@ -343,8 +349,9 @@
             </ul>
             <h3>設定 → 自動再生</h3>
             <ul>
+              <li><b>自動再生対象</b>: 配信・動画・ショートから選びます (1 つ以上)。動画・ショートは、チャンネルの最近 30 日のものを新しい順に流し、最後まで見た枠には次が入ります (ピックアップが先、一度見たものは除く)。配信と一緒に選ぶと、配信を先に入れて、最大枠数までの空きを動画・ショートで埋めます</li>
               <li><b>自動再生のチャンネル</b>: すべてのチャンネルか、ピックアップ (📌) だけか</li>
-              <li><b>自動再生のコンテンツ</b>: 配信のほかに、時間指定で公開される動画・ショート (プレミア公開) も、配信と同じように枠に入れて知らせるか。外すと公開予定の確認が減って軽くなります</li>
+              <li><b>プレミア公開の動画・ショートも配信として扱う</b>: 時間指定で公開される動画・ショートも、配信と同じように枠に入れて知らせるか。外すと公開予定の確認が減って軽くなります</li>
               <li><b>メンバーになっていないメンバー限定配信は再生しない</b>: ログイン中のアカウントで見られるかを、枠に入れる前に確かめます</li>
               <li><b>自動再生の最大枠数</b>: 配信中のものが多くても、この数までしか再生しません。回線が細いときや、パソコンが重いときは減らしてください</li>
               <li><b>ピックアップ (📌) の配信をメイン枠に優先して置く</b>: ピックアップのライブ配信を大きいメイン枠に入れ、ほかはサブ枠に回します。最大枠数に届いたときも、ピックアップを先に入れます。メイン枠の無い均等レイアウトと、クルーズ中は並べ替えません</li>
@@ -385,6 +392,7 @@
           <section class="help-page" data-help-page="library" role="tabpanel" data-i18n-html="helpPage.library" hidden>
             <ul>
               <li>「📚 ライブラリ」(<kbd>B</kbd>): 🎞 最近の動画 (最近 7 日に終わった配信と、公開された動画) / 🕘 視聴履歴 (100 件) / 🔖 あとで見る (100 件) / 📃 再生リスト</li>
+              <li><b>種類の絞り込み</b>: 一覧の上の「🔴 ライブ / 🎬 動画 / 📱 ショート」で、出す種類を選べます (いくつでも。最近の動画・視聴履歴・あとで見るで共通)</li>
               <li><b>あとで見る</b>: 枠のバーや一覧の 🔖 で入れます。「▶ 今の枠で順に再生」で今ある枠に順に入れ、最後まで見た枠には次が入ります。最後まで見たものは消えます</li>
               <li><b>再生リスト</b>: 名前を付けた並び (30 個・1 つに 200 本まで)。「＋ 新規」「▦ 今の枠から作る」「📥 読み込む」で作り、URL の欄や、「ℹ️ 枠の情報」・一覧の 📃 で足します。⠿ で並べ替え、行の名前は枠に出す名前になります</li>
               <li>「▶ 順に再生」は今の枠に上から入れて、見終わった枠に次を入れます (最後まで見たものに ✓ を付け、次は続きから)。「⏱ まとめて同期再生」は全部を一度に並べて、アーカイブを同じ瞬間にそろえます (16 本まで)</li>
@@ -434,9 +442,11 @@
               <tr><th><kbd>Shift</kbd> + <kbd>1</kbd>〜<kbd>9</kbd></th><td data-i18n-html="key.tileFs">その枠を全画面 (<kbd>Esc</kbd> で戻る)</td></tr>
               <tr><th><kbd>Shift</kbd> + <kbd>F</kbd></th><td data-i18n="key.gridFs">分割したまま全画面 (上端にマウスを寄せるとバーが出る)</td></tr>
               <tr><th><kbd>M</kbd></th><td data-i18n="key.mute">ミュート ⇄ 直前の状態に戻す</td></tr>
+              <tr><th><kbd>A</kbd></th><td data-i18n="key.audioAll">全部の枠の音を出す ⇄ 全部ミュート</td></tr>
               <tr><th><kbd>Space</kbd></th><td data-i18n="key.pause">全部の枠をまとめて一時停止 ⇄ 再開 (ライブ配信は最新の位置から再開)</td></tr>
               <tr><th><kbd>L</kbd></th><td data-i18n="key.auto">自動再生の ON / OFF</td></tr>
               <tr><th><kbd>C</kbd></th><td data-i18n="key.cruise">クルーズの ON / OFF</td></tr>
+              <tr><th><kbd>R</kbd></th><td data-i18n="key.repeat">全枠繰り返し再生の ON / OFF</td></tr>
               <tr><th><kbd>F</kbd></th><td data-i18n="key.fav">チャンネルを開く</td></tr>
               <tr><th><kbd>B</kbd></th><td data-i18n="key.lib">ライブラリを開く</td></tr>
               <tr><th><kbd>I</kbd></th><td data-i18n="key.info">枠の情報を開く</td></tr>
@@ -612,6 +622,9 @@
       <div class="fav-tools">
         <span id="libScope" class="seg lib-scope" role="radiogroup" data-i18n-title="scope.title" title="対象のチャンネル: すべて / ピックアップ (📌) に入れたものだけ (どのタブでも共通)">
           <button type="button" data-scope="all" data-i18n="scope.all">📺 すべて</button><button type="button" data-scope="star" data-i18n="scope.star">📌 ピックアップ</button>
+        </span>
+        <span id="libKind" class="seg lib-kind" role="group" data-i18n-title="kind.title" title="出す種類 (押すたびに出す / 出さないを切り替える。最近の動画・視聴履歴・あとで見るで共通)">
+          <button type="button" data-kind="live" data-i18n="kind.live">🔴 ライブ</button><button type="button" data-kind="video" data-i18n="kind.video">🎬 動画</button><button type="button" data-kind="short" data-i18n="kind.short">📱 ショート</button>
         </span>
         <select id="plSelect" class="pl-select" data-i18n-title="pl.selectTitle" title="表示する再生リスト" hidden></select>
         <button type="button" id="plNew" class="pl-new" data-i18n="pl.new" data-i18n-title="pl.newTitle" title="空の再生リストを作る。下の欄や、枠・一覧の 📃 で中身を入れる" hidden>＋ 新規</button>

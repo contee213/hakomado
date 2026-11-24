@@ -259,8 +259,22 @@
   const CONFIRM_VOD_MS = 5000;
   const CONFIRM_LIVE_MS = 60000;
   let endCheck = 0;
+  // ---- 全枠繰り返し再生 (親の上部バーの 🔁)
+  //   watch.js → ここ : 'hakomado:loop' detail '1' | '0'
+  //   ON の間は、動画・アーカイブが最後まで行ったらすぐ最初に戻して再生する (終わったことは親に知らせない)。
+  //   ライブ配信・待機画面の宣伝動画・広告は対象外
+  let loopOn = false;
+  document.addEventListener('hakomado:loop', (e) => {
+    loopOn = e.detail === '1';
+  });
   const onPlayerState = (s) => {
     if (s !== 0 || endCheck || adShowing() || waitingRoom()) return;
+    if (loopOn && !videoData().isLive) {
+      const p = player();
+      p?.seekTo?.(0, true);
+      p?.playVideo?.();
+      return;
+    }
     const wait = videoData().isLive ? CONFIRM_LIVE_MS : CONFIRM_VOD_MS;
     endCheck = setTimeout(() => {
       endCheck = 0;

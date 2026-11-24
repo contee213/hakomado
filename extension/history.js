@@ -7,12 +7,15 @@
 const VideoEntry = (() => {
   'use strict';
   const VIDEO_ID_RE = /^[A-Za-z0-9_-]{11}$/;
+  const KINDS = ['live', 'video', 'short'];
   const valid = (h) => h && typeof h === 'object' && typeof h.videoId === 'string' && VIDEO_ID_RE.test(h.videoId);
   const pick = (info) => {
     const out = {};
     for (const k of ['title', 'channel', 'handle', 'channelId', 'label', 'input']) {
       if (typeof info?.[k] === 'string' && info[k]) out[k] = info[k].slice(0, 300);
     }
+    // 種類 (ライブラリの種類の絞り込み用): live = 配信 (アーカイブ・配信中・配信予定) / video = 動画 / short = ショート
+    if (KINDS.includes(info?.kind)) out.kind = info.kind;
     return out;
   };
   return { valid, pick };

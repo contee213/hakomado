@@ -5,10 +5,11 @@
 //  - uniform: 均等 (全部同じ大きさ)
 //  - main: メイン + サブ。tools/layout-picks.json の形 (tools/gen-layouts.js が layouts-generated.js に書き出す)
 //  - pip: PinP。メイン 1 枠の中に小窓 (メインの 1/5) を 1〜3 個重ねる
+//  - vertical: 縦長の均等。どの枠も 9:16 (ショート・縦型の配信向け)。aspects = 枠ごとの目標の横/縦
 // main と pip は、基準位置 (anchor: tl / bl / tr / br = メインを置く角) ごとにある。
 // 計算した形は左上 (tl) が基準で、他は反転して作る。サブ・小窓はメインと反対側に来る
 // (PinP は基準が左上なら小窓が右下)
-// kind: uniform = 均等 / pip = PinP / main は focus = メイン重視 (サブが小さい)・balance = バランス (サブが大きい)・single = それ以外
+// kind: uniform = 均等 / pip = PinP / vertical = 縦長 / main は focus = メイン重視 (サブが小さい)・balance = バランス (サブが大きい)・single = それ以外
 // recommended = 枠数 × メインの数ごとのおすすめ (本数が決まったときに自動で選ぶ。RECOMMENDED_LAYOUT_KEYS)
 // tab = レイアウト画面の「おすすめ」タブに出す (TAB_LAYOUT_KEYS)
 /* exported LAYOUTS, ANCHORS, DEFAULT_LAYOUT_ID, MAX_SLOTS, getLayout, layoutFor, layoutIdOf, solveTracks */
@@ -31,6 +32,15 @@ const LAYOUTS = (() => {
     for (let y = 0; y < r; y++) for (let x = 0; x < c; x++) slots.push([x, y, 1, 1]);
     const key = `u${r}x${c}`;
     list.push({ id: key, key, group: 'uniform', kind: 'uniform', name: `${r}×${c}`, cols: c, rows: r, mains: 0, recommended: rec.has(key), tab: tab.has(key), slots });
+  }
+
+  // ---- 縦長 (縦 × 横)。どの枠も 9:16。3 枚を横に並べると 27:16 で、16:9 の画面をほぼ埋める (6×2 の 12 枚も同じ)
+  // 16:9 の画面を 50% 以上使うもの。1×1・1×2 は均等の枠でも縦長に寄せれば同じ広さになるので入れない
+  for (const [r, c] of [[1, 3], [1, 4], [1, 5], [1, 6], [2, 4], [2, 5], [2, 6], [2, 7], [2, 8]]) {
+    const slots = [];
+    for (let y = 0; y < r; y++) for (let x = 0; x < c; x++) slots.push([x, y, 1, 1]);
+    const key = `v${r}x${c}`;
+    list.push({ id: key, key, group: 'vertical', kind: 'vertical', name: `▯${r}×${c}`, cols: c, rows: r, mains: 0, recommended: false, tab: false, aspects: slots.map(() => 9 / 16), slots });
   }
 
   // ---- 左上を基準にした形 (メイン + サブ と PinP)。これを反転して 4 つの基準位置を作る
@@ -96,7 +106,8 @@ function layoutFor(key, anchor) {
  * どの枠もなるべく 16:9 になるような列の幅・行の高さ (相対値) を求める。
  * 枠ごとに「横長すぎなら列を縮めて行を伸ばす」補正を掛け、各列・各行は関係する枠の補正の幾何平均を取る。
  * これを繰り返すと、ここで定義しているレイアウトはどれもちょうど 16:9 に収束する。
- * aspects (省略可) = 枠ごとの目標の横/縦 (縦長の映像の枠は 9/16 など)。同じ列・行に違う目標の枠があると、間の比で止まる
+ * aspects (省略可) = 枠ごとの目標の横/縦 (縦長の映像の枠は 9/16 など)。省略時はレイアウトの aspects (無ければどれも 16:9)。
+ * 同じ列・行に違う目標の枠があると、間の比で止まる
  * @param {number[]} [aspects]
  * @returns {{colW: number[], rowH: number[], aspect: number}} aspect = 全体の横/縦
  */
@@ -111,7 +122,7 @@ function solveTracks(l, aspects) {
     const rowLog = Array(l.rows).fill(0), rowN = Array(l.rows).fill(0);
     let worst = 0;
     l.slots.forEach(([x, y, w, h], k) => {
-      const target = (aspects && aspects[k]) || 16 / 9;
+      const target = (aspects && aspects[k]) || (l.aspects && l.aspects[k]) || 16 / 9;
       let sw = 0, sh = 0;
       for (let i = x; i < x + w; i++) sw += colW[i];
       for (let j = y; j < y + h; j++) sh += rowH[j];

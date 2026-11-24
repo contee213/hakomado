@@ -79,6 +79,28 @@ test.describe('ツールバー', () => {
     await expect(picker.locator('.layout-option.current .layout-name')).toHaveText(name);
   });
 
+  test('縦長のレイアウト: 枠が 9:16 になり、＋・− でも縦長のまま', async ({ openGrid }) => {
+    const page = await openGrid();
+    await skipTour(page);
+    const picker = page.locator('#layoutPicker');
+    await page.locator('#openLayout').click();
+    await picker.locator('[data-tab="vertical"]').click();
+    await expect(picker.locator('.layout-option')).toHaveCount(9);
+    await picker.locator('.layout-option[data-id="v1x3"]').click();
+    await expect(page.locator('#layoutName')).toHaveText('▯1×3');
+
+    const ratios = () =>
+      page.locator('#grid .tile:not([hidden])').evaluateAll((els) => els.map((e) => e.offsetWidth / e.offsetHeight));
+    const r = await ratios();
+    expect(r).toHaveLength(3);
+    for (const v of r) expect(Math.abs(v - 9 / 16)).toBeLessThan(0.02);
+
+    await page.locator('#addTile').click();
+    await expect(page.locator('#layoutName')).toHaveText('▯1×4');
+    await page.locator('#removeTile').click();
+    await expect(page.locator('#layoutName')).toHaveText('▯1×3');
+  });
+
   // ボタン → 開くダイアログ。開いて Esc で閉じられること
   const DIALOGS = [
     ['openSettings', '#settings'],
@@ -364,5 +386,44 @@ test.describe('ライブラリの複数選択', () => {
     await card.locator('.fav-star').click();
     await expect(card.locator('.fav-star')).toHaveClass(/\bon\b/);
     await expect(card).toHaveAttribute('data-mark', '1'); // 同じ要素のまま
+  });
+});
+
+test.describe('ライブラリの種類の絞り込み', () => {
+  const now = Date.now();
+  const HISTORY = [
+    { videoId: 'live0000001', title: '雑談配信', label: 'A', kind: 'live', at: now },
+    { videoId: 'video000002', title: 'MV', label: 'B', kind: 'video', at: now - 60e3 },
+    { videoId: 'short000003', title: 'ショート', label: 'C', input: 'https://www.youtube.com/shorts/short000003', at: now - 120e3 }, // 種類を書く前の版の履歴 (/shorts/ の URL でショート)
+    { videoId: 'unknown0004', title: '種類の分からないもの', label: 'D', at: now - 180e3 },
+  ];
+  const shownIds = (page) => page.locator('#favList .fav-item').evaluateAll((els) => els.map((e) => e.dataset.sel));
+
+  test('🔴 ライブ / 🎬 動画 / 📱 ショート で出す種類を切り替え、最後の 1 つは外せず、次に開いたときも覚えている', async ({ openGrid }) => {
+    const page = await openGrid();
+    await skipTour(page);
+    await page.evaluate((h) => chrome.storage.local.set({ history: h }), HISTORY);
+    await page.locator('#openFavorites').click();
+    await page.locator('[data-favtab="history"]').click();
+    const kinds = page.locator('#libKind [data-kind]');
+    await expect(kinds).toHaveText(['🔴 ライブ', '🎬 動画', '📱 ショート']);
+    await expect(page.locator('#favList .fav-item')).toHaveCount(4); // 全部出すときは種類の分からないものも出す
+    await page.locator('#libKind [data-kind="short"]').click();
+    await expect.poll(() => shownIds(page)).toEqual(['live0000001', 'video000002']);
+    await page.locator('#libKind [data-kind="live"]').click();
+    await expect.poll(() => shownIds(page)).toEqual(['video000002']);
+    await page.locator('#libKind [data-kind="video"]').click(); // 最後の 1 つは外せない
+    await expect(page.locator('#libKind [data-kind="video"]')).toHaveClass('selected');
+    await expect.poll(() => shownIds(page)).toEqual(['video000002']);
+    // あとで見るでも同じ絞り込み。チャンネルの一覧と再生リストでは出さない
+    await page.locator('[data-favtab="playlists"]').click();
+    await expect(page.locator('#libKind')).toBeHidden();
+    await page.reload();
+    await skipTour(page).catch(() => {});
+    await page.locator('#openFavorites').click();
+    await page.locator('[data-favtab="history"]').click();
+    await expect.poll(() => shownIds(page)).toEqual(['video000002']);
+    await page.locator('#libKind [data-kind="short"]').click();
+    await expect.poll(() => shownIds(page)).toEqual(['video000002', 'short000003']);
   });
 });
