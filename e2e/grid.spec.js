@@ -285,7 +285,8 @@ test.describe('視聴セッション', () => {
   // 取り込み用リンク (background.js が #import=<watch_videos のクエリ> に付け替えて開く)
   const IMPORT_HASH = `#import=${encodeURIComponent('video_ids=dQw4w9WgXcQ,9bZkp7q5f_w&hakomado=テスト')}`;
 
-  test('取り込み用リンクで開いて「読み込んで始める」を選んでも、リンクの中身と保存の主ボタンのまま', async ({ openGrid }) => {
+  // 保存済みの内容を作って閉じる (次に開くと、ふつうは起動画面が出る状態にする)
+  async function leaveSavedSession(openGrid) {
     const page = await openGrid();
     await skipTour(page);
     const input = visibleTiles(page).first().locator('.url-input');
@@ -295,15 +296,24 @@ test.describe('視聴セッション', () => {
       .poll(() => page.evaluate(async () => JSON.stringify(await chrome.storage.local.get(null)).includes('dQw4w9WgXcQ')))
       .toBe(true);
     await page.close();
+  }
+  const tileIds = (page) => page.evaluate(() => state.tiles.map((t) => t.videoId).filter(Boolean));
 
+  test('保存済みの内容があっても、取り込み用リンクで開くと起動画面を出さず、新しく始めて読み込む画面を開く', async ({ openGrid }) => {
+    await leaveSavedSession(openGrid);
     const next = await openGrid(IMPORT_HASH);
-    const start = next.locator('#startDialog');
-    await expect(start).toBeVisible();
-    await start.locator('#startChoices button[value="read"]').click();
     await expect(next.locator('#readPane')).toBeVisible();
+    await expect(next.locator('#startDialog')).toBeHidden();
     await expect(next.locator('#readSummary')).toContainText('2 本を受け取りました');
     await expect(next.locator('#readSave')).toHaveClass(/primary-action/);
-    await expect(next.locator('#readApply')).not.toHaveClass(/primary-action/);
+    expect(await tileIds(next)).toEqual([]);
+  });
+
+  test('保存済みの内容があっても、右クリックの追加 (#add=) で開くと起動画面を出さず、その動画だけで新しく始める', async ({ openGrid }) => {
+    await leaveSavedSession(openGrid);
+    const next = await openGrid('#add=9bZkp7q5f_w');
+    await expect.poll(() => tileIds(next)).toEqual(['9bZkp7q5f_w']);
+    await expect(next.locator('#startDialog')).toBeHidden();
   });
 
   test('インストール直後に取り込み用リンクで開くと、読み込む画面を閉じてから使い方ツアーが出る', async ({ openGrid }) => {
@@ -521,5 +531,37 @@ test.describe('ライブラリの種類の絞り込み', () => {
     await expect.poll(() => shownIds(page)).toEqual(['video000002']);
     await page.locator('#libKind [data-kind="short"]').click();
     await expect.poll(() => shownIds(page)).toEqual(['video000002', 'short000003']);
+  });
+});
+
+test.describe('右クリックの「空き枠に追加」', () => {
+  // 16 枠が埋まっている画面にする (空き枠も足す枠も無い)
+  const makeFull = (page) => page.evaluate(() => (window.emptyTileOrAdd = () => null));
+  const tileIds = (page) => page.evaluate(() => state.tiles.map((t) => t.videoId).filter(Boolean));
+
+  test('送り先が 16 枠いっぱいなら空き枠のある別の画面に、どこもいっぱいなら新しいタブに入れる', async ({ openGrid, serviceWorker, context }) => {
+    const a = await openGrid();
+    await skipTour(a);
+    const b = await openGrid();
+    await expect(b.locator('#grid .tile').first()).toBeAttached();
+    // 2 つとも登録され、追加を受け取れるようになるまで待つ (受け取りは起動し終えてから始める)
+    await expect.poll(() => serviceWorker.evaluate(() => getGridTabs().then((t) => t.length))).toBe(2);
+    await b.waitForTimeout(500);
+    await b.bringToFront();
+    await a.bringToFront(); // a を最後に使った画面にする
+
+    await makeFull(a);
+    await serviceWorker.evaluate(() => addToGrid('dQw4w9WgXcQ'));
+    await expect.poll(() => tileIds(b)).toEqual(['dQw4w9WgXcQ']);
+    expect(await tileIds(a)).toEqual([]);
+    await expect(a.locator('#globalToast')).not.toContainText('埋まっている');
+
+    await makeFull(b);
+    const opened = context.waitForEvent('page');
+    await serviceWorker.evaluate(() => addToGrid('9bZkp7q5f_w'));
+    const c = await opened;
+    await expect(c.locator('#grid .tile').first()).toBeAttached();
+    await expect.poll(() => tileIds(c).catch(() => null)).toEqual(['9bZkp7q5f_w']);
+    await expect(c.locator('#startDialog')).toBeHidden();
   });
 });

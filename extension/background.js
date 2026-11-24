@@ -317,6 +317,11 @@ async function gridTabsByRecent(windowId) {
   return tabs.sort((a, b) => (b.windowId === windowId) - (a.windowId === windowId) || (b.lastAccessed || 0) - (a.lastAccessed || 0));
 }
 
+/**
+ * 右クリックの「空き枠に追加」: 開いている画面に順に頼み、入れた (またはもう表示中の) 画面を前に出す。
+ * 16 枠が埋まっている画面は handled を返さないので次の画面へ。どこにも入らなければ、新しいタブで開いて入れる
+ * (#add= で開いた画面は、起動画面を出さずに新しく始める)
+ */
 async function addToGrid(videoId, windowId, short = false) {
   for (const t of await gridTabsByRecent(windowId)) {
     let res = null;
