@@ -117,6 +117,8 @@
 | 5 | {パック名} ({件数} 件) / 外す | 一覧 | (JS) `#packList li` | 読み込んだパックごとの行。「外す」で確かめてからそのパックのチャンネルを外す | | | `Favorites.removePack` |
 | 6 | 登録チャンネルから選ぶ | ボタン | `#subsOpen` | ログイン中の YouTube の登録チャンネルを読み、選ぶ画面 (`#subsDialog`、03-dialogs.md) を開く | | | `setupSubscriptions` |
 | 7 | 登録チャンネルの状態 | 表示 | `#subsOpenStatus` | 「読み込んでいます…」・登録チャンネルが無い・ログインしていない・読めなかった を出す | | | `role="status"`。失敗は `share-error` |
+| 7a | フォローから選ぶ (Twitch のフォロー) | ボタン | `#twFollowsOpen` (`#twFollows` の中) | ログインの窓を開く許可 (`identity`) と twitch.tv の許可を求め、Twitch の認可の画面でログインしてもらい、フォローしているチャンネルを読んで、No.6 と同じ選ぶ画面 (`#subsDialog`。見出しは「Twitch のフォロー」) を開く。選んだものはパック「Twitch のフォロー」として足す | | | `TwitchFollows.fetchFollows`。Twitch のアプリの登録 (`twitch-follows.js` の `CLIENT_ID`) が済むまで `#twFollows` ごと隠す |
+| 7b | フォローの状態 | 表示 | `#twFollowsStatus` | 「読み込んでいます…」・フォローが無い・許可されなかった・ログインをやめた・Twitch に認められなかった・読めなかった・追加した件数 を出す | | | 失敗は `share-error` |
 | 8 | 書き出す範囲 | 選択 (select) | `#packGroup` | 書き出すパックを選ぶ | すべてのチャンネル / ホロライブ (同梱版) / 読み込んだ各パック / 自分で追加したチャンネル。初期値 すべてのチャンネル | | チャンネルがあるものだけ出す。作り直しても前の選択が残っていればそのまま |
 | 9 | ⬇ 書き出す | ボタン | `#packExport` | 選んだ範囲のチャンネルをパック (JSON) にしてダウンロードする | ファイル名 `hakomado-pack-<名前>.json` | | 範囲にチャンネルが無ければ何もしない |
 | 10 | 一覧を取得 | ボタン | `#catalogLoad` | GitHub に集めたパックの一覧 (`raw.githubusercontent.com/contee213/hakomado/main/packs/`) を取る | | | 開いただけでは取りに行かない (`ChannelPack.fetchIndex`) |

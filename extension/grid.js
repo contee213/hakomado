@@ -1431,7 +1431,8 @@ function renderTile(i, { reloadPlayer = false, reloadChat = false } = {}) {
     v.player?.remove();
     el.querySelector('.twitch-ask')?.remove();
     v.player = null;
-    for (const k of ['archive', 'info', 'ss', 'lv', 'meta', 'social']) v[k] = null;
+    for (const k of ['archive', 'info', 'ss', 'lv', 'meta', 'social', 'twMeta']) v[k] = null;
+    v.twMetaFor = '';
     v.twStart = null; // VOD の配信の開始時刻を取りに行ったか (同期用。info を受けたとき)
     v.twPause = null; // 止まっているか (枠の中のスクリプトの twPause)
     v.playStatus = '';
@@ -1721,6 +1722,10 @@ function tileName(i) {
  */
 /** 枠 i の配信のチャンネルのページ (分からなければ '') */
 function channelUrlOf(i) {
+  if (isTwitchTile(i)) {
+    const login = views[i].twMeta?.login || twitchChannelOfTile(state.tiles[i])?.slice(3);
+    return login ? `https://www.twitch.tv/${login}` : '';
+  }
   const m = views[i].meta;
   if (/^UC[\w-]{22}$/.test(m?.channelId || '')) return `${YT}/channel/${m.channelId}`;
   const h = String(m?.handle || '');
@@ -5152,7 +5157,7 @@ const TileInfo = (() => {
       ch.href = chUrl;
       ch.target = '_blank';
       ch.rel = 'noopener noreferrer';
-      ch.title = tr('infoOpenChannel', ch.textContent);
+      ch.title = tr(isTwitchTile(i) ? 'infoOpenTwitchChannel' : 'infoOpenChannel', ch.textContent);
     }
     // タイトルを押すと、その動画を YouTube の新しいタブで開く
     const ti = document.createElement('a');
@@ -5162,7 +5167,7 @@ const TileInfo = (() => {
     ti.target = '_blank';
     ti.rel = 'noopener noreferrer';
     ti.textContent = meta?.title || ti.href;
-    ti.title = tr('infoOpenYouTube', meta?.title || ti.href);
+    ti.title = tr(isTwitchId(tid) ? 'infoOpenTwitch' : 'infoOpenYouTube', meta?.title || ti.href);
     v.append(ch, ti);
     tr_.append(v);
     tr_.append(opsCell(i));
@@ -5503,6 +5508,11 @@ window.addEventListener('message', (e) => {
       save();
     }
     loadTwitchArchive(i);
+    if (isTwitchTile(i)) {
+      // Twitch のプレイヤーは配信の時刻を知らせてこないので、ページから読んだ分 (loadTwitchMeta) を足す
+      if (views[i].twMeta?.start) views[i].info.start = views[i].twMeta.start;
+      loadTwitchMeta(i);
+    }
     Sync.refresh();
     TileInfo.update();
     saveTileKind(i);
@@ -5522,6 +5532,38 @@ window.addEventListener('message', (e) => {
     if (data.failed) notify(tr('ytFailed', tileName(i)));
   }
 });
+
+/**
+ * Twitch の枠の題名・チャンネル名・配信の開始時刻 (ℹ 枠の情報・枠の名前・今の音声・視聴履歴用)。
+ * Twitch のプレイヤーは知らせてこないので、チャンネルのページ (ライブ) か VOD のページから読む。
+ * ライブは題名が変わることがあるので TWITCH_META_MS ごとに読み直し、VOD は 1 回だけ。視聴者数は公開ページに無いので出さない
+ */
+const TWITCH_META_MS = 2 * 60e3;
+function loadTwitchMeta(i) {
+  const v = views[i];
+  const vid = state.tiles[i].videoId;
+  const vod = vid.startsWith('tw:v:');
+  if (v.twMetaFor === vid && (vod || Date.now() - (v.twMetaAt || 0) < TWITCH_META_MS)) return;
+  v.twMetaFor = vid;
+  v.twMetaAt = Date.now();
+  (vod ? Favorites.twitchVodInfo(vid) : Favorites.twitchLiveInfo(vid))
+    .then((m) => {
+      if (!m || state.tiles[i].videoId !== vid) return;
+      // VOD のチャンネルのページ: 表示名が英数字ならログイン名と同じ (大文字・小文字だけ違う) なので、そのページにする
+      const login = vod ? (/^[A-Za-z0-9_]{1,25}$/.test(m.channel) ? m.channel.toLowerCase() : '') : vid.slice(3);
+      v.twMeta = { ...m, login };
+      if (v.info && m.start) v.info.start = m.start;
+      if (vod && m.title) vodTitles.set(vid, m.title);
+      v.meta = { title: m.title || '', channel: m.channel || '', handle: '', channelId: '' };
+      updateTileName(i);
+      TileInfo.update();
+      WatchHistory.update(vid, { ...(m.title ? { title: m.title } : {}), ...(m.channel ? { channel: m.channel } : {}) });
+      if (savedIds.has(vid)) SavedVideos.update(vid, v.meta);
+      if (playlistIds.has(vid)) Playlists.update(vid, v.meta);
+      updateNowPlaying();
+    })
+    .catch((e) => ErrLog.warnFetch('hakomado: Twitch の枠の情報を取れませんでした', vid, e));
+}
 
 /**
  * Twitch の VOD の枠: 長さが分かったら、配信が始まった時刻 (VOD のページから) を取って、アーカイブとして同期に使えるようにする
@@ -7480,14 +7522,14 @@ function addVideoFromMenu(videoId, short = false, { quietFull = false } = {}) {
     return 'full';
   }
   forgetAutoMarks(videoId);
-  setTileVideo(target, videoId, short ? `${YT}/shorts/${videoId}` : `${YT}/watch?v=${videoId}`);
+  setTileVideo(target, videoId, short ? `${YT}/shorts/${videoId}` : videoUrlOf(videoId));
   showToast(target, tr('menuAdded'));
   return 'added';
 }
 
-/** 新しいタブで開いたとき (#add=<動画 ID>。ショートは #add=<動画 ID>&short) */
+/** 新しいタブで開いたとき (#add=<動画 ID>。ショートは #add=<動画 ID>&short。Twitch は #add=tw:<名前> / tw:v:<番号>) */
 function handleAddLink() {
-  const m = location.hash.match(/^#add=([A-Za-z0-9_-]{11})(&short)?$/);
+  const m = location.hash.match(/^#add=([A-Za-z0-9_-]{11}|tw:(?:[a-z0-9_]{1,25}|v:\d{1,12}))(&short)?$/);
   if (!m) return;
   // 再読み込みでもう一度入れないよう、先に URL から外す
   history.replaceState(null, '', location.pathname + location.search);
@@ -7498,7 +7540,7 @@ function handleAddLink() {
 function listenAddVideo(myTabId) {
   chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     if (msg?.type !== 'add-video' || sender.id !== chrome.runtime.id || sender.tab || msg.tabId !== myTabId) return false;
-    if (!ID_RE.test(msg.videoId)) return false;
+    if (!ID_RE.test(msg.videoId) && !isTwitchId(msg.videoId)) return false;
     // 16 枠が埋まっていたら handled にしない (background.js が次の画面か新しいタブに回す)
     const result = addVideoFromMenu(msg.videoId, msg.short === true, { quietFull: true });
     sendResponse({ handled: result !== 'full', result });
@@ -10160,6 +10202,8 @@ function setupPacks() {
 // 足したチャンネルはパック「YouTube の登録チャンネル」の扱いにして、パックの一覧からまとめて外せるようにする。
 // パックの名前はアドオン「YouTube の登録チャンネル」(addons/youtube-subs.js) の covers と同じもの ([日本語, 英語])
 const SUBS_PACK_NAMES = Addons.list('schedule').find((a) => a.id === 'ytsubs').packNames;
+// Twitch のフォローから足したチャンネルのまとまり (パック) の名前 [日本語, 英語]
+const TWITCH_FOLLOWS_PACK_NAMES = ['Twitch のフォロー', 'Twitch follows'];
 // これより多く選んだら、配信状況の確認が重くなることを確かめてから足す
 // ---------------------------------------------------------------- ⚙ チャンネルの管理
 // チャンネルを足す・まとめて外す・チャンネルパック・登録チャンネルの取り込みをまとめた画面 (docs/channel-manage.md)。
@@ -10367,10 +10411,6 @@ function setupSubscriptions() {
   let subs = [];
   let have = new Set();
   const selected = new Set();
-  const setOpenStatus = (text, isError = false) => {
-    openStatus.textContent = text;
-    openStatus.classList.toggle('share-error', isError);
-  };
   const visible = () => {
     const q = filterEl.value.trim().toLowerCase();
     return q ? subs.filter((c) => c.name.toLowerCase().includes(q) || (c.handle || '').toLowerCase().includes(q)) : subs;
@@ -10384,7 +10424,7 @@ function setupSubscriptions() {
     if (!list.length) {
       const li = document.createElement('li');
       li.className = 'subs-empty';
-      li.textContent = subs.length ? tr('subsNoMatch', filterEl.value.trim()) : tr('subsEmpty');
+      li.textContent = subs.length ? tr('subsNoMatch', filterEl.value.trim()) : tr(src.empty);
       ul.replaceChildren(li);
     } else {
       ul.replaceChildren(
@@ -10413,31 +10453,72 @@ function setupSubscriptions() {
     updateCount();
   };
 
-  openBtn.addEventListener('click', async () => {
-    openBtn.disabled = true;
-    setOpenStatus(tr('packLoading'));
+  // 読み込む先: YouTube の登録チャンネル / Twitch のフォロー (同じ選ぶ画面を使う。今どちらから読んだかは src)
+  const title = dialog.querySelector('h2');
+  const ytTitle = title.textContent; // 表示言語に合わせた見出し (grid.html の文言。英語なら applyI18n で差し替え済み)
+  const sources = {
+    youtube: {
+      btn: openBtn,
+      statusEl: openStatus,
+      title: () => ytTitle,
+      fetch: () => Favorites.fetchSubscriptions(),
+      packNames: SUBS_PACK_NAMES,
+      empty: 'subsEmpty',
+      more: 'subsMore',
+      added: 'subsAdded',
+      error: (e) => ({ notLoggedIn: tr('subsNotLoggedIn'), readFail: tr('subsReadFail') })[e.message] || tr('subsFetchFail', e.message || e),
+    },
+    twitch: {
+      btn: document.getElementById('twFollowsOpen'),
+      statusEl: document.getElementById('twFollowsStatus'),
+      title: () => tr('twfDialogH'),
+      // 許可は押した操作の中で、await より前に求める
+      fetch: (allowed) => TwitchFollows.fetchFollows({ allowed }),
+      packNames: TWITCH_FOLLOWS_PACK_NAMES,
+      empty: 'twfEmpty',
+      more: 'twfMore',
+      added: 'twfAdded',
+      error: (e) =>
+        ({ notAllowed: tr('twfNotAllowed'), canceled: tr('twfCanceled'), denied: tr('twfDenied') })[e.message] || tr('twfFetchFail', e.message || e),
+    },
+  };
+  let src = sources.youtube;
+  const setStatusOf = (s, text, isError = false) => {
+    s.statusEl.textContent = text;
+    s.statusEl.classList.toggle('share-error', isError);
+  };
+  // Twitch のアプリの登録 (twitch-follows.js の CLIENT_ID) が済むまでは出さない
+  document.getElementById('twFollows').hidden = !TwitchFollows.available();
+
+  async function openFrom(s) {
+    const allowed = s === sources.twitch ? TwitchFollows.requestPermissions() : null;
+    s.btn.disabled = true;
+    setStatusOf(s, tr('packLoading'));
     try {
-      const [r, favs] = await Promise.all([Favorites.fetchSubscriptions(), Favorites.list()]);
+      const [r, favs] = await Promise.all([s.fetch(allowed), Favorites.list()]);
+      src = s;
+      title.textContent = s.title();
       subs = r.channels;
       have = new Set(favs.map((f) => f.channelId));
-      // まだ足していないものを先に (どちらの中も YouTube の並びのまま)
+      // まだ足していないものを先に (どちらの中も読んだ並びのまま)
       subs = [...subs.filter((c) => !have.has(c.channelId)), ...subs.filter((c) => have.has(c.channelId))];
       selected.clear();
       filterEl.value = '';
-      status.textContent = r.more ? tr('subsMore', subs.length) : '';
-      setOpenStatus(subs.length ? '' : tr('subsEmpty'));
+      status.textContent = r.more ? tr(s.more, subs.length) : '';
+      setStatusOf(s, subs.length ? '' : tr(s.empty));
       if (subs.length) {
         render();
         dialog.showModal();
         ul.scrollTop = 0;
       }
     } catch (e) {
-      const msg = { notLoggedIn: tr('subsNotLoggedIn'), readFail: tr('subsReadFail') }[e.message] || tr('subsFetchFail', e.message || e);
-      setOpenStatus(msg, true);
+      setStatusOf(s, s.error(e), true);
     } finally {
-      openBtn.disabled = false;
+      s.btn.disabled = false;
     }
-  });
+  }
+  openBtn.addEventListener('click', () => openFrom(sources.youtube));
+  sources.twitch.btn.addEventListener('click', () => openFrom(sources.twitch));
   filterEl.addEventListener('input', render);
   // Enter で dialog が閉じないように
   filterEl.addEventListener('keydown', (e) => {
@@ -10459,10 +10540,10 @@ function setupSubscriptions() {
     try {
       // 前に足したときの名前 (表示言語を変えたあとでも同じパックにまとめる)
       const favs = await Favorites.list();
-      const name = favs.find((f) => SUBS_PACK_NAMES.includes(f.pack))?.pack || SUBS_PACK_NAMES[LANG === 'ja' ? 0 : 1];
+      const name = favs.find((f) => src.packNames.includes(f.pack))?.pack || src.packNames[LANG === 'ja' ? 0 : 1];
       const n = await Favorites.importPack({ name, channels: chosen.map((c) => ({ ...c, group: name })) });
       dialog.close();
-      setOpenStatus(tr('subsAdded', n));
+      setStatusOf(src, tr(src.added, n));
       await afterPresetsChanged();
     } catch (e) {
       status.textContent = tr('subsFetchFail', e.message || e);

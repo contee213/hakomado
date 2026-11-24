@@ -89,6 +89,7 @@
 - 開発者のサーバー (Hakomado Feed) とは通信しない。「📮 サイトに投稿」は Feed の投稿画面をタブで開くだけ。
 - **読むだけ:**
   - YouTube: 配信状況・チャンネルのページ・oEmbed・フィード・登録チャンネル。登録チャンネルは、使う人が押したときと、アドオンが ON のときだけ読む。
+  - Twitch のフォロー: 「Twitch のフォローから選ぶ」を押してログインしたときだけ、公式の API (`api.twitch.tv`) で読む。アクセストークンは読み終えたら無効にし、保存しない。
   - Twitch: 登録した Twitch のチャンネルの公開ページ (先頭の構造化データだけ読んで打ち切る。1 チャンネル 2 分に 1 回まで)。twitch.tv の許可を外したときは、配信のサムネイル画像の転送先で配信中かだけを見る。
   - 配信予定のサイト: アドオンが ON のものだけ。
   - GitHub: 版の確認と、パックの一覧。
@@ -106,6 +107,7 @@
 理由は [../CHROMEWEBSTORE.md](../CHROMEWEBSTORE.md) の「権限と理由」。
 
 - **permissions:** `storage`・`declarativeNetRequestWithHostAccess`・`contextMenus`・`scripting`・`activeTab`
+- **optional_permissions:** `identity` (「Twitch のフォローから選ぶ」を押したときだけ求める)
 - **host_permissions:** `https://www.youtube.com/*`・`https://schedule.hololive.tv/*`
 - **optional_host_permissions:** 使うアドオンや URL の枠を ON にしたときだけ求め、OFF にしたら手放す。
   - x.com

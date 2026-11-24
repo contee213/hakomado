@@ -222,6 +222,8 @@ const Favorites = (() => {
   const TW_RETRY_MS = 1500; // チャンネルの情報が入っていないページが返ったとき、取り直すまで
   const TW_THUMB_RE = /^https:\/\/static-cdn\.jtvnw\.net\//;
   const LD_OPEN = '<script type="application/ld+json">';
+  // Cookie は送らない。ページの言葉は英語にする (表示言語によって題名に「Twitchで配信中の…」などが付き、題名と名前を分けにくくなるため)
+  const TW_FETCH = { credentials: 'omit', headers: { 'accept-language': 'en' }, until: (t) => ldRead(t) };
   const hasTwitch = () => chrome.permissions.contains({ origins: TW_ORIGINS }).catch(() => false);
   /** JSON-LD の終わりまで読んだか */
   const ldRead = (text) => {
@@ -246,7 +248,7 @@ const Favorites = (() => {
         // 順番を待つ間に他のタブが取っていれば、それを使う
         const again = await read();
         if (fresh(again)) return again.page;
-        const get = async () => parseTwitchPage(await fetchText(`${TW}/${encodeURIComponent(login)}`, { credentials: 'omit', until: ldRead }));
+        const get = async () => parseTwitchPage(await fetchText(`${TW}/${encodeURIComponent(login)}`, TW_FETCH));
         const page = (await get()) || (await sleep(TW_RETRY_MS), await get());
         if (page) await shared.set({ [key]: { at: Date.now(), page } });
         return page;
@@ -341,44 +343,62 @@ const Favorites = (() => {
   }
 
   /**
-   * Twitch の VOD の配信が始まった時刻 (ミリ秒。同期再生用)。VOD のページの先頭の構造化データの uploadDate
-   * (配信の VOD なら配信の開始。チャンネルのページの最近の VOD と同じ値)。分からなければ null。
-   * 変わらない値なので、取れたものはタブ間で共有して覚えておく
+   * Twitch の VOD について分かること (ℹ 枠の情報・同期再生用): {start: 配信が始まった時刻 (ミリ秒), title, channel (表示名)}。
+   * VOD のページの先頭の構造化データ (uploadDate。配信の VOD なら配信の開始) と題名 (「<題名> - <名前> on Twitch」) から読む。
+   * 分からなければ null。変わらない値なので、取れたものはタブ間で共有して覚えておく
    */
-  async function twitchVodStart(videoId) {
+  async function twitchVodInfo(videoId) {
     const id = String(videoId).match(/^tw:v:(\d{1,12})$/)?.[1];
     if (!id) return null;
     const key = 'twvod:' + id;
     const hit = (await shared.get(key))[key];
-    if (hit?.start) return hit.start;
+    if (hit?.start && 'title' in hit) return hit;
     if (!(await hasTwitch())) return null;
     return ytTurn(
       async (fetchText) => {
         const again = (await shared.get(key))[key];
-        if (again?.start) return again.start;
-        const get = async () => parseVodStart(await fetchText(`${TW}/videos/${id}`, { credentials: 'omit', until: ldRead }));
+        if (again?.start && 'title' in again) return again;
+        const get = async () => parseVodPage(await fetchText(`${TW}/videos/${id}`, TW_FETCH));
         // チャンネルのページと同じく、中身の無い共通のページが返ることがあるので 1 回だけ取り直す
-        const start = (await get()) ?? (await sleep(TW_RETRY_MS), await get());
-        if (start) await shared.set({ [key]: { at: Date.now(), start } });
-        return start;
+        const info = (await get()) ?? (await sleep(TW_RETRY_MS), await get());
+        if (info) await shared.set({ [key]: { at: Date.now(), ...info } });
+        return info;
       },
       { lock: 'hakomado-tw-fetch', gap: TW_GAP_MS, lastKey: 'lastTwFetch', backoffKey: 'twBackoff' },
     );
   }
 
-  /** VOD のページの構造化データから、配信が始まった時刻 (ミリ秒)。無ければ null */
-  function parseVodStart(html) {
+  /** Twitch の VOD の配信が始まった時刻 (ミリ秒。同期再生用)。分からなければ null */
+  const twitchVodStart = async (videoId) => (await twitchVodInfo(videoId))?.start ?? null;
+
+  /** VOD のページの先頭から {start, title, channel} を読む (VideoObject が無ければ null) */
+  function parseVodPage(html) {
     const at = html.indexOf(LD_OPEN);
     const end = at >= 0 ? html.indexOf('</script>', at) : -1;
     if (end < 0) return null;
+    let vo;
     try {
       const d = JSON.parse(html.slice(at + LD_OPEN.length, end));
       const graph = Array.isArray(d?.['@graph']) ? d['@graph'] : [d];
-      const t = Date.parse(graph.find((x) => x?.['@type'] === 'VideoObject')?.uploadDate || '');
-      return Number.isFinite(t) && t > 0 ? t : null;
+      vo = graph.find((x) => x?.['@type'] === 'VideoObject');
     } catch {
       return null;
     }
+    const start = Date.parse(vo?.uploadDate || '');
+    if (!Number.isFinite(start) || start <= 0) return null;
+    const m = String(vo.name || '').match(/^(.*) - (.+?) on Twitch$/s);
+    return { start, title: (m ? m[1] : '').trim().slice(0, 300), channel: (m ? m[2] : '').trim().slice(0, 100) };
+  }
+
+  /**
+   * Twitch のチャンネルのライブについて分かること (ℹ 枠の情報用): {title, channel (表示名), start (配信が始まった時刻。配信中だけ)}。
+   * 配信状況と同じチャンネルのページを使う (2 分は覚えた結果を使う)。分からなければ null
+   */
+  async function twitchLiveInfo(channelId) {
+    if (!isTwitchChannel(channelId) || !(await hasTwitch())) return null;
+    const page = await twitchPage(channelId.slice(3), { maxAge: TW_AUTO_MS });
+    if (!page) return null;
+    return { title: page.live?.title || '', channel: page.name || '', ...(page.live?.startAt ? { start: page.live.startAt } : {}) };
   }
 
   /** 入力が Twitch のチャンネル (URL / tw:<名前>) なら tw:<名前>、Twitch の VOD なら 'vod'、Twitch でなければ null */
@@ -1247,7 +1267,7 @@ const Favorites = (() => {
   }
 
   return {
-    list, add, removeMany, isTwitchChannel, twitchVodStart, setStar, seedPresets, restorePresets, removeAllPresets, presetCount, removedPresetCount, fetchStatus, fetchArchives,
+    list, add, removeMany, isTwitchChannel, twitchVodStart, twitchVodInfo, twitchLiveInfo, setStar, seedPresets, restorePresets, removeAllPresets, presetCount, removedPresetCount, fetchStatus, fetchArchives,
     previewPack, importPack, packs, removePack, fillIcons,
     checkAccess, rememberMembersOnly, isMembersBlock,
     videoStates, inspectVideos, fetchYouTubePlaylist, fetchSubscriptions,
