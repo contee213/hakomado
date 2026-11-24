@@ -153,7 +153,7 @@
 | 12 | 配信中が無いときは、最近の動画を流す | チェック | `#autoArchive` | ライブが無いときに最近の動画を 4 枠流すか | 初期値 OFF。`settings.autoArchive` | | |
 | 13 | 動画 (プレミア公開・MV など) も流す | チェック | `#autoArchiveVideos` | No.12 で動画も流すか | 初期値 ON。`settings.autoArchiveVideos` | | |
 | 14 | ショートも流す | チェック | `#autoArchiveShorts` | No.12 でショートも流すか | 初期値 OFF。`settings.autoArchiveShorts` | | |
-| 15 | クルーズの間隔 | スライダー | `#cruiseSec` / `#cruiseSecOut` | クルーズでメイン枠と音声を次の配信へ回す間隔を選ぶ。変えるとクルーズを組み直す | 10 / 15 / 20 / 30 / 45 秒、1 / 1 分 30 秒 / 2 / 3 / 5 / 10 / 15 / 20 / 30 分の 14 段 (スライダーの位置 0〜13)。初期値 2 分。`settings.cruiseSec` (秒) | | `SETTING_STEPS`・`formatCruise`・`restartCruise` |
+| 15 | クルーズの間隔 | スライダー | `#cruiseSec` / `#cruiseSecOut` | クルーズでメイン枠と音声を次の配信へ回す間隔を選ぶ。変えるとクルーズを組み直す | 10 秒、15 秒、20 秒、30 秒、45 秒、1 分、1 分 30 秒、2 分、3 分、5 分、10 分、15 分、20 分、30 分の 14 段 (スライダーの位置 0〜13)。初期値 2 分。`settings.cruiseSec` (秒) | | `SETTING_STEPS`・`formatCruise`・`restartCruise` |
 
 ### 画面項目状態表
 

@@ -17,7 +17,7 @@
 | 3 | ＋ (枠を増やす) | ボタン | `#addTile` | 枠を 1 つ増やし、枠数に合ったレイアウトに変える。今見えている枠の並び・中身はそのまま | 最大 16 枠 | − | `addTileSlot`・`chooseLayoutFor`。ちょうど合うレイアウトが無い枠数では 2 つ以上増えることがある |
 | 4 | − (空き枠を減らす) | ボタン | `#removeTile` | 空き枠を消して、枠数の少ないレイアウトに変える。配信を読み込んだ枠は消さない | − | − | `removeEmptySlot`・`shrinkTarget`。番号はなるべく変えない (`keepNumbersOrder`)。空き枠が一度に 2 つ消えることがある |
 | 5 | ⤢ ストレッチ | トグル | `#fitFill` | ON = 余白なしで画面を埋める (映像の端を切る。縦長の動画は切らずに収める)。OFF (標準) = どの枠も 16:9 にし、余りは外側の余白にする | 初期値 OFF ('fit')。保存先 `session:<id>`.fit | − | `setFit`。各枠のプレイヤーに `fill` を送り、枠のバーの「残す角」ボタンを出し入れする |
-| 6 | 自動再生 | トグル | `#autoMode` | 配信中のチャンネルを並べ、始まった・終わった配信に合わせて枠を増減する。ON にするたびに配信中のものを全部並べ直す。OFF にすると今の枠のまま増減だけ止める | 初期値 OFF。保存先 `session:<id>`.autoMode (ON のまま閉じたら、開き直したとき確認だけ再開) | L | `setAutoMode`。確認中は押せず、アイコンが回る (`.busy`)。ON にすると「あとで見る」の順の再生は止まる。始めるときの進み具合は `#autoProgress` |
+| 6 | 自動再生 | トグル | `#autoMode` | 配信中のチャンネルを並べ、始まった・終わった配信に合わせて枠を増減する。ON にするたびに配信中のものを全部並べ直す。OFF にすると今の枠のまま増減だけ止める | 初期値 OFF。保存先 `session:<id>`.autoMode (ON のまま閉じたら、開き直したとき確認だけ再開) | L | `setAutoMode`。確認中は押せず、アイコンが回る (`.busy`)。ON にすると「あとで見る」の順の再生は止まる。逆に、ライブラリの「▶ 順に再生」を始めたときと、📥 読み込むの「枠に並べる」をしたときは OFF になる (`startQueue`・`applyViewingSet`)。始めるときの進み具合は `#autoProgress` |
 | 7 | クルーズ | トグル | `#cruise` | 一定時間ごとに、メイン枠と音声を次の配信へ回す。ON の間、ボタン全体が左から青で満ちていき、満ちたら回す (`.cruise-progress`) | 初期値 OFF。保存先 `session:<id>`.cruise。間隔は設定 cruiseSec (既定 120 秒、10〜1800 秒) | C | `setCruise`・`restartCruise`。ON にするとお知らせ「クルーズ ON: …」。1 枠だけ全画面・ドラッグ中は回さず次の回へ |
 | 8 | 一時停止 | トグル | `#pauseAll` | 全部の枠をまとめて一時停止 / 再開する。再開するとき、ライブ配信は最新の位置に戻る | 初期値 OFF (保存しない。開き直すと再生に戻る) | Space | `togglePauseAll`・`updatePauseButton`。ON の間は「⏯ 再開」に変わる。同期の「止めて待つ」中の枠は再開しない |
 | 9 | 繰り返し | トグル | `#repeatAll` | 動画・アーカイブが最後まで行ったら最初から再生し直す。ライブ配信と、自動再生・あとで見るの順の再生で次を入れる枠は除く | 初期値 OFF。保存先 `session:<id>`.repeatAll | R | `setRepeatAll`。切り替えるとお知らせ「🔁 繰り返し ON / OFF」 |
@@ -32,7 +32,7 @@
 | 18 | 📚 ライブラリ | ボタン | `#openFavorites` | ライブラリの画面 (`#favorites` のライブラリ) を開く | − | B | `openFavorites(null, 'library')` |
 | 19 | ℹ️ 枠の情報 | ボタン | `#openInfo` | 枠の情報 (`#infoDialog`) を開く | − | I | `TileInfo.open` |
 | 20 | 🔗 共有 | ボタン | `#openShare` | 共有の画面 (`#xferDialog` の共有) を開く | − | − | `openShareDialog` |
-| 21 | 📥 読み込む | ボタン | `#openRead` | 読み込みの画面 (`#xferDialog` の読み込み) を開く | − | − | `openReadDialog({ primary: 'apply' })` |
+| 21 | 📥 読み込む | ボタン | `#openRead` | 読み込むの画面 (`#xferDialog` の読み込むの側) を開く | − | − | `openReadDialog({ primary: 'apply' })` |
 | 22 | ⛶ 全画面 | トグル | `#gridFullscreen` | 分割したまま全画面にする / 戻す。全画面の間は上部バーを隠す | 初期値 OFF | Shift+F | `toggleGridFullscreen`・`updateGridFullscreen`。1 枠だけの全画面の上にあるときは 2 段戻す |
 | 23 | ⚙ 設定 | ボタン | `#openSettings` | 設定の画面 (`#settings`) を開く | − | − | − |
 | 24 | ? 使い方 | ボタン | `#openHelp` | 使い方の画面 (`#help`) を開く | − | ? | `openHelp` |
