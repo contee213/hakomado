@@ -665,8 +665,8 @@ function layout() {
     el.style.gridColumn = `${x + 1} / span ${w}`;
     el.style.gridRow = `${y + 1} / span ${h}`;
     el.classList.toggle('main', isMainSlot(l, k));
-    // PinP の小窓はメインの上に重ねて出す
-    el.style.zIndex = l.overlap && k >= l.mains ? '3' : '';
+    // PinP の小窓はメインの上に重ねて出す (前に出している Twitch の枠 (grid.css。z-index 7) よりも前)
+    el.style.zIndex = l.overlap && k >= l.mains ? '8' : '';
     el.classList.toggle('pip-sub', !!l.overlap && k >= l.mains);
     el.querySelector('.index').textContent = String(k + 1);
     el.querySelector('.empty-title').textContent = isMainSlot(l, k) ? tr('slotMain', k + 1) : tr('slot', k + 1);
@@ -1044,6 +1044,77 @@ let twitchAllowed = false;
 const isTwitchId = (id) => typeof id === 'string' && TWITCH_ID_RE.test(id);
 const isTwitchTile = (i) => isTwitchId(state.tiles[i]?.videoId);
 
+// ---- Twitch が自分で止めた枠を再生に戻す
+// Twitch のプレイヤーは、何か (ダイアログ・枠の上の印など。透明でも) が重なると自分で止まり、重なりが消えても戻らない
+// (2026-11-25 に確かめた)。そこで、Hakomado が止めた (wantPause)・枠の中で使う人が止めた・最後まで再生した
+// (枠の中のスクリプトが知らせる twPause の user) のどれでもないのに止まっている枠には、ときどき再生の命令を送り直す
+// (重なっている間は受け付けられないので、重なりが消えてから再生に戻る)
+const TWITCH_RESUME_MS = 2000;
+
+/** Twitch の枠を再生・一時停止する (公式の命令)。Hakomado が止めたことを覚えておく (再生に戻さないように) */
+function twitchPlay(frame, play) {
+  if (play) delete frame.dataset.wantPause;
+  else frame.dataset.wantPause = '1';
+  frame.contentWindow.postMessage({ namespace: 'twitch-embed-player-proxy', eventName: play ? TWITCH_CMD.play : TWITCH_CMD.pause }, TWITCH_PLAYER);
+}
+
+// 公式の埋め込みプレイヤーの知らせのうち、VOD を最後まで再生したこと (ended) を使う。
+// 終わったところで止まった枠は「Twitch が自分で止めた」ことにしない (再生に戻すと先頭から流れ直すため)。
+// 繰り返しが ON なら先頭へ戻して再生する
+window.addEventListener('message', (e) => {
+  // 再生の出来事 (play・pause・ended など) は namespace 'twitch-embed' で届く (状態の UPDATE_STATE は 'twitch-embed-player-proxy')
+  if (e.origin !== TWITCH_PLAYER || e.data?.namespace !== 'twitch-embed' || e.data.eventName !== 'ended') return;
+  const i = views.findIndex((v) => v.player?.dataset.twitch === '1' && v.player.contentWindow === e.source);
+  if (i < 0 || !state.tiles[i].videoId.startsWith('tw:v:')) return;
+  const f = views[i].player;
+  if (f.dataset.loop) {
+    f.contentWindow.postMessage({ namespace: 'twitch-embed-player-proxy', eventName: TWITCH_CMD.seek, params: 0 }, TWITCH_PLAYER);
+    twitchPlay(f, true);
+    return;
+  }
+  f.dataset.wantPause = '1';
+  onEnded(i, 'played');
+});
+
+/** Twitch が自分で止めた (Hakomado も使う人も止めていない) 枠か */
+const twitchSelfPaused = (i) => {
+  const f = views[i]?.player;
+  const p = views[i]?.twPause;
+  return !!f && f.dataset.twitch === '1' && f.dataset.loaded === '1' && isVisible(i) && !!p?.on && !p.user && !f.dataset.wantPause;
+};
+
+function resumeTwitch(i) {
+  if (document.hidden || pausedAll || !twitchSelfPaused(i)) return;
+  views[i].player.contentWindow?.postMessage({ namespace: 'twitch-embed-player-proxy', eventName: TWITCH_CMD.play }, TWITCH_PLAYER);
+}
+
+setInterval(() => {
+  for (let i = 0; i < MAX_TILES; i++) {
+    if (views[i]?.player?.twVisible === false) continue; // 重なっている間は送っても受け付けられない (見えたときに送る)
+    if (twitchSelfPaused(i) && performance.now() - views[i].twPause.at >= TWITCH_RESUME_MS) resumeTwitch(i);
+  }
+}, TWITCH_RESUME_MS);
+
+// Twitch の枠に何か (浮いている同期の調整パネルなど) が重なっているか。Twitch と同じ見え方の判定 (trackVisibility) で見張り、
+// 見えるようになったらすぐ再生に戻す。重なっていて止まった枠には、そのことを枠に出す (枠の中のお知らせは、プレイヤーに重ならないバーの場所)
+const twitchVisObserver = new IntersectionObserver(
+  (entries) => {
+    for (const e of entries) {
+      const f = e.target;
+      if (!f.isConnected) {
+        twitchVisObserver.unobserve(f); // 枠から外した iframe
+        continue;
+      }
+      f.twVisible = e.isVisible;
+      const i = views.findIndex((v) => v.player === f);
+      if (i < 0) continue;
+      if (e.isVisible) resumeTwitch(i);
+      else if (twitchSelfPaused(i)) showToast(i, tr('twitchCovered'));
+    }
+  },
+  { trackVisibility: true, delay: 300, threshold: [0, 1] },
+);
+
 /** twitch.tv の権限を聞く (許可済みなら聞かれない)。操作 (クリック・Enter) の中で、await より前に呼ぶ。許可されたかを返す */
 function requestTwitch() {
   if (twitchAllowed) return Promise.resolve(true);
@@ -1138,13 +1209,55 @@ function autoInputOf(f) {
 }
 
 // Twitch のプレイヤーへの命令 (公式の埋め込み用スクリプト embed.twitch.tv/embed/v1.js と同じ形。eventName は命令の番号)
-const TWITCH_CMD = { pause: 2, play: 3, setMuted: 10 };
+const TWITCH_CMD = { pause: 2, play: 3, seek: 4, setMuted: 10 };
 
-/** YouTube の枠向けの知らせを、Twitch のプレイヤーの命令に直して送る (ミュートと一時停止だけ。ほかは Twitch では使わない) */
+/**
+ * YouTube の枠向けの知らせを、Twitch の枠に送る。
+ * - 消音・一時停止・シーク (同期の再生・一時停止も) は、公式の埋め込みの命令に直して送る (プレイヤーの表示とそろうように)
+ * - 公式の命令に無いもの (速度・同期の速度の補正・音の経路・✨ 自動補正の記録・種類の問い合わせ・繰り返し) は、
+ *   そのまま枠の中のスクリプト (content/twitch-player.js) に送る
+ * - ✨ 自動補正で測っている間は、プレイヤーの消音を外し、消音は枠の中の Web Audio 側で行う (YouTube の枠と同じ)。
+ *   測っている間の消音の指示は、枠の中のスクリプトにだけ送る
+ */
 function postToTwitch(frame, msg) {
   const send = (eventName, params) => frame.contentWindow.postMessage({ namespace: 'twitch-embed-player-proxy', eventName, params }, TWITCH_PLAYER);
-  if (msg.hakomado === 'audio') send(TWITCH_CMD.setMuted, !!msg.muted);
-  else if (msg.hakomado === 'playback' && typeof msg.play === 'boolean') send(msg.play ? TWITCH_CMD.play : TWITCH_CMD.pause);
+  const toScript = () => frame.contentWindow.postMessage(msg, TWITCH_PLAYER);
+  switch (msg.hakomado) {
+    case 'audio':
+      if (frame.dataset.measuring) toScript();
+      else send(TWITCH_CMD.setMuted, !!msg.muted);
+      return;
+    case 'measure':
+      if (msg.on) {
+        frame.dataset.measuring = '1';
+        toScript(); // 先に Web Audio 側で消音してから、プレイヤーの消音を外す
+        setTimeout(() => frame.dataset.measuring && frame.contentWindow && send(TWITCH_CMD.setMuted, false), 300);
+      } else {
+        delete frame.dataset.measuring;
+        send(TWITCH_CMD.setMuted, !!msg.muted); // プレイヤーの消音に戻してから、Web Audio 側の消音を外す
+        toScript();
+      }
+      return;
+    case 'playback':
+      if (typeof msg.play === 'boolean') twitchPlay(frame, msg.play);
+      return;
+    case 'sync':
+      if (msg.op === 'seek' && Number.isFinite(Number(msg.t))) send(TWITCH_CMD.seek, Math.max(0, Number(msg.t)));
+      else if (msg.op === 'play') twitchPlay(frame, true);
+      else if (msg.op === 'pause') twitchPlay(frame, false);
+      else if (msg.op === 'rate') toScript();
+      return;
+    case 'loop':
+      frame.dataset.loop = msg.on ? '1' : ''; // 最後まで再生したときに先頭へ戻す (公式の ended を受けたとき)
+      return;
+    case 'mix':
+    case 'speed':
+    case 'infoReq':
+      toScript();
+      return;
+    default:
+    // YouTube の枠だけのもの (表示の切り替え・チャンネル登録など) は送らない
+  }
 }
 
 // プレイヤーは YouTube の視聴ページをそのまま枠に入れ、content/watch.js でプレイヤー以外を隠す。
@@ -1305,6 +1418,8 @@ function renderTile(i, { reloadPlayer = false, reloadChat = false } = {}) {
     el.querySelector('.twitch-ask')?.remove();
     v.player = null;
     for (const k of ['archive', 'info', 'ss', 'lv', 'meta', 'social']) v[k] = null;
+    v.twStart = null; // VOD の配信の開始時刻を取りに行ったか (同期用。info を受けたとき)
+    v.twPause = null; // 止まっているか (枠の中のスクリプトの twPause)
     v.playStatus = '';
     v.replay = '';
     Diagnose.clear(i);
@@ -1316,11 +1431,19 @@ function renderTile(i, { reloadPlayer = false, reloadChat = false } = {}) {
       f.src = twitchPlayerUrl(t);
       f.addEventListener('load', () => {
         f.dataset.loaded = '1';
-        // まとめて一時停止の間に読み込んだ枠も止めておく (プレイヤーが命令を受け付けるまで少し待つ)
-        if (pausedAll) setTimeout(() => postToFrame(f, { hakomado: 'playback', play: false }), 2000);
+        // プレイヤーが命令を受け付けるまで少し待ってから、音 (左右・遅延)・速度・繰り返しを合わせる。
+        // まとめて一時停止の間に読み込んだ枠も止めておく
+        setTimeout(() => {
+          if (v.player !== f) return;
+          applyAudio(i);
+          applySpeed(i, true);
+          applyLoop(i);
+          if (pausedAll) postToFrame(f, { hakomado: 'playback', play: false });
+        }, 2000);
       });
       el.querySelector('.player-slot').appendChild(f);
       v.player = f;
+      twitchVisObserver.observe(f);
       // 視聴履歴に残す (チャンネルのライブはチャンネルごとに 1 件。名前は分かっているもの)
       const live = !t.videoId.startsWith('tw:v:');
       WatchHistory.opened(t.videoId, {
@@ -1578,7 +1701,7 @@ function tileName(i) {
 /**
  * 枠の種類 (「ℹ 枠の情報」と、アーカイブ同期ボタンが使えない理由に使う)
  * 'empty' | 'live' (ライブ配信中) | 'upcoming' (配信前) | 'archive' (配信のアーカイブ) | 'video' (ふつうの動画) |
- * 'blocked' (メンバー限定などで見られない) | 'loading' (まだ分からない) | 'twitch' (Twitch の枠。同期などには使えない)
+ * 'blocked' (メンバー限定などで見られない) | 'loading' (まだ分からない)。Twitch のチャンネルは 'live'、VOD は 'archive'
  */
 /** 枠 i の配信のチャンネルのページ (分からなければ '') */
 function channelUrlOf(i) {
@@ -1593,7 +1716,9 @@ function tileKind(i) {
   const v = views[i];
   if (!v || !isVisible(i) || !tileFilled(state.tiles[i])) return 'empty';
   if (isWebTile(state.tiles[i])) return 'web';
-  if (isTwitchTile(i)) return 'twitch';
+  // Twitch: チャンネルはライブ、VOD は配信の開始時刻が分かればアーカイブ (同期できる)
+  if (twitchChannelOfTile(state.tiles[i])) return 'live';
+  if (isTwitchTile(i)) return v.archive ? 'archive' : 'loading';
   if (v.el.classList.contains('is-live')) return 'live';
   if (v.archive) return 'archive';
   const st = v.playStatus;
@@ -1655,9 +1780,10 @@ const SPEEDS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
 // 枠の中のプレイヤーで細かく決めた速度 (YouTube の「カスタム」) も受け取れるように、範囲と刻みだけそろえる
 const clampSpeed = (v) => (Number.isFinite(v) && v > 0 ? Math.max(0.25, Math.min(4, Math.round(v * 20) / 20)) : 1);
 const speedText = (r) => `${Number(r.toFixed(2))}×`;
-const isLiveTile = (i) => !!views[i]?.el.classList.contains('is-live');
+// Twitch のチャンネルの枠には is-live を付けない (枠の線がプレイヤーに重なると、Twitch が自動再生しないため)
+const isLiveTile = (i) => !!views[i]?.el.classList.contains('is-live') || (!!state.tiles[i] && !!twitchChannelOfTile(state.tiles[i]));
 /** 枠の速度を変えられるか (動画が入っていて、ライブ配信でない) */
-const speedAdjustable = (i) => isVisible(i) && !!state.tiles[i].videoId && !isLiveTile(i) && !isTwitchTile(i);
+const speedAdjustable = (i) => isVisible(i) && !!state.tiles[i].videoId && !isLiveTile(i);
 /** 枠の今の速度 (ライブは等速) */
 const speedOf = (i) => (isLiveTile(i) ? 1 : state.tiles[i].speed);
 
@@ -3135,7 +3261,6 @@ const Sync = (() => {
     if (count('upcoming')) lines.push(tr('syncWhyUpcoming', count('upcoming')));
     if (count('video')) lines.push(tr('syncWhyVideo', count('video')));
     if (count('blocked')) lines.push(tr('syncWhyBlocked', count('blocked')));
-    if (count('twitch')) lines.push(tr('syncWhyTwitch', count('twitch')));
     if (count('loading')) lines.push(tr('syncWhyLoading', count('loading')));
     return lines;
   }
@@ -5229,13 +5354,14 @@ const Diagnose = (() => {
 
 const PREMIERE_LEAD_MAX_MS = 15 * 60e3; // プレミア公開の待機のカウントダウンとみなす長さの上限
 
-// プレイヤー (watch ページ) からの連絡
+// プレイヤー (watch ページ・Twitch の枠の中のスクリプト content/twitch-player.js) からの連絡
 window.addEventListener('message', (e) => {
-  if (e.origin !== YT) return;
+  if (e.origin !== YT && e.origin !== TWITCH_PLAYER) return;
   const data = e.data;
   if (!data || typeof data.hakomado !== 'string') return;
   const i = views.findIndex((v) => v.player && v.player.contentWindow === e.source);
   if (i < 0) return;
+  if ((e.origin === TWITCH_PLAYER) !== (views[i].player.dataset.twitch === '1')) return;
   Diagnose.seen(i, data.hakomado);
   if (data.hakomado === 'syncState') {
     // 位置を読んだ時刻が分かれば、それをこのページの時刻に直して使う (届くまでの遅れの揺れを除く)。おかしな値なら届いた時刻
@@ -5266,6 +5392,14 @@ window.addEventListener('message', (e) => {
       views[i].archive = { start: ok ? start + lead : start, end, dur, premiere, lead: ok ? lead : 0 };
     }
     Sync.refresh();
+    return;
+  }
+  if (data.hakomado === 'twPause') {
+    // Twitch の枠が止まった / 再生に戻った (Twitch が自分で止めた枠は、見えるようになったら再生に戻す)
+    views[i].twPause = { on: !!data.on, user: !!data.user, at: performance.now() };
+    // 再生に戻った (枠の中で使う人が ▶ を押したなど) → Hakomado が止めた印は外す (次に Twitch が自分で止めたら戻せるように)
+    if (!data.on) delete views[i].player.dataset.wantPause;
+    if (views[i].player.twVisible === false && twitchSelfPaused(i)) showToast(i, tr('twitchCovered'));
     return;
   }
   if (data.hakomado === 'userAudio') {
@@ -5344,6 +5478,7 @@ window.addEventListener('message', (e) => {
       t.short = true;
       save();
     }
+    loadTwitchArchive(i);
     Sync.refresh();
     TileInfo.update();
     saveTileKind(i);
@@ -5363,6 +5498,29 @@ window.addEventListener('message', (e) => {
     if (data.failed) notify(tr('ytFailed', tileName(i)));
   }
 });
+
+/**
+ * Twitch の VOD の枠: 長さが分かったら、配信が始まった時刻 (VOD のページから) を取って、アーカイブとして同期に使えるようにする
+ * (YouTube の枠はプレイヤーが 'archive' で知らせてくるが、Twitch のプレイヤーは配信の時刻を持っていないため)
+ */
+function loadTwitchArchive(i) {
+  const v = views[i];
+  const vid = state.tiles[i].videoId;
+  const dur = v.info?.dur;
+  if (!isTwitchTile(i) || !vid.startsWith('tw:v:') || v.archive || !(dur > 0) || v.twStart) return;
+  v.twStart = vid;
+  Favorites.twitchVodStart(vid)
+    .then((start) => {
+      if (!start || state.tiles[i].videoId !== vid || v.twStart !== vid) return;
+      v.archive = { start, end: start + dur * 1000, dur, premiere: false, lead: 0 };
+      Sync.refresh();
+      TileInfo.update();
+    })
+    .catch((e) => {
+      ErrLog.warnFetch('hakomado: Twitch の VOD の開始時刻を取れませんでした', vid, e);
+      if (v.twStart === vid) setTimeout(() => v.twStart === vid && (v.twStart = null), 60e3); // しばらくしてから取り直す
+    });
+}
 
 /**
  * 枠のプレイヤーが「配信・動画が終わった」と知らせてきたとき。終わった配信として覚え (自動再生で入れ直さない)、

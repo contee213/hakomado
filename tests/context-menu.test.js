@@ -34,6 +34,8 @@ function setup({ gridTabs = [], tabs = {}, answer = () => undefined } = {}) {
     storage: { session: { get: async () => ({ gridTabs }) }, local: { set: async () => {} } },
     declarativeNetRequest: { updateDynamicRules: async () => {}, updateSessionRules: async () => {} },
     permissions: { onAdded: on('permissionsAdded'), onRemoved: on('permissionsRemoved'), contains: async () => false },
+    // Twitch の枠のスクリプトの登録 (twitch.tv の許可が無いので、登録済みでなければ何もしない)
+    scripting: { getRegisteredContentScripts: async () => [], registerContentScripts: async () => {}, unregisterContentScripts: async () => {}, updateContentScripts: async () => {} },
     tabs: {
       onRemoved: on('tabRemoved'),
       onUpdated: on('tabUpdated'),

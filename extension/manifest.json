@@ -60,7 +60,7 @@
       "matches": [
         "https://www.youtube.com/watch*"
       ],
-      "js": ["errlog.js", "content/watch.js"],
+      "js": ["errlog.js", "content/mix.js", "content/watch.js"],
       "css": ["content/watch.css"],
       "all_frames": true,
       "run_at": "document_start"

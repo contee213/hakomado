@@ -35,7 +35,7 @@ Hakomado (以下「この拡張機能」) は、YouTube の配信・動画を 1 
 | にじさんじ公式サイト (`www.nijisanji.jp`) | にじさんじのライブスケジュール (設定の「アドオン」で「にじさんじ」を ON にしたときだけ。初期値は OFF)。Cookie は送りません |
 | ぶいすぽっ!のスケジュールサイト (`www.vspo-schedule.com`。有志による非公式のサイト) | ぶいすぽっ!の配信スケジュール (設定の「アドオン」で「ぶいすぽっ!」を ON にしたときだけ。初期値は OFF)。Cookie は送りません |
 | STPR の配信予定のデータ (`schedule-share-json.s3.ap-northeast-1.amazonaws.com`。schedule.stpr.com が使っているもの) | STPR の公式の配信予定 (設定の「アドオン」で「STPR (すとぷり)」を ON にしたときだけ。初期値は OFF)。Cookie は送りません |
-| Twitch (`www.twitch.tv`, `player.twitch.tv`, `static-cdn.jtvnw.net`) | 枠に Twitch の URL を入れたときだけ、Twitch の公式の埋め込みプレイヤーとチャットを表示します。チャンネル一覧に Twitch のチャンネルを登録したときは、そのチャンネルの公開ページを読み、名前・アイコン・配信中かどうか・最近の VOD を調べます (1 チャンネル 2 分に 1 回まで)。チャンネルのアイコンとサムネイルを表示します。Cookie は送りません |
+| Twitch (`www.twitch.tv`, `player.twitch.tv`, `static-cdn.jtvnw.net`) | 枠に Twitch の URL を入れたときだけ、Twitch の公式の埋め込みプレイヤーとチャットを表示します。チャンネル一覧に Twitch のチャンネルを登録したときは、そのチャンネルの公開ページを読み、名前・アイコン・配信中かどうか・最近の VOD を調べます (1 チャンネル 2 分に 1 回まで)。枠に入れた VOD は、アーカイブ同期のために VOD の公開ページから配信の開始時刻を読みます。チャンネルのアイコンとサムネイルを表示します。Cookie は送りません |
 | GitHub (`api.github.com`) | 新しい版が出ていないかの確認 (1 日 1 回まで。Chrome ウェブストアから入れた版では行いません)。Cookie は送りません |
 | GitHub (`raw.githubusercontent.com`) | 「パックを探す」を押したときだけ、チャンネルパックの一覧と選んだパック。Cookie は送りません |
 | 利用者が指定した URL | 利用者が URL を入れて読み込んだチャンネルパックや画像。Cookie は送りません |

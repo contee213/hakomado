@@ -340,6 +340,47 @@ const Favorites = (() => {
       .map(({ views, ...v }) => ({ ...v, list: 'TW', kind: 'live' }));
   }
 
+  /**
+   * Twitch の VOD の配信が始まった時刻 (ミリ秒。同期再生用)。VOD のページの先頭の構造化データの uploadDate
+   * (配信の VOD なら配信の開始。チャンネルのページの最近の VOD と同じ値)。分からなければ null。
+   * 変わらない値なので、取れたものはタブ間で共有して覚えておく
+   */
+  async function twitchVodStart(videoId) {
+    const id = String(videoId).match(/^tw:v:(\d{1,12})$/)?.[1];
+    if (!id) return null;
+    const key = 'twvod:' + id;
+    const hit = (await shared.get(key))[key];
+    if (hit?.start) return hit.start;
+    if (!(await hasTwitch())) return null;
+    return ytTurn(
+      async (fetchText) => {
+        const again = (await shared.get(key))[key];
+        if (again?.start) return again.start;
+        const get = async () => parseVodStart(await fetchText(`${TW}/videos/${id}`, { credentials: 'omit', until: ldRead }));
+        // チャンネルのページと同じく、中身の無い共通のページが返ることがあるので 1 回だけ取り直す
+        const start = (await get()) ?? (await sleep(TW_RETRY_MS), await get());
+        if (start) await shared.set({ [key]: { at: Date.now(), start } });
+        return start;
+      },
+      { lock: 'hakomado-tw-fetch', gap: TW_GAP_MS, lastKey: 'lastTwFetch', backoffKey: 'twBackoff' },
+    );
+  }
+
+  /** VOD のページの構造化データから、配信が始まった時刻 (ミリ秒)。無ければ null */
+  function parseVodStart(html) {
+    const at = html.indexOf(LD_OPEN);
+    const end = at >= 0 ? html.indexOf('</script>', at) : -1;
+    if (end < 0) return null;
+    try {
+      const d = JSON.parse(html.slice(at + LD_OPEN.length, end));
+      const graph = Array.isArray(d?.['@graph']) ? d['@graph'] : [d];
+      const t = Date.parse(graph.find((x) => x?.['@type'] === 'VideoObject')?.uploadDate || '');
+      return Number.isFinite(t) && t > 0 ? t : null;
+    } catch {
+      return null;
+    }
+  }
+
   /** 入力が Twitch のチャンネル (URL / tw:<名前>) なら tw:<名前>、Twitch の VOD なら 'vod'、Twitch でなければ null */
   function twitchChannelOf(input) {
     const s = String(input || '').trim();
@@ -1206,7 +1247,7 @@ const Favorites = (() => {
   }
 
   return {
-    list, add, removeMany, isTwitchChannel, setStar, seedPresets, restorePresets, removeAllPresets, presetCount, removedPresetCount, fetchStatus, fetchArchives,
+    list, add, removeMany, isTwitchChannel, twitchVodStart, setStar, seedPresets, restorePresets, removeAllPresets, presetCount, removedPresetCount, fetchStatus, fetchArchives,
     previewPack, importPack, packs, removePack, fillIcons,
     checkAccess, rememberMembersOnly, isMembersBlock,
     videoStates, inspectVideos, fetchYouTubePlaylist, fetchSubscriptions,

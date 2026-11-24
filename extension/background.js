@@ -144,15 +144,44 @@ async function syncWebPlayer() {
   await applyRules(await getGridTabs());
 }
 
-// twitch.tv の権限を許可したら、開いているマルチビュー画面のタブに Twitch のルールを入れる (外したときは下の onRemoved が入れ直す)
+// ---- Twitch の枠の中のスクリプト (content/twitch-player.js。速度・音の経路・同期の状態)
+// twitch.tv の任意の権限を許可している間だけ、公式の埋め込みプレイヤー (player.twitch.tv) に登録する
+// (manifest の content_scripts に書くと、インストール時に twitch.tv の権限を求めることになるため)。
+// スクリプトは、マルチビュー画面の枠に直接入ったときだけ動く
+const TWITCH_SCRIPT_ID = 'hakomado-twitch-player';
+async function syncTwitchPlayer() {
+  const allowed = await chrome.permissions.contains({ origins: ['https://*.twitch.tv/*'] }).catch(() => false);
+  const registered = await chrome.scripting.getRegisteredContentScripts({ ids: [TWITCH_SCRIPT_ID] });
+  if (!allowed) {
+    if (registered.length) await chrome.scripting.unregisterContentScripts({ ids: [TWITCH_SCRIPT_ID] });
+    return;
+  }
+  const script = {
+    id: TWITCH_SCRIPT_ID,
+    matches: ['https://player.twitch.tv/*'],
+    js: ['errlog.js', 'content/mix.js', 'content/twitch-player.js'],
+    allFrames: true,
+    runAt: 'document_start',
+    persistAcrossSessions: true,
+  };
+  if (registered.length) await chrome.scripting.updateContentScripts([script]);
+  else await chrome.scripting.registerContentScripts([script]);
+}
+
+// twitch.tv の権限を許可したら、開いているマルチビュー画面のタブに Twitch のルールを入れ、枠の中のスクリプトを登録する
+// (外したときは下の onRemoved が入れ直す)
 chrome.permissions.onAdded.addListener(() => {
-  serialized(async () => applyRules(await getGridTabs())).catch((e) => console.warn('hakomado: ルールを入れ直せませんでした', e));
+  serialized(async () => {
+    await syncTwitchPlayer();
+    await applyRules(await getGridTabs());
+  }).catch((e) => console.warn('hakomado: ルールを入れ直せませんでした', e));
 });
 
 chrome.permissions.onRemoved.addListener(() => {
   serialized(async () => {
     // 許可を取り消されたサイトは、覚えている一覧からも消す
     await chrome.storage.local.set({ webOrigins: await webOrigins() });
+    await syncTwitchPlayer();
     await syncWebPlayer();
   }).catch((e) => console.warn('hakomado: URL の枠の設定を直せませんでした', e));
 });
@@ -162,6 +191,8 @@ chrome.runtime.onInstalled.addListener(({ reason }) => {
   if (reason === 'install') chrome.storage.local.set({ tourPending: true });
   installImportRule().catch((e) => console.warn('hakomado: 取り込み用リンクのルールを設定できませんでした', e));
   createMenus();
+  // 更新で中身の変わったスクリプトを登録し直す (許可がある間だけ)
+  serialized(syncTwitchPlayer).catch((e) => console.warn('hakomado: Twitch の枠のスクリプトを登録できませんでした', e));
 });
 
 // ---- 取り込み用リンク (AI チャットなどが作る再生リストのリンク)
@@ -222,6 +253,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     } else if (msg?.type === 'twitch-rules') {
       // 画面が twitch.tv の許可を確かめた → Twitch の枠を読み込む前に、ヘッダーを外すルールを入れておく
       // (permissions.onAdded でも入れるが、画面の描き直しのほうが先に走るので、ここで待てるようにする)
+      await syncTwitchPlayer();
       await applyRules(await getGridTabs());
     }
   })
