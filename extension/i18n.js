@@ -815,6 +815,7 @@ const MESSAGES = {
     'None of your channels are live. Showing upcoming {0} in "{1}"',
   ],
   ended: ['■ 配信終了: {0}', '■ Ended: {0}'],
+  movedFollow: ['↪ 移動先に切り替えました: {0} から', '↪ Followed to the next stream: from {0}'],
   cruiseOn: ['クルーズ ON: {0}ごとにメイン枠と音声を次の配信へ回します', 'Cruise ON: the main tile and audio move to the next stream every {0}'],
 
   // 視聴セッション

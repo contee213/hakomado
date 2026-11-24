@@ -183,8 +183,9 @@
   //   already = 開いた時点でもう終わっていた配信 (liveBroadcastDetails に終了時刻があり、今は配信中ではない)。
   //             アーカイブを開いたときもこれになるので、親は自動再生で入れた枠にだけ使う
   const endedSent = new Set();
+  let moved = false; // ほかの動画に移った (下の「YouTube の自動再生」)
   const reportEnded = (reason) => {
-    if (endedSent.has(reason)) return;
+    if (moved || endedSent.has(reason)) return; // ほかの動画に移ったときは、下の 'hakomado:moved' で知らせる
     endedSent.add(reason);
     document.dispatchEvent(new CustomEvent('hakomado:ended', { detail: reason }));
   };
@@ -280,6 +281,82 @@
     if (alreadyEnded()) reportEnded('already');
     if ((endHooked && window.ytInitialPlayerResponse) || ++endTicks > 60) clearInterval(endTimer);
   }, 1000);
+
+  // ---- YouTube の自動再生 (終わると次の動画へ移る) を、枠の中ではその回だけ止める
+  //   終了画面の「次の動画」のカウントダウンで「自動再生をキャンセルする」を押す。
+  //   自動再生のスイッチ (アカウントの設定。普段の YouTube にも効く) は変えない
+  //   それでもほかの動画に移ったとき (カウントダウンなしで移った・配信者のレイドやリダイレクト・枠の中で動画を選んだ) は親に知らせる:
+  //   ここ → watch.js : 'hakomado:moved' detail JSON {id, follow}
+  //   follow = true  … 移った先に合わせる: 配信 (配信予定・プレミア公開も) からライブ配信・プレミア公開・配信予定へ移った
+  //                    (レイド、MV の発表配信からプレミア公開へ、など配信者が選んだつなぎ先)。または枠の中で自分で選んだ
+  //   follow = false … 元に戻す: おすすめの自動再生など。移った先はすぐ止める
+  //   移った先が分からないまま 10 秒たったら元に戻す
+  let autonavAt = -Infinity; // 自動再生のカウントダウンを最後に見た時刻
+  let wasLive = false; // この枠の動画が、ライブ配信・配信予定・プレミア公開だったことがあるか
+  let moveAt = 0; // ほかの動画に移ったと気づいた時刻
+  let inputBeforeMove = -Infinity;
+  const cancelAutonav = () => {
+    const p = player();
+    if (!p || p.getPlayerState?.() !== 0) return;
+    const ov = document.querySelector('#movie_player .ytp-autonav-endscreen-countdown-overlay');
+    if (!ov || getComputedStyle(ov).display === 'none') return;
+    autonavAt = performance.now();
+    ov.querySelector('.ytp-autonav-endscreen-upnext-cancel-button')?.click();
+  };
+  // 移った先がライブ配信・配信予定・プレミア公開か。移った先の情報がまだ無ければ null
+  const liveTarget = (id) => {
+    let pr;
+    try {
+      pr = player()?.getPlayerResponse?.(); // ページを読み直さずに移るので、ytInitialPlayerResponse は前の動画のまま
+    } catch {
+      return null;
+    }
+    const vd = pr?.videoDetails;
+    if (!vd || vd.videoId !== id) return null;
+    const lbd = pr.microformat?.playerMicroformatRenderer?.liveBroadcastDetails;
+    return !!(vd.isLive || vd.isUpcoming || lbd?.isLiveNow || videoData().isLive);
+  };
+  const moveTimer = setInterval(() => {
+    cancelAutonav();
+    const vd = videoData();
+    const id = vd.video_id || '';
+    if (!id || !myVideoId) return;
+    if (id === myVideoId) {
+      if (vd.isLive || window.ytInitialPlayerResponse?.videoDetails?.isUpcoming) wasLive = true;
+      moveAt = 0;
+      return;
+    }
+    if (!moveAt) {
+      moveAt = performance.now();
+      inputBeforeMove = lastInput;
+    }
+    const live = liveTarget(id);
+    if (live === null && performance.now() - moveAt < 10000) return;
+    const chosen = moveAt - inputBeforeMove < 3000; // 移る直前に枠の中で操作した (終了画面などで動画を選んだ)
+    const viaAutonav = moveAt - autonavAt < 30000;
+    const follow = chosen || (!viaAutonav && wasLive && live === true);
+    moved = true;
+    clearInterval(moveTimer);
+    clearTimeout(endCheck);
+    if (!follow) player()?.pauseVideo?.();
+    document.dispatchEvent(new CustomEvent('hakomado:moved', { detail: JSON.stringify({ id, follow }) }));
+  }, 500);
+
+  // 自動再生で移ったのを元に戻したとき (親が hakomado_end=1 を付けて読み直す): 最後の少し手前で止めておく
+  // (最後まで行くと、また終了画面のカウントダウンが出るため)
+  if (params.get('hakomado_end') === '1') {
+    let endTicks2 = 0;
+    const atEndTimer = setInterval(() => {
+      const p = player();
+      const dur = Number(p?.getDuration?.());
+      if (p && dur > 0 && !adShowing()) {
+        if (!videoData().isLive && dur > 3 && Number(p.getCurrentTime?.()) < dur - 3) p.seekTo?.(dur - 1, true);
+        p.pauseVideo?.();
+        if (p.getPlayerState?.() === 2) clearInterval(atEndTimer);
+      }
+      if (++endTicks2 > 40) clearInterval(atEndTimer);
+    }, 500);
+  }
 
   // ---- チャンネル登録・高評価 (親画面の枠のバーにあるボタンから操作する)
   //   ここ → watch.js : 'hakomado:social'     detail JSON {loggedIn, subscribed, liked, failed?}

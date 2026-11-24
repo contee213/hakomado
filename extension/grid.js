@@ -817,7 +817,8 @@ function setTileVideo(i, videoId, input) {
 
 // プレイヤーは YouTube の視聴ページをそのまま枠に入れ、content/watch.js でプレイヤー以外を隠す。
 // (埋め込みプレイヤーは拡張機能のページからだと YouTube に拒否される (エラー 152) ため使わない)
-function playerUrl(t) {
+// atEnd = 最後の少し手前で止めて開く (YouTube の自動再生で移ったのを元に戻すとき。onMoved)
+function playerUrl(t, { atEnd = false } = {}) {
   const p = new URLSearchParams({
     v: t.videoId,
     // スマホ版 (m.youtube.com) に転送されると、枠の中のスクリプト (www.youtube.com 用) が動かないので PC 版を指定する
@@ -827,6 +828,7 @@ function playerUrl(t) {
     hakomado_fill: state.fit === 'fill' ? '1' : '0',
     hakomado_corner: t.corner,
   });
+  if (atEnd) p.set('hakomado_end', '1');
   return `${YT}/watch?${p}`;
 }
 
@@ -948,7 +950,8 @@ function renderTile(i, { reloadPlayer = false, reloadChat = false } = {}) {
     const f = document.createElement('iframe');
     f.allow = 'autoplay; encrypted-media; picture-in-picture; fullscreen';
     Diagnose.playerCreated(i, f);
-    f.src = playerUrl(t);
+    f.src = playerUrl(t, { atEnd: !!v.atEnd });
+    v.atEnd = false;
     f.addEventListener('load', () => {
       f.dataset.loaded = '1';
       Diagnose.playerLoaded(i, f);
@@ -4605,6 +4608,8 @@ window.addEventListener('message', (e) => {
     relayoutIfVerticalChanged(); // 縦型の配信と分かった (設定が ON のときだけ形が変わる)
   } else if (data.hakomado === 'ended') {
     onEnded(i, data.reason === 'played' ? 'played' : 'already');
+  } else if (data.hakomado === 'moved') {
+    onMoved(i, String(data.id || ''), data.follow === true);
   } else if (data.hakomado === 'social') {
     views[i].social = {
       loggedIn: !!data.loggedIn,
@@ -4664,6 +4669,35 @@ function onEnded(i, reason) {
     if (first != null) setAudioSet([first]);
   }
   notify(tr('ended', name));
+}
+
+/**
+ * 枠のプレイヤーが「ほかの動画に移った」と知らせてきたとき (content/watch-main.js の「YouTube の自動再生」)。
+ *  - follow (配信からレイド・プレミア公開などへ移った、枠の中で自分で選んだ): 枠を移った先の動画にする
+ *    (プレイヤーとチャット欄を読み直す。移る前の配信は終わったものとして覚え、自動再生で入れ直さない)
+ *  - それ以外 (おすすめの自動再生など): 元の動画が終わったときと同じに扱い、枠が残っていれば元の動画を最後の少し手前で止めて開き直す
+ */
+function onMoved(i, id, follow) {
+  const t = state.tiles[i];
+  if (!t.videoId || !/^[\w-]{11}$/.test(id) || id === t.videoId) return;
+  const from = t.videoId;
+  if (!follow) {
+    onEnded(i, 'played');
+    if (state.tiles[i].videoId !== from) return; // 自動再生・あとで見るで、枠を空けた・次を入れた
+    views[i].atEnd = true;
+    renderTile(i, { reloadPlayer: true });
+    return;
+  }
+  const name = tileName(i);
+  finishedIds.add(from);
+  WatchHistory.removed(from, 'replaced');
+  // 音・チャット欄・弾幕・左右・音量はそのまま。遅延・速度・残す角はその動画のために決めたものなので戻す
+  Object.assign(t, { input: `${YT}/watch?v=${id}`, videoId: id, auto: false, queue: false, fill: false, label: '', delay: 0, speed: 1, corner: 'br', short: false });
+  views[i].danmaku.clear();
+  if (document.fullscreenElement === views[i].el) document.exitFullscreen().catch(() => {});
+  renderTile(i, { reloadPlayer: true, reloadChat: true });
+  save();
+  notify(tr('movedFollow', name));
 }
 
 /**
