@@ -69,13 +69,13 @@ For more controls and keys, open "?" (help) at the top right. The tour shown the
 If you encounter a problem, check the error record under "?" → "Report a problem" and report it with "Report on GitHub" or "Copy" (the record is stored only on your computer and is never sent automatically).
 
 > [!TIP]
-> - If a channel you want isn't listed, add it from the field at the bottom of the "📺 Channels" window
+> - If a channel you want isn't listed, add it from "⚙ Manage" in the "📺 Channels" window
 > - To show only certain channels, pick them up with 📌 and set "Auto play plays" in ⚙ Settings to "Pickup (📌) only"
 > - To watch more than 16, open another one in a separate window (auto play skips streams shown in another tab)
 
 ## Channel packs
 
-Hakomado's default data covers Hololive channels only. Channels of other groups can be added by importing a "channel pack" made by someone else (⚙ Settings → Channels tab). A pack can be imported from a URL, pasted contents or a file. It is added to your channel list (channels you already have stay as they are), and each pack can be removed at once. You can also export the bundled Hololive pack, an imported pack or the channels you added as a pack.
+Hakomado's default data covers Hololive channels only. Channels of other groups can be added by importing a "channel pack" made by someone else (in "Manage channels", opened from "⚙ Manage" in "📺 Channels" or from ⚙ Settings → Channels tab). A pack can be imported from a URL, pasted contents or a file. It is added to your channel list (channels you already have stay as they are), and each pack can be removed at once. You can also export the bundled Hololive pack, an imported pack or the channels you added as a pack.
 
 "Find packs" lists the packs collected in this repository's [`packs/`](packs/) folder so you can import one with a click (packs in the list are unofficial and submitted by users). New packs and updates are welcome as PRs; see [`packs/README.md`](packs/README.md) (in Japanese).
 

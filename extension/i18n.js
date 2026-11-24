@@ -140,6 +140,21 @@ const MESSAGES = {
   secOther: ['その他', 'Others'],
   secAll: ['すべて', 'All'],
   favNoMatch: ['「{0}」に一致するチャンネルはありません。', 'No channels match "{0}".'],
+  chEmpty: ['まだチャンネルがありません。下のボタンから足してください。', 'No channels yet. Add some with the buttons below.'],
+  // ⚙ チャンネルの管理
+  cmEmpty: ['まだチャンネルがありません。下の欄にチャンネルを入力するか、「登録チャンネルから選ぶ」・チャンネルパックから足してください。', 'No channels yet. Enter a channel in the box below, or add some from “Choose from subscriptions” or a channel pack.'],
+  cmEmptyRestore: ['同梱のチャンネルを戻す ({0})', 'Bring back the bundled channels ({0})'],
+  cmCount: ['{0} 件', '{0} channels'],
+  cmMine: ['自分で追加', 'Added by you'],
+  cmAdded: ['「{0}」を追加しました', 'Added “{0}”'],
+  cmSelCount: ['{0} 件を選択中', '{0} selected'],
+  cmConfirm: ['選んだ {0} 件のチャンネルを、チャンネル一覧から外しますか？', 'Remove the {0} selected channels from your channel list?'],
+  cmConfirmStar: ['📌 付きの {0} 件も外す (📌 も消えます)', 'Also remove the {0} with 📌 (their 📌 is lost too)'],
+  cmConfirmKeep: ['外すのは {0} 件です。📌 付きの {1} 件は残します。', '{0} will be removed. The {1} with 📌 stay.'],
+  cmConfirmAll: ['{0} 件を外します。', '{0} will be removed.'],
+  cmConfirmOnlyStar: ['選んだのは 📌 付きだけです。外すには「📌 付きも外す」に印を付けてください。', 'Only channels with 📌 are selected. Tick “Also remove the ones with 📌” to remove them.'],
+  cmRemoved: ['{0} 件のチャンネルを外しました', 'Removed {0} channels'],
+  cmRemovedKeep: ['{0} 件のチャンネルを外しました (📌 付きの {1} 件は残しました)', 'Removed {0} channels (kept the {1} with 📌)'],
   backupConfirm: [
     'このファイルの内容で置き換えますか？\nチャンネル {0} 件 (ピックアップ {1} 件)・視聴履歴 {2} 件・あとで見る {3} 件・再生リスト {4} 件\n(今の設定・チャンネル・視聴履歴・あとで見る・再生リストは消えます)',
     'Replace your data with this file?\n{0} channels ({1} in pickup), {2} in watch history, {3} in Watch later, {4} playlists\n(Your current settings, channels, watch history, Watch later and playlists will be replaced.)',
@@ -624,8 +639,8 @@ const MESSAGES = {
   tourMockName: ['チャンネル名', 'Channel name'],
   tourChannelsT: ['📺 チャンネル', '📺 Channels'],
   tourChannels: [
-    '右上の「📺 チャンネル」で開く画面です。登録したチャンネルの配信中・配信予定が並び、押すと空いている枠に入ります。チャンネルの追加や 📌 ピックアップもここで。',
-    'This opens from “📺 Channels” at the top right. See which of your channels are live or coming up, and press one to put it in a free tile. Add channels and 📌 pick up favorites here.',
+    '右上の「📺 チャンネル」で開く画面です。登録したチャンネルの配信中・配信予定が並び、押すと空いている枠に入ります。📌 ピックアップもここで。チャンネルを足す・外すのは「⚙ 管理」から。',
+    'This opens from “📺 Channels” at the top right. See which of your channels are live or coming up, and press one to put it in a free tile. 📌 pick up favorites here too. Add or remove channels from “⚙ Manage”.',
   ],
   tourLibraryT: ['📚 ライブラリ', '📚 Library'],
   tourLibrary: [
@@ -814,7 +829,7 @@ const MESSAGES = {
   tilePickOn: ['この枠のチャンネルをピックアップに入れる', "Pick up this tile's channel"],
   tilePickOff: ['この枠のチャンネルをピックアップから外す', "Remove this tile's channel from pickup"],
   pickRemoved: ['「{0}」をピックアップから外しました', 'Removed "{0}" from pickup'],
-  favEmpty: ['まだチャンネルがありません。下の欄にチャンネルを入力して追加してください。', 'No channels yet. Enter a channel below to add one.'],
+  favEmpty: ['まだチャンネルがありません。「📺 チャンネル」の「⚙ 管理」から足してください。', 'No channels yet. Add some from “⚙ Manage” in “📺 Channels”.'],
   liveCount: ['配信中 {0}', '{0} live'],
   checking: ['確認中…', 'Checking…'],
   unavailable: ['取得できませんでした', 'Unavailable'],
@@ -1141,11 +1156,13 @@ const HTML_EN = {
 <li>“📺 Channels” (<kbd>F</kbd>) lists your channels: live, upcoming and the rest. Press a live or upcoming row to put it in an empty tile</li>
 <li>“Recent ⌄” on a row opens that channel’s recent videos, and 📌 adds it to pickup</li>
 <li><b>Pickup</b>: the channels you are following right now (e.g. the members of a group event). Filter the list with “📺 All / 📌 Pickup” at the top, and use it as the target of auto play and notifications</li>
-<li>Add a channel by entering an <code>@handle</code>, a channel URL or a video URL in the box at the bottom</li>
 <li><b>🔔 Notifications</b>: tell you when a channel goes live. Choose which channels in Settings → Auto play → “Notification channels”</li>
 </ul>
-<h3>Settings → Channels (channel packs)</h3>
+<h3>⚙ Manage channels</h3>
 <ul>
+<li>Open it from “⚙ Manage” in “📺 Channels” or from Settings → Channels. Adding and removing channels is done here, not in “📺 Channels”, so you don’t remove one by mistake while looking for streams</li>
+<li>Add a channel by entering an <code>@handle</code>, a channel URL or a video URL in the box at the bottom</li>
+<li><b>Remove</b>: tick ☐ on the channels (or “Select all shown”) and press “Remove selected channels”. You are asked once. Channels with 📌 stay unless you tick “Also remove the ones with 📌”. Removed bundled channels can be brought back with “Restore”; other channels can be added again</li>
 <li>A channel pack is a ready-made list of channels. Hololive (bundled) is there from the start. You can remove or bring back a whole pack. Channels you added yourself and pickup channels are never removed</li>
 <li><b>Find packs</b>: choose from the packs collected in the Hakomado repository (GitHub). They are unofficial, made by users, and not affiliated with any agency or streamer. Report mistakes or requests on GitHub</li>
 <li><b>Import a channel pack</b>: paste the URL or contents of a pack made by someone else, or choose a file. Channels you already have stay as they are</li>
@@ -1293,7 +1310,19 @@ const HTML_EN = {
   'fav.refresh': '⟳ Refresh',
   'fav.refreshTitle': 'Check live status again',
   'fav.filter': 'Filter by name or @handle',
-  'fav.empty': 'No channels yet. Enter a channel below to add one.',
+  'fav.empty': 'No channels yet. Add some from “⚙ Manage” in “📺 Channels”.',
+  'cm.settingsH': 'Manage channels',
+  'cm.settingsNote': 'Add channels, remove many at once, channel packs and importing your YouTube subscriptions are in the “Manage channels” screen',
+  'cm.open': '⚙ Manage channels',
+  'cm.h': '⚙ Manage channels',
+  'cm.btn': '⚙ Manage',
+  'cm.btnTitle': 'Add channels, remove many at once, and channel packs',
+  'cm.selAll': 'Select all shown',
+  'cm.selAllTitle': 'Select every channel shown (only the filtered ones if you are filtering)',
+  'cm.remove': 'Remove selected channels',
+  'cm.cancel': 'Cancel',
+  'cm.removeOk': 'Remove',
+  'cm.emptySubs': '📥 Choose from subscriptions',
   'fav.addInput': 'Add: @handle / channel URL / video URL',
   'fav.add': 'Add',
   'fav.del': 'Remove from channels',

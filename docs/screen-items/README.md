@@ -1,6 +1,6 @@
 # 画面項目表・画面項目状態表
 
-拡張機能 (`extension/`) の画面 (`grid.html` とそこから開くダイアログ) にある項目と、状態ごとの出方をまとめた表。画面の流れは [../screen-flow.md](../screen-flow.md) を見る。
+拡張機能 (`extension/`) の画面 (`grid.html` とそこから開くダイアログ) にある項目と、状態ごとの出方をまとめた表。画面の流れは [../screen-flow.md](../screen-flow.md) を、保存するものと出し入れは [../data-io.md](../data-io.md) を、似ているのに操作や見た目が違うところは [../ui-consistency.md](../ui-consistency.md) を見る。
 
 画面の項目を足したり、出る条件を変えたりしたら、ここも直す。表は `grid.html`・`grid.js`・`tour.js` などのコードから起こしたもので、コードで確かめきれなかったところは備考に「未確認」と書いてある。
 
@@ -12,7 +12,7 @@
 | [01-multiview-toolbar.md](01-multiview-toolbar.md) | マルチビュー画面の上部バー・同期の時刻バーと調整パネル・速度メニュー・自動再生の進み具合 |
 | [02-multiview-tile.md](02-multiview-tile.md) | マルチビュー画面の枠 (空き枠・動画の入った枠・枠のバー) |
 | [03-dialogs.md](03-dialogs.md) | 起動画面・共有 / 読み込む・再生リストに入れる・登録チャンネル・レイアウト・通知・枠の情報 |
-| [04-channels-library.md](04-channels-library.md) | 📺 チャンネル・📚 ライブラリ (最近の動画・視聴履歴・あとで見る・再生リスト) |
+| [04-channels-library.md](04-channels-library.md) | 📺 チャンネル・⚙ チャンネルの管理・📚 ライブラリ (最近の動画・視聴履歴・あとで見る・再生リスト) |
 | [05-settings-help.md](05-settings-help.md) | 設定・使い方・使い方ツアー |
 
 ## 表の見方
