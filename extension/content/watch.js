@@ -131,6 +131,18 @@
     window.parent.postMessage({ hakomado: 'ended', reason }, PARENT_ORIGIN);
   });
 
+  // ほかの動画に移った (YouTube の自動再生・レイドなど。watch-main.js から) → 親が元に戻すか、移った先に合わせる
+  document.addEventListener('hakomado:moved', (e) => {
+    let d;
+    try {
+      d = JSON.parse(e.detail);
+    } catch {
+      return;
+    }
+    const id = String(d.id || '');
+    if (/^[\w-]{11}$/.test(id)) window.parent.postMessage({ hakomado: 'moved', id, follow: d.follow === true }, PARENT_ORIGIN);
+  });
+
   // チャンネル登録・高評価の状態 → 親に知らせる (枠のバーのボタンの表示用)
   document.addEventListener('hakomado:social', (e) => {
     let d;
