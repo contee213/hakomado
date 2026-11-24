@@ -5,8 +5,9 @@
 //  - uniform: 均等 (全部同じ大きさ)
 //  - main: メイン + サブ。tools/layout-picks.json の形 (tools/gen-layouts.js が layouts-generated.js に書き出す)
 //  - pip: PinP。メイン 1 枠の中に小窓 (メインの 1/5) を 1〜3 個重ねる
-//  - vertical: 縦長の均等。どの枠も 9:16 (ショート・縦型の配信向け)。aspects = 枠ごとの目標の横/縦
-// main と pip は、基準位置 (anchor: tl / bl / tr / br = メインを置く角) ごとにある。
+//  - vertical: 縦長。どの枠も 9:16 (ショート・縦型の配信向け)。aspects = 枠ごとの目標の横/縦。
+//    均等 (mains = 0) と、2 段の端の 2 × 2 マスを大きな枠にした「縦長 + 大きな枠」(mains = 1。基準位置ごとにある)
+// main と pip (と縦長 + 大きな枠) は、基準位置 (anchor: tl / bl / tr / br = メインを置く角) ごとにある。
 // 計算した形は左上 (tl) が基準で、他は反転して作る。サブ・小窓はメインと反対側に来る
 // (PinP は基準が左上なら小窓が右下)
 // kind: uniform = 均等 / pip = PinP / vertical = 縦長 / main は focus = メイン重視 (サブが小さい)・balance = バランス (サブが大きい)・single = それ以外
@@ -51,6 +52,14 @@ const LAYOUTS = (() => {
     for (let k = 0; k < n; k++) slots.push([4, 4 - k, 1, 1]);
     base.push({ key: `pip${n}`, group: 'pip', kind: 'pip', mains: 1, subs: n, name: `PinP 1+${n}`, cols: 5, rows: 5, slots });
   }
+  // 縦長 + 大きな枠: 2 段 × c 列の縦長で、メインを置く角の側の 2 列 × 2 段を 1 つの大きな枠 (同じ 9:16 で面積 4 倍) にしたもの。
+  // 縦長の均等が無い 7・9・11・13・15 枠を埋める (「＋」「−」がいつも 1 枠ずつになるように)。
+  // 画面を使う割合は結合する前の 2 段 × c 列と同じ。2 段なので、上下の基準位置は同じ形になる
+  for (const c of [5, 6, 7, 8, 9]) {
+    const slots = [[0, 0, 2, 2]];
+    for (let y = 0; y < 2; y++) for (let x = 2; x < c; x++) slots.push([x, y, 1, 1]);
+    base.push({ key: `vm2x${c}`, group: 'vertical', kind: 'vertical', mains: 1, subs: slots.length - 1, name: `▯1+${slots.length - 1}`, cols: c, rows: 2, aspects: slots.map(() => 9 / 16), slots });
+  }
 
   const flips = { tl: [false, false], bl: [false, true], tr: [true, false], br: [true, true] };
   for (const anchor of ANCHORS) {
@@ -70,6 +79,7 @@ const LAYOUTS = (() => {
         overlap: g.group === 'pip', // 枠が重なる (小窓をメインの上に出す)
         recommended: rec.has(g.key),
         tab: tab.has(g.key),
+        ...(g.aspects ? { aspects: g.aspects } : {}),
         slots,
       });
     }
@@ -102,9 +112,9 @@ function layoutFor(key, anchor) {
   return LAYOUTS.find((l) => l.key === key && (!l.anchor || l.anchor === anchor)) || null;
 }
 
-/** メイン枠の数 (均等・縦長はどの枠も同じ大きさなので、全部をメイン枠として数える) */
+/** メイン枠の数 (均等・縦長の均等はどの枠も同じ大きさなので、全部をメイン枠として数える) */
 function mainCountOf(l) {
-  return l.group === 'uniform' || l.group === 'vertical' ? l.slots.length : l.mains;
+  return l.group === 'uniform' || (l.group === 'vertical' && !l.mains) ? l.slots.length : l.mains;
 }
 
 /**
@@ -117,15 +127,16 @@ function mainCountOf(l) {
  *  6. 映像が画面を占める割合が大きい (area)
  *  7. LAYOUTS の並び順
  * 今のレイアウトにほとんど関係なく枠数ごとに形が決まるので、＋ してから − すれば元に戻る。
- * PinP・縦長は、今それを使っているときだけ選ぶ。縦長を使っているとき、3 枠以上は縦長だけ (縦長の無い 7・9・11・13・15 枠は null。
- * 呼ぶ側がその枠数を飛ばす)。クルーズ中 (3 枠以上) はメイン枠を回せるようメイン + サブだけ
+ * PinP・縦長は、今それを使っているときだけ選ぶ。縦長を使っているとき、3 枠以上は縦長だけ (3〜16 枠のどれにも縦長がある。
+ * 無い枠数なら null で、呼ぶ側がその枠数を飛ばす)。クルーズ中 (3 枠以上) はメイン枠を回せるようメイン + サブだけ
  * @param {number} k
  * @param {{mains: number, group: string, anchor: string, kind?: string, slots?: any[]}} base 今のレイアウト
  * @param {{cruise?: boolean, area?: (l: object) => number}} [opts] area = 映像が画面を占める割合
  */
 function resizeLayoutFor(k, base, { cruise = false, area = () => 0 } = {}) {
   let pool = LAYOUTS.filter((l) => l.slots.length === k && (l.group !== 'pip' || base.group === 'pip') && (l.group !== 'vertical' || base.group === 'vertical'));
-  if (cruise && k >= 3) pool = pool.filter((l) => l.mains > 0);
+  // 縦長 + 大きな枠もメイン枠はあるが、枠数によって縦長の均等と入れ替わってしまうので、クルーズ中は使わない
+  if (cruise && k >= 3) pool = pool.filter((l) => l.mains > 0 && l.group !== 'vertical');
   else if (base.group === 'vertical' && k >= 3) pool = pool.filter((l) => l.group === 'vertical');
   if (!pool.length) return null;
   const cur = base.slots ? mainCountOf(base) : base.mains;

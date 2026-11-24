@@ -52,14 +52,23 @@ test('どの枠もほぼ 16:9 になる (縦長は 9:16)', () => {
   }
 });
 
-test('縦長: 基準位置は無く、どれも 16:9 の画面を 50% 以上使う', () => {
+test('縦長: 3〜16 枠のどれにもあり、どの枠も 9:16 で、16:9 の画面を 50% 以上使う', () => {
   const get = setup();
   const solve = get('solveTracks');
   const V = get('LAYOUTS').filter((l) => l.group === 'vertical');
-  assert.equal(V.map((l) => l.id).join(','), 'v1x3,v1x4,v1x5,v1x6,v2x4,v2x5,v2x6,v2x7,v2x8');
+  // 均等 (基準位置なし) と、縦長 + 大きな枠 (基準位置ごと。7・9・11・13・15 枠)
+  assert.equal(V.filter((l) => !l.anchor).map((l) => l.id).join(','), 'v1x3,v1x4,v1x5,v1x6,v2x4,v2x5,v2x6,v2x7,v2x8');
+  assert.equal(V.filter((l) => l.anchor === 'tl').map((l) => `${l.id}:${l.slots.length}`).join(','), 'tl-vm2x5:7,tl-vm2x6:9,tl-vm2x7:11,tl-vm2x8:13,tl-vm2x9:15');
+  for (let n = 3; n <= 16; n++) assert.ok(V.some((l) => l.slots.length === n), `縦長の ${n} 枠`);
   for (const l of V) {
-    assert.equal(l.anchor, undefined);
-    assert.equal(l.mains, 0);
+    assert.equal(l.mains, l.anchor ? 1 : 0, l.id);
+    assert.equal(l.aspects.length, l.slots.length, l.id);
+    if (l.anchor) {
+      // 大きな枠 (1 番) は 2 列 × 2 段で、基準位置の側 (左上・左下なら左端、右上・右下なら右端)
+      const [x, y, w, h] = l.slots[0];
+      assert.deepEqual([y, w, h], [0, 2, 2], l.id);
+      assert.equal(x, l.anchor[1] === 'l' ? 0 : l.cols - 2, l.id);
+    }
     const { aspect } = solve(l);
     // 映像の面積 / 画面の面積 = 全体の縦横比と画面の縦横比の小さいほう / 大きいほう
     const used = Math.min(aspect, 16 / 9) / Math.max(aspect, 16 / 9);
@@ -157,9 +166,10 @@ test('「＋」「−」のレイアウト (resizeLayoutFor): 枠数がちょう
   assert.equal(resize(4, byId('v1x3')).id, 'v1x4');
   assert.equal(resize(3, byId('v1x4')).id, 'v1x3');
   assert.equal(resize(2, byId('v1x3')).group, 'uniform');
-  // 縦長の段: 縦長の無い枠数 (7・9・11・13・15) は null (呼ぶ側が飛ばす)。＋ → − で元に戻る
-  const vLadder = ['v1x3', 'v1x4', 'v1x5', 'v1x6', 'v2x4', 'v2x5', 'v2x6', 'v2x7', 'v2x8'];
-  for (const k of [7, 9, 11, 13, 15]) assert.equal(resize(k, byId('v1x6')), null, `縦長で ${k} 枠`);
+  // 縦長の段: 3〜16 枠を 1 枠ずつ。＋ → − で元に戻る
+  const vLadder = ['v1x3', 'v1x4', 'v1x5', 'v1x6', 'tl-vm2x5', 'v2x4', 'tl-vm2x6', 'v2x5', 'tl-vm2x7', 'v2x6', 'tl-vm2x8', 'v2x7', 'tl-vm2x9', 'v2x8'];
+  // 7・9・11・13・15 枠は縦長 + 大きな枠 (基準位置は今のもの)
+  for (const k of [7, 9, 11, 13, 15]) assert.equal(resize(k, { ...byId('v1x6'), anchor: 'br' }).id, `br-vm2x${(k - 1) / 2 + 2}`, `縦長で ${k} 枠`);
   vLadder.slice(1).forEach((id, i) => {
     assert.equal(resize(byId(id).slots.length, byId(vLadder[i])).id, id, `${vLadder[i]} ＋`);
     assert.equal(resize(byId(vLadder[i]).slots.length, byId(id)).id, vLadder[i], `${id} −`);
