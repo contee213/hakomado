@@ -113,6 +113,7 @@ A pack is a JSON file like the one below. Besides submitting it to `packs/`, you
 | `declarativeNetRequestWithHostAccess` | The header change described below |
 | `https://www.youtube.com/*` | Showing watch pages and live chat in tiles, getting channel info and live status |
 | `https://schedule.hololive.tv/*` | Getting the stream schedule of the initial data channels (the Holodule add-on; can be turned off under Settings > Add-ons) |
+| `https://www.nijisanji.jp/*` (optional) | Getting the NIJISANJI live schedule (the NIJISANJI add-on; off by default, access is asked for only when you turn it on under Settings > Add-ons) |
 | `contextMenus` | The right-click menu "Add to an empty Hakomado tile" |
 
 - Besides YouTube and the schedule site, it only connects to GitHub to check for new versions (`api.github.com`), to the pack list when you press "Get the list" in Find packs (`raw.githubusercontent.com`), and to pack URLs you enter. No data is sent to any other server. See the [privacy policy](docs/privacy.md) for details

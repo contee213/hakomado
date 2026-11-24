@@ -1118,6 +1118,7 @@ const HTML_EN = {
 <ul>
 <li>Add-ons are features that rely on a particular site. Turn each one on or off. When you turn one on, you may be asked to allow access to its site</li>
 <li><b>Holodule</b> (on by default): loads the hololive stream schedule (schedule.hololive.tv) in one go, so the bundled channels and channels added from the hololive channel pack are checked less often on YouTube. When off, stream status is still found from each channel’s feed (a little heavier)</li>
+<li><b>NIJISANJI</b> (off by default): loads the live schedule from the NIJISANJI website (www.nijisanji.jp). Channels added from a NIJISANJI channel pack (such as “にじさんじ” in Find packs) are checked less often on YouTube. Turning it on asks for access to www.nijisanji.jp</li>
 </ul>`,
   'helpPage.library': `<ul>
 <li>“📚 Library” (<kbd>B</kbd>): 🎞 Recent videos (streams ended and videos published in the last 7 days) / 🕘 Watch history (100) / 🔖 Watch later (100) / 📃 Playlists</li>

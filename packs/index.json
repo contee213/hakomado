@@ -12,6 +12,17 @@
       "channels": 75,
       "description": "同梱のホロライブ (初期データ) と同じ内容です。同梱版を外したあとに入れ直すときや、パックの見本として",
       "descriptionEn": "The same channels as the bundled hololive data. Use it to add them back after removing the bundled ones, or as a sample pack"
+    },
+    {
+      "id": "nijisanji",
+      "file": "nijisanji.json",
+      "name": "にじさんじ",
+      "nameEn": "NIJISANJI",
+      "author": "Hakomado",
+      "updated": "2026-11-24",
+      "channels": 200,
+      "description": "にじさんじ・NIJISANJI EN のライバーのメインチャンネル (公式サイトのライバー一覧から作成。卒業した方は含みません)。アドオン「にじさんじ」と組み合わせると配信状況の確認が軽くなります",
+      "descriptionEn": "Main channels of NIJISANJI and NIJISANJI EN livers (made from the talent list on the official website; graduated livers not included). Pairs with the NIJISANJI add-on to make stream checks lighter"
     }
   ]
 }
