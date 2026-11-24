@@ -333,6 +333,9 @@ body.shooting .tile.is-twitch:is(:hover, :focus-within) .bar { opacity: 1; }
 body.shooting .tile.is-twitch:is(:hover, :focus-within) .bar > * { opacity: 0; transition: none; }
 .tile.is-twitch .player-slot { top: var(--tw-bar); height: auto; }
 .tile.is-twitch .drag-zone { display: none; }
+/* 枠のバーを隠しているとき (上部バーの ▭・H キー): どの枠も操作バーを出さず、Twitch の枠は黒い帯も無くして映像を枠いっぱいにする */
+body.bars-off .tile .bar { display: none; }
+body.bars-off .tile.is-twitch .player-slot { top: var(--hl-width); }
 .tile.is-twitch .toast { top: 4px; bottom: auto; }
 /* Twitch は、プレイヤーに何かが重なって見える (重なっていそうな) ときも再生しない (IntersectionObserver v2 の見え方の判定)。
    隣の枠の外側の線 (::before) や光 (::after) が少しでもかかると、その枠は読み込んでも再生が始まらず、再生の命令も受け付けない
