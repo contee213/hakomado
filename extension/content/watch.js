@@ -276,8 +276,15 @@
     //   YouTube は再生・シークのあとに消音を戻すことがあるので、測っている間は見張って外し続ける。終わったらプレイヤーの消音に戻す
     // - 記録するのは「再生中で、シーク中でも広告中でもない」間だけ。バッファごとに [累計サンプル数, 再生位置, 速度] も送る
     //   (サンプルが抜けることがあるので、親はこれでビンの再生位置を求める。audio-align.js の toReal)
-    // - ScriptProcessor を使う (AudioWorklet はモジュールの読み込みがページの CSP に左右されるため)
+    // - 音は MediaStreamAudioDestinationNode → MediaStreamTrackProcessor で受け取る (10 ミリ秒ずつ届く)。
+    //   ScriptProcessor は非推奨で、使うと拡張機能のエラーに警告が残る。AudioWorklet はモジュールを読めない
+    //   (blob: / data: は YouTube の CSP で止まる。拡張機能の URL は web_accessible_resources で公開しないと読めず、
+    //   公開すると YouTube から拡張機能の有無が分かるようになるので避ける)
+    // - 印 (marks) は従来どおり MARK_EVERY サンプルごと (親は前後 8 個の印の中央値で平らにするため、細かすぎると揺れる)
+    const MARK_EVERY = 4096;
     let tap = null;
+    let reader = null; // 測っている間だけ読む (止めたら閉じる)
+    let track = null; // reader が読んでいる、複製したトラック
     let measuring = false;
     let wantMuted = false; // 測っている間に親が求めている消音
     let guard = 0;
@@ -285,18 +292,35 @@
     let bins = [];
     let marks = [];
     let total = 0;
+    let markedAt = 0; // 最後に印を付けたときの total
+    let last = null; // まだ印にしていない最新の [累計サンプル数, 再生位置, 速度]
     let acc = 0;
     let cnt = 0;
     let per = 48;
+    let planes = [];
     const adShowing = () => !!document.querySelector('#movie_player.ad-showing, #movie_player.ad-interrupting');
 
-    function onAudio(e) {
+    function markNow() {
+      if (last) marks.push(last);
+      last = null;
+      markedAt = total;
+    }
+    /** @param {AudioData} data */
+    function onAudio(data) {
       const v = connected;
-      if (!measuring || !v || v.paused || v.seeking || adShowing()) return;
-      const buf = e.inputBuffer;
-      const a = buf.getChannelData(0);
-      const b = buf.numberOfChannels > 1 ? buf.getChannelData(1) : a;
-      for (let k = 0; k < a.length; k++) {
+      if (!measuring || !v || v.paused || v.seeking || adShowing()) {
+        markNow(); // 抜けの前までの分は、抜ける前の再生位置で印を付けておく
+        return;
+      }
+      const n = data.numberOfFrames;
+      const ch = Math.min(2, data.numberOfChannels);
+      for (let c = 0; c < ch; c++) {
+        if (planes[c]?.length !== n) planes[c] = new Float32Array(n);
+        data.copyTo(planes[c], { planeIndex: c, format: 'f32-planar' });
+      }
+      const a = planes[0];
+      const b = ch > 1 ? planes[1] : a;
+      for (let k = 0; k < n; k++) {
         acc += Math.abs(a[k]) + Math.abs(b[k]);
         if (++cnt === per) {
           bins.push(acc / (2 * per));
@@ -304,10 +328,34 @@
           cnt = 0;
         }
       }
-      total += a.length;
-      marks.push([total, v.currentTime, v.playbackRate || 1]);
+      total += n;
+      last = [total, v.currentTime, v.playbackRate || 1];
+      if (total - markedAt >= MARK_EVERY) markNow();
+    }
+    async function pump(r) {
+      for (;;) {
+        let got;
+        try {
+          got = await r.read();
+        } catch {
+          return; // 止めた (cancel)
+        }
+        if (got.done) return;
+        try {
+          if (r === reader) onAudio(got.value);
+        } finally {
+          got.value.close();
+        }
+      }
+    }
+    function closeReader() {
+      reader?.cancel().catch(() => {});
+      track?.stop();
+      reader = null;
+      track = null;
     }
     function flush() {
+      markNow();
       if (!bins.length) return;
       const out = Float32Array.from(bins);
       window.parent.postMessage({ hakomado: 'envChunk', sr: ctx.sampleRate, per, bins: out, marks }, PARENT_ORIGIN, [out.buffer]);
@@ -320,26 +368,29 @@
     }
     async function startMeasure(muted) {
       wantMuted = !!muted;
-      if (!(await running())) {
+      if (typeof MediaStreamTrackProcessor !== 'function' || !(await running())) {
         window.parent.postMessage({ hakomado: 'measure', ok: false }, PARENT_ORIGIN);
         return;
       }
       connectVideo();
       if (!timer) timer = setInterval(connectVideo, 2000);
-      if (!tap) {
-        tap = ctx.createScriptProcessor(4096, 2, 1);
-        tap.connect(new GainNode(ctx, { gain: 0 })).connect(ctx.destination); // 音は出さない (つながっていないと動かない)
-      }
+      if (!tap) tap = new MediaStreamAudioDestinationNode(ctx, { channelCount: 2 });
+      closeReader();
+      // 測るたびに複製したトラックから読む (止めるときに閉じれば、測っていない間は何も溜まらない)
+      track = tap.stream.getAudioTracks()[0].clone();
+      reader = new MediaStreamTrackProcessor({ track }).readable.getReader();
       per = Math.round(ctx.sampleRate / 1000);
       bins = [];
       marks = [];
       total = 0;
+      markedAt = 0;
+      last = null;
       acc = 0;
       cnt = 0;
       measuring = true;
       applyMute(); // 先に Web Audio 側で消音してから、プレイヤーの消音を外す
       if (connected) sources.get(connected)?.connect(tap);
-      tap.onaudioprocess = onAudio;
+      pump(reader);
       unmuteQuietly();
       clearInterval(guard);
       guard = setInterval(() => {
@@ -355,7 +406,7 @@
       measuring = false;
       clearInterval(guard);
       clearInterval(flushTimer);
-      tap.onaudioprocess = null;
+      closeReader();
       try {
         sources.get(connected)?.disconnect(tap);
       } catch {

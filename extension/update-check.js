@@ -4,6 +4,7 @@
 // - 確かめるのは 1 日 1 回まで (結果は chrome.storage.local に残し、全タブで共有する)。
 //   GitHub の API は CORS で誰からでも読めるので、host_permissions は要らない
 /* exported UpdateCheck */
+/* global ErrLog */
 'use strict';
 
 const UpdateCheck = (() => {
@@ -59,7 +60,7 @@ const UpdateCheck = (() => {
         const latest = await fetchLatest();
         info = latest ? { at: Date.now(), ...latest } : { at: Date.now(), latest: '', url: '', none: true };
       } catch (e) {
-        console.warn('hakomado: 新しいバージョンの確認に失敗', e);
+        ErrLog.warnFetch('hakomado: 新しいバージョンの確認に失敗', e);
         info = { at: Date.now(), latest: info?.latest || '', url: info?.url || '' };
       }
       await chrome.storage.local.set({ [KEY]: info });

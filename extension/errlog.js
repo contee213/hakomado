@@ -165,5 +165,18 @@ const ErrLog = (() => {
   // マルチビュー画面では読み込んだ時点で始める (拡張機能のページはインラインのスクリプトを書けないので、ここで呼ぶ)
   if (typeof document !== 'undefined' && globalThis.location?.href?.startsWith(ORIGIN + 'grid.html')) install('grid');
 
-  return { install, list, clear, KEY, MSG_TYPE };
+  /** fetch が通信の段階で失敗した (オフライン・回線が一時的に切れた・別のサイトに転送されて CORS で止まったなど) */
+  const isNetworkError = (e) => e instanceof TypeError && /fetch|network/i.test(e.message);
+
+  /**
+   * 取得の失敗を知らせる。通信できなかっただけ (isNetworkError) のときは警告にしない
+   * (次の確認でやり直すので不具合ではない。警告にすると chrome://extensions のエラーにも残る)
+   */
+  function warnFetch(msg, ...args) {
+    const e = args[args.length - 1];
+    if (isNetworkError(e)) console.info(msg, '(通信できなかったので、あとでやり直します)', ...args);
+    else console.warn(msg, ...args);
+  }
+
+  return { install, list, clear, isNetworkError, warnFetch, KEY, MSG_TYPE };
 })();
