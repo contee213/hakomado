@@ -1052,7 +1052,12 @@ function applyTwitchDanmaku(i) {
   const st = state.settings;
   const s = Object.fromEntries(DM_SETTING_KEYS.map((k) => [k, st[k]]));
   s.look = { font: DM_FONTS[st.dmFont] || DM_FONTS.standard, weight: st.dmWeight === 'normal' ? '400' : '700' };
-  postToFrame(v.player, { hakomado: 'danmaku', on: !!v.dmOn && isVisible(i), s });
+  const msg = { hakomado: 'danmaku', on: !!v.dmOn && isVisible(i), s };
+  // 枠は音を切り替えるたびなどにも描き直すので、変わったときだけ送る (読み込み直したプレイヤーには、読み込みのあとに送る)
+  const key = JSON.stringify(msg);
+  if (v.player.dataset.loaded !== '1' || v.player.dmKey === key) return;
+  v.player.dmKey = key;
+  postToFrame(v.player, msg);
 }
 
 // ---- Twitch が自分で止めた枠を再生に戻す
@@ -1069,15 +1074,21 @@ function twitchPlay(frame, play) {
   frame.contentWindow.postMessage({ namespace: 'twitch-embed-player-proxy', eventName: play ? TWITCH_CMD.play : TWITCH_CMD.pause }, TWITCH_PLAYER);
 }
 
-// 公式の埋め込みプレイヤーの知らせのうち、VOD を最後まで再生したこと (ended) を使う。
-// 終わったところで止まった枠は「Twitch が自分で止めた」ことにしない (再生に戻すと先頭から流れ直すため)。
-// 繰り返しが ON なら先頭へ戻して再生する
+// 公式の埋め込みプレイヤーの知らせのうち、最後まで再生したこと (ended) を使う。
+// VOD: 終わったところで止まった枠は「Twitch が自分で止めた」ことにしない (再生に戻すと先頭から流れ直すため)。
+// 繰り返しが ON なら先頭へ戻して再生する。チャンネルのライブ: 配信が終わって止まった枠も同じく再生に戻さない
 window.addEventListener('message', (e) => {
   // 再生の出来事 (play・pause・ended など) は namespace 'twitch-embed' で届く (状態の UPDATE_STATE は 'twitch-embed-player-proxy')
   if (e.origin !== TWITCH_PLAYER || e.data?.namespace !== 'twitch-embed' || e.data.eventName !== 'ended') return;
   const i = views.findIndex((v) => v.player?.dataset.twitch === '1' && v.player.contentWindow === e.source);
-  if (i < 0 || !state.tiles[i].videoId.startsWith('tw:v:')) return;
+  if (i < 0) return;
   const f = views[i].player;
+  // チャンネルのライブの配信が終わった: 止まったのを「Twitch が自分で止めた」ことにしない (再生の命令を送り続けないように)。
+  // 枠を片付けるかは自動再生の配信状況の確認に任せる。次の配信が始まって再生に戻れば、この印は外れる (twPause)
+  if (!state.tiles[i].videoId.startsWith('tw:v:')) {
+    f.dataset.wantPause = '1';
+    return;
+  }
   if (f.dataset.loop) {
     f.contentWindow.postMessage({ namespace: 'twitch-embed-player-proxy', eventName: TWITCH_CMD.seek, params: 0 }, TWITCH_PLAYER);
     twitchPlay(f, true);

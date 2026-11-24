@@ -95,7 +95,7 @@ YouTube の配信・動画を 1 つの画面に最大 16 枠並べて、同時�
 ・再生リスト / 視聴履歴 / あとで見る / 配信開始の通知
 ・共有: 今の枠や再生リストを、画像・リンク・テキストにして人に渡せます
 ・スクリーンショット: Alt+Shift+S で枠の並び全体を PNG で保存 (クリップボードにもコピー)
-・右クリックで追加: YouTube のリンクを右クリック →「Hakomado の空き枠に追加」
+・右クリックで追加: YouTube・Twitch のリンクを右クリック →「Hakomado の空き枠に追加」
 
 ■ 使い方
 1. ツールバーの Hakomado のアイコンを押すと、マルチビュー画面が開きます
@@ -141,7 +141,7 @@ FEATURES
 • Playlists, watch history, Watch later and go-live notifications
 • Sharing: turn your current tiles or a playlist into an image, a link or text
 • Screenshots: press Alt+Shift+S to save all the tiles as a PNG (also copied to the clipboard)
-• Right-click to add: right-click a YouTube link and choose "Add to an empty Hakomado tile"
+• Right-click to add: right-click a YouTube or Twitch link and choose "Add to an empty Hakomado tile"
 
 HOW TO USE
 1. Click the Hakomado icon in the toolbar to open the multiview screen
@@ -246,7 +246,7 @@ YouTube の複数の配信・動画を 1 つの画面に並べて同時に視聴
 | `activeTab` | 利用者がマルチビュー画面のタブで、この拡張機能のショートカットキー (既定 Alt+Shift+S。`commands` で登録し、chrome://extensions/shortcuts で変えられる) を押したときだけ、そのタブの表示中の画面を `chrome.tabs.captureVisibleTab` で撮る (マルチビュー画面のスクリーンショット)。撮った画像は枠の並びに切り抜いて、利用者のパソコンに PNG で保存し、クリップボードに入れるだけで、外部へは送らない。ほかのタブ (YouTube など) では何もしない |
 | `scripting` | 共有画面の「𝕏 に投稿」を押したときだけ、そのボタンが開いた X の投稿画面のタブ 1 つにスクリプトを入れ、投稿欄の画像の入力欄に共有画像を入れる (人が画像を選んだのと同じ)。投稿ボタンは押さない。ほかのタブ・ページには入れない。また、URL の枠のために、利用者が許可したサイトにだけ `content/web-player.js` を `chrome.scripting.registerContentScripts` で登録する (下の content scripts の表) |
 | 任意のホスト権限 `https://x.com/*` (`optional_host_permissions`) | 上の `scripting` で X の投稿画面に画像を入れるため。インストール時には求めず、利用者が初めて「𝕏 に投稿」を押したときに `chrome.permissions.request` で聞く。許可しなくても、投稿画面を開いて画像をクリップボードに入れるところまでは動く (利用者が Ctrl+V で貼る) |
-| 任意の権限 `identity` (`optional_permissions`) | ⚙ チャンネルの管理の「Twitch のフォローから選ぶ」を押したときだけ求める。Twitch の公式の認可の画面 (`id.twitch.tv`) を `chrome.identity.launchWebAuthFlow` で開き、利用者がログインして許可すると、フォローしているチャンネルを読むためのアクセストークン (scope `user:read:follows` だけ) を受け取る。トークンは Twitch の公式の API (`api.twitch.tv/helix`) でフォロー一覧とチャンネルのアイコンを読むのに 1 回だけ使い、読み終えたらすぐ無効にする (保存しない・ほかに送らない)。読んだ一覧は画面に出すだけで、利用者が選んだチャンネルだけをチャンネル一覧 (ブラウザの中) に足す。Twitch のアプリの登録 (Client ID) が済むまで、この項目は画面に出さない |
+| 任意の権限 `identity` (`optional_permissions`) | ⚙ チャンネルの管理の「Twitch のフォロー」の「フォローから選ぶ」を押したときだけ求める。Twitch の公式の認可の画面 (`id.twitch.tv`) を `chrome.identity.launchWebAuthFlow` で開き、利用者がログインして許可すると、フォローしているチャンネルを読むためのアクセストークン (scope `user:read:follows` だけ) を受け取る。トークンは Twitch の公式の API (`api.twitch.tv/helix`) でフォロー一覧とチャンネルのアイコンを読むのに 1 回だけ使い、読み終えたらすぐ無効にする (保存しない・ほかに送らない)。読んだ一覧は画面に出すだけで、利用者が選んだチャンネルだけをチャンネル一覧 (ブラウザの中) に足す。Twitch のアプリの登録 (Client ID) が済むまで、この項目は画面に出さない |
 | 任意のホスト権限 `https://www.nijisanji.jp/*` (`optional_host_permissions`) | アドオン「にじさんじ」(`addons/nijisanji.js`。初期値は OFF) が、にじさんじ公式サイトのライブスケジュール (サイトが使っている JSON `https://www.nijisanji.jp/api/streams?…`) を読み、名前に「にじさんじ」が入るチャンネルパックから足したチャンネルの配信状況を YouTube に問い合わせる回数を減らす。このサイトは CORS で読めないので権限が要る。インストール時には求めず、利用者が設定 → アドオンで ON にしたときに `chrome.permissions.request` で聞き、OFF にすると手放す。読み取りだけで、Cookie は送らない |
 | 任意のホスト権限 `https://www.vspo-schedule.com/*` (`optional_host_permissions`) | アドオン「ぶいすぽっ!」(`addons/vspo.js`。初期値は OFF) が、ぶいすぽっ!の配信スケジュールのサイト (有志による非公式のサイト) のページ `https://www.vspo-schedule.com/schedule/live`・`/schedule/upcoming` に埋め込まれた枠のデータを読み、名前に「ぶいすぽ」が入るチャンネルパックから足したチャンネルの配信状況を YouTube に問い合わせる回数を減らす。このサイトは CORS で読めないので権限が要る。インストール時には求めず、利用者が設定 → アドオンで ON にしたときに `chrome.permissions.request` で聞き、OFF にすると手放す。読み取りだけで、Cookie は送らない |
 | 任意のホスト権限 `https://schedule-share-json.s3.ap-northeast-1.amazonaws.com/*` (`optional_host_permissions`) | アドオン「STPR (すとぷり)」(`addons/stpr.js`。初期値は OFF) が、STPR の公式の配信予定のサイト (schedule.stpr.com) が読んでいる JSON `https://schedule-share-json.s3.ap-northeast-1.amazonaws.com/schedule/schedule_v2.json` を読み、名前に「STPR」か「すとぷり」が入るチャンネルパックから足したチャンネルの配信状況を YouTube に問い合わせる回数を減らす。この JSON の CORS は schedule.stpr.com にだけ開いているので権限が要る。読むのはこの 1 ファイルだけ。インストール時には求めず、利用者が設定 → アドオンで ON にしたときに `chrome.permissions.request` で聞き、OFF にすると手放す。読み取りだけで、Cookie は送らない |
@@ -280,7 +280,7 @@ YouTube の複数の配信・動画を 1 つの画面に並べて同時に視聴
 | `schedule-share-json.s3.ap-northeast-1.amazonaws.com` | STPR の公式の配信予定 (schedule.stpr.com が使っている JSON 1 つ。アドオン「STPR (すとぷり)」が ON のときだけ。初期値は OFF)。マルチビュー画面を開いている間 1 分に 1 回まで取得する (タブが複数あっても 1 回)。Cookie は送らない |
 | `player.twitch.tv` / `www.twitch.tv` | 利用者が枠に Twitch の URL を入れたときだけ、公式の埋め込みプレイヤーとチャットを iframe で開く (中の通信は Twitch のページが行う)。利用者がチャンネル一覧に登録した Twitch のチャンネルだけ、その公開ページ (`www.twitch.tv/<名前>`) の先頭を読み、配信中か・最近の VOD を調べる (1 チャンネル 2 分に 1 回まで。Cookie は送らない)。枠に入れた VOD は、アーカイブ同期のために VOD のページ (`www.twitch.tv/videos/<番号>`) の先頭から配信の開始時刻を読む (VOD ごとに 1 回。Cookie は送らない)。Twitch の API は呼ばない |
 | `static-cdn.jtvnw.net` | Twitch のチャンネルのアイコン・配信と VOD のサムネイル (画像の読み込みだけ)。twitch.tv の許可を外したあとも登録した Twitch のチャンネルが残っているときは、配信のサムネイル画像 (誰でも読める) が「配信していない」画像に転送されるかで配信中かだけを調べる。Cookie は送らない |
-| `id.twitch.tv` / `api.twitch.tv` | 利用者が「Twitch のフォローから選ぶ」を押してログインしたときだけ、Twitch の認可の画面を開き、公式の API でフォローしているチャンネルとアイコンを読む。読み終えたらアクセストークンを無効にする (`id.twitch.tv/oauth2/revoke`)。トークンは保存しない |
+| `id.twitch.tv` / `api.twitch.tv` | 利用者が「Twitch のフォロー」の「フォローから選ぶ」を押してログインしたときだけ、Twitch の認可の画面を開き、公式の API でフォローしているチャンネルとアイコンを読む。読み終えたらアクセストークンを無効にする (`id.twitch.tv/oauth2/revoke`)。トークンは保存しない |
 | `api.github.com` | 新しい版が出ていないかの確認 (1 日 1 回まで。ストア版 = `update_url` がある場合は行わない)。Cookie は送らない |
 | `raw.githubusercontent.com` | 「パックを探す」を押したときだけ、リポジトリの `packs/index.json` (パックの一覧) と、選んだパックを取得する。CORS で読めるので host 権限は使わない。Cookie は送らない |
 | `x.com` | 共有画面で利用者が「𝕏 に投稿」を押したときだけ、名前と取り込み用リンクを入れた投稿画面 (`https://x.com/intent/post?…`) を新しいタブで開き、許可があれば共有画像をその投稿欄に入れる。拡張機能からは投稿しない (投稿するかどうか・何を投稿するかは、利用者が X の画面で確かめて決める) |
