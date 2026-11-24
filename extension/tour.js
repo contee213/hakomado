@@ -73,7 +73,7 @@ const Tour = (() => {
     mockBar.querySelector('.index').textContent = '1';
     mockBar.querySelector('.tile-name').textContent = tr('tourMockName');
     const audio = mockBar.querySelector('[data-act="audio"]');
-    audio.textContent = '🔊';
+    audio.textContent = '🎧';
     audio.classList.add('on', 'tour-pulse-btn');
     mockBar.querySelector('[data-act="danmaku"]')?.classList.add('on');
     for (const b of mockBar.querySelectorAll('.social')) b.remove();

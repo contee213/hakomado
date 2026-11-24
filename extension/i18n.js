@@ -90,10 +90,10 @@ const MESSAGES = {
 
   // 上部バーの音声表示
   muted: ['🔇 ミュート中', '🔇 Muted'],
-  mutedTitle: ['クリック (M) で直前の枠の音に戻す', 'Click (M) to restore the previous audio'],
+  mutedTitle: ['ミュート (M): 押すと直前の枠の音に戻す', 'Mute (M): click to restore the previous audio'],
   multiAudio: ['{0} 枠を同時再生', '{0} tiles playing'],
   loadingName: ['(読み込み中)', '(loading)'],
-  clickToMute: ['クリック (M) でミュート', 'Click (M) to mute'],
+  clickToMute: ['ミュート (M): 押すと全部ミュート', 'Mute (M): click to mute all'],
 
   // レイアウト
   layoutTab_recommend: ['おすすめ', 'Recommended'],
@@ -513,8 +513,8 @@ const MESSAGES = {
   packRemove: ['外す', 'Remove'],
   subsCount: ['{0} 件を選択中 (まだ足していないもの {1} 件)', '{0} selected ({1} not in your list yet)'],
   subsHave: ['追加済み', 'Added'],
-  subsEmpty: ['登録チャンネルがありません', 'You have no subscriptions'],
-  subsNoMatch: ['合うチャンネルがありません', 'No matching channels'],
+  subsEmpty: ['登録チャンネルがありません。', 'You have no subscriptions.'],
+  subsNoMatch: ['「{0}」に一致するチャンネルはありません。', 'No channels match "{0}".'],
   subsMore: [
     '先頭の {0} 件だけ読めました (残りは読み込めません)',
     'Only the first {0} could be read (the rest could not be loaded)',
@@ -532,7 +532,7 @@ const MESSAGES = {
     "Couldn't change left/right, volume or delay in this tile (the browser is holding back audio processing). Click the tile and try again",
   ],
   // 再生速度
-  speedTitle: ['この枠の再生速度 (< > キーでも。音の出ている枠)', 'Playback speed of this tile (< > keys work on the tile playing audio)'],
+  speedTitle: ['再生速度 (< >): この枠の再生速度。キーは音の出ている枠に効く', 'Playback speed (< >): speed of this tile. The keys work on the tile playing audio'],
   speedGroupTitle: [
     'グループ {0} の再生速度 (アーカイブ同期中は、グループの全部の枠が同じ速度になります)',
     'Playback speed of group {0} (while archive sync is on, every tile in the group plays at the same speed)',
@@ -580,7 +580,12 @@ const MESSAGES = {
   historyNoMatch: ['「{0}」に一致する視聴履歴はありません。', 'No watch history matches "{0}".'],
   historyDel: ['視聴履歴から消す', 'Remove from watch history'],
   historyClearConfirm: ['視聴履歴を全部 ({0} 件) 消しますか？', 'Clear all watch history ({0} items)?'],
-  historyPick: ['クリックで枠に読み込む', 'Click to load into a tile'],
+  filterChannels: ['名前・@チャンネル名・グループで絞り込み', 'Filter by name, @handle or group'],
+  filterArchive: ['タイトル・チャンネル名で絞り込み', 'Filter by title or channel'],
+  filterVideos: ['タイトル・チャンネル名・枠の名前・URL で絞り込み', 'Filter by title, channel, tile name or URL'],
+  filterPlaylist: ['タイトル・チャンネル名・枠の名前で絞り込み', 'Filter by title, channel or tile name'],
+  noticeClearConfirm: ['通知を全部 ({0} 件) 消しますか？', 'Clear all notifications ({0})?'],
+  historyPick: ['クリックで枠に入れる', 'Click to load into a tile'],
   selTitle: ['選ぶ (Ctrl / Shift + クリックでも選べる)。選んだものは下の「▦ まとめて枠に入れる」で一度に枠に入れる', 'Select (Ctrl / Shift + click also works). Load everything you selected at once with “▦ Load into tiles” below'],
   collabTitle: [
     'コラボと思われる配信 {0} 本 (開始の時刻が近く、タイトルで相手の名前や同じハッシュタグ・企画名に触れているもの) をまとめて選ぶ。全部選んでいるときは、まとめて外す',
@@ -631,8 +636,8 @@ const MESSAGES = {
   ],
   tourTileT: ['枠の操作', 'Tile controls'],
   tourTile: [
-    '配信の入った枠にマウスを乗せると、このバーが出ます。🔊 で音を出す枠を切り替え、🎚 で音の左右と音量、💬 でチャット欄、≋ で弾幕。左端の ⠿ をドラッグすると枠を入れ替えます。',
-    'Hover over a tile with a stream to show this bar. 🔊 chooses which tile plays audio, 🎚 sets left/right and volume, 💬 opens chat and ≋ toggles danmaku. Drag ⠿ at the left to swap tiles.',
+    '配信の入った枠にマウスを乗せると、このバーが出ます。🎧 でこの枠だけ音を出し、🎚 で音の左右と音量、💬 でチャット欄、≋ で弾幕。左端の ⠿ をドラッグすると枠を入れ替えます。',
+    'Hover over a tile with a stream to show this bar. 🎧 plays audio from this tile only, 🎚 sets left/right and volume, 💬 opens chat and ≋ toggles danmaku. Drag ⠿ at the left to swap tiles.',
   ],
   tourLayoutT: ['レイアウト', 'Layouts'],
   tourLayout: ['▦ で並べ方を選び、＋ − で枠を増やしたり減らしたりします。', 'Choose an arrangement with ▦, and add or remove tiles with + and −.'],
@@ -657,12 +662,12 @@ const MESSAGES = {
   archiveClose: ['最近の動画を閉じる', 'Hide recent videos'],
   archiveLoading: ['最近の動画を取得しています…', 'Getting recent videos…'],
   archiveError: ['最近の動画を取得できませんでした', 'Could not get recent videos'],
-  archiveNone: ['終わった配信はありません', 'No past streams'],
+  archiveNone: ['終わった配信はありません。', 'No past streams.'],
   archiveProgress: ['取得中 {0} / {1}', 'Loading {0} / {1}'],
   archiveEmpty: ['最近 {0} 日に終わった配信・公開された動画はありません。', 'No streams or videos in the last {0} days.'],
   archiveNoMatch: ['「{0}」に一致する配信はありません。', 'No streams match "{0}".'],
   archiveNoPick: ['ピックアップ (📌) のチャンネルがありません。「すべて」に切り替えるか、チャンネルを 📌 でピックアップに入れてください。', 'No channels in pickup (📌). Switch to "All", or pick up channels with 📌.'],
-  kindNoMatch: ['選んだ種類のものはありません。上の「🔴 ライブ / 🎬 動画 / 📱 ショート」で出す種類を変えられます。', 'Nothing of the selected types. Change which types to show with "🔴 Live / 🎬 Videos / 📱 Shorts" above.'],
+  kindNoMatch: ['選んだ種類のものはありません。上の「🔴 配信 / 🎬 動画 / 📱 ショート」で出す種類を変えられます。', 'Nothing of the selected types. Change which types to show with "🔴 Live / 🎬 Videos / 📱 Shorts" above.'],
   scopeNoPicked: ['ピックアップ (📌) のチャンネルのものはありません。「📺 すべて」に切り替えると、全部見られます。', 'Nothing from your pickup (📌) channels. Switch to "📺 All" to see everything.'],
   chTitle: ['📺 チャンネル', '📺 Channels'],
   libTitle: ['📚 ライブラリ', '📚 Library'],
@@ -796,7 +801,7 @@ const MESSAGES = {
   plRefTitle: ['同期の基準にする動画 (ほかの動画をこの動画に合わせる)', 'Reference video for sync (others follow this one)'],
   plOffsetTitle: ['同期の補正 (秒。+ で先へ進める)。⏱ で合わせると自動で入る', 'Sync offset (seconds; + moves ahead). Filled in automatically when you adjust with ⏱'],
   secUnit: ['秒', 's'],
-  plLoadOne: ['この配信を空いている枠に読み込む (再生リストの再生とは別に 1 本だけ)', 'Load just this one into a free tile (separately from playing the playlist)'],
+  plLoadOne: ['この配信を空いている枠に入れる (再生リストの再生とは別に 1 本だけ)', 'Load just this one into a free tile (separately from playing the playlist)'],
   plAdded: ['{0} 本追加しました', 'Added {0}'],
   plAlready: ['{0} 本はもう入っています', '{0} already in it'],
   plAddFailed: ['YouTube の URL・動画 ID・@チャンネル名として読めませんでした', 'Could not read it as a YouTube URL, video ID or @handle'],
@@ -842,10 +847,6 @@ const MESSAGES = {
     '初期データのチャンネル {0} 件を、チャンネル一覧から外しますか？ (自分で追加したものと、ピックアップ (📌) に入れたものは残します。「外したものを戻す」でいつでも戻せます)',
     'Remove {0} default channels from your channels? (Channels you added and channels in pickup (📌) stay. You can bring them back any time with "Restore removed")',
   ],
-  noEmptyTile: [
-    '空いている枠がありません。枠の「📺 チャンネルから選ぶ」「📚 ライブラリから選ぶ」から開くと、その枠に読み込めます。',
-    "There's no empty tile. Open it from a tile's “📺 Pick from channels” or “📚 Pick from library” to load into that tile.",
-  ],
   menuAdded: ['右クリックから追加しました', 'Added from the right-click menu'],
   menuAlready: ['この配信はもう枠に入っています', 'This stream is already in a tile'],
   menuFull: ['{0} 枠がすべて埋まっているので追加できませんでした。どれかの枠を ✕ で空けてから、もう一度追加してください', "All {0} tiles are in use, so it couldn't be added. Clear a tile with ✕ and try again"],
@@ -880,8 +881,16 @@ const MESSAGES = {
   ],
   ended: ['■ 配信終了: {0}', '■ Ended: {0}'],
   movedFollow: ['↪ 移動先に切り替えました: {0} から', '↪ Followed to the next stream: from {0}'],
-  repeatOn: ['🔁 繰り返し ON: 動画・アーカイブが最後まで行ったら、最初から再生し直します', '🔁 Repeat ON: videos and archives start over when they reach the end'],
-  repeatOff: ['🔁 繰り返し OFF', '🔁 Repeat OFF'],
+  repeatOn: ['繰り返し ON: 動画・アーカイブが最後まで行ったら、最初から再生し直します', 'Repeat ON: videos and archives start over when they reach the end'],
+  repeatOff: ['繰り返し OFF', 'Repeat OFF'],
+  cruiseOff: ['クルーズ OFF', 'Cruise OFF'],
+  keyPaused: ['一時停止: 全部の枠を止めました (Space で再開)', 'Paused all tiles (Space to resume)'],
+  keyResumed: ['再開しました', 'Resumed'],
+  keyMuted: ['全部の枠をミュートしました', 'Muted all tiles'],
+  keySoundOn: ['音を戻しました', 'Sound back on'],
+  keyAudioAll: ['全部の枠の音を出しています', 'Playing audio from all tiles'],
+  keyAutoOn: ['自動再生 ON', 'Auto play ON'],
+  keyAutoOff: ['自動再生 OFF', 'Auto play OFF'],
   recentAutoPlaying: ['チャンネルの最近の{1} {0} 件を流しています', 'Playing {0} recent {1} from your channels'],
   recentAutoNone: ['流せる最近の{0}がありません (最近 30 日・まだ見ていないもの)', 'No recent {0} to play (last 30 days, not yet watched)'],
   kindWordVideo: ['動画', 'videos'],
@@ -911,7 +920,7 @@ const MESSAGES = {
   shotSaved: ['スクリーンショットを保存しました ({0})', 'Screenshot saved ({0})'],
   shotSavedCopied: ['スクリーンショットを保存し、クリップボードにもコピーしました ({0})', 'Screenshot saved and copied to the clipboard ({0})'],
   shotFailed: ['スクリーンショットを撮れませんでした', 'Could not take a screenshot'],
-  chooseTitle: ['どの内容で視聴しますか?', 'What would you like to watch?'],
+  chooseTitle: ['どの内容で視聴しますか？', 'What would you like to watch?'],
 };
 
 /** スクリプト用の文言。{0} {1} … に引数を入れる */
@@ -937,9 +946,9 @@ const HTML_EN = {
   'layout.title': 'Choose a layout',
   'addTile.title': 'Add a tile (the layout changes to fit the number of tiles)',
   'removeTile.title': 'Remove an empty tile (the layout changes to fit the number of tiles). Tiles with a stream are not removed',
-  'gridFs.title': 'Fullscreen with all tiles (Shift+F). Move the mouse to the top edge to show this bar',
+  'gridFs.title': 'Fullscreen with all tiles (Shift+F): move the mouse to the top edge to show this bar',
   'settings.title': 'Settings',
-  'help.title': 'Help and keyboard shortcuts (?)',
+  'help.title': 'Help (?): how to use and keyboard shortcuts',
   'close': 'Close (Esc)',
 
   // 設定
@@ -968,8 +977,8 @@ const HTML_EN = {
   'subs.h': 'Your YouTube subscriptions',
   'subs.note': 'Pick channels from the subscriptions of the YouTube account you are signed in to',
   'subs.open': 'Choose from subscriptions',
-  'subs.dialogH': '📥 Your YouTube subscriptions',
-  'subs.filter': 'Filter by name',
+  'subs.dialogH': 'Your YouTube subscriptions',
+  'subs.filter': 'Filter by name or @handle',
   'subs.all': 'Select all',
   'subs.none': 'Clear selection',
   'subs.add': 'Add to channel list',
@@ -979,9 +988,9 @@ const HTML_EN = {
   'tab.backup': 'Backup',
   'backup.h': 'Back up your settings',
   'backup.note': 'Saves settings, channels, history, Watch later and playlists to one file. Export before reinstalling',
-  'backup.export': '⬇ Export to a file',
-  'backup.import': '⬆ Import from a file',
-  'backup.importNote': 'Importing replaces your settings, channels, history and Watch later with the file',
+  'backup.export': 'Export to a file',
+  'backup.import': 'Import from a file',
+  'backup.importNote': 'Importing replaces your settings, channels, history, Watch later and playlists with the file',
   'dm.duration': 'Scroll time',
   'dm.fontScale': 'Text size',
   'dm.opacity': 'Opacity',
@@ -1045,7 +1054,7 @@ const HTML_EN = {
   'auto.cruiseNote': 'How often cruise moves on to the next stream',
 
   // 使い方
-  'help.h': '? Help',
+  'help.h': '📖 Help',
   'sync.title': 'Archive sync: play stream archives aligned to when they were actually streamed',
   'sync.label': 'Archive sync',
   'info.title': 'Tile info (I): the type (live, archive, video), stream times, viewers and views for each tile, plus left/right audio, 📌 pickup, 📃 playlists and subscribing. Click a title to open it on YouTube',
@@ -1103,13 +1112,13 @@ const HTML_EN = {
   'read.aiWantPlaceholder': 'e.g. 10 of yesterday’s streams people were talking about / this week’s collab from every participant’s view / karaoke streams I can watch tomorrow night',
   'read.ai': '📋 Copy request',
   'helpNav.start': 'Getting started',
-  'helpNav.tiles': '▦ Tiles and layouts',
+  'helpNav.tiles': 'Tiles and layouts',
   'helpNav.auto': 'Auto play',
   'helpNav.cruise': 'Cruise',
-  'helpNav.channels': '📺 Channels and notifications',
-  'helpNav.library': '📚 Library and playlists',
-  'helpNav.sync': '⏱ Archive sync',
-  'helpNav.share': '🔗 Share · 📥 Import',
+  'helpNav.channels': 'Channels and notifications',
+  'helpNav.library': 'Library and playlists',
+  'helpNav.sync': 'Archive sync',
+  'helpNav.share': 'Share · Import',
   'helpNav.look': 'Danmaku, chat and outlines',
   'helpNav.backup': 'Backup',
   'helpNav.keys': 'Keyboard',
@@ -1117,8 +1126,8 @@ const HTML_EN = {
 <ul>
 <li>Paste a URL / video ID / <code>@handle</code> into an empty tile and press Load. Pick a live stream with “📺 Pick from channels”, a past one with “📚 Pick from library”, or let “🎲 Surprise me” add one not shown yet</li>
 <li>You can also right-click a link to a YouTube video or stream and choose “Add to an empty Hakomado tile”</li>
-<li>Audio normally plays from one tile. Switch it with the audio button on a tile bar or <kbd>1</kbd>–<kbd>9</kbd>. Use the speaker in a tile’s player to hear several tiles at once</li>
-<li>For a quick look around the screen, try “▶ Replay the tour” below</li>
+<li>Audio normally plays from one tile. Switch it with 🎧 on a tile bar or <kbd>1</kbd>–<kbd>9</kbd>. Use 🔊 in ℹ️ Tile info or the speaker in a tile’s player to hear several tiles at once</li>
+<li>For a quick look around the screen, try “Replay the tour” below</li>
 </ul>`,
   'helpPage.tiles': `<ul>
 <li>Choose a layout with “▦” on the top bar. The darker tile is the main one, and loaded streams fill tiles from 1 (main) on. “+” / “−” add or remove a tile</li>
@@ -1158,7 +1167,7 @@ const HTML_EN = {
 <li><b>Pickup</b>: the channels you are following right now (e.g. the members of a group event). Filter the list with “📺 All / 📌 Pickup” at the top, and use it as the target of auto play and notifications</li>
 <li><b>🔔 Notifications</b>: tell you when a channel goes live. Choose which channels in Settings → Auto play → “Notification channels”</li>
 </ul>
-<h3>⚙ Manage channels</h3>
+<h3>Manage channels</h3>
 <ul>
 <li>Open it from “⚙ Manage” in “📺 Channels” or from Settings → Channels. Adding and removing channels is done here, not in “📺 Channels”, so you don’t remove one by mistake while looking for streams</li>
 <li>Add a channel by entering an <code>@handle</code>, a channel URL or a video URL in the box at the bottom</li>
@@ -1224,9 +1233,9 @@ const HTML_EN = {
   'audioAll.title': 'All audio (A): play audio from all tiles ⇄ mute all',
   'audioAll.label': 'All audio',
   'key.pause': 'Pause ⇄ resume all tiles (live streams resume from the latest point)',
-  'pauseAll.title': 'Pause / resume all tiles (Space). Live streams resume from the latest point',
+  'pauseAll.title': 'Pause (Space): pause / resume all tiles. Live streams resume from the latest point',
   'pauseAll.label': 'Pause',
-  'repeat.title': 'Repeat all (R): videos and archives start over when they reach the end (not live streams, or tiles that auto play / watch later refill)',
+  'repeat.title': 'Repeat (R): videos and archives start over when they reach the end (not live streams, or tiles that auto play / watch later refill)',
   'repeat.label': 'Repeat',
   'key.repeat': 'Repeat all ON / OFF',
   'key.auto': 'Auto play ON / OFF',
@@ -1237,7 +1246,7 @@ const HTML_EN = {
   'key.speed': 'Lower / raise the playback speed of the tile playing audio by one step (for a tile synced by archive sync, the whole group)',
   'speedAll.title': 'Change the playback speed of all tiles at once (synced groups change together; live streams stay at normal speed)',
   'key.danmaku': 'Hide / show danmaku on all tiles for now (unless set with ≋ on a tile, danmaku shows only on main tiles)',
-  'tour.replay': '▶ Replay the tour',
+  'tour.replay': 'Replay the tour',
   'helpNav.report': 'Report a problem',
   'helpPage.report': `<p>A record of errors in this extension and features that did not work. Use it to report problems.</p>
 <ul>
@@ -1248,7 +1257,7 @@ const HTML_EN = {
   'errlog.report': 'Report on GitHub',
   'errlog.copy': 'Copy',
   'errlog.clear': 'Delete the record',
-  'errlog.empty': 'Nothing recorded',
+  'errlog.empty': 'Nothing recorded.',
   'key.shot': 'Take a screenshot of all the tiles (saved as a PNG and copied to the clipboard. Change the key at chrome://extensions/shortcuts)',
   'key.help': 'Open this screen',
 
@@ -1273,8 +1282,8 @@ const HTML_EN = {
   'target.all': 'All channels',
   'target.fav': 'Pickup (📌) only',
   'target.off': 'Off',
-  'settings.help': '? More help',
-  'settings.helpTitle': 'Open the detailed help for this tab in “? Help”',
+  'settings.help': 'More help',
+  'settings.helpTitle': 'Open the detailed help for this tab in “📖 Help”',
   'settings.reset': 'Reset all to defaults',
   'settings.resetTitle': 'Reset all danmaku, outline, chat, display, auto play and add-on settings (the display language and channels are kept)',
   'fav.history': '🕘 Watch history',
@@ -1304,7 +1313,7 @@ const HTML_EN = {
   'queue.playTitle': 'Play Watch later in order using the current tiles. When a tile finishes, the next one goes in (no tiles are added; auto play stops)',
   'fav.historyTitle': 'Streams and videos watched in this extension (latest 100, shared by all tabs)',
   'fav.historyClear': 'Clear all watch history',
-  'sel.clear': 'Unselect',
+  'sel.clear': 'Clear selection',
   'sel.load': '▦ Load into tiles',
   'sel.loadTitle': 'Load the selected streams into empty tiles in the order you picked them (adds tiles up to 16 if needed; skips ones already in tiles)',
   'fav.refresh': '⟳ Refresh',
@@ -1314,6 +1323,7 @@ const HTML_EN = {
   'cm.settingsH': 'Manage channels',
   'cm.settingsNote': 'Add channels, remove many at once, channel packs and importing your YouTube subscriptions are in the “Manage channels” screen',
   'cm.open': '⚙ Manage channels',
+  'cm.openPlain': 'Manage channels',
   'cm.h': '⚙ Manage channels',
   'cm.btn': '⚙ Manage',
   'cm.btnTitle': 'Add channels, remove many at once, and channel packs',
@@ -1344,11 +1354,11 @@ const HTML_EN = {
   'mix.gainTitle': 'Volume of this tile (100% = as it is). Use it to even out loud and quiet streams',
   'mix.delay': 'Audio delay',
   'mix.delayTitle': 'Delay only the audio of this tile by this many seconds (the picture stays as it is). For a live stream whose voices come earlier than the other tiles. Enter to apply',
-  'tile.audio': 'Play audio only from this tile (others are muted). To listen to several tiles at once, use the speaker in each player',
+  'tile.audio': 'Listen to this tile only (1–9): mutes the other tiles. To listen to several tiles together, use ℹ️ Tile info',
   'tile.chat': 'Show the chat panel',
   'tile.danmaku': 'Danmaku on this tile',
   'tile.reload': 'Reload (if the video or chat misbehaves)',
-  'tile.max': 'Watch this tile in fullscreen (also Shift+number. Esc to return)',
+  'tile.max': 'Fullscreen (Shift+1–9): watch this tile in fullscreen. Esc to return',
   'tile.clear': 'Close this tile',
 };
 

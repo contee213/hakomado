@@ -1338,7 +1338,7 @@ function renderTile(i, { reloadPlayer = false, reloadChat = false } = {}) {
 
   // --- bar state
   const audio = el.querySelector('.bar [data-act="audio"]');
-  audio.textContent = t.muted ? '🔇' : '🔊';
+  // 🎧 = この枠だけ鳴らす (音を入れる・切るの 🔊 / 🔇 は枠の情報の側。押すとほかの枠の音は切る)
   audio.classList.toggle('on', !t.muted);
   el.classList.toggle('audible', visible && tileFilled(t) && !t.muted && state.count > 1);
   setToggle(el.querySelector('.bar [data-act="chat"]'), t.chat);
@@ -1895,8 +1895,8 @@ window.addEventListener('message', (e) => {
 });
 
 // 音声の操作は 2 通り:
-//  - 拡張機能側 (枠の 🔊 / 数字キー / 上部バー / 全画面): solo。その枠だけ音を出し、他はミュート
-//  - 枠内の YouTube プレイヤーのスピーカー: その枠だけ切り替え。他の枠はそのまま (複数枠の同時再生用)
+//  - 枠のバーの 🎧 / 数字キー / 全画面: solo。その枠だけ音を出し、他はミュート
+//  - ℹ️ 枠の情報の 🔊 / 枠内の YouTube プレイヤーのスピーカー: その枠だけ切り替え。他の枠はそのまま (複数枠の同時再生用)
 
 /** i 番の枠の音を切り替える。solo なら i 番だけ音を出し、他はミュート */
 function setAudio(i, { solo, on } = {}) {
@@ -2037,12 +2037,13 @@ function applyLoop(i) {
 }
 
 /** 全枠繰り返し再生の ON / OFF (上部バーの 🔁・R キー) */
-function setRepeatAll(on) {
+/** notice: キーで切り替えたとき (ボタンなら見た目で分かるので知らせない。デザインガイド 6 章) */
+function setRepeatAll(on, { notice = false } = {}) {
   state.repeatAll = on;
   setToggle(document.getElementById('repeatAll'), on);
   for (const i of state.tiles.keys()) applyLoop(i);
   save();
-  notify(tr(on ? 'repeatOn' : 'repeatOff'));
+  if (notice) notify(tr(on ? 'repeatOn' : 'repeatOff'));
 }
 
 function updatePauseButton() {
@@ -4545,7 +4546,7 @@ const AudioSync = (() => {
   function measuringEl() {
     const title = mk('div', { class: 'dga-title' });
     const sub = mk('div', { class: 'dga-legend' });
-    const now = mk('button', { type: 'button', class: 'primary', textContent: tr('syncAudioFinishNow'), title: tr('syncAudioFinishNowTitle'), onclick: () => finish() });
+    const now = mk('button', { type: 'button', class: 'primary-action', textContent: tr('syncAudioFinishNow'), title: tr('syncAudioFinishNowTitle'), onclick: () => finish() });
     const stop = mk('button', { type: 'button', textContent: tr('syncAudioStop'), onclick: () => cancel() });
     const el = mk('div', { class: 'dg-audio-result is-measuring' }, title, sub, mk('div', { class: 'dga-buttons' }, now, stop));
     return {
@@ -4608,7 +4609,7 @@ const AudioSync = (() => {
       mk(
         'div',
         { class: 'dga-buttons' },
-        mk('button', { type: 'button', class: 'primary', textContent: tr('syncAudioApply'), onclick: applyResult }),
+        mk('button', { type: 'button', class: 'primary-action', textContent: tr('syncAudioApply'), onclick: applyResult }),
         retryButton(result.g),
         mk('button', { type: 'button', textContent: tr('syncAudioClose'), onclick: dismiss }),
       ),
@@ -7607,11 +7608,17 @@ function setupToolbar() {
     }
     if (e.code === 'Space') {
       e.preventDefault(); // ページのスクロールやボタンの押し直しにしない
-      if (!document.getElementById('pauseAll').disabled) togglePauseAll();
+      // キーで切り替えたときは、上部バーが見えていなくても分かるように知らせる (ボタンのときは出さない)
+      if (!document.getElementById('pauseAll').disabled) {
+        togglePauseAll();
+        notify(tr(pausedAll ? 'keyPaused' : 'keyResumed'));
+      }
     } else if (e.key === 'm' || e.key === 'M') {
       toggleMuteAll();
+      notify(tr(audibleTiles().length ? 'keySoundOn' : 'keyMuted'));
     } else if (e.key === 'a' || e.key === 'A') {
       toggleAudioAll();
+      notify(tr(allAudible() ? 'keyAudioAll' : 'keyMuted'));
     } else if (e.key === 'd' || e.key === 'D') {
       toggleDanmakuAll();
     } else if (e.key === '>' || e.key === '<') {
@@ -7624,10 +7631,11 @@ function setupToolbar() {
       openFavorites(null, 'library');
     } else if (e.key === 'l' || e.key === 'L') {
       setAutoMode(!state.autoMode);
+      notify(tr(state.autoMode ? 'keyAutoOn' : 'keyAutoOff'));
     } else if (e.key === 'c' || e.key === 'C') {
-      if (!document.getElementById('cruise').disabled) setCruise(!state.cruise);
+      if (!document.getElementById('cruise').disabled) setCruise(!state.cruise, { notice: true });
     } else if (e.key === 'r' || e.key === 'R') {
-      setRepeatAll(!state.repeatAll);
+      setRepeatAll(!state.repeatAll, { notice: true });
     } else if (e.key === 'i' || e.key === 'I') {
       TileInfo.open();
     } else if (/^[1-9]$/.test(e.key)) {
@@ -8223,6 +8231,9 @@ function setFavMode(mode, { render = true } = {}) {
   document.getElementById('favManage').hidden = favMode !== 'all';
   if (favMode !== 'all') document.getElementById('favEmptyActions').hidden = true;
   document.getElementById('historyClear').hidden = favMode !== 'history';
+  // 絞り込み欄の案内は、そのタブで実際に当てるものを書く (デザインガイド 9 章)
+  const FILTER_HINT = { all: 'filterChannels', archive: 'filterArchive', saved: 'filterVideos', history: 'filterVideos', playlists: 'filterPlaylist' };
+  document.getElementById('favFilter').placeholder = tr(FILTER_HINT[favMode]);
   const queueBtn = document.getElementById('queuePlay');
   queueBtn.hidden = favMode !== 'saved' && favMode !== 'playlists';
   queueBtn.disabled = false; // 再生リストのタブでは、中身が無ければ描くときに押せなくする
@@ -8367,7 +8378,7 @@ function videoItem(h, saved, { onRemove, removeTitle, entry } = {}) {
 function loadFromHistory(h) {
   const target = favTarget ?? emptyTileOrAdd();
   if (target == null) {
-    favErrorEl.textContent = tr('noEmptyTile');
+    favErrorEl.textContent = tr('menuFull', MAX_TILES);
     return;
   }
   putHistoryInto(target, h);
@@ -10081,7 +10092,7 @@ function setupSubscriptions() {
     if (!list.length) {
       const li = document.createElement('li');
       li.className = 'subs-empty';
-      li.textContent = tr(subs.length ? 'subsNoMatch' : 'subsEmpty');
+      li.textContent = subs.length ? tr('subsNoMatch', filterEl.value.trim()) : tr('subsEmpty');
       ul.replaceChildren(li);
     } else {
       ul.replaceChildren(
@@ -10178,9 +10189,10 @@ async function afterPresetsChanged() {
 }
 
 function pickFavorite(f, st) {
-  const target = favTarget ?? firstEmptyTile();
+  // ライブラリ・右クリックと同じく、空き枠が無ければ 16 枠まで枠を足して入れる
+  const target = favTarget ?? emptyTileOrAdd();
   if (target == null) {
-    favErrorEl.textContent = tr('noEmptyTile');
+    favErrorEl.textContent = tr('menuFull', MAX_TILES);
     return;
   }
   setTileVideo(target, st.videoId, f.handle || `https://www.youtube.com/channel/${f.channelId}`);
@@ -11133,14 +11145,15 @@ function formatCruise(sec) {
   return s ? tr('minSec', m, s) : tr('min', m);
 }
 
-function setCruise(on) {
+/** notice: キーで切り替えたとき (setRepeatAll と同じ) */
+function setCruise(on, { notice = false } = {}) {
   state.cruise = on;
   setToggle(document.getElementById('cruise'), on);
   updateSlotButtons();
   save();
   // ON にしただけではレイアウトは変えない (空き枠もそのまま。回すのは中身のある枠だけ)
   restartCruise();
-  if (on) notify(tr('cruiseOn', formatCruise(state.settings.cruiseSec)));
+  if (notice) notify(on ? tr('cruiseOn', formatCruise(state.settings.cruiseSec)) : tr('cruiseOff'));
 }
 
 /** 次に回すまでの時間を最初から数え直す (自分で音や並びを変えた直後に回さないため) */
@@ -11356,6 +11369,8 @@ function setupNotices() {
   });
   document.getElementById('noticeClose').addEventListener('click', () => noticeDialog.close());
   document.getElementById('noticeClear').addEventListener('click', async () => {
+    const n = (await readNotices()).length;
+    if (!n || !confirm(tr('noticeClearConfirm', n))) return;
     await mutateNotices(() => []);
     renderNotices();
   });
@@ -11371,9 +11386,15 @@ function setupNotices() {
 function notify(text) {
   const el = document.getElementById('globalToast');
   el.textContent = text;
+  // popover (最前面) で出す。開いているダイアログ (showModal) より前に出すため、出し直して一番上に積む
+  if (el.matches(':popover-open')) el.hidePopover();
+  el.showPopover();
   el.classList.add('show');
   clearTimeout(el._timer);
-  el._timer = setTimeout(() => el.classList.remove('show'), 3500);
+  el._timer = setTimeout(() => {
+    el.classList.remove('show');
+    el._timer = setTimeout(() => el.matches(':popover-open') && el.hidePopover(), 250); // 薄れてから閉じる
+  }, 3500);
 }
 
 // ---------------------------------------------------------------- 再生枠のスクリーンショット
@@ -11557,8 +11578,7 @@ async function addFavorite(raw, onSuccess) {
 function toggleDanmakuAll() {
   state.danmakuAll = !state.danmakuAll;
   renderAll();
-  const first = visibleIndexes()[0];
-  if (first != null) showToast(first, tr(state.danmakuAll ? 'danmakuAllOn' : 'danmakuAllOff'));
+  notify(tr(state.danmakuAll ? 'danmakuAllOn' : 'danmakuAllOff')); // D キーだけの操作なので、いつも知らせる
 }
 
 // ---------------------------------------------------------------- boot
@@ -11788,6 +11808,15 @@ function askChoice({ title, body, choices, cancelValue = null }) {
   closeBtn.hidden = !cancelable;
   closeBtn.onclick = cancelable ? cancel : null;
   dialog.addEventListener('cancel', onCancel);
+  // 閉じられるとき (✕ が出ているとき) は、ほかのダイアログと同じく背景のクリックでも閉じる。起動直後は閉じない
+  let downOnBackdrop = false;
+  const onDown = (e) => (downOnBackdrop = e.target === dialog);
+  const onBackdrop = (e) => {
+    if (cancelable && e.target === dialog && downOnBackdrop) cancel();
+    downOnBackdrop = false;
+  };
+  dialog.addEventListener('pointerdown', onDown);
+  dialog.addEventListener('click', onBackdrop);
   dialog.showModal();
   // 閉じられるときは ✕ にフォーカス (Enter の押し間違いで新しく始めないように)
   (cancelable ? closeBtn : wrap.firstElementChild)?.focus();
@@ -11799,6 +11828,8 @@ function askChoice({ title, body, choices, cancelValue = null }) {
   answered.then(() => {
     dialog.removeEventListener('close', onClose);
     dialog.removeEventListener('cancel', onCancel);
+    dialog.removeEventListener('pointerdown', onDown);
+    dialog.removeEventListener('click', onBackdrop);
   });
   return answered;
 }
