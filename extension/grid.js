@@ -32,10 +32,12 @@ const DEFAULT_SETTINGS = {
   cruiseSec: 120, // クルーズでメイン枠 (と音声) を次の配信に回す間隔 (秒)
   prestartMin: 10, // 開始の何分前から、配信予定の枠を用意しておくか (0 = しない)
   autoArchive: false, // 自動再生: 配信中が 1 本も無いときは、最近の動画 (配信のアーカイブなど) を流す
-  // 自動再生のコンテンツ (最近の動画で流す種類): 配信 (アーカイブ)・動画・ショート
-  autoArchiveLives: true, // 配信のアーカイブを流す
-  autoArchiveVideos: true, // 動画 (プレミア公開・MV など) を流す
-  autoArchiveShorts: false, // ショートを流す (縦型の配信はふつうの配信として流す)
+  autoArchiveVideos: true, // そのとき、動画 (プレミア公開・MV など) も流す
+  autoArchiveShorts: false, // そのとき、ショートも流す (縦型の配信はふつうの配信として流す)
+  // 自動再生のコンテンツ: 配信 (いつも) に加えて、時間指定で公開される動画・ショート (プレミア公開) も、
+  // 配信と同じように自動再生・通知の対象にする。外すと、その分の確認 (「動画」「ショート」の RSS) をしないので軽くなる
+  autoPremiereVideos: true,
+  autoPremiereShorts: true,
   autoPickupMain: true, // 自動再生: ピックアップ (📌) のライブ配信をメイン枠に優先して置く
   autoMaxTiles: 8, // 自動再生で同時に再生する最大の枠数 (回線が細いときは少なく)
   autoTarget: 'all', // 自動再生のチャンネル: 'all' = チャンネル全部 / 'fav' = ピックアップ (📌) だけ
@@ -6690,7 +6692,7 @@ function stepIndex(key, v) {
   return best;
 }
 
-const SETTING_CHECKBOXES = ['showPaid', 'chatHideAvatars', 'hlAnimate', 'verticalLiveFit', 'skipMembersOnly', 'autoArchive', 'autoArchiveLives', 'autoArchiveVideos', 'autoArchiveShorts', 'autoPickupMain'];
+const SETTING_CHECKBOXES = ['showPaid', 'chatHideAvatars', 'hlAnimate', 'verticalLiveFit', 'skipMembersOnly', 'autoArchive', 'autoArchiveVideos', 'autoArchiveShorts', 'autoPremiereVideos', 'autoPremiereShorts', 'autoPickupMain'];
 const SETTING_SELECTS = ['dmFont', 'dmWeight', 'authorName', 'autoTarget', 'noticeTarget'];
 
 /** 設定画面の入力欄を state.settings に合わせる (他のタブで設定が変わったときも呼ぶ) */
@@ -6950,6 +6952,8 @@ function setupToolbar() {
     input.addEventListener('change', () => {
       state.settings[key] = input.checked;
       onSettingChanged(key);
+      // 対象が変わったら、通知の次の確認は今の状態を覚えるだけ (入れたばかりの種類の配信を「始まった」と知らせない)
+      if (key === 'autoPremiereVideos' || key === 'autoPremiereShorts') knownLive = null;
     });
   }
   for (const key of SETTING_SELECTS) {
@@ -7159,7 +7163,7 @@ function queueFavStatuses(favs, force, { quick = false } = {}) {
 async function favWorker() {
   for (let q = favQueue.shift(); q; q = favQueue.shift()) {
     try {
-      favStatus.set(q.f.channelId, await Favorites.fetchStatus(q.f, { force: q.force, quick: q.quick }));
+      favStatus.set(q.f.channelId, await Favorites.fetchStatus(q.f, { force: q.force, quick: q.quick, kinds: premiereKinds() }));
     } catch (e) {
       console.warn('hakomado: 配信状況の取得に失敗', q.f.name, e);
       favStatus.set(q.f.channelId, 'error');
@@ -7349,7 +7353,7 @@ function loadArchives(favs, { force = false } = {}) {
     (async () => {
       for (let q = archiveQueue.shift(); q; q = archiveQueue.shift()) {
         try {
-          archiveData.set(q.f.channelId, await Favorites.fetchArchives(q.f.channelId, { force: q.force }));
+          archiveData.set(q.f.channelId, await Favorites.fetchArchives(q.f.channelId, { force: q.force, shorts: true }));
         } catch (e) {
           console.warn('hakomado: アーカイブの取得に失敗', q.f.name, e);
           archiveData.set(q.f.channelId, 'error');
@@ -7463,11 +7467,11 @@ async function renderArchiveTab({ force = false } = {}) {
 }
 
 
-/** 自動再生・おまかせで流してよい種類か (設定の「自動再生のコンテンツ」: 配信・動画・ショート) */
+/** 自動再生・おまかせで流してよい種類か (設定の「動画も流す」「ショートも流す」) */
 function autoKindAllowed(v) {
   if (v.kind === 'short') return state.settings.autoArchiveShorts;
   if (v.kind === 'video') return state.settings.autoArchiveVideos;
-  return state.settings.autoArchiveLives !== false;
+  return true;
 }
 
 /** 配信中・配信予定と分かっている配信は、アーカイブには出さない (チャンネルの配信状況と照らし合わせる) */
@@ -9112,6 +9116,11 @@ function pickFavorite(f, st) {
  * quick = 自動再生を ON にした最初の 1 回 (待たせないように、ホロジュールで分かるチャンネルの RSS は取り直さない。
  *   動画のページを確かめる件数も 1 分ごとの確認と同じに抑える)
  */
+/** 設定の「自動再生のコンテンツ」: プレミア公開の動画・ショートも配信と同じに扱うか */
+function premiereKinds() {
+  return { video: state.settings.autoPremiereVideos !== false, short: state.settings.autoPremiereShorts !== false };
+}
+
 async function collectLiveFavorites({ force = false, auto = false, quick = false, onProgress = null, target = 'all' } = {}) {
   const favs = (await Favorites.list()).filter((f) => target !== 'fav' || f.star);
   let done = 0;
@@ -9127,7 +9136,7 @@ async function collectLiveFavorites({ force = false, auto = false, quick = false
     while (next < favs.length) {
       const f = favs[next++];
       try {
-        const st = await Favorites.fetchStatus(f, { force, auto, budget, quick });
+        const st = await Favorites.fetchStatus(f, { force, auto, budget, quick, kinds: premiereKinds() });
         favStatus.set(f.channelId, st);
         results.push({ f, st });
       } catch (e) {
@@ -9847,7 +9856,7 @@ async function archiveCandidates(channels, { onProgress = null } = {}) {
     for (let f = queue.shift(); f; f = queue.shift()) {
       let d;
       try {
-        d = await Favorites.fetchArchives(f.channelId);
+        d = await Favorites.fetchArchives(f.channelId, { shorts: state.settings.autoArchiveShorts });
         archiveData.set(f.channelId, d);
         archiveFailedAt.delete(f.channelId);
       } catch {

@@ -1342,7 +1342,7 @@ dialog.settings-dialog { width: min(780px, calc(100% - 32px)); overflow: hidden;
 /* すぐ上の項目の細かい設定 (自動再生で流す種類など) */
 .settings-form label.check.sub-check { margin-left: 1.5em; }
 /* 自動再生のコンテンツ (配信・動画・ショート) は 1 行に並べる */
-.settings-form .auto-kinds { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; margin-left: 1.5em; }
+.settings-form .auto-kinds { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; }
 .settings-form .auto-kinds .field-label { flex-basis: 100%; }
 .settings-form .settings-note.sub-check { margin-left: 1.5em; }
 .settings-form label.check > span { font-weight: 600; }

@@ -197,6 +197,14 @@
         <label><span data-i18n="notice.target">通知のチャンネル</span>
           <select id="noticeTarget"><option value="all" data-i18n="target.all">チャンネル全部</option><option value="fav" data-i18n="target.fav">ピックアップ (📌) だけ</option><option value="off" data-i18n="target.off">知らせない</option></select>
         </label>
+        <!-- 自動再生のコンテンツ: 配信はいつも。時間指定で公開される動画・ショート (プレミア公開) も対象にするか -->
+        <div class="auto-kinds">
+          <span class="field-label" data-i18n="auto.kinds">自動再生のコンテンツ</span>
+          <label class="check"><input type="checkbox" checked disabled> <span data-i18n="auto.kindLive">配信</span></label>
+          <label class="check"><input type="checkbox" id="autoPremiereVideos"> <span data-i18n="auto.kindVideo">動画</span></label>
+          <label class="check"><input type="checkbox" id="autoPremiereShorts"> <span data-i18n="auto.kindShort">ショート</span></label>
+        </div>
+        <p class="settings-note" data-i18n="auto.kindsNote">時間指定で公開される動画・ショート (プレミア公開) も、配信と同じように流して知らせます。外すと確認が減って軽くなります</p>
         <label class="check"><input type="checkbox" id="skipMembersOnly"> <span data-i18n="auto.skip">メンバーになっていないメンバー限定配信は再生しない</span></label>
         <p class="settings-note" data-i18n="auto.skipNote">ログイン中のアカウントで見られない配信は入れません</p>
         <label><span data-i18n="auto.maxTiles">自動再生の最大枠数</span> <output id="autoMaxTilesOut"></output>
@@ -213,14 +221,8 @@
         <p class="settings-note" data-i18n="auto.prestartNote">配信予定の枠を開始前に作っておきます</p>
         <label class="check"><input type="checkbox" id="autoArchive"> <span data-i18n="auto.archive">配信中が無いときは、最近の動画を流す</span></label>
         <p class="settings-note" data-i18n="auto.archiveNote">ライブが無いときに、最近の動画を 4 枠流します</p>
-        <!-- 自動再生のコンテンツ: 最近の動画 (ライブが無いとき・🎲 おまかせ) で流す種類。ライブ配信はいつも流す -->
-        <div class="auto-kinds sub-check">
-          <span class="field-label" data-i18n="auto.kinds">自動再生のコンテンツ</span>
-          <label class="check"><input type="checkbox" id="autoArchiveLives"> <span data-i18n="auto.archiveLives">配信</span></label>
-          <label class="check"><input type="checkbox" id="autoArchiveVideos"> <span data-i18n="auto.archiveVideos">動画</span></label>
-          <label class="check"><input type="checkbox" id="autoArchiveShorts"> <span data-i18n="auto.archiveShorts">ショート</span></label>
-        </div>
-        <p class="settings-note sub-check" data-i18n="auto.kindsNote">最近の動画で流す種類 (配信 = 配信のアーカイブ、動画 = プレミア公開・MV など)。ライブ配信はいつも流します</p>
+        <label class="check sub-check"><input type="checkbox" id="autoArchiveVideos"> <span data-i18n="auto.archiveVideos">動画 (プレミア公開・MV など) も流す</span></label>
+        <label class="check sub-check"><input type="checkbox" id="autoArchiveShorts"> <span data-i18n="auto.archiveShorts">ショートも流す</span></label>
         <label><span data-i18n="auto.cruise">クルーズの間隔</span> <output id="cruiseSecOut"></output>
           <input type="range" id="cruiseSec" min="0" max="13" step="1">
         </label>
@@ -332,11 +334,12 @@
             <h3>設定 → 自動再生</h3>
             <ul>
               <li><b>自動再生のチャンネル</b>: すべてのチャンネルか、ピックアップ (📌) だけか</li>
+              <li><b>自動再生のコンテンツ</b>: 配信のほかに、時間指定で公開される動画・ショート (プレミア公開) も、配信と同じように枠に入れて知らせるか。外すと公開予定の確認が減って軽くなります</li>
               <li><b>メンバーになっていないメンバー限定配信は再生しない</b>: ログイン中のアカウントで見られるかを、枠に入れる前に確かめます</li>
               <li><b>自動再生の最大枠数</b>: 配信中のものが多くても、この数までしか再生しません。回線が細いときや、パソコンが重いときは減らしてください</li>
               <li><b>ピックアップ (📌) の配信をメイン枠に優先して置く</b>: ピックアップのライブ配信を大きいメイン枠に入れ、ほかはサブ枠に回します。最大枠数に届いたときも、ピックアップを先に入れます。メイン枠の無い均等レイアウトと、クルーズ中は並べ替えません</li>
               <li><b>配信予定の枠を用意する</b>: 開始前から枠を作り、最初から見られるようにします。配信中のものが 1 つも無いときは、次に始まる配信予定と、その開始から 1 時間以内に始まる予定を出します</li>
-              <li><b>配信中が無いときは、最近の動画を流す</b>: 深夜などライブが 1 本も無いときに、チャンネルの最近終わった配信や公開された動画を 4 枠流します (ピックアップが先、一度見たものは除く。配信のアーカイブ・動画・ショートのどれを流すかは「自動再生のコンテンツ」で選べます)。ライブが始まったら片付けます</li>
+              <li><b>配信中が無いときは、最近の動画を流す</b>: 深夜などライブが 1 本も無いときに、チャンネルの最近終わった配信や公開された動画を 4 枠流します (ピックアップが先、一度見たものは除く。動画・ショートも流すかは設定で選べます)。ライブが始まったら片付けます</li>
             </ul>
           </section>
           <section class="help-page" data-help-page="cruise" role="tabpanel" data-i18n-html="helpPage.cruise" hidden>
