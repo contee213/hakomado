@@ -1,5 +1,5 @@
 // セットの画面 (/s/:id)。画面の切り替えは js/app.js が SET_VIEW.enter を呼ぶ
-/* global api, el, layoutPreview, tagLinks, errorText, savedKeys, forgetKey, copyText, timeAgo, t */
+/* global api, el, layoutPreview, tagLinks, errorText, savedKeys, forgetKey, copyText, timeAgo, t, thumbOf, pageOf, twitchName */
 /* exported SET_VIEW */
 'use strict';
 
@@ -57,11 +57,13 @@ const SET_VIEW = (() => {
         return el(
           'li',
           v.gone ? { class: 'gone' } : {},
-          el('img', { src: `https://i.ytimg.com/vi/${vid}/default.jpg`, alt: '', loading: 'lazy', width: '96', height: '72' }),
+          thumbOf(vid)
+            ? el('img', { src: thumbOf(vid), alt: '', loading: 'lazy', width: '96', height: '72' })
+            : el('span', { class: 'thumb twitch', text: 'Twitch' }),
           el(
             'div',
             {},
-            el('a', { href: `https://www.youtube.com/watch?v=${vid}`, target: '_blank', rel: 'noopener', text: v.title || vid }),
+            el('a', { href: pageOf(vid), target: '_blank', rel: 'noopener', text: v.title || v.channel || twitchName(vid) || vid }),
             el('p', { class: 'sub', text: [v.gone ? t('goneVideo') : '', v.channel, sync].filter(Boolean).join(' · ') }),
           ),
         );

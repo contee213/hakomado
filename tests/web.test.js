@@ -301,3 +301,16 @@ test('Access の証明書: 署名・AUD・発行元・期限・メールを確�
   await fails(`${b64url(JSON.stringify({ alg: 'none', kid: 'k1' }))}.${b}.`, {}, 'alg'); // 署名なしは通さない
   assert.ok(h);
 });
+
+test('Twitch の枠入りのセット: コード・リンク・動画の並び (Twitch の URL) から読み、同じセットの判定にも Twitch を含める', () => {
+  const r = core.parseSubmission(`#Hakomado u2x2.${A}${B} "夜の部" ~t 1=lofigirl,3=v:2938768445`);
+  assert.equal(r.ok, true);
+  assert.deepEqual([...r.set.ids], [A, 'tw:lofigirl', B, 'tw:v:2938768445']);
+  const b = core.buildSubmission({ videos: ['https://www.twitch.tv/LofiGirl', A, 'https://www.twitch.tv/videos/2938768445', 'tw:shroud'] });
+  assert.equal(b.ok, true);
+  assert.deepEqual([...b.set.ids], ['tw:lofigirl', A, 'tw:v:2938768445', 'tw:shroud']);
+  assert.notEqual(core.canonical(r.set), core.canonical({ ...r.set, ids: [A, B] }));
+  // Twitch だけのセット
+  assert.deepEqual([...core.parseSubmission('#Hakomado u1x2. ~t 0=lofigirl,1=shroud').set.ids], ['tw:lofigirl', 'tw:shroud']);
+  assert.deepEqual(core.buildSubmission({ videos: ['https://www.twitch.tv/directory'] }), { ok: false, error: 'bad_video' });
+});

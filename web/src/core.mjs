@@ -1,5 +1,5 @@
 // Worker の中身のうち、D1 や fetch に触らない部分 (tests/web.test.js から試せるように分けてある)
-import { getLayout, LAYOUTS, layoutIdOf, formatShareCode, formatShareLink, parseShareCode, parseShareLink, shareName, videoIdFromUrl } from './gen/ext.mjs';
+import { getLayout, LAYOUTS, layoutIdOf, formatShareCode, formatShareLink, parseShareCode, parseShareLink, shareName, videoIdFromUrl, twitchIdFromUrl, TWITCH_ID_RE } from './gen/ext.mjs';
 
 export const AUTHOR_MAX = 30;
 export const TEXT_MAX = 2000; // 貼られたテキストの上限 (コード・リンクは長くても 1000 文字ほど)
@@ -50,7 +50,8 @@ export function buildSubmission(input) {
   const ids = [];
   for (const v of input.videos) {
     const s = String(v ?? '').trim();
-    const id = /^[A-Za-z0-9_-]{11}$/.test(s) ? s : videoIdFromUrl(s);
+    // YouTube の URL か動画 ID、Twitch のチャンネル・VOD の URL か枠の ID (tw:…)
+    const id = /^[A-Za-z0-9_-]{11}$/.test(s) || TWITCH_ID_RE.test(s) ? s : videoIdFromUrl(s) || twitchIdFromUrl(s);
     if (!id) return { ok: false, error: 'bad_video' };
     if (!ids.includes(id)) ids.push(id);
   }

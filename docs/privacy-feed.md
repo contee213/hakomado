@@ -45,7 +45,7 @@ The policy for the Hakomado Chrome extension is in [privacy.md](privacy.md).
 
 ### 外部のサービス
 
-このサイトは Cloudflare の上で動いています。動画の情報とサムネイルは YouTube から取ります。X でログインしたときは X (ログインとユーザーの情報) を使い、その扱いは [X のプライバシーポリシー](https://x.com/ja/privacy) に従います。
+このサイトは Cloudflare の上で動いています。動画の情報とサムネイルは YouTube から取ります。セットに Twitch のチャンネル・VOD が入っているときは、その名前を Twitch の公開ページから、サムネイルを Twitch から取ります。X でログインしたときは X (ログインとユーザーの情報) を使い、その扱いは [X のプライバシーポリシー](https://x.com/ja/privacy) に従います。
 
 ### 消し方
 
@@ -91,7 +91,7 @@ Display settings (such as the language) and, when you sign in with X, a sign-in 
 
 ### External services
 
-This site runs on Cloudflare. Video information and thumbnails come from YouTube. When you sign in with X, X is used (sign-in and user information) under [X's privacy policy](https://x.com/privacy).
+This site runs on Cloudflare. Video information and thumbnails come from YouTube. When a set includes Twitch channels or VODs, their names come from Twitch's public pages and thumbnails come from Twitch. When you sign in with X, X is used (sign-in and user information) under [X's privacy policy](https://x.com/privacy).
 
 ### Deleting
 

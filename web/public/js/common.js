@@ -1,7 +1,7 @@
 // どの画面でも使うもの: API の呼び出し、レイアウトの形にサムネイルを並べた絵、文言
 // 先に js/i18n.js と js/ext/ (拡張機能の layouts-generated.js・layouts.js・share-code.js) を読み込んでおく
 /* global LAYOUTS, layoutIdOf, solveTracks, t, LANG, FEAT */
-/* exported api, layoutPreview, setCard, tagLinks, errorText, el, savedKeys, saveKey, forgetKey, copyText, timeAgo */
+/* exported api, layoutPreview, setCard, tagLinks, errorText, el, savedKeys, saveKey, forgetKey, copyText, timeAgo, thumbOf, pageOf */
 'use strict';
 
 /** API の error をその言語の文にする (知らないものはサーバーの問題として) */
@@ -51,15 +51,35 @@ function layoutPreview(layoutId, ids, { big = false } = {}) {
     cell.style.width = `${((sum(colW, x + w) - sum(colW, x)) / W) * 100}%`;
     cell.style.height = `${((sum(rowH, y + h) - sum(rowH, y)) / H) * 100}%`;
     const id = ids[k];
-    if (id) {
-      const img = el('img', { src: `https://i.ytimg.com/vi/${id}/${big ? 'hqdefault' : 'mqdefault'}.jpg`, alt: '', loading: 'lazy', decoding: 'async' });
+    const src = id ? thumbOf(id, big) : '';
+    if (src) {
+      const img = el('img', { src, alt: '', loading: 'lazy', decoding: 'async' });
       cell.append(img);
+    } else if (id) {
+      cell.classList.add('twitch'); // サムネイルの分からない Twitch の VOD
     } else {
       cell.classList.add('empty');
     }
     box.append(cell);
   });
   return box;
+}
+
+/**
+ * 枠のサムネイルの URL。Twitch のチャンネルのライブは配信のサムネイル (配信していなければ Twitch のオフラインの画像)。
+ * Twitch の VOD は ID から作れないので '' (紫の枠だけ出す)
+ */
+function thumbOf(id, big = false) {
+  if (id.startsWith('tw:v:')) return '';
+  if (id.startsWith('tw:')) return `https://static-cdn.jtvnw.net/previews-ttv/live_user_${id.slice(3)}-${big ? '640x360' : '320x180'}.jpg`;
+  return `https://i.ytimg.com/vi/${id}/${big ? 'hqdefault' : 'mqdefault'}.jpg`;
+}
+
+/** 枠のページの URL (YouTube の動画 / Twitch のチャンネル・VOD) */
+function pageOf(id) {
+  if (id.startsWith('tw:v:')) return `https://www.twitch.tv/videos/${id.slice(5)}`;
+  if (id.startsWith('tw:')) return `https://www.twitch.tv/${id.slice(3)}`;
+  return `https://www.youtube.com/watch?v=${id}`;
 }
 
 /** タグのリンク (一覧をそのタグで絞り込む)。機能フラグ tags がオフなら空 */

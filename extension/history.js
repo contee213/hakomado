@@ -4,11 +4,16 @@
 // 勝手に消えた・間違えて閉じた配信を履歴から戻せるようにする。
 // 視聴履歴・あとで見るで共通: 保存されている 1 件が正しい形か (壊れたデータや古い版のデータで一覧が止まらないように) と、
 // 残す項目だけを取り出す (長すぎる文字は切る)
+// 入れられるもの: YouTube の動画 (11 文字)・Twitch の VOD (tw:v:<数字>)。
+// Twitch のチャンネルのライブ (tw:<名前>) は、チャンネルごとに同じ ID で開くたびに中身が変わるので、視聴履歴にだけ入れる (live: true)
 const VideoEntry = (() => {
   'use strict';
-  const VIDEO_ID_RE = /^[A-Za-z0-9_-]{11}$/;
+  const VIDEO_ID_RE = /^(?:[A-Za-z0-9_-]{11}|tw:v:\d{1,12})$/;
+  const TWITCH_LIVE_RE = /^tw:[a-z0-9_]{1,25}$/;
   const KINDS = ['live', 'video', 'short'];
-  const valid = (h) => h && typeof h === 'object' && typeof h.videoId === 'string' && VIDEO_ID_RE.test(h.videoId);
+  /** 正しい形か。live = Twitch のチャンネルのライブも入れる (視聴履歴だけ) */
+  const validId = (id, { live = false } = {}) => typeof id === 'string' && (VIDEO_ID_RE.test(id) || (live && TWITCH_LIVE_RE.test(id)));
+  const valid = (h, opts) => !!h && typeof h === 'object' && validId(h.videoId, opts);
   const pick = (info) => {
     const out = {};
     for (const k of ['title', 'channel', 'handle', 'channelId', 'label', 'input']) {
@@ -16,14 +21,17 @@ const VideoEntry = (() => {
     }
     // 種類 (ライブラリの種類の絞り込み用): live = 配信 (アーカイブ・配信中・配信予定) / video = 動画 / short = ショート
     if (KINDS.includes(info?.kind)) out.kind = info.kind;
+    // Twitch の VOD のサムネイル (YouTube と違って ID から作れないので、分かったときに覚えておく。Twitch の画像の置き場所だけ)
+    if (typeof info?.thumb === 'string' && /^https:\/\/static-cdn\.jtvnw\.net\//.test(info.thumb)) out.thumb = info.thumb.slice(0, 1000);
     return out;
   };
-  return { valid, pick };
+  return { valid, validId, pick };
 })();
 
 const WatchHistory = (() => {
   'use strict';
-  const { valid, pick } = VideoEntry;
+  const { pick, validId } = VideoEntry;
+  const valid = (h) => VideoEntry.valid(h, { live: true }); // 視聴履歴には Twitch のチャンネルのライブも入れる
 
   const KEY = 'history';
   const MAX = 100;
@@ -58,7 +66,7 @@ const WatchHistory = (() => {
 
   /** 枠に読み込んだ: 先頭に移して日時を更新 (前に外れた理由は消す) */
   function opened(videoId, info) {
-    if (!videoId || !/^[A-Za-z0-9_-]{11}$/.test(videoId)) return chain; // YouTube の動画だけ残す (Twitch の枠 tw:… は残さない)
+    if (!validId(videoId, { live: true })) return chain;
     return mutate((list) => {
       const prev = list.find((h) => h.videoId === videoId);
       const { reason, removedAt, ...keep } = prev || {};
@@ -141,7 +149,7 @@ const SavedVideos = (() => {
    * @returns {Promise<'saved'|'removed'|'full'|undefined>} full = いっぱいで保存できなかった
    */
   function toggle(videoId, info) {
-    if (!videoId) return Promise.resolve();
+    if (!VideoEntry.validId(videoId)) return Promise.resolve(); // Twitch のチャンネルのライブは入れない (VOD は入れる)
     return mutate((list) => {
       if (list.some((h) => h.videoId === videoId)) {
         return { next: list.filter((h) => h.videoId !== videoId), result: 'removed' };

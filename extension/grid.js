@@ -363,6 +363,9 @@ async function resolveVideoId(raw) {
   const input = raw.trim();
   if (!input) throw new Error(tr('inputEmpty'));
   if (ID_RE.test(input)) return input;
+  // Twitch のチャンネル・VOD の URL (1 行 1 本のテキスト・再生リストの追加で)
+  const tw = twitchIdFromUrl(input);
+  if (tw) return tw;
 
   if (/^@[\w.\-]+$/.test(input)) return resolveLive(`${YT}/${input}/live`);
 
@@ -1096,9 +1099,32 @@ const twitchChannelOfTile = (t) => (isTwitchId(t.videoId) && !t.videoId.startsWi
  */
 function thumbUrl(videoId, thumb) {
   if (!isTwitchId(videoId)) return `https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`;
-  if (videoId.startsWith('tw:v:')) return typeof thumb === 'string' && /^https:\/\/static-cdn\.jtvnw\.net\//.test(thumb) ? thumb : '';
+  if (videoId.startsWith('tw:v:')) {
+    const u = thumb || vodThumbs.get(videoId);
+    return typeof u === 'string' && /^https:\/\/static-cdn\.jtvnw\.net\//.test(u) ? u : '';
+  }
   return `https://static-cdn.jtvnw.net/previews-ttv/live_user_${videoId.slice(3)}-320x180.jpg`;
 }
+
+/** 動画・配信を開く URL (枠の入力・テキスト形式の行)。Twitch はそのページ */
+function videoUrlOf(id) {
+  return isTwitchId(id) ? twitchPageUrl(id) : `${YT}/watch?v=${id}`;
+}
+
+// Twitch の VOD のサムネイルと題名 (ID から作れず、枠のプレイヤーも知らせてこないので、最近の動画・履歴などで分かったものを覚えておく。
+// このタブの中だけ)
+const vodThumbs = new Map(); // tw:v:… -> URL
+const vodTitles = new Map(); // tw:v:… -> 題名
+/** 一覧の項目 ({videoId, thumb, title}) から Twitch の VOD のサムネイルと題名を覚える */
+function rememberThumbs(items) {
+  for (const x of items || []) {
+    if (typeof x?.videoId !== 'string' || !x.videoId.startsWith('tw:v:')) continue;
+    if (x.thumb) vodThumbs.set(x.videoId, x.thumb);
+    if (x.title) vodTitles.set(x.videoId, x.title);
+  }
+}
+/** Twitch の VOD について分かっていること (履歴・あとで見る・再生リストに入れる分) */
+const vodInfo = (id) => ({ ...(vodThumbs.has(id) ? { thumb: vodThumbs.get(id) } : {}), ...(vodTitles.has(id) ? { title: vodTitles.get(id) } : {}) });
 
 /** チャンネル一覧のチャンネルの配信を枠に入れるときの入力 (YouTube は @ハンドルかチャンネルのページ、Twitch はチャンネルのページ) */
 function channelInputOf(f) {
@@ -1295,6 +1321,14 @@ function renderTile(i, { reloadPlayer = false, reloadChat = false } = {}) {
       });
       el.querySelector('.player-slot').appendChild(f);
       v.player = f;
+      // 視聴履歴に残す (チャンネルのライブはチャンネルごとに 1 件。名前は分かっているもの)
+      const live = !t.videoId.startsWith('tw:v:');
+      WatchHistory.opened(t.videoId, {
+        label: t.label,
+        input: t.input,
+        kind: 'live',
+        ...(live ? { channel: twitchName(t.videoId) } : vodInfo(t.videoId)),
+      });
     } else {
       // twitch.tv の権限がまだ無い (保存しておいた視聴セッションを開いた・権限を外した など) → 押して許可してもらう
       const ask = document.createElement('div');
@@ -1511,7 +1545,7 @@ async function toggleSaveTile(i) {
   const t = state.tiles[i];
   if (!t.videoId) return;
   const m = views[i].meta || {};
-  const r = await SavedVideos.toggle(t.videoId, { ...m, label: t.label, input: t.input });
+  const r = await SavedVideos.toggle(t.videoId, { ...vodInfo(t.videoId), ...m, label: t.label, input: t.input });
   if (r === 'saved') showToast(i, tr('savedAdded'));
   else if (r === 'removed') showToast(i, tr('savedRemoved'));
   else if (r === 'full') showToast(i, tr('savedFull', SavedVideos.MAX));
@@ -2218,7 +2252,7 @@ function onBarAction(i, act, e) {
       toggleSaveTile(i);
       return;
     case 'playlist':
-      if (t.videoId) openPlaylistPicker({ ...views[i].meta, label: t.label, input: t.input, videoId: t.videoId });
+      if (t.videoId) openPlaylistPicker({ ...vodInfo(t.videoId), ...views[i].meta, label: t.label, input: t.input, videoId: t.videoId });
       return;
     case 'max':
       toggleFullscreen(i);
@@ -4779,6 +4813,8 @@ const TileInfo = (() => {
     fav.disabled = !!views[i].favBusy;
     const save = btn('save', { text: '🔖', title: tr(m.saved ? 'tileSaveOff' : 'tileSaveOn'), on: m.saved, cls: 'mark' });
     const pl = btn('playlist', { text: '📃', title: tr('tilePlaylist'), on: m.listed, cls: 'mark' });
+    // Twitch のチャンネルのライブは、あとで見る・再生リストに入れない (チャンネルごとに同じ ID で、開くたびに中身が変わる)
+    if (twitchChannelOfTile(t)) save.hidden = pl.hidden = true;
     const social = ['subscribe', 'like'].map((act) => {
       const b = btn(act, { text: '👍', html: act === 'subscribe' ? SUB_ICON : '', cls: 'social' });
       Object.assign(b, socialButtonState(i, act));
@@ -5891,9 +5927,8 @@ const SHARE_MAX = MAX_TILES;
  */
 // コードの読み書き (formatShareCode / parseShareCode / shareName)・取り込み用リンク・1 行 1 本のテキストの読み取りは share-code.js
 
-/** 表示中の枠のうち、配信の入っている枠 (並び順。空き枠は詰める) */
-// Twitch の枠は共有しない (コードは YouTube の動画 ID だけを並べる形)
-const shareTiles = () => visibleIndexes().filter((i) => state.tiles[i].videoId && !isTwitchTile(i));
+/** 表示中の枠のうち、配信の入っている枠 (並び順。空き枠は詰める)。Twitch の枠も入る (コードの「~t」) */
+const shareTiles = () => visibleIndexes().filter((i) => state.tiles[i].videoId);
 
 /** 今の枠を共有セットにする (同期中か、ずれを決めた動画があれば同期再生として、基準とずれも入れる) */
 function tilesShareSet(name = '') {
@@ -5949,7 +5984,7 @@ function playlistText(pl) {
   if (pl.layoutId) lines.push(`# layout=${pl.layoutId}`);
   const first = pl.items[0]?.videoId;
   for (const h of pl.items) {
-    const parts = [`${YT}/watch?v=${h.videoId}`];
+    const parts = [videoUrlOf(h.videoId)];
     const isRef = pl.sync && pl.ref && h.videoId === pl.ref && h.videoId !== first;
     // ずれは決めてあれば 0 でも書く (受け取った側で「決めていない」にならないように)
     const o = h.offset ?? SyncOffsets.get(h.videoId);
@@ -6043,7 +6078,7 @@ async function applyViewingSet(ids, layoutId, { offsets = null, anchors = null, 
     const i = TileSlots.freeTiles(state.tiles, used)[0]; // 空き枠を先に
     used.add(i);
     assigned[k] = i;
-    setTileVideo(i, id, `${YT}/watch?v=${id}`);
+    setTileVideo(i, id, videoUrlOf(id));
     if (labels[k]) state.tiles[i].label = labels[k].slice(0, 80); // URL の行の後ろの「# …」を枠の名前にする
   }
   // 使わない枠は空にする (隠れても再生し続けないように)
@@ -6099,6 +6134,7 @@ function loadThumb(videoId) {
 }
 
 async function loadThumbNow(videoId) {
+  if (isTwitchId(videoId)) return loadTwitchThumb(videoId);
   const load = (url) =>
     new Promise((resolve) => {
       const img = new Image();
@@ -6115,6 +6151,25 @@ async function loadThumbNow(videoId) {
   const hq = await load(`https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`);
   if (hq && hq.naturalWidth >= 400) return { img: hq, crop: [0, hq.naturalHeight / 8, hq.naturalWidth, (hq.naturalHeight * 3) / 4] };
   return null;
+}
+
+/**
+ * Twitch の枠のサムネイル (static-cdn.jtvnw.net も CORS を許している)。チャンネルのライブは配信のサムネイル
+ * (配信していなければ Twitch の「オフライン」の画像)。VOD は最近の動画などで分かったものだけ (分からなければ無し)
+ */
+function loadTwitchThumb(id) {
+  const url = id.startsWith('tw:v:')
+    ? (thumbUrl(id) || '').replace(/-\d+x\d+\.jpg$/, '-640x360.jpg')
+    : `https://static-cdn.jtvnw.net/previews-ttv/live_user_${id.slice(3)}-640x360.jpg`;
+  if (!url) return Promise.resolve(null);
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.referrerPolicy = 'no-referrer';
+    img.onload = () => resolve({ img, crop: null });
+    img.onerror = () => resolve(null);
+    img.src = url;
+  });
 }
 
 /** ctx の (x, y, w, h) に画像を、はみ出た分を切って敷き詰める */
@@ -6984,6 +7039,8 @@ function setupRead() {
   applyBtn.addEventListener('click', async () => {
     const set = parsed && { ...parsed, name: nameEl.value.trim() || parsed.name };
     if (!set) return;
+    // Twitch の枠があれば、twitch.tv の許可を押した操作の中で聞く (await より前。許可しなくても、枠の「Twitch を表示する」で後から許可できる)
+    if (syncItems(set).some((h) => isTwitchId(h.videoId))) requestTwitch();
     busy = true;
     updateButtons();
     try {
@@ -7990,7 +8047,9 @@ function loadArchives(favs, { force = false } = {}) {
     (async () => {
       for (let q = archiveQueue.shift(); q; q = archiveQueue.shift()) {
         try {
-          archiveData.set(q.f.channelId, await Favorites.fetchArchives(q.f.channelId, { force: q.force, shorts: true }));
+          const d = await Favorites.fetchArchives(q.f.channelId, { force: q.force, shorts: true });
+          rememberThumbs(d);
+          archiveData.set(q.f.channelId, d);
         } catch (e) {
           ErrLog.warnFetch('hakomado: アーカイブの取得に失敗', q.f.name, e);
           archiveData.set(q.f.channelId, 'error');
@@ -8339,12 +8398,12 @@ function videoItem(h, saved, { onRemove, removeTitle, entry } = {}) {
   const li = document.getElementById('favItemTemplate').content.firstElementChild.cloneNode(true);
   li.classList.add('history');
   li.title = tr('historyPick');
-  li.querySelector('.fav-name').textContent = h.label || h.channel || h.handle || h.videoId;
+  li.querySelector('.fav-name').textContent = h.label || h.channel || h.handle || twitchName(h.videoId) || h.videoId;
   li.querySelector('.fav-title').textContent = h.title || '';
   li.querySelector('.badge').textContent = !saved && h.reason ? tr(REASON_KEYS[h.reason] || 'reasonReplaced') : '';
   const star = li.querySelector('.fav-star');
-  // Twitch の VOD (最近の配信) は、あとで見る・再生リストに入れられない (どちらも YouTube の動画だけ)
-  const twitch = isTwitchId(h.videoId);
+  // Twitch のチャンネルのライブ (視聴履歴) は、あとで見る・再生リストに入れない (チャンネルごとに同じ ID で、開くたびに中身が変わる)
+  const twitch = isTwitchId(h.videoId) && !h.videoId.startsWith('tw:v:');
   if (saved || twitch) {
     star.remove();
   } else {
@@ -8426,7 +8485,8 @@ function loadFromHistory(h) {
 /** 履歴などの 1 件を枠 target に入れる (画面は閉じない) */
 function putHistoryInto(target, h) {
   forgetAutoMarks(h.videoId);
-  setTileVideo(target, h.videoId, h.input || `https://www.youtube.com/watch?v=${h.videoId}`);
+  rememberThumbs([h]); // Twitch の VOD のサムネイル (枠から 🔖・📃 に入れるときに使う)
+  setTileVideo(target, h.videoId, h.input || videoUrlOf(h.videoId));
   const t = state.tiles[target];
   t.label = h.label || '';
   const st = [...favStatus.values()].find(
@@ -8808,7 +8868,7 @@ let plAddDraft = '';
 let plFocusName = false;
 
 /** 再生リストの 1 本を、ほかの一覧と同じ形 (読み込みや 📃 で使う形) にする */
-const playlistEntry = (h) => ({ ...h, input: `${YT}/watch?v=${h.videoId}` });
+const playlistEntry = (h) => ({ ...h, input: videoUrlOf(h.videoId) });
 
 /** 再生リストのタブを描く */
 async function renderPlaylistTab() {
@@ -9093,7 +9153,7 @@ function schedulePlaylistRender() {
 /** タイトルの分からない動画を oEmbed で調べる */
 function fetchPlaylistMeta(items) {
   for (const x of items) {
-    if (x.title || oembedTried.has(x.videoId)) continue;
+    if (x.title || oembedTried.has(x.videoId) || isTwitchId(x.videoId)) continue; // Twitch には oEmbed が無い
     oembedTried.add(x.videoId);
     oembedQueue.push(x.videoId);
   }
@@ -9195,8 +9255,9 @@ function playlistRow(pl, x, { refId, draggable }) {
   const k = pl.items.indexOf(x);
   const thumb = mk('img', { class: 'pl-thumb', alt: '', loading: 'lazy', referrerPolicy: 'no-referrer' });
   thumb.addEventListener('error', () => thumb.removeAttribute('src'), { once: true });
-  thumb.src = `https://i.ytimg.com/vi/${x.videoId}/mqdefault.jpg`;
-  const fallback = x.channel || x.handle || x.videoId;
+  const src = thumbUrl(x.videoId, x.thumb);
+  if (src) thumb.src = src;
+  const fallback = x.channel || x.handle || twitchName(x.videoId) || x.videoId;
   const label = mk('input', {
     type: 'text',
     class: 'pl-label',
@@ -9350,13 +9411,14 @@ const withOffset = (info) => {
 };
 
 /** 足した結果を知らせる */
-function reportPlaylistAdd(pl, r, { bad = 0, tooMany = false } = {}) {
+function reportPlaylistAdd(pl, r, { bad = 0, tooMany = false, live = 0 } = {}) {
   if (!r) return;
   const notes = [];
   if (r.added) notes.push(tr('plAdded', r.added));
   if (r.exists) notes.push(tr('plAlready', r.exists));
   if (r.full || tooMany) notes.push(tr(pl.sync ? 'plItemsFullSync' : 'plItemsFull', pl.name, Playlists.limitOf(pl)));
   if (bad) notes.push(tr('shareBadLines', bad));
+  if (live) notes.push(tr('plTwitchLive'));
   favErrorEl.textContent = notes.join(' / ');
 }
 
@@ -9370,33 +9432,43 @@ async function addToPlaylistFromText(id, text) {
     reportPlaylistAdd(pl, { added: 0, exists: 0, full: true });
     return;
   }
-  const { items, bad, tooMany } = await parseVideoLines(text, room, (done, total) => {
+  const got = await parseVideoLines(text, room, (done, total) => {
     favErrorEl.textContent = tr('shareLoading', done, total);
   });
+  const { bad, tooMany } = got;
+  // Twitch のチャンネルのライブは再生リストに入れない (チャンネルごとに同じ ID で、開くたびに中身が変わる。VOD は入れる)
+  const items = got.items.filter((x) => !twitchChannelOfTile(x));
+  const live = got.items.length - items.length;
   if (!items.length) {
-    favErrorEl.textContent = tr(bad ? 'plAddFailed' : 'shareNothing');
+    favErrorEl.textContent = live ? tr('plTwitchLive') : tr(bad ? 'plAddFailed' : 'shareNothing');
     return;
   }
   plAddDraft = '';
   const r = await Playlists.addItems(id, items.map((x) => (x.offset ? x : withOffset(x))));
-  reportPlaylistAdd(pl, r, { bad, tooMany });
+  reportPlaylistAdd(pl, r, { bad, tooMany, live });
 }
 
 /** 今の枠の配信 (並び順。名前とチャンネル名、同期のずれ付き) */
 function tileEntries() {
-  return shareTiles().map((i) => withOffset({ ...views[i].meta, label: state.tiles[i].label, videoId: state.tiles[i].videoId }));
+  return shareTiles().map((i) => {
+    const id = state.tiles[i].videoId;
+    // Twitch の枠はプレイヤーが名前を知らせてこないので、分かっているもの (チャンネルの名前・VOD のサムネイル) を入れる
+    const tw = !isTwitchId(id) ? {} : id.startsWith('tw:v:') ? vodInfo(id) : { channel: twitchName(id) };
+    return withOffset({ ...tw, ...views[i].meta, label: state.tiles[i].label, videoId: id });
+  });
 }
 
 /** 今の枠の配信を再生リストの最後に足す */
 async function addTilesToPlaylist(id) {
   const pl = await Playlists.get(id);
-  const items = tileEntries();
+  const all = tileEntries();
+  const items = all.filter((x) => !twitchChannelOfTile(x)); // Twitch のチャンネルのライブは入れない (VOD は入れる)
   if (!pl) return;
   if (!items.length) {
-    favErrorEl.textContent = tr('shareEmpty');
+    favErrorEl.textContent = tr(all.length ? 'plTwitchLive' : 'shareEmpty');
     return;
   }
-  reportPlaylistAdd(pl, await Playlists.addItems(id, items));
+  reportPlaylistAdd(pl, await Playlists.addItems(id, items), { live: all.length - items.length });
 }
 
 /** 作った再生リストをライブラリで開き、名前を書き換えられるようにする */
@@ -10714,7 +10786,7 @@ function stopQueue() {
 }
 
 function queueLoad(i, h) {
-  setTileVideo(i, h.videoId, h.input || `${YT}/watch?v=${h.videoId}`);
+  setTileVideo(i, h.videoId, h.input || videoUrlOf(h.videoId));
   Object.assign(state.tiles[i], { queue: true, label: h.label || h.channel || '' });
   updateTileName(i);
   save();
@@ -11053,6 +11125,7 @@ async function archiveCandidates(channels, { onProgress = null } = {}) {
       let d;
       try {
         d = await Favorites.fetchArchives(f.channelId, { shorts });
+        rememberThumbs(d);
         archiveData.set(f.channelId, d);
         archiveFailedAt.delete(f.channelId);
       } catch {

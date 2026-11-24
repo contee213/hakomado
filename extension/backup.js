@@ -93,8 +93,8 @@ const Backup = (() => {
   }
 
   /** 履歴・あとで見るの 1 件: 動画 ID が正しいものだけ。日時と外れた理由も残す */
-  function cleanVideo(h) {
-    if (!VideoEntry.valid(h)) return null;
+  function cleanVideo(h, live = false) {
+    if (!VideoEntry.valid(h, { live })) return null;
     const out = { videoId: h.videoId, ...VideoEntry.pick(h) };
     for (const k of ['at', 'removedAt']) {
       if (Number.isFinite(h[k])) out[k] = h[k];
@@ -128,8 +128,9 @@ const Backup = (() => {
     if (!Number.isInteger(json.format) || json.format > FORMAT) throw new Error('tooNew');
     const d = json.data;
     const favorites = uniqueBy((Array.isArray(d.favorites) ? d.favorites : []).map(cleanChannel), 'channelId').slice(0, MAX_CHANNELS);
-    const history = uniqueBy((Array.isArray(d.history) ? d.history : []).map(cleanVideo), 'videoId').slice(0, MAX_ITEMS);
-    const saved = uniqueBy((Array.isArray(d.saved) ? d.saved : []).map(cleanVideo), 'videoId').slice(0, MAX_ITEMS);
+    // 視聴履歴には Twitch のチャンネルのライブも入る (あとで見るには入らない)
+    const history = uniqueBy((Array.isArray(d.history) ? d.history : []).map((h) => cleanVideo(h, true)), 'videoId').slice(0, MAX_ITEMS);
+    const saved = uniqueBy((Array.isArray(d.saved) ? d.saved : []).map((h) => cleanVideo(h)), 'videoId').slice(0, MAX_ITEMS);
     const playlists = uniqueBy((Array.isArray(d.playlists) ? d.playlists : []).map(Playlists.clean), 'id').slice(0, Playlists.MAX_LISTS);
     const removedPresets = (Array.isArray(d.removedPresets) ? d.removedPresets : []).filter((id) => CHANNEL_RE.test(id));
     const data = {
