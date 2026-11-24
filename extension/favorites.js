@@ -29,6 +29,7 @@ const Favorites = (() => {
   const FEED_PREMIERE_MS = 15 * 60 * 1000;
   const SCHED_AUTO_MS = 55 * 1000; // 配信予定のアドオンは 1 分ごと
   const SCHED_MANUAL_MS = 5 * 1000;
+  const SCHED_SKIP_MS = 30 * 1000; // 載るチャンネルが無くて取りに行かなかったアドオンを、次に確かめるまで
   const YT_GAP_MS = 1000; // YouTube へのページ取得の間隔
   // 取得の待ち時間の上限。応答が返ってこないまま順番待ち (ロック) を持ち続けると、全タブの取得が止まるため
   const FETCH_TIMEOUT_MS = 20 * 1000;
@@ -596,6 +597,67 @@ const Favorites = (() => {
     return { ids, name: meta(html, 'og:title') };
   }
 
+  // ---- YouTube の登録チャンネル (ログイン中のアカウント)
+  // 登録チャンネルの管理ページ (/feed/channels) を、ブラウザのログイン状態 (Cookie) のまま読む。
+  // 2026-11 の時点では、続きの読み込み無しで全件 (500 件超でも) が 1 ページに入っている。ページは大きい (数 MB) ので、
+  // 利用者が押したときだけ取る。読んだ一覧は画面に出すだけで、選んだものだけをチャンネル一覧に足す (どこにも送らない)
+  const SUB_ICON_RE = /^https:\/\/(yt3\.ggpht\.com|yt3\.googleusercontent\.com)\//;
+
+  /**
+   * ログイン中のアカウントの登録チャンネルを読む。
+   * @returns {Promise<{channels: Array<{channelId, name, handle?, icon?}>, more: boolean}>}
+   *   more = 続きがありそう (ページに入っていない分がある)
+   * @throws {Error} message = 'notLoggedIn' (YouTube にログインしていない) | 'readFail' (ページの作りが読めない) | 取得の失敗
+   */
+  async function fetchSubscriptions() {
+    const html = await ytTurn((fetchText) => fetchText(desktop(`${YT}/feed/channels`), { credentials: 'include' }));
+    if (!/"LOGGED_IN":true/.test(html)) throw new Error('notLoggedIn');
+    const json = html.match(/var ytInitialData = (\{.*?\});<\/script>/s)?.[1];
+    let data;
+    try {
+      data = JSON.parse(json);
+    } catch {
+      throw new Error('readFail');
+    }
+    const seen = new Set();
+    const channels = [];
+    let more = false;
+    const walk = (o) => {
+      if (!o || typeof o !== 'object') return;
+      if (Array.isArray(o)) {
+        for (const v of o) walk(v);
+        return;
+      }
+      for (const [k, v] of Object.entries(o)) {
+        if (k === 'continuationItemRenderer') more = true;
+        else if (k === 'channelRenderer') addSub(v);
+        else walk(v);
+      }
+    };
+    const addSub = (c) => {
+      const channelId = c?.channelId;
+      if (!CHANNEL_ID_RE.test(channelId || '') || seen.has(channelId)) return;
+      seen.add(channelId);
+      const name = String(c.title?.simpleText || c.title?.runs?.map((r) => r.text).join('') || '').trim().slice(0, 100);
+      const out = { channelId, name: name || channelId };
+      const path = c.navigationEndpoint?.browseEndpoint?.canonicalBaseUrl || '';
+      if (/^\/@[^\s/?#]{1,100}$/.test(path)) {
+        try {
+          out.handle = decodeURIComponent(path.slice(1));
+        } catch {
+          out.handle = path.slice(1);
+        }
+      }
+      const thumbs = c.thumbnail?.thumbnails || [];
+      const icon = String(thumbs[thumbs.length - 1]?.url || '').replace(/^\/\//, 'https://');
+      if (SUB_ICON_RE.test(icon)) out.icon = icon.slice(0, 1000);
+      channels.push(out);
+    };
+    walk(data);
+    if (!channels.length && !/"channelRenderer"/.test(html) && !/"shelfRenderer"/.test(html)) throw new Error('readFail');
+    return { channels, more };
+  }
+
   /** 覚えている動画の状態 ({videoId: {state, startAt, title, channel, avail, at}}) */
   async function videoStates(ids) {
     const all = await readStates();
@@ -678,7 +740,7 @@ const Favorites = (() => {
       if (!cands.has(h.videoId)) cands.set(h.videoId, { videoId: h.videoId, title: '', at: 0 });
       const s = known[h.videoId];
       // 配信予定のアドオンの開始予定時刻・配信中の印を使う (確かめる前に分かる分)。終わったと分かっているものは戻さない
-      if (h.live && (!s || s.state === 'upcoming')) updates[h.videoId] = { ...s, state: 'live', startAt: h.startAt, at: now };
+      if (h.live && (!s || s.state === 'upcoming')) updates[h.videoId] = { ...s, state: 'live', startAt: h.startAt ?? s?.startAt, at: now };
       else if (!s && !h.live) updates[h.videoId] = { state: 'upcoming', startAt: h.startAt, at: now };
     }
     // 確かめる順: 開始予定が近いもの → 初めて見たもの (新しい順)
@@ -759,33 +821,55 @@ const Favorites = (() => {
     return index;
   }
 
-  /** アドオンが取りに行くとき使う取得 (アドオンの origins の中だけ。Cookie は送らない) */
+  /**
+   * アドオンが取りに行くとき使う取得 (アドオンの origins の中だけ)。Cookie は送らない。
+   * signedIn のアドオン (YouTube の登録チャンネル) だけは、ログイン中のアカウントのページなので Cookie 付きで、
+   * ほかの YouTube のページ取得と同じ順番待ち・制限中の判定を通す
+   */
   const fetchTextFor = (addon) => (url) => {
     if (!Addons.allowed(addon, url)) return Promise.reject(new Error(`hakomado: アドオン ${addon.id} の対象外の URL`));
+    if (addon.signedIn) return ytTurn((fetchText) => fetchText(url, { credentials: 'include' }));
     return getHtml(url, { credentials: 'omit' });
   };
 
   /** そのアドオンの配信予定 (チャンネル ID / ハンドル (小文字) → 枠 [{videoId, live, startAt}]) */
   function fetchSchedule(addon, { force = false, auto = false } = {}) {
     // force (「⟳ 更新」) でも、直前 (5 秒以内) に取ったものは使い回す (チャンネルの件数分取りに行かないように)
-    const maxAge = auto ? SCHED_AUTO_MS : force ? SCHED_MANUAL_MS : STATUS_TTL_MS;
+    // minAgeMs = アドオンが決めた、取りに行く間隔の下限 (ページが大きいものなど)
+    const maxAge = Math.max(auto ? SCHED_AUTO_MS : force ? SCHED_MANUAL_MS : STATUS_TTL_MS, addon.minAgeMs || 0);
     const cached = scheduleCache.get(addon.id);
-    if (cached && Date.now() - cached.at < maxAge) return cached.promise;
+    if (cached && Date.now() - cached.at < Math.min(maxAge, cached.ttl ?? Infinity)) return cached.promise;
+    // 覚えておく時刻は「取った時刻」にそろえる (他のタブが取った結果を使うときは、その時刻)
+    const remember = (at, ttl) => {
+      const ent = scheduleCache.get(addon.id);
+      if (ent?.promise === promise) Object.assign(ent, { at, ttl });
+    };
     // 他のタブが少し前に取った結果があれば、それを使う (取りに行くのはタブ間で 1 つずつ)
     const promise = withLock(`hakomado-schedule:${addon.id}`, async () => {
       const sh = (await readShared()).sched3?.[addon.id];
-      if (sh && Date.now() - sh.at < maxAge && sh.byKey) return new Map(Object.entries(sh.byKey));
+      if (sh && Date.now() - sh.at < maxAge && sh.byKey) {
+        remember(sh.at);
+        return new Map(Object.entries(sh.byKey));
+      }
+      // onlyIfCovers のアドオンは、載るチャンネルが一覧に 1 つも無ければ取りに行かない。
+      // チャンネルを足したらすぐ使えるように、この結果はこのタブで少しの間だけ覚える (他のタブとは共有しない)
+      if (addon.onlyIfCovers && !(await list()).some((f) => addon.covers?.(f))) {
+        remember(Date.now(), SCHED_SKIP_MS);
+        return new Map();
+      }
       const byKey = await buildSchedule(addon);
+      const at = Date.now();
       await updateShared((v) => {
         delete v.sched2; // 前の版 (ホロジュールだけだったころ) の項目
-        v.sched3 = { ...v.sched3, [addon.id]: { at: Date.now(), byKey: Object.fromEntries(byKey) } };
+        v.sched3 = { ...v.sched3, [addon.id]: { at, byKey: Object.fromEntries(byKey) } };
       });
+      remember(at);
       return byKey;
     });
     scheduleCache.set(addon.id, { at: Date.now(), promise });
-    promise.catch(() => {
-      if (scheduleCache.get(addon.id)?.promise === promise) scheduleCache.delete(addon.id);
-    });
+    // 取れなかったときも少しの間は覚えておく (すぐ忘れると、チャンネルの件数分取りに行ってしまう。
+    // YouTube の登録チャンネルなら、ログインしていない間に大きなページを何度も取らないように)
+    promise.catch(() => remember(Date.now(), SCHED_AUTO_MS));
     return promise;
   }
 
@@ -793,9 +877,14 @@ const Favorites = (() => {
   async function buildSchedule(addon) {
     const entries = await addon.fetchEntries({ fetchText: fetchTextFor(addon) });
     const now = Date.now();
-    // 配信中と、これから始まる枠 (少し遅れて始まる待機中の枠も含む) だけ使う
+    // 配信中と、これから始まる枠 (少し遅れて始まる待機中の枠も含む) だけ使う。
+    // 配信中の枠は、始まった時刻が分からなくてもよい (YouTube の登録チャンネルのフィードには載らない)
     const relevant = (Array.isArray(entries) ? entries : []).filter(
-      (e) => e && VIDEO_RE.test(e.videoId) && Number.isFinite(e.startAt) && (e.live || (e.startAt >= now - 30 * 60e3 && e.startAt <= now + 48 * 3600e3)),
+      (e) =>
+        e &&
+        VIDEO_RE.test(e.videoId) &&
+        ((e.live && (e.startAt === undefined || Number.isFinite(e.startAt))) ||
+          (Number.isFinite(e.startAt) && e.startAt >= now - 30 * 60e3 && e.startAt <= now + 48 * 3600e3)),
     );
     const index = await handleIndex();
     const byKey = new Map();
@@ -924,6 +1013,6 @@ const Favorites = (() => {
     list, add, remove, setStar, seedPresets, restorePresets, removeAllPresets, presetCount, removedPresetCount, fetchStatus, fetchArchives,
     previewPack, importPack, packs, removePack, fillIcons,
     checkAccess, rememberMembersOnly, isMembersBlock,
-    videoStates, inspectVideos, fetchYouTubePlaylist,
+    videoStates, inspectVideos, fetchYouTubePlaylist, fetchSubscriptions,
   };
 })();

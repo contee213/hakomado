@@ -240,6 +240,12 @@
           <span class="field-label" data-i18n="pack.listH">チャンネルパック</span>
           <p class="settings-note" data-i18n="pack.listNote">チャンネル一覧に入っているパック。まとめて外したり戻したりできます</p>
           <ul id="packList" class="pack-list"></ul>
+          <span class="field-label" data-i18n="subs.h">YouTube の登録チャンネル</span>
+          <p class="settings-note" data-i18n="subs.note">ログイン中の YouTube アカウントの登録チャンネルから選んで足します</p>
+          <div class="pack-row">
+            <button type="button" id="subsOpen" data-i18n="subs.open">登録チャンネルから選ぶ</button>
+            <span id="subsOpenStatus" class="share-status" role="status"></span>
+          </div>
           <span class="field-label" data-i18n="pack.exportH">チャンネルパックを書き出す</span>
           <p class="settings-note" data-i18n="pack.exportNote">チャンネル一覧をパック (JSON) にして、ほかの人に配れます</p>
           <div class="pack-row">
@@ -381,12 +387,14 @@
               <li><b>パックを探す</b>: Hakomado のリポジトリ (GitHub) に集めたパックの一覧から選べます。利用者が作って投稿した非公式のもので、各事務所・配信者とは関係ありません。誤りや追加の希望は GitHub で知らせてください</li>
               <li><b>チャンネルパックを読み込む</b>: ほかの人が作ったパックの URL か中身を貼るか、ファイルを選んで足します。登録済みのチャンネルはそのままです</li>
               <li><b>チャンネルパックを書き出す</b>: 同梱のホロライブ・読み込んだパック・自分で追加したチャンネル・すべてから選んでパック (JSON) にし、ほかの人に配ったり公開したりできます</li>
+              <li><b>YouTube の登録チャンネル</b>: ブラウザでログインしている YouTube アカウントの登録チャンネルを読み、選んだものだけを足します。足したチャンネルはパック「YouTube の登録チャンネル」にまとまるので、まとめて外せます。アドオン「YouTube の登録チャンネル」が ON なら、多く足しても配信状況の確認が追いつくようにしています</li>
             </ul>
             <h3>設定 → アドオン</h3>
             <ul>
               <li>アドオンは、特定のサイトに頼る機能です。1 つずつ ON / OFF できます。ON にするとき、そのサイトへのアクセスの許可を求めることがあります</li>
               <li><b>ホロジュール</b> (初期値は ON): ホロライブの配信予定 (schedule.hololive.tv) をまとめて読み込み、初期データのチャンネルと、ホロライブのチャンネルパックから足したチャンネルを YouTube に確かめに行く回数を減らします。OFF でも、各チャンネルの RSS から配信状況を調べます (少し重くなります)</li>
               <li><b>にじさんじ</b> (初期値は OFF): にじさんじ公式サイトのライブスケジュール (www.nijisanji.jp) を読み込みます。名前に「にじさんじ」が入るチャンネルパック (「パックを探す」の「にじさんじ」など) から足したチャンネルは、YouTube に確かめに行く回数を減らします。ON にするとき、www.nijisanji.jp へのアクセスの許可を求めます</li>
+              <li><b>YouTube の登録チャンネル</b> (初期値は ON): ログイン中の YouTube アカウントの登録チャンネルのフィードを 2 分に 1 回まで読み込み、配信中・配信予定をまとめて知ります。「登録チャンネルから選ぶ」で足したチャンネルは、YouTube に確かめに行く回数を減らします (数百件あっても確認が追いつくように)。そのチャンネルが 1 つも無いときは読み込みません</li>
             </ul>
           </section>
           <section class="help-page" data-help-page="library" role="tabpanel" data-i18n-html="helpPage.library" hidden>
@@ -582,6 +590,27 @@
         <button type="button" id="plPickNew" data-i18n="plPick.new">＋ 作って入れる</button>
       </div>
       <span id="plPickStatus" class="share-status share-error" role="status"></span>
+    </form>
+  </dialog>
+
+  <!-- 📥 YouTube の登録チャンネルから選ぶ: 設定 → チャンネルの「登録チャンネルから選ぶ」で開く。選んだものだけをチャンネル一覧に足す -->
+  <dialog id="subsDialog" class="subs-dialog">
+    <form method="dialog" class="help-form">
+      <div class="settings-title">
+        <h2 data-i18n="subs.dialogH">📥 YouTube の登録チャンネル</h2>
+        <button value="close" class="dialog-close" data-i18n-title="close" title="閉じる (Esc)">✕</button>
+      </div>
+      <div class="share-buttons">
+        <input type="search" id="subsFilter" class="pl-pick-name" spellcheck="false" data-i18n-placeholder="subs.filter" placeholder="名前で絞り込む">
+        <button type="button" id="subsAll" data-i18n="subs.all">すべて選ぶ</button>
+        <button type="button" id="subsNone" data-i18n="subs.none">選択を外す</button>
+      </div>
+      <ul id="subsList" class="subs-list"></ul>
+      <div class="share-buttons">
+        <span id="subsCount" class="subs-count"></span>
+        <button type="button" id="subsAdd" data-i18n="subs.add">チャンネル一覧に足す</button>
+      </div>
+      <span id="subsStatus" class="share-status" role="status"></span>
     </form>
   </dialog>
 
@@ -819,6 +848,7 @@
   <script src="addons.js"></script>
   <script src="addons/holodule.js"></script>
   <script src="addons/nijisanji.js"></script>
+  <script src="addons/youtube-subs.js"></script>
   <script src="favorites.js"></script>
   <script src="history.js"></script>
   <script src="playlists.js"></script>

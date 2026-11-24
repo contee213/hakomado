@@ -7020,6 +7020,7 @@ function setupToolbar() {
   setupRead();
   setupPlaylistPicker();
   setupPacks();
+  setupSubscriptions();
   setupAddons();
   Sync.setup();
   showAppVersion();
@@ -9424,6 +9425,131 @@ function setupPacks() {
     a.download = `hakomado-pack-${name.replace(/[\\/:*?"<>|\s]+/g, '_')}.json`;
     a.click();
     setTimeout(() => URL.revokeObjectURL(url), 10000);
+  });
+}
+
+// ---- 📥 YouTube の登録チャンネルから選ぶ (設定 → チャンネル)
+// ログイン中のアカウントの登録チャンネルを読み、選んだものだけをチャンネル一覧に足す。
+// 足したチャンネルはパック「YouTube の登録チャンネル」の扱いにして、パックの一覧からまとめて外せるようにする。
+// パックの名前はアドオン「YouTube の登録チャンネル」(addons/youtube-subs.js) の covers と同じもの ([日本語, 英語])
+const SUBS_PACK_NAMES = Addons.list('schedule').find((a) => a.id === 'ytsubs').packNames;
+// これより多く選んだら、配信状況の確認が重くなることを確かめてから足す
+const SUBS_MANY = 100;
+
+function setupSubscriptions() {
+  const dialog = document.getElementById('subsDialog');
+  const openBtn = document.getElementById('subsOpen');
+  const openStatus = document.getElementById('subsOpenStatus');
+  const filterEl = document.getElementById('subsFilter');
+  const ul = document.getElementById('subsList');
+  const countEl = document.getElementById('subsCount');
+  const addBtn = document.getElementById('subsAdd');
+  const status = document.getElementById('subsStatus');
+  closeOnBackdrop(dialog);
+  let subs = [];
+  let have = new Set();
+  const selected = new Set();
+  const setOpenStatus = (text, isError = false) => {
+    openStatus.textContent = text;
+    openStatus.classList.toggle('share-error', isError);
+  };
+  const visible = () => {
+    const q = filterEl.value.trim().toLowerCase();
+    return q ? subs.filter((c) => c.name.toLowerCase().includes(q) || (c.handle || '').toLowerCase().includes(q)) : subs;
+  };
+  const updateCount = () => {
+    countEl.textContent = tr('subsCount', selected.size, subs.length - subs.filter((c) => have.has(c.channelId)).length);
+    addBtn.disabled = !selected.size;
+  };
+  const render = () => {
+    const list = visible();
+    if (!list.length) {
+      const li = document.createElement('li');
+      li.className = 'subs-empty';
+      li.textContent = tr(subs.length ? 'subsNoMatch' : 'subsEmpty');
+      ul.replaceChildren(li);
+    } else {
+      ul.replaceChildren(
+        ...list.map((c) => {
+          const owned = have.has(c.channelId);
+          const li = document.createElement('li');
+          li.classList.toggle('have', owned);
+          const label = document.createElement('label');
+          const box = Object.assign(document.createElement('input'), { type: 'checkbox', checked: owned || selected.has(c.channelId), disabled: owned });
+          box.addEventListener('change', () => {
+            if (box.checked) selected.add(c.channelId);
+            else selected.delete(c.channelId);
+            updateCount();
+          });
+          const img = Object.assign(document.createElement('img'), { alt: '', loading: 'lazy', referrerPolicy: 'no-referrer' });
+          if (c.icon) img.src = c.icon;
+          const name = Object.assign(document.createElement('span'), { className: 'subs-name', textContent: c.name });
+          if (c.handle) name.title = c.handle;
+          label.append(box, img, name);
+          if (owned) label.append(Object.assign(document.createElement('span'), { className: 'subs-have', textContent: tr('subsHave') }));
+          li.append(label);
+          return li;
+        }),
+      );
+    }
+    updateCount();
+  };
+
+  openBtn.addEventListener('click', async () => {
+    openBtn.disabled = true;
+    setOpenStatus(tr('packLoading'));
+    try {
+      const [r, favs] = await Promise.all([Favorites.fetchSubscriptions(), Favorites.list()]);
+      subs = r.channels;
+      have = new Set(favs.map((f) => f.channelId));
+      // まだ足していないものを先に (どちらの中も YouTube の並びのまま)
+      subs = [...subs.filter((c) => !have.has(c.channelId)), ...subs.filter((c) => have.has(c.channelId))];
+      selected.clear();
+      filterEl.value = '';
+      status.textContent = r.more ? tr('subsMore', subs.length) : '';
+      setOpenStatus(subs.length ? '' : tr('subsEmpty'));
+      if (subs.length) {
+        render();
+        dialog.showModal();
+        ul.scrollTop = 0;
+      }
+    } catch (e) {
+      const msg = { notLoggedIn: tr('subsNotLoggedIn'), readFail: tr('subsReadFail') }[e.message] || tr('subsFetchFail', e.message || e);
+      setOpenStatus(msg, true);
+    } finally {
+      openBtn.disabled = false;
+    }
+  });
+  filterEl.addEventListener('input', render);
+  // Enter で dialog が閉じないように
+  filterEl.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') e.preventDefault();
+  });
+  document.getElementById('subsAll').addEventListener('click', () => {
+    for (const c of visible()) if (!have.has(c.channelId)) selected.add(c.channelId);
+    render();
+  });
+  document.getElementById('subsNone').addEventListener('click', () => {
+    for (const c of visible()) selected.delete(c.channelId);
+    render();
+  });
+  addBtn.addEventListener('click', async () => {
+    const chosen = subs.filter((c) => selected.has(c.channelId) && !have.has(c.channelId));
+    if (!chosen.length) return;
+    if (chosen.length > SUBS_MANY && !confirm(tr('subsMany', chosen.length))) return;
+    addBtn.disabled = true;
+    try {
+      // 前に足したときの名前 (表示言語を変えたあとでも同じパックにまとめる)
+      const favs = await Favorites.list();
+      const name = favs.find((f) => SUBS_PACK_NAMES.includes(f.pack))?.pack || SUBS_PACK_NAMES[LANG === 'ja' ? 0 : 1];
+      const n = await Favorites.importPack({ name, channels: chosen.map((c) => ({ ...c, group: name })) });
+      dialog.close();
+      setOpenStatus(tr('subsAdded', n));
+      await afterPresetsChanged();
+    } catch (e) {
+      status.textContent = tr('subsFetchFail', e.message || e);
+      addBtn.disabled = false;
+    }
   });
 }
 
