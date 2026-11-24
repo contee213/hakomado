@@ -78,7 +78,8 @@ function newTileState() {
   // (アーカイブの同期再生のずれは、枠ではなく動画ごとに記録する: SyncOffsets)
   // pan = 音の左右 (-1 = 左・0 = 真ん中・1 = 右)、gain = 音量 (1 = 元のまま、0〜2)。枠の中の Web Audio で変える (content/watch.js)
   // speed = 再生速度 (1 = 等速)。同期中のグループの枠は、グループの速度にそろえる (Sync)。ライブ配信では使わない (等速)
-  // short = ショートとして縦長 (9:16) の枠で見せる。読み込む前に、URL (/shorts/) で決める (isShortHint)
+  // short = ショートとして縦長 (9:16) の枠で見せる。読み込む前に、URL (/shorts/) で決める (isShortHint)。
+  //   /shorts/ 以外の URL で入ったショートは、読み込んで縦長のふつうの動画と分かったときに付ける ('info' の受け取り)
   // corner = ストレッチで映像の端を切るとき、残す角 (CORNERS)。配信者が映る角は配信ごとに違うので、動画を変えたら右下に戻す
   return { input: '', videoId: null, chat: false, danmaku: null, muted: true, auto: false, queue: false, fill: false, label: '', pan: 0, gain: 1, delay: 0, speed: 1, short: false, corner: 'br' };
 }
@@ -86,7 +87,8 @@ function newTileState() {
 /**
  * 読み込む前に分かる「ショート」の手がかり: /shorts/ の URL。ショートの再生リスト (UUSH) から入れる動画は、
  * この URL で入れる (videoInput)。縦型の配信はショートではない (UULV に入り、/shorts/ の URL にもならない) のでふつうの枠。
- * 読み込んでから枠の形が変わらないよう、縦長の枠にするかはこれだけで決める (プレイヤーが知らせる縦横は使わない)
+ * 読み込んでから枠の形が変わらないよう、分かる限りこれで決める。共有コード・再生リスト・枠の中で移った先などは
+ * /watch?v= の URL で入るので、読み込んで縦長のふつうの動画と分かったときに short を付ける (形は 1 回だけ変わる)
  */
 function isShortHint(input) {
   return /youtube\.com\/shorts\//i.test(String(input || ''));
@@ -4750,9 +4752,16 @@ window.addEventListener('message', (e) => {
       vertical: typeof data.vertical === 'boolean' ? data.vertical : null,
       at: Date.now(),
     };
+    // /shorts/ 以外の URL で入ったショート (共有コード・再生リスト・枠の中で移った先など) は、
+    // 読み込んで「縦長のふつうの動画」と分かったときにショートの枠にする (配信・アーカイブは設定 verticalLiveFit に任せる)
+    const t = state.tiles[i];
+    if (!t.short && t.videoId && views[i].info.kind === 'video' && views[i].info.vertical === true) {
+      t.short = true;
+      save();
+    }
     Sync.refresh();
     TileInfo.update();
-    relayoutIfVerticalChanged(); // 縦型の配信と分かった (設定が ON のときだけ形が変わる)
+    relayoutIfVerticalChanged(); // 縦長と分かった (ショート、設定が ON なら縦型の配信も)
   } else if (data.hakomado === 'ended') {
     onEnded(i, data.reason === 'played' ? 'played' : 'already');
   } else if (data.hakomado === 'moved') {
@@ -6658,7 +6667,7 @@ function handleImportLink() {
  * 動画を空き枠に入れる。空き枠が無ければ (16 枠未満なら) 枠を 1 つ足す。結果は画面に短く出す。
  * @returns {'added'|'already'|'full'}
  */
-function addVideoFromMenu(videoId) {
+function addVideoFromMenu(videoId, short = false) {
   const shown = visibleIndexes().find((i) => state.tiles[i].videoId === videoId);
   if (shown != null) {
     showToast(shown, tr('menuAlready'));
@@ -6670,18 +6679,18 @@ function addVideoFromMenu(videoId) {
     return 'full';
   }
   forgetAutoMarks(videoId);
-  setTileVideo(target, videoId, `${YT}/watch?v=${videoId}`);
+  setTileVideo(target, videoId, short ? `${YT}/shorts/${videoId}` : `${YT}/watch?v=${videoId}`);
   showToast(target, tr('menuAdded'));
   return 'added';
 }
 
-/** 新しいタブで開いたとき (#add=<動画 ID>) */
+/** 新しいタブで開いたとき (#add=<動画 ID>。ショートは #add=<動画 ID>&short) */
 function handleAddLink() {
-  const m = location.hash.match(/^#add=([A-Za-z0-9_-]{11})$/);
+  const m = location.hash.match(/^#add=([A-Za-z0-9_-]{11})(&short)?$/);
   if (!m) return;
   // 再読み込みでもう一度入れないよう、先に URL から外す
   history.replaceState(null, '', location.pathname + location.search);
-  addVideoFromMenu(m[1]);
+  addVideoFromMenu(m[1], !!m[2]);
 }
 
 /** 開いている画面に届いた「追加」。届くのは全部の画面なので、自分のタブ宛てのものだけに返事をする */
@@ -6689,7 +6698,7 @@ function listenAddVideo(myTabId) {
   chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     if (msg?.type !== 'add-video' || sender.id !== chrome.runtime.id || sender.tab || msg.tabId !== myTabId) return false;
     if (!ID_RE.test(msg.videoId)) return false;
-    sendResponse({ handled: true, result: addVideoFromMenu(msg.videoId) });
+    sendResponse({ handled: true, result: addVideoFromMenu(msg.videoId, msg.short === true) });
     return false;
   });
 }
