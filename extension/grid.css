@@ -365,10 +365,15 @@ body.hl-animate .tile.audible::before { animation: hl-flow 6s ease-in-out infini
 .tile.is-twitch .bar [data-act="fav"],
 .tile.is-twitch-vod .bar [data-act="chat"] { display: none; }
 /* Twitch のプレイヤーは、ほかの要素が少しでも重なっていると (透明でも) 自動再生しない (IntersectionObserver v2 で確かめている)。
-   そこで Twitch の枠は、操作バーをいつも出して映像の上に置き、プレイヤーはその下に置く。上 2 割のつかみ範囲は無くし (バーでつかむ)、
-   枠内のお知らせはバーの上に出す */
+   そこで Twitch の枠は、操作バーの場所を映像の上に取り、プレイヤーはその下に置く。上 2 割のつかみ範囲は無くし (バーでつかむ)、
+   枠内のお知らせはバーの上に出す。バーの場所はふだんは映像の余白と同じ黒一色にして、中身はほかの枠と同じくマウスを乗せたときだけ出す */
 .tile.is-twitch { --tw-bar: 34px; }
-.tile.is-twitch .bar { height: var(--tw-bar); opacity: 1; background: #0e0e10; }
+.tile.is-twitch .bar { height: var(--tw-bar); opacity: 1; background: #000; }
+.tile.is-twitch .bar > * { opacity: 0; transition: opacity .15s; }
+.tile.is-twitch:is(:hover, :focus-within) .bar > * { opacity: 1; }
+/* スクリーンショットを撮っている間は、マウスが乗っていても黒一色のまま (中身だけ消す) */
+body.shooting .tile.is-twitch:is(:hover, :focus-within) .bar { opacity: 1; }
+body.shooting .tile.is-twitch:is(:hover, :focus-within) .bar > * { opacity: 0; transition: none; }
 .tile.is-twitch .player-slot { top: var(--tw-bar); height: auto; }
 .tile.is-twitch .drag-zone { display: none; }
 .tile.is-twitch .toast { top: 4px; bottom: auto; }
