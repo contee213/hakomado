@@ -11119,15 +11119,18 @@ async function queueNextNow(i) {
 // ---------------------------------------------------------------- 🎲 おまかせ (空き枠のボタン)
 // 「今のライブはもういいかな、ほかの番組も見るか」用。まだどの枠にも出ていない配信を、次の順で探して 1 本入れる:
 //   ① ピックアップ (📌) のライブ配信中 → ② それ以外のライブ配信中 → ③ ピックアップの最近の配信 → ④ それ以外の最近の配信
-// 同じ段の中からはランダムに選ぶ (押すたびに違うものが出るように)。最近の配信は一度見たものを除く
+// 同じ段の中からはランダムに選ぶ (押すたびに違うものが出るように)。最近の配信は一度見たものを除く。
+// 押してから再生が始まるまでの速さを一番にする (docs/decisions.md):
+//   チャンネルをランダムな順に確かめ、使えるものが見つかった時点で入れる (全部を確かめ終わるのを待たない)。
+//   配信状況は自動再生を ON にした最初の 1 回と同じ速いやり方 (quick) で取る
 let pickBusy = false;
 async function pickAnything(i) {
   if (pickBusy) return;
   pickBusy = true;
   const btn = views[i].el.querySelector('.pick-any');
   btn.disabled = true;
-  // 進み具合: ① 配信状況の確認 0〜55% → ② 見られる配信かの確認 55〜70% → ③ 最近の配信を探す 70〜100%
-  // (見つかった段で終わるので、途中から 100% に飛ぶことがある)
+  // 進み具合: ① ピックアップのライブ 0〜35% → ② ほかのライブ 35〜70% → ③④ 最近の配信 70〜100%
+  // (見つかった時点で終わるので、途中で終わることが多い)
   const progress = pickProgress(i);
   progress.show(tr('pickSearching'), 0);
   const step = (key, from, to) => (done, total) => progress.show(tr(key, done, total), from + (total ? (done / total) * (to - from) : to - from));
@@ -11135,31 +11138,44 @@ async function pickAnything(i) {
     const favs = await Favorites.list();
     const shown = new Set(state.tiles.map((t) => t.videoId).filter(Boolean));
     const shownNames = new Set(visibleIndexes().map((j) => state.tiles[j].label).filter(Boolean));
-    const random = (list) => list[Math.floor(Math.random() * list.length)];
-    // ①② ライブ配信中 (配信予定は除く)
-    const { lives } = await collectLiveFavorites({ target: 'all', onProgress: step('progressStatus', 0, 0.55) });
-    const liveOk = lives.filter((l) => l.st.state === 'live' && !shown.has(l.st.videoId) && !shownInOtherTab(l.st.videoId));
-    for (const group of [liveOk.filter((l) => l.f.star), liveOk.filter((l) => !l.f.star)]) {
-      // メンバー限定で見られないものは飛ばす (ランダムな順で 1 本見つかるまで確かめる)
-      const shuffled = [...group].sort(() => Math.random() - 0.5);
-      const { ok } = await filterAccessible(shuffled, { limit: 1, onProgress: step('progressAccess', 0.55, 0.7) });
-      if (ok.length) {
-        const { f, st } = ok[0];
-        loadPicked(i, st.videoId, autoInputOf(f), f.name, true);
+    const shuffle = (list) => {
+      const a = [...list];
+      for (let k = a.length - 1; k > 0; k--) {
+        const r = Math.floor(Math.random() * (k + 1));
+        [a[k], a[r]] = [a[r], a[k]];
+      }
+      return a;
+    };
+    const [starChs, otherChs] = [favs.filter((f) => f.star), favs.filter((f) => !f.star)];
+    // ①② ライブ配信中 (配信予定は除く)。メンバー限定で見られないものは飛ばす
+    const budget = { watch: 8 }; // 動画のページ (重い) を確かめる件数の上限
+    const liveOf = async (f) => {
+      let st;
+      try {
+        st = await Favorites.fetchStatus(f, { quick: true, budget, kinds: premiereKinds() });
+        favStatus.set(f.channelId, st);
+      } catch (e) {
+        ErrLog.warnFetch('hakomado: 配信状況の取得に失敗', f.name, e);
+        return null;
+      }
+      if (st?.state !== 'live' || shown.has(st.videoId) || shownInOtherTab(st.videoId) || membersBlocked.has(st.videoId)) return null;
+      if (state.settings.skipMembersOnly && (await Favorites.checkAccess(st.videoId)) === 'members') return null;
+      return { f, st };
+    };
+    for (const [chs, from, to] of [[starChs, 0, 0.35], [otherChs, 0.35, 0.7]]) {
+      const hit = await findFirst(shuffle(chs), liveOf, { onProgress: step('progressStatus', from, to) });
+      if (hit) {
+        loadPicked(i, hit.st.videoId, autoInputOf(hit.f), hit.f.name, true);
         return;
       }
     }
-    // ③④ 最近の配信 (同じチャンネルが表示中なら除く)
+    // ③④ 最近の配信 (同じチャンネルが表示中なら除く)。最初に使えるものがあったチャンネルから選ぶ
     const watched = await watchedIds();
     const usable = ({ v, f }) => !shown.has(v.videoId) && !watched.has(v.videoId) && !shownNames.has(f.name) && !shownInOtherTab(v.videoId);
-    const [starChs, otherChs] = [favs.filter((f) => f.star), favs.filter((f) => !f.star)];
-    const archFrom = (chs) => (chs === starChs ? 0.7 : 0.7 + 0.3 * (starChs.length / Math.max(1, favs.length)));
-    for (const chs of [starChs, otherChs]) {
-      const from = archFrom(chs);
-      const to = from + 0.3 * (chs.length / Math.max(1, favs.length));
-      const picks = (await archiveCandidates(chs, { onProgress: step('progressArchive', from, to) })).filter(usable);
+    for (const [chs, from, to] of [[starChs, 0.7, 0.85], [otherChs, 0.85, 1]]) {
+      const picks = (await archiveCandidates(shuffle(chs), { onProgress: step('progressArchive', from, to), until: (out) => out.some(usable) })).filter(usable);
       if (picks.length) {
-        const { v, f } = random(picks);
+        const { v, f } = picks[Math.floor(Math.random() * picks.length)];
         loadPicked(i, v.videoId, videoInput(v), f.name, false);
         return;
       }
@@ -11172,6 +11188,45 @@ async function pickAnything(i) {
     pickBusy = false;
     btn.disabled = false;
   }
+}
+
+/**
+ * items を並び順に workers 本ずつ並べて check にかけ、最初に値を返したものを返す (無ければ null)。
+ * 見つかったら残りは確かめ始めない (確かめている途中のものは終わるのを待たない)
+ */
+function findFirst(items, check, { workers = 6, onProgress = null } = {}) {
+  return new Promise((resolve) => {
+    let next = 0;
+    let done = 0;
+    let found = false;
+    let running = 0;
+    onProgress?.(0, items.length);
+    const finish = (v) => {
+      if (found) return;
+      if (v != null) {
+        found = true;
+        resolve(v);
+      } else if (done === items.length) resolve(null);
+    };
+    const launch = () => {
+      while (!found && running < workers && next < items.length) {
+        const item = items[next++];
+        running++;
+        Promise.resolve()
+          .then(() => check(item))
+          .catch(() => null)
+          .then((v) => {
+            running--;
+            done++;
+            if (!found) onProgress?.(done, items.length);
+            finish(v);
+            launch();
+          });
+      }
+    };
+    if (!items.length) resolve(null);
+    else launch();
+  });
 }
 
 /** 空き枠の中に出す、🎲 おまかせの進み具合 (frac = 0〜1) */
@@ -11385,7 +11440,7 @@ const ARCHIVE_RETRY_MS = 5 * 60 * 1000;
  * 最近の配信の候補 (新しい順)。毎回 Favorites.fetchArchives に聞く (30 分は覚えた結果を返すので、取りに行くのは古くなったときだけ)。
  * 自動再生を一晩つけっぱなしにしても、新しく終わった配信が候補に入る
  */
-async function archiveCandidates(channels, { onProgress = null } = {}) {
+async function archiveCandidates(channels, { onProgress = null, until = null } = {}) {
   const kinds = autoVideoKinds();
   const since = Date.now() - (kinds.size ? VIDEO_AUTO_DAYS : ARCHIVE_DAYS) * 24 * 60 * 60 * 1000;
   // 自動再生対象に動画・ショートがあればその種類だけ。配信だけのときは、ライブが無い間の「最近の動画」の設定に従う
@@ -11396,8 +11451,10 @@ async function archiveCandidates(channels, { onProgress = null } = {}) {
   let done = 0;
   if (total) onProgress?.(0, total); // 全部取得に失敗したばかりで取りに行くものが無いときは出さない
   const out = [];
+  // until(out) が true になったら、残りのチャンネルは取りに行かない (🎲 おまかせで、見つかった時点で入れるため)
+  const enough = () => !!until?.(out);
   const worker = async () => {
-    for (let f = queue.shift(); f; f = queue.shift()) {
+    for (let f = enough() ? null : queue.shift(); f; f = enough() ? null : queue.shift()) {
       let d;
       try {
         d = await Favorites.fetchArchives(f.channelId, { shorts });
