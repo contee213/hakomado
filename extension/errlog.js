@@ -14,7 +14,7 @@ const ErrLog = (() => {
   const KEEP_MS = 7 * 24 * 60 * 60 * 1000;
   const MSG_MAX = 500;
   const MSG_TYPE = 'hakomado-errlog';
-  const SOURCES = ['grid', 'background', 'watch', 'chat'];
+  const SOURCES = ['grid', 'background', 'watch', 'chat', 'twitch'];
   const KINDS = ['warn', 'error', 'exception', 'rejection'];
   const ORIGIN = `chrome-extension://${chrome.runtime.id}/`;
 

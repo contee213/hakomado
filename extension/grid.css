@@ -354,10 +354,9 @@ body.hl-animate .tile.audible::before { animation: hl-flow 6s ease-in-out infini
 }
 .tile.is-empty .empty { display: flex; }
 
-/* Twitch の枠 (見るだけ): YouTube の枠の中のスクリプトで動く機能のボタンは出さない。
+/* Twitch の枠: YouTube だけの機能 (表示の切り方・弾幕・高評価・ピックアップ) のボタンは出さない。
+   音の左右・遅延 (mix) と速度は、枠の中のスクリプト (content/twitch-player.js) で効く。
    あとで見る・再生リストは VOD だけ (チャンネルのライブは開くたびに中身が変わるので入れない) */
-.tile.is-twitch .bar [data-act="mix"],
-.tile.is-twitch .bar [data-act="speed"],
 .tile.is-twitch .bar [data-act="corner"],
 .tile.is-twitch .bar [data-act="danmaku"],
 .tile.is-twitch:not(.is-twitch-vod) .bar [data-act="save"],
@@ -378,9 +377,16 @@ body.shooting .tile.is-twitch:is(:hover, :focus-within) .bar > * { opacity: 0; t
 .tile.is-twitch .player-slot { top: var(--tw-bar); height: auto; }
 .tile.is-twitch .drag-zone { display: none; }
 .tile.is-twitch .toast { top: 4px; bottom: auto; }
-/* 音の出ている枠の線 (::before) も枠全体に重なるので、Twitch の枠は枠自体の影で 1 色の線を引く */
-.tile.is-twitch.audible::before { display: none; }
-.tile.is-twitch.audible { box-shadow: 0 0 0 var(--hl-width) var(--hl-solid, #29a9ff); }
+/* Twitch は、プレイヤーに何かが重なって見える (重なっていそうな) ときも再生しない (IntersectionObserver v2 の見え方の判定)。
+   隣の枠の外側の線 (::before) や光 (::after) が少しでもかかると、その枠は読み込んでも再生が始まらず、再生の命令も受け付けない
+   (2026-11-25 に確かめた)。そこで:
+   - Twitch の枠は、ほかの枠の線・光 (::before は z-index 6) より前に出す (PinP の小窓はさらに前。grid.js の layout)
+   - Twitch の枠自身の音の線は、外に光らせず、枠の内側 (プレイヤーのまわりに空けた細い余白) に 1 色で引く */
+.tile.is-twitch { z-index: 7; }
+.tile.is-twitch.audible::before,
+.tile.is-twitch.audible::after { display: none; }
+.tile.is-twitch .player-slot { left: var(--hl-width); right: var(--hl-width); bottom: var(--hl-width); }
+.tile.is-twitch.audible { box-shadow: inset 0 0 0 var(--hl-width) var(--hl-solid, #29a9ff); }
 .twitch-ask {
   position: absolute;
   inset: 0;
@@ -1590,6 +1596,8 @@ code { font-size: 12px; background: #222228; padding: 0 4px; border-radius: 3px;
 .sync-mark { position: absolute; inset: 0; z-index: 3; pointer-events: none; display: none; }
 .tile.sync-grouped .sync-mark { display: block; border-bottom: 3px solid var(--g); }
 .tile.sync-hl .sync-mark { display: block; border: 2px dashed var(--g, #f5b942); }
+/* Twitch の枠は、印をプレイヤーに重ねない (重なると Twitch が止まる)。操作バーの場所 (プレイヤーの上) に引く */
+.tile.is-twitch .sync-mark { bottom: auto; height: var(--tw-bar); }
 .mix-panel {
   position: absolute;
   top: 34px;
