@@ -31,7 +31,7 @@ Hakomado (以下「この拡張機能」) は、YouTube の配信・動画を 1 
 | 相手 | 内容 |
 | --- | --- |
 | YouTube (`www.youtube.com`, `i.ytimg.com`, `yt3.googleusercontent.com`) | 配信・動画・チャンネル・再生リストの情報とサムネイル・チャンネルのアイコン、プレイヤーとライブチャットの表示。メンバー限定配信も見られるように、ブラウザでログインしている YouTube の Cookie が付きます (YouTube を普通に見るときと同じです) |
-| ホロジュール (`schedule.hololive.tv`) | 初期データのチャンネルの配信予定 |
+| ホロジュール (`schedule.hololive.tv`) | 初期データのチャンネルの配信予定 (設定の「アドオン」で ON のときだけ。初期値は ON)。Cookie は送りません |
 | GitHub (`api.github.com`) | 新しい版が出ていないかの確認 (1 日 1 回まで。Chrome ウェブストアから入れた版では行いません)。Cookie は送りません |
 | GitHub (`raw.githubusercontent.com`) | 「パックを探す」を押したときだけ、チャンネルパックの一覧と選んだパック。Cookie は送りません |
 | 利用者が指定した URL | 利用者が URL を入れて読み込んだチャンネルパックや画像。Cookie は送りません |
@@ -95,7 +95,7 @@ The extension only connects to the following. Each connection fetches what is ne
 | Destination | What |
 | --- | --- |
 | YouTube (`www.youtube.com`, `i.ytimg.com`, `yt3.googleusercontent.com`) | Information and thumbnails for streams, videos, channels and playlists, and channel icons; showing the player and live chat. Requests carry the cookies of the YouTube account you are signed in to in the browser, so members-only streams work (the same as visiting YouTube normally) |
-| Holodule (`schedule.hololive.tv`) | Stream schedules for the bundled channels |
+| Holodule (`schedule.hololive.tv`) | Stream schedules for the bundled channels (only while the add-on is on under Settings > Add-ons; on by default). No cookies are sent |
 | GitHub (`api.github.com`) | Checking for a newer version (at most once a day; not done in the version installed from the Chrome Web Store). No cookies are sent |
 | GitHub (`raw.githubusercontent.com`) | Only when you press "Find packs": the list of channel packs and the pack you choose. No cookies are sent |
 | URLs you enter | Channel packs or images you load from a URL. No cookies are sent |

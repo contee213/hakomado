@@ -143,6 +143,8 @@ const MESSAGES = {
   backupImported: ['読み込みました。画面を読み込み直します', 'Imported. Reloading the page'],
   updateLink: ['新しいバージョン {0} があります', 'Version {0} is available'],
   updateNotice: ['Hakomado の新しいバージョン {0} が出ています (設定画面の下から開けます)', 'Hakomado {0} is available (open it from the bottom of Settings)'],
+  addonNoAccess: ['サイトへのアクセスが許可されていません。チェックを入れ直すと許可を求めます', 'Access to the site is not allowed. Check the box again to grant it'],
+  addonDenied: ['サイトへのアクセスが許可されなかったので ON にできませんでした', 'Could not turn it on because access to the site was not allowed'],
   settingsResetConfirm: ['設定をすべて初期値に戻しますか？ (表示言語とチャンネルはそのまま)', 'Reset all settings to their defaults? (The display language and channels are kept.)'],
   rateLimited: ['YouTube から取得を制限されたため、しばらく取りに行きません', 'YouTube is limiting requests; pausing for a while'],
   progressStatus: ['チャンネルの配信状況を確認しています ({0} / {1})', 'Checking live status of channels ({0} / {1})'],
@@ -907,6 +909,9 @@ const HTML_EN = {
   'catalog.load': 'Get the list',
   'pack.listH': 'Channel packs',
   'pack.listNote': 'Packs in your channel list. Remove or bring back a whole pack',
+  'tab.addons': 'Add-ons',
+  'addon.h': 'Schedule sites',
+  'addon.note': 'Loads stream schedules from sites that list them in one place, so checking stream status is lighter. Stream status still works when off',
   'tab.backup': 'Backup',
   'backup.h': 'Back up your settings',
   'backup.note': 'Saves settings, channels, history, Watch later and playlists to one file. Export before reinstalling',
@@ -1092,6 +1097,11 @@ const HTML_EN = {
 <li><b>Find packs</b>: choose from the packs collected in the Hakomado repository (GitHub). They are unofficial, made by users, and not affiliated with any agency or streamer. Report mistakes or requests on GitHub</li>
 <li><b>Import a channel pack</b>: paste the URL or contents of a pack made by someone else, or choose a file. Channels you already have stay as they are</li>
 <li><b>Export a channel pack</b>: save the bundled Hololive pack, an imported pack, the channels you added, or all of them as a pack (JSON) to give to others or publish</li>
+</ul>
+<h3>Settings → Add-ons</h3>
+<ul>
+<li>Add-ons are features that rely on a particular site. Turn each one on or off. When you turn one on, you may be asked to allow access to its site</li>
+<li><b>Holodule</b> (on by default): loads the hololive stream schedule (schedule.hololive.tv) in one go, so the bundled channels and channels added from the hololive channel pack are checked less often on YouTube. When off, stream status is still found from each channel’s feed (a little heavier)</li>
 </ul>`,
   'helpPage.library': `<ul>
 <li>“📚 Library” (<kbd>B</kbd>): 🎞 Recent videos (streams ended and videos published in the last 7 days) / 🕘 Watch history (100) / 🔖 Watch later (100) / 📃 Playlists</li>
@@ -1183,7 +1193,7 @@ const HTML_EN = {
   'settings.help': '? More help',
   'settings.helpTitle': 'Open the detailed help for this tab in “? Help”',
   'settings.reset': 'Reset all to defaults',
-  'settings.resetTitle': 'Reset all danmaku, outline, chat, display and auto play settings (the display language and channels are kept)',
+  'settings.resetTitle': 'Reset all danmaku, outline, chat, display, auto play and add-on settings (the display language and channels are kept)',
   'fav.history': '🕘 Watch history',
   'fav.archive': '🎞 Recent videos',
   'fav.archiveTitle': 'Streams from your channels that ended, and videos (premieres etc.) published, in the last 7 days (newest first)',

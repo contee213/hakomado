@@ -3,15 +3,14 @@
 // - 配信状況は、どのチャンネルも同じ仕組みで調べる (「配信の予定と状況」の節):
 //   チャンネルの「ライブ配信」の再生リストの RSS で配信予定・新しい配信を知り、動画ごとの状態を覚えておいて、
 //   開始予定の時刻のころだけ、その動画のページを確かめる
-// - ホロライブのチャンネルは、ホロジュール (schedule.hololive.tv) を補助に使う (全員分の予定が 1 回で分かるので、
-//   RSS を見に行く間隔を長くできる。ホロジュールが取れなくても RSS だけで動く)
+// - 配信予定のアドオン (addons/。ホロジュールなど) が ON なら補助に使う (載っているチャンネルの予定が 1 回で分かるので、
+//   RSS を見に行く間隔を長くできる。アドオンが OFF・取れなくても RSS だけで動く)
 /* exported Favorites */
-/* global PRESET_VERSION, PRESET_FAVORITES, LANG, tr, ErrLog */
+/* global PRESET_VERSION, PRESET_FAVORITES, LANG, tr, ErrLog, Addons */
 'use strict';
 
 const Favorites = (() => {
   const YT = 'https://www.youtube.com';
-  const SCHEDULE_URL = 'https://schedule.hololive.tv/lives';
   const STATUS_TTL_MS = 60 * 1000;
   const statusCache = new Map(); // channelId -> {at, status}
 
@@ -21,14 +20,14 @@ const Favorites = (() => {
   // - YouTube へのページ取得はタブ間で 1 件ずつ、間を空けて行う (一度にまとめて取らない)
   // - YouTube に制限 (429) をかけられたら、しばらく取りに行かない (5 分 → 10 分 → … 最大 60 分)
   const shared = chrome.storage.session;
-  const SHARED_KEY = 'statusShared'; // {sched: {at, byHandle}, yt: {channelId: {at, status}}, backoff: {until, step}, lastYtFetch}
+  const SHARED_KEY = 'statusShared'; // {sched3: {アドオンの id: {at, byKey}}, yt: {channelId: {at, status}}, backoff: {until, step}, lastYtFetch}
   const FEED_AUTO_MS = 3 * 60 * 1000; // チャンネルの RSS を見に行く間隔 (ふつう)
-  const FEED_HOLO_MS = 15 * 60 * 1000; // ホロジュールで予定が分かるチャンネル
+  const FEED_SCHED_MS = 15 * 60 * 1000; // 配信予定のアドオンで予定が全部分かるチャンネル
   const FEED_MANUAL_MS = 30 * 1000; // 「⟳ 更新」
   const FEED_GAP_MS = 200; // RSS (軽い) を取る間隔
   // プレミア公開を探す「動画」「ショート」の RSS を見に行く間隔 (公開予定は前もって出るので長めでよい)
   const FEED_PREMIERE_MS = 15 * 60 * 1000;
-  const SCHED_AUTO_MS = 55 * 1000; // ホロジュールは 1 分ごと
+  const SCHED_AUTO_MS = 55 * 1000; // 配信予定のアドオンは 1 分ごと
   const SCHED_MANUAL_MS = 5 * 1000;
   const YT_GAP_MS = 1000; // YouTube へのページ取得の間隔
   // 取得の待ち時間の上限。応答が返ってこないまま順番待ち (ロック) を持ち続けると、全タブの取得が止まるため
@@ -490,7 +489,7 @@ const Favorites = (() => {
 
   // ------------------------------------------------------------ 配信の予定と状況
   // 動画ごとの状態 (配信予定 / 配信中 / 終わった / 配信ではない) を覚えておき (タブ間で共有)、確かめ直すのは必要なときだけ:
-  //  - 初めて見た動画 (RSS の配信予定と、24 時間以内に増えたもの): 1 度確かめる。ホロジュールに載っていれば、
+  //  - 初めて見た動画 (RSS の配信予定と、24 時間以内に増えたもの): 1 度確かめる。配信予定のアドオンに載っていれば、
   //    そこにある開始予定時刻を使うので確かめない
   //  - 配信予定: 開始予定の 2 分前から 1 時間後までは 40 秒ごと (開始をすぐ見つけるため)。それより後は 5 分ごと
   //    (遅れて始まる枠のため。6 時間まで)。開始まで間があるうちは 30 分〜6 時間ごと (時刻が変わることがあるため)
@@ -634,22 +633,22 @@ const Favorites = (() => {
 
   /**
    * チャンネルの今の配信状況。
-   * @param {{maxFeedAge: number, budget: {watch: number}|null, holo: Array|null, kinds: {video: boolean, short: boolean}}} o
-   *   holo = ホロジュールに載っているこのチャンネルの枠 [{videoId, live, startAt}] (ホロジュールを使わないチャンネルは null)。
+   * @param {{maxFeedAge: number, budget: {watch: number}|null, sched: Array|null, kinds: {video: boolean, short: boolean}}} o
+   *   sched = 配信予定のアドオンに載っているこのチャンネルの枠 [{videoId, live, startAt}] (アドオンで分からないチャンネルは null)。
    *   kinds = プレミア公開の動画・ショートも配信と同じに扱うか (設定の「自動再生のコンテンツ」)
    */
-  async function channelStatus(fav, { maxFeedAge, budget, holo, kinds, feedCacheOnly = false }) {
+  async function channelStatus(fav, { maxFeedAge, budget, sched, kinds, feedCacheOnly = false }) {
     let items = [];
     try {
       items = await fetchFeed(fav.channelId, { maxAge: maxFeedAge, cacheOnly: feedCacheOnly });
     } catch (e) {
-      // RSS が取れなくても、ホロジュールで分かる分は使う
-      if (!holo || e instanceof RateLimitedError) throw e;
+      // RSS が取れなくても、配信予定のアドオンで分かる分は使う
+      if (!sched || e instanceof RateLimitedError) throw e;
     }
     // プレミア公開は「ライブ配信」の再生リストに入らないので、動画・ショートを対象にしているときは「動画」「ショート」の
-    // 再生リストも見る (公開前 = 再生数 0 のものだけ確かめる)。ホロジュールで予定が分かるチャンネルは見ない (載っている)
+    // 再生リストも見る (公開前 = 再生数 0 のものだけ確かめる)。配信予定のアドオンで予定が分かるチャンネルは見ない (載っている)
     const premieres = [];
-    if (!holo) {
+    if (!sched) {
       for (const [on, list] of [[kinds.video, 'UULF'], [kinds.short, 'UUSH']]) {
         if (!on) continue;
         try {
@@ -664,7 +663,7 @@ const Favorites = (() => {
     const known = await readStates();
     const updates = {};
     const state = (vid) => updates[vid] || known[vid];
-    // 調べる動画: 配信予定 (再生数 0)・24 時間以内に増えたもの・配信予定 / 配信中と分かっているもの・ホロジュールの枠・
+    // 調べる動画: 配信予定 (再生数 0)・24 時間以内に増えたもの・配信予定 / 配信中と分かっているもの・配信予定のアドオンの枠・
     // 公開前のプレミア公開
     const cands = new Map();
     for (const it of items) {
@@ -675,10 +674,10 @@ const Favorites = (() => {
       const s = known[it.videoId];
       if (!cands.has(it.videoId) && (it.views === 0 || s?.state === 'upcoming' || s?.state === 'live')) cands.set(it.videoId, it);
     }
-    for (const h of holo || []) {
+    for (const h of sched || []) {
       if (!cands.has(h.videoId)) cands.set(h.videoId, { videoId: h.videoId, title: '', at: 0 });
       const s = known[h.videoId];
-      // ホロジュールの開始予定時刻・配信中の印を使う (確かめる前に分かる分)。終わったと分かっているものは戻さない
+      // 配信予定のアドオンの開始予定時刻・配信中の印を使う (確かめる前に分かる分)。終わったと分かっているものは戻さない
       if (h.live && (!s || s.state === 'upcoming')) updates[h.videoId] = { ...s, state: 'live', startAt: h.startAt, at: now };
       else if (!s && !h.live) updates[h.videoId] = { state: 'upcoming', startAt: h.startAt, at: now };
     }
@@ -729,58 +728,22 @@ const Favorites = (() => {
     });
   }
 
-  // ------------------------------------------------------------ ホロジュール
-  // 1 ページに前日〜翌日の配信予定が載っている。配信中の枠には赤い枠線 (border: 3px red) が付く。
-  // 時刻は日本時間。各枠の配信者は動画の oEmbed で調べ、チャンネルのハンドルで突き合わせる。
-  let scheduleCache = null; // {at, promise}
-
-  function parseSchedule(html) {
-    // ホロジュールの各枠には onclick="gtag(...)" が付いている。DOMParser は読み込むだけでも
-    // インラインのイベントハンドラーを拡張機能の CSP 違反として記録するので、先に取り除く (スクリプトも不要)
-    const cleaned = html
-      .replace(/<script\b[\s\S]*?<\/script>/gi, '')
-      .replace(/\son[a-z]+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '');
-    const doc = new DOMParser().parseFromString(cleaned, 'text/html');
-    const nowJst = new Date(Date.now() + 9 * 3600e3);
-    const entries = [];
-    let month = null;
-    let day = null;
-    for (const el of doc.querySelectorAll('.holodule.navbar-text, a.thumbnail[href*="youtube.com/watch"]')) {
-      if (el.tagName !== 'A') {
-        const m = el.textContent.match(/(\d{1,2})\/(\d{1,2})/);
-        if (m) [month, day] = [Number(m[1]), Number(m[2])];
-        continue;
-      }
-      const videoId = el.getAttribute('href').match(/[?&]v=([A-Za-z0-9_-]{11})/)?.[1];
-      const hm = el.querySelector('.datetime')?.textContent.match(/(\d{1,2}):(\d{2})/);
-      if (!videoId || !hm || month == null) continue;
-      // 年をまたぐとき (12 月に 1 月の予定など) の補正
-      let year = nowJst.getUTCFullYear();
-      const curMonth = nowJst.getUTCMonth() + 1;
-      if (month - curMonth > 6) year--;
-      else if (curMonth - month > 6) year++;
-      entries.push({
-        videoId,
-        startAt: Date.UTC(year, month - 1, day, Number(hm[1]) - 9, Number(hm[2])),
-        live: /border:\s*3px\s+red/.test(el.getAttribute('style') || ''),
-        name: el.querySelector('.name')?.textContent.trim() || '',
-        // 配信者のアイコン (コラボは複数並ぶが、先頭が配信者)
-        icon: iconKey(el.querySelector('img[src*="yt3."]')?.getAttribute('src')),
-      });
-    }
-    return entries;
-  }
+  // ------------------------------------------------------------ 配信予定のアドオン
+  // 配信予定サイト (ホロジュールなど。addons/ のファイル) から、まとめて分かる配信予定を読む。
+  // 各枠の配信者はアドオンが channelId / handle で示すか、表示名・アイコンでチャンネル一覧・既定のチャンネルと突き合わせ、
+  // それでも分からなければ動画の oEmbed で調べる。結果はアドオンごとに、チャンネル ID / ハンドル (小文字) → 枠の一覧
+  const scheduleCache = new Map(); // アドオンの id -> {at, promise}
 
   /** アイコン画像の URL から、画像ごとの部分 (サイズ指定の前まで) を取り出す。配信元のドメインが違っても同じになる */
   function iconKey(url) {
     return (url || '').split('?')[0].split('/').pop().split('=')[0];
   }
 
-  // ホロジュールの枠 → 既定のチャンネル (ホロライブ所属) のハンドル。
-  // 配信予定の動画は oEmbed が投稿者を返さないので、ホロジュールに載っているアイコンと名前で突き合わせる
-  // (アイコンは差し替わることがあり、英語の名前は短い呼び名 (Calli など) なので、両方を使う)
+  // 枠の表示名・アイコン → チャンネルのハンドル。配信予定の動画は oEmbed が投稿者を返さないので、これで突き合わせる
+  // (アイコンは差し替わることがあり、英語の名前は短い呼び名 (Calli など) なので、両方を使う)。
+  // 既定のチャンネルは毎回同じなので覚えておき、チャンネル一覧 (パックで足したものなど) は取るたびに足す
   let presetIndex = null;
-  function presetHandleFor(e) {
+  async function handleIndex() {
     if (!presetIndex) {
       presetIndex = new Map();
       for (const p of PRESET_FAVORITES) {
@@ -788,53 +751,93 @@ const Favorites = (() => {
         for (const k of [iconKey(p.icon), p.name, p.nameEn]) if (k) presetIndex.set(k.toLowerCase(), p.handle);
       }
     }
-    return presetIndex.get(e.icon.toLowerCase()) || presetIndex.get(e.name.toLowerCase()) || '';
+    const index = new Map(presetIndex);
+    for (const f of await list()) {
+      if (!f.handle) continue;
+      for (const k of [iconKey(f.icon), f.name]) if (k && !index.has(k.toLowerCase())) index.set(k.toLowerCase(), f.handle);
+    }
+    return index;
   }
 
-  /** ホロジュールから、ハンドル (小文字) → そのチャンネルの枠 [{videoId, live, startAt}] の対応表を作る */
-  function fetchSchedule({ force = false, auto = false } = {}) {
+  /** アドオンが取りに行くとき使う取得 (アドオンの origins の中だけ。Cookie は送らない) */
+  const fetchTextFor = (addon) => (url) => {
+    if (!Addons.allowed(addon, url)) return Promise.reject(new Error(`hakomado: アドオン ${addon.id} の対象外の URL`));
+    return getHtml(url, { credentials: 'omit' });
+  };
+
+  /** そのアドオンの配信予定 (チャンネル ID / ハンドル (小文字) → 枠 [{videoId, live, startAt}]) */
+  function fetchSchedule(addon, { force = false, auto = false } = {}) {
     // force (「⟳ 更新」) でも、直前 (5 秒以内) に取ったものは使い回す (チャンネルの件数分取りに行かないように)
     const maxAge = auto ? SCHED_AUTO_MS : force ? SCHED_MANUAL_MS : STATUS_TTL_MS;
-    const age = scheduleCache ? Date.now() - scheduleCache.at : Infinity;
-    if (age < maxAge) return scheduleCache.promise;
+    const cached = scheduleCache.get(addon.id);
+    if (cached && Date.now() - cached.at < maxAge) return cached.promise;
     // 他のタブが少し前に取った結果があれば、それを使う (取りに行くのはタブ間で 1 つずつ)
-    const promise = withLock('hakomado-schedule', async () => {
-      const sh = (await readShared()).sched2;
-      if (sh && Date.now() - sh.at < maxAge && sh.byHandle) return new Map(Object.entries(sh.byHandle));
-      const byHandle = await buildSchedule();
-      await updateShared((v) => (v.sched2 = { at: Date.now(), byHandle: Object.fromEntries(byHandle) }));
-      return byHandle;
+    const promise = withLock(`hakomado-schedule:${addon.id}`, async () => {
+      const sh = (await readShared()).sched3?.[addon.id];
+      if (sh && Date.now() - sh.at < maxAge && sh.byKey) return new Map(Object.entries(sh.byKey));
+      const byKey = await buildSchedule(addon);
+      await updateShared((v) => {
+        delete v.sched2; // 前の版 (ホロジュールだけだったころ) の項目
+        v.sched3 = { ...v.sched3, [addon.id]: { at: Date.now(), byKey: Object.fromEntries(byKey) } };
+      });
+      return byKey;
     });
-    scheduleCache = { at: Date.now(), promise };
+    scheduleCache.set(addon.id, { at: Date.now(), promise });
     promise.catch(() => {
-      if (scheduleCache?.promise === promise) scheduleCache = null;
+      if (scheduleCache.get(addon.id)?.promise === promise) scheduleCache.delete(addon.id);
     });
     return promise;
   }
 
-  /** ホロジュールを取って、ハンドル (小文字) → そのチャンネルの枠 [{videoId, live, startAt}] の対応表を作る */
-  async function buildSchedule() {
-    const entries = parseSchedule(await getHtml(SCHEDULE_URL));
+  /** アドオンから枠を取って、チャンネル ID / ハンドル (小文字) → そのチャンネルの枠 [{videoId, live, startAt}] の対応表を作る */
+  async function buildSchedule(addon) {
+    const entries = await addon.fetchEntries({ fetchText: fetchTextFor(addon) });
     const now = Date.now();
     // 配信中と、これから始まる枠 (少し遅れて始まる待機中の枠も含む) だけ使う
-    const relevant = entries.filter((e) => e.live || (e.startAt >= now - 30 * 60e3 && e.startAt <= now + 48 * 3600e3));
-    const byHandle = new Map();
+    const relevant = (Array.isArray(entries) ? entries : []).filter(
+      (e) => e && VIDEO_RE.test(e.videoId) && Number.isFinite(e.startAt) && (e.live || (e.startAt >= now - 30 * 60e3 && e.startAt <= now + 48 * 3600e3)),
+    );
+    const index = await handleIndex();
+    const byKey = new Map();
     let i = 0;
     const worker = async () => {
       while (i < relevant.length) {
         const e = relevant[i++];
-        // まずホロジュールのアイコン・名前で既定のチャンネルを探す (YouTube に取りに行かずに済む)。
-        // 見つからないときだけ oEmbed で投稿者を調べる (配信予定の動画は oEmbed が投稿者を返さないので、配信中のものだけ当たる)
-        let handle = presetHandleFor(e);
-        if (!handle) handle = (await oembed(`${YT}/watch?v=${e.videoId}`))?.authorUrl.match(/youtube\.com\/(@[^/?]+)/)?.[1] || '';
-        if (!handle) continue;
-        const key = decodeURIComponent(handle).toLowerCase();
-        if (!byHandle.has(key)) byHandle.set(key, []);
-        byHandle.get(key).push({ videoId: e.videoId, live: e.live, startAt: e.startAt });
+        let key = CHANNEL_ID_RE.test(e.channelId || '') ? e.channelId : '';
+        if (!key) {
+          // まず表示名・アイコンでチャンネルを探す (YouTube に取りに行かずに済む)。
+          // 見つからないときだけ oEmbed で投稿者を調べる (配信予定の動画は oEmbed が投稿者を返さないので、配信中のものだけ当たる)
+          let handle = /^@[^/?\s]+$/.test(e.handle || '') ? e.handle : '';
+          if (!handle) handle = index.get(iconKey(e.icon).toLowerCase()) || index.get(String(e.name || '').toLowerCase()) || '';
+          if (!handle) handle = (await oembed(`${YT}/watch?v=${e.videoId}`))?.authorUrl.match(/youtube\.com\/(@[^/?]+)/)?.[1] || '';
+          if (handle) key = decodeURIComponent(handle).toLowerCase();
+        }
+        if (!key) continue;
+        if (!byKey.has(key)) byKey.set(key, []);
+        byKey.get(key).push({ videoId: e.videoId, live: !!e.live, startAt: e.startAt });
       }
     };
     await Promise.all(Array.from({ length: 6 }, worker));
-    return byHandle;
+    return byKey;
+  }
+
+  /**
+   * ON になっている配信予定のアドオンを全部読む。取れたものだけ [{addon, byKey}]
+   * (権限が無いもの・取れなかったものは除く。そのチャンネルは RSS だけで調べる)
+   */
+  async function fetchSchedules(opts) {
+    const results = await Promise.all(
+      Addons.enabled('schedule').map(async (addon) => {
+        if (!(await Addons.granted(addon))) return null;
+        try {
+          return { addon, byKey: await fetchSchedule(addon, opts) };
+        } catch (e) {
+          ErrLog.warnFetch('hakomado: 配信予定の取得に失敗', addon.id, e);
+          return null;
+        }
+      }),
+    );
+    return results.filter(Boolean);
   }
 
   /**
@@ -843,8 +846,8 @@ const Favorites = (() => {
    * @param {{force?: boolean, auto?: boolean, budget?: {watch: number}|null, quick?: boolean, kinds?: {video: boolean, short: boolean}}} [o]
    *   kinds = プレミア公開の動画・ショートも配信と同じに扱うか (設定の「自動再生のコンテンツ」。省くと両方)。
    *   budget = この回に動画のページを確かめてよい件数。
-   *   quick = 自動再生を ON にした最初の 1 回など、すぐ結果がほしいとき。ホロジュールで分かるチャンネルは RSS を取り直さず、
-   *   ホロジュールと覚えている RSS で決める (RSS は 1 チャンネル 1 秒ほどかかり、全部取り直すと数十秒待たせるため。
+   *   quick = 自動再生を ON にした最初の 1 回など、すぐ結果がほしいとき。配信予定のアドオンで分かるチャンネルは RSS を取り直さず、
+   *   アドオンの予定と覚えている RSS で決める (RSS は 1 チャンネル 1 秒ほどかかり、全部取り直すと数十秒待たせるため。
    *   取り直しはその後の自動再生の確認に任せる)
    * @returns {Promise<{state: 'live'|'upcoming'|'offline', videoId?: string, title?: string, startAt?: number}>}
    */
@@ -853,17 +856,19 @@ const Favorites = (() => {
     const cached = statusCache.get(fav.channelId);
     if (!force && !auto && cached && cached.kk === kk && Date.now() - cached.at < STATUS_TTL_MS) return cached.status;
 
-    // ホロジュールに載るチャンネル (既定のホロライブのチャンネル・載っている自分で追加したチャンネル) は、その枠も使う。
-    // 既定のチャンネルは、載っていなければ「予定なし」が分かるので、RSS を見に行く間隔を長くする
+    // 配信予定のアドオンに載るチャンネルは、その枠も使う。アドオンが「全部載る」とするチャンネル (ホロジュールなら
+    // 既定のホロライブのチャンネル) は、載っていなければ「予定なし」が分かるので、RSS を見に行く間隔を長くする
     const key = (fav.handle || '').toLowerCase();
-    let holo = null;
-    if (key) {
-      const schedule = await fetchSchedule({ force, auto }).catch(() => null);
-      const mine = schedule?.get(key);
-      if (mine || (schedule && fav.preset)) holo = mine || [];
+    let sched = null;
+    let covered = false;
+    for (const { addon, byKey } of await fetchSchedules({ force, auto })) {
+      const mine = byKey.get(fav.channelId) || (key && byKey.get(key));
+      const all = !!addon.covers?.(fav);
+      if (mine || all) sched = [...(sched || []), ...(mine || [])];
+      covered ||= all;
     }
-    const maxFeedAge = force && !auto ? FEED_MANUAL_MS : holo && fav.preset ? FEED_HOLO_MS : FEED_AUTO_MS;
-    const status = await channelStatus(fav, { maxFeedAge, budget, holo, kinds, feedCacheOnly: quick && !!holo });
+    const maxFeedAge = force && !auto ? FEED_MANUAL_MS : covered ? FEED_SCHED_MS : FEED_AUTO_MS;
+    const status = await channelStatus(fav, { maxFeedAge, budget, sched, kinds, feedCacheOnly: quick && !!sched });
     statusCache.set(fav.channelId, { at: Date.now(), status, kk });
     return status;
   }

@@ -1346,6 +1346,9 @@ dialog.settings-dialog { width: min(780px, calc(100% - 32px)); overflow: hidden;
 .settings-form .auto-kinds .field-label { flex-basis: 100%; }
 .settings-form .settings-note.sub-check { margin-left: 1.5em; }
 .settings-form label.check > span { font-weight: 600; }
+/* アドオンの一覧 (設定の「アドオン」タブ)。権限が無いときの知らせは注意の色で */
+.settings-form .addon-list { display: flex; flex-direction: column; gap: 4px; }
+.settings-form .addon-warn { color: var(--accent); }
 /* 使い方 */
 /* 使い方: 左にメニュー、右に説明。右は高さを決めてスクロールさせる (メニューを切り替えても画面が動かない) */
 dialog.help-dialog { width: min(880px, calc(100% - 32px)); }

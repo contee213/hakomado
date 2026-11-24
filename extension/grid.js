@@ -1,4 +1,4 @@
-/* global SyncGroups, SyncChart, Danmaku, LAYOUTS, ANCHORS, DEFAULT_LAYOUT_ID, MAX_SLOTS, getLayout, layoutFor, layoutIdOf, solveTracks, LANG, LANG_PREF, tr, setLangPref, Backup, UpdateCheck, qrcode, jsQR, ChannelPack, SyncOffsets, MovieAnchors, AudioAlign */
+/* global SyncGroups, SyncChart, Danmaku, LAYOUTS, ANCHORS, DEFAULT_LAYOUT_ID, MAX_SLOTS, getLayout, layoutFor, layoutIdOf, solveTracks, LANG, LANG_PREF, tr, setLangPref, Backup, UpdateCheck, qrcode, jsQR, ChannelPack, SyncOffsets, MovieAnchors, AudioAlign, Addons */
 'use strict';
 
 const MAX_TILES = MAX_SLOTS;
@@ -39,6 +39,7 @@ const DEFAULT_SETTINGS = {
   autoPremiereVideos: true,
   autoPremiereShorts: true,
   autoPickupMain: true, // 自動再生: ピックアップ (📌) のライブ配信をメイン枠に優先して置く
+  addons: '', // アドオンの ON / OFF ('id:on,id:off'。書いていないものは各アドオンの初期値。addons.js)
   autoMaxTiles: 8, // 自動再生で同時に再生する最大の枠数 (回線が細いときは少なく)
   autoTarget: 'all', // 自動再生のチャンネル: 'all' = チャンネル全部 / 'fav' = ピックアップ (📌) だけ
   noticeTarget: 'all', // 通知のチャンネル: 'all' = チャンネル全部 / 'fav' = ピックアップだけ / 'off' = 知らせない
@@ -117,6 +118,7 @@ async function loadSettings() {
   state.settings = { ...DEFAULT_SETTINGS, ...(settings || {}) };
   // 以前の版の「投稿者名を表示」(ON / OFF) を引き継ぐ
   if (settings && !('authorName' in settings) && settings.showAuthor === true) state.settings.authorName = 'all';
+  Addons.setStates(state.settings.addons);
 }
 
 /** 保存されている視聴セッションを state に読み込む (無ければ初期状態) */
@@ -275,6 +277,8 @@ function writeSettings() {
 function replaceSettings(next) {
   const cruiseBefore = state.settings.cruiseSec;
   state.settings = { ...DEFAULT_SETTINGS, ...next };
+  Addons.setStates(state.settings.addons);
+  syncAddonInputs();
   applyHighlight();
   applyChatLook();
   syncSettingsInputs();
@@ -6895,6 +6899,7 @@ function setupToolbar() {
   setupRead();
   setupPlaylistPicker();
   setupPacks();
+  setupAddons();
   Sync.setup();
   showAppVersion();
   document.getElementById('openHelp').addEventListener('click', () => openHelp());
@@ -6927,7 +6932,7 @@ function setupToolbar() {
   };
   for (const t of tabs) t.addEventListener('click', () => showTab(t.dataset.tab));
   // 「? 詳しい説明」: 今のタブの設定の説明を、使い方の画面で開く
-  const HELP_OF_TAB = { danmaku: 'look', audio: 'look', chat: 'look', auto: 'auto', channels: 'channels', backup: 'backup' };
+  const HELP_OF_TAB = { danmaku: 'look', audio: 'look', chat: 'look', auto: 'auto', channels: 'channels', addons: 'channels', backup: 'backup' };
   document.getElementById('settingsHelp').addEventListener('click', () => {
     const tab = [...tabs].find((t) => t.classList.contains('selected'))?.dataset.tab;
     openHelp(HELP_OF_TAB[tab] || 'start');
@@ -8897,6 +8902,71 @@ chrome.storage.onChanged.addListener(async (changes, area) => {
   else if (favDialog.open) scheduleFavRender(); // チャンネルの行で開いたアーカイブの 📃
   if (document.getElementById('plPickDialog').open && pickTarget) renderPlaylistPicker();
 });
+
+// ---------------------------------------------------------------- アドオン (設定の「アドオン」タブ)
+// 一覧は登録されているアドオン (addons.js / addons/) から作る。ON にするときは、サイトへのアクセスの権限を確かめて、
+// 無ければその場で聞く (任意の権限のとき。押した操作の中で聞かないと聞けないので、await より前に聞く)。
+// OFF にしたら、任意の権限は手放す (必須の権限は手放せない)
+const OPTIONAL_ORIGINS = new Set(chrome.runtime.getManifest().optional_host_permissions || []);
+
+function setupAddons() {
+  const box = document.getElementById('addonList');
+  for (const addon of Addons.list()) {
+    const label = document.createElement('label');
+    label.className = 'check';
+    const input = document.createElement('input');
+    input.type = 'checkbox';
+    input.dataset.addon = addon.id;
+    const name = document.createElement('span');
+    name.textContent = Addons.text(addon.name);
+    label.append(input, ' ', name);
+    const note = document.createElement('p');
+    note.className = 'settings-note sub-check';
+    note.textContent = `${Addons.text(addon.note)} (${addon.origins.map((o) => new URL(o.slice(0, -1)).host).join(', ')})`;
+    const warn = document.createElement('p');
+    warn.className = 'settings-note sub-check addon-warn';
+    warn.dataset.addonWarn = addon.id;
+    warn.hidden = true;
+    box.append(label, note, warn);
+
+    input.addEventListener('change', async () => {
+      const on = input.checked;
+      const asked = on ? chrome.permissions.request({ origins: addon.origins }).catch(() => false) : null;
+      if (on && !(await asked)) {
+        input.checked = false;
+        showAddonWarn(addon.id, tr('addonDenied'));
+        return;
+      }
+      state.settings.addons = Addons.withState(state.settings.addons, addon.id, on);
+      Addons.setStates(state.settings.addons);
+      saveSettings('addons');
+      if (!on) {
+        const optional = addon.origins.filter((o) => OPTIONAL_ORIGINS.has(o));
+        if (optional.length) chrome.permissions.remove({ origins: optional }).catch(() => {});
+      }
+      syncAddonInputs();
+    });
+  }
+  syncAddonInputs();
+}
+
+function showAddonWarn(id, text) {
+  const warn = document.querySelector(`[data-addon-warn="${id}"]`);
+  if (!warn) return;
+  warn.textContent = text;
+  warn.hidden = !text;
+}
+
+/** アドオンのチェックを今の設定に合わせる。ON なのに権限が無い (chrome://extensions で外した) ものは知らせる */
+function syncAddonInputs() {
+  for (const input of document.querySelectorAll('#addonList [data-addon]')) {
+    const addon = Addons.list().find((a) => a.id === input.dataset.addon);
+    const on = Addons.isOn(addon.id);
+    input.checked = on;
+    if (!on) showAddonWarn(addon.id, '');
+    else Addons.granted(addon).then((ok) => showAddonWarn(addon.id, ok ? '' : tr('addonNoAccess')));
+  }
+}
 
 // ---------------------------------------------------------------- チャンネルパック (設定の「チャンネル」タブ)
 /**
