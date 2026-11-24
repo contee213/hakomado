@@ -96,8 +96,8 @@ function newTileState() {
 
 /** URL の枠か (YouTube の動画が入っておらず、サイトの URL が入っている) */
 const isWebTile = (t) => !t.videoId && !!t.web;
-/** 何か入っている枠か (YouTube の動画か URL の枠) */
-const tileFilled = (t) => !!t.videoId || !!t.web;
+/** 何か入っている枠か (YouTube の動画か URL の枠)。枠が空いているかは必ずこれで見る (tile-slots.js) */
+const tileFilled = TileSlots.filled;
 
 /** URL の枠に入れられる URL の長さの上限 (視聴セッション・バックアップに残るので、長すぎるものは入れない) */
 const WEB_URL_MAX = 2048;
@@ -251,7 +251,7 @@ async function pruneSessions(inUse) {
   const sessions = await listSessions();
   const keep = new Set([...inUse, sessionId]);
   const removable = sessions.filter((s) => !keep.has(s.id));
-  const empty = removable.filter((s) => !(s.data.tiles || []).some((t) => t?.videoId));
+  const empty = removable.filter((s) => !(s.data.tiles || []).some(tileFilled));
   const tooMany = removable.filter((s) => !empty.includes(s)).slice(Math.max(0, MAX_SAVED_SESSIONS - keep.size));
   const keys = [...empty, ...tooMany].map((s) => SESSION_PREFIX + s.id);
   if (keys.length) await chrome.storage.local.remove(keys);
@@ -769,27 +769,9 @@ function removeEmptySlot(prefer = null) {
   setLayout(l.id);
 }
 
-/**
- * 表示する枠を n 個にするときの並び順。新しいレイアウトにもある番号 (n 番まで) の枠は中身をそのまま (番号を変えない)。
- * はみ出す番号 (n 番より後ろ) の配信は空き枠に移す。移す先は prefer を先に、残りは番号の大きい空き枠から
- * (元の番号に近いところ)。今より増やすときは、隠れている空き枠を後ろに足す。
- * 表示している配信の数が n 以下のときだけ使う (はみ出す配信が必ず空き枠に入るように)
- */
+/** 表示する枠を n 個にするときの並び順 (枠の番号はなるべく変えない。TileSlots.keepNumbersOrder) */
 function keepNumbersOrder(n, prefer = null) {
-  const shown = visibleIndexes();
-  const hiddenEmpty = state.order.slice(state.count).filter((j) => !tileFilled(state.tiles[j]));
-  const next = [...shown, ...hiddenEmpty].slice(0, n);
-  // 中身 = 配信・動画 (videoId) と URL の枠 (web)。どちらも空き枠と見なさない・はみ出したら空き枠へ移す
-  const holes = next.map((j, k) => k).filter((k) => !tileFilled(state.tiles[next[k]])).reverse();
-  const at = next.indexOf(prefer);
-  if (at >= 0 && holes.includes(at)) {
-    holes.splice(holes.indexOf(at), 1);
-    holes.unshift(at);
-  }
-  for (const j of shown.slice(n)) {
-    if (tileFilled(state.tiles[j])) next[holes.shift()] = j;
-  }
-  return [...next, ...state.order.filter((j) => !next.includes(j))];
+  return TileSlots.keepNumbersOrder(state, n, prefer);
 }
 
 /**
@@ -800,12 +782,10 @@ function keepNumbersOrder(n, prefer = null) {
 /** 枠を k 個 (16 枠まで) 足す */
 function addTileSlot(k = 1) {
   if (state.count >= MAX_TILES) return;
-  const shown = visibleIndexes();
-  const hidden = state.order.slice(state.count);
-  const empty = hidden.filter((j) => !tileFilled(state.tiles[j]));
+  const shown = state.count;
   // 隠れている枠に中身が残っていても、それは出さずに空き枠から使う
-  state.order = [...shown, ...empty, ...hidden.filter((j) => tileFilled(state.tiles[j]))];
-  setLayout(chooseLayoutFor(Math.min(MAX_TILES, shown.length + k)).id);
+  state.order = TileSlots.growOrder(state);
+  setLayout(chooseLayoutFor(Math.min(MAX_TILES, shown + k)).id);
 }
 
 function setFit(mode) {
@@ -6043,7 +6023,7 @@ async function applyViewingSet(ids, layoutId, { offsets = null, anchors = null, 
   });
   for (const [k, id] of ids.entries()) {
     if (assigned[k] >= 0) continue;
-    const i = state.tiles.findIndex((_, j) => !used.has(j) && !assigned.includes(j));
+    const i = TileSlots.freeTiles(state.tiles, used)[0]; // 空き枠を先に
     used.add(i);
     assigned[k] = i;
     setTileVideo(i, id, `${YT}/watch?v=${id}`);
@@ -6051,8 +6031,8 @@ async function applyViewingSet(ids, layoutId, { offsets = null, anchors = null, 
   }
   // 使わない枠は空にする (隠れても再生し続けないように)
   state.tiles.forEach((t, j) => {
-    if (!used.has(j) && t.videoId) {
-      WatchHistory.removed(t.videoId, 'replaced');
+    if (!used.has(j) && tileFilled(t)) {
+      if (t.videoId) WatchHistory.removed(t.videoId, 'replaced');
       state.tiles[j] = newTileState();
       views[j].danmaku.clear();
       renderTile(j, { reloadPlayer: true, reloadChat: true });
@@ -10175,12 +10155,12 @@ async function startVideoAutoInner() {
   showAutoProgress(tr('progressTiles'), 0.3);
   const replaced = visibleIndexes().filter((i) => {
     const t = state.tiles[i];
-    return t.videoId && !t.auto && !t.fill;
+    return tileFilled(t) && !t.auto && !t.fill;
   });
   if (!(await confirmAutoReplace(replaced))) return;
   for (const [j, t] of state.tiles.entries()) {
-    if (!t.videoId) continue;
-    WatchHistory.removed(t.videoId, 'replaced');
+    if (!tileFilled(t)) continue;
+    if (t.videoId) WatchHistory.removed(t.videoId, 'replaced');
     state.tiles[j] = newTileState();
     views[j].danmaku.clear();
     renderTile(j);
@@ -10244,15 +10224,15 @@ async function startAllLiveInner() {
   const archiveOnly = lives.length === 0 && fillIdle;
   const replaced = visibleIndexes().filter((i) => {
     const t = state.tiles[i];
-    return t.videoId && !t.auto && !t.fill && (archiveOnly || (lives.length > 0 && !keepIds.has(t.videoId)));
+    return tileFilled(t) && !t.auto && !t.fill && (archiveOnly || (lives.length > 0 && !keepIds.has(t.videoId)));
   });
   if (!(await confirmAutoReplace(replaced))) return;
   if (lives.length === 0) {
     if (fillIdle) {
       // ライブが無い → 最近の配信で
       for (const [j, t] of state.tiles.entries()) {
-        if (t.videoId) {
-          WatchHistory.removed(t.videoId, 'replaced');
+        if (tileFilled(t)) {
+          if (t.videoId) WatchHistory.removed(t.videoId, 'replaced');
           state.tiles[j] = newTileState();
           views[j].danmaku.clear();
         }
@@ -10288,14 +10268,14 @@ async function startAllLiveInner() {
   }
   for (let k = 0; k < lives.length; k++) {
     if (assigned[k] != null) continue;
-    const i = state.tiles.findIndex((_, j) => !used.has(j));
+    const i = TileSlots.freeTiles(state.tiles, used)[0]; // 空き枠を先に
     assigned[k] = i;
     used.add(i);
   }
   // 使わない枠は空にする (隠れても再生し続けないように)
   state.tiles.forEach((t, j) => {
-    if (!used.has(j) && t.videoId) {
-      WatchHistory.removed(t.videoId, 'replaced');
+    if (!used.has(j) && tileFilled(t)) {
+      if (t.videoId) WatchHistory.removed(t.videoId, 'replaced');
       state.tiles[j] = newTileState();
       views[j].danmaku.clear();
     }
@@ -10708,7 +10688,8 @@ async function autoTickOnceInner() {
 
     // 始まった配信 (まだ表示していないもの。自分で閉じたものは除く)
     const shownIds = new Set(visible.map((i) => state.tiles[i].videoId));
-    let keep = visible.filter((i) => !ended.includes(i));
+    // 表示中の URL の枠も残す (並びに入れないとレイアウトの外に押し出されるか、新しい配信で上書きされる)
+    let keep = visibleIndexes().filter((i) => isWebTile(state.tiles[i]) || (visible.includes(i) && !ended.includes(i)));
     // 別のタブで表示中の配信は足さない (複数のディスプレイで分けて見るときに、同じ配信が両方に入らないように)
     // 空きが足りないときに、ピックアップ (📌) のライブ配信が押し出されないよう先にする
     const isPickLive = (l) => !!l.f.star && l.st.state === 'live';
@@ -10790,7 +10771,7 @@ async function autoTickOnceInner() {
     for (const i of added) renderTile(i, { reloadPlayer: true, reloadChat: true });
 
     // 音: 聞いていた枠が残っていればそのまま。聞いていた枠が終わった / 何も無かったところに来たら 1 番の枠
-    const stillAudible = audibleBefore.filter((i) => nextVisible.includes(i) && state.tiles[i].videoId);
+    const stillAudible = audibleBefore.filter((i) => nextVisible.includes(i) && tileFilled(state.tiles[i]));
     if (stillAudible.length) setAudioSet(stillAudible);
     else if (nextVisible.length && (audibleBefore.length > 0 || keep.length === 0)) setAudioSet([nextVisible[0]]);
     else refreshAudio();
@@ -10863,10 +10844,11 @@ async function watchedIds() {
   return new Set((await WatchHistory.list()).map((h) => h.videoId));
 }
 
-/** 今表示している枠を、ライブ (最近の配信以外) と最近の配信に分ける */
+/** 今表示している枠を、ライブ (最近の配信以外)・最近の配信・URL の枠に分ける */
 function splitArchiveTiles() {
   const visible = visibleIndexes().filter((i) => state.tiles[i].videoId);
-  return { lives: visible.filter((i) => !state.tiles[i].fill), fills: visible.filter((i) => state.tiles[i].fill) };
+  const webs = visibleIndexes().filter((i) => isWebTile(state.tiles[i]));
+  return { lives: visible.filter((i) => !state.tiles[i].fill), fills: visible.filter((i) => state.tiles[i].fill), webs };
 }
 
 /**
@@ -10879,12 +10861,12 @@ async function refillArchives({ lock = true } = {}) {
   if (!state.autoMode) return 0;
   const run = async () => {
     if (!state.autoMode) return 0; // 順番待ちの間に OFF にされた
-    let { lives, fills } = splitArchiveTiles();
+    let { lives, fills, webs } = splitArchiveTiles();
     // 自動再生対象に動画・ショートがある: 最大枠数までの空き全部 (配信・自分で入れた枠の分は除く)。
     // 配信だけ: ライブが無い間だけ ARCHIVE_IDLE_TILES 枠 (設定「配信中が無いときは、最近の動画を流す」)
     const wantNow = () =>
       autoVideoKinds().size
-        ? Math.max(0, autoMaxTiles() - lives.length)
+        ? Math.max(0, autoMaxTiles() - lives.length - webs.length)
         : !state.settings.autoArchive || lives.length
           ? 0
           : Math.min(ARCHIVE_IDLE_TILES, autoMaxTiles());
@@ -10914,7 +10896,7 @@ async function refillArchives({ lock = true } = {}) {
       }
       // 探している間に変わったかもしれないので、今の状態で数え直す
       if (!state.autoMode) return 0;
-      ({ lives, fills } = splitArchiveTiles());
+      ({ lives, fills, webs } = splitArchiveTiles());
       want = wantNow();
       if (fills.length >= want) return fills.length; // 次の確認でそろえる
       const shown = new Set(state.tiles.map((t) => t.videoId).filter(Boolean));
@@ -10943,8 +10925,9 @@ async function refillArchives({ lock = true } = {}) {
       }
       if (!added) return fills.length;
     }
-    // 並び: ライブ (メイン側) → 最近の配信。枠の数が変わったら、その数に合ったレイアウトに
-    const next = [...lives, ...fills];
+    // 並び: ライブ (メイン側) → URL の枠 → 最近の配信。枠の数が変わったら、その数に合ったレイアウトに
+    // (URL の枠も並びに入れる。入れないとレイアウトの外に押し出されて消える)
+    const next = [...lives, ...webs, ...fills];
     if (next.length) {
       const l = chooseLayoutFor(next.length, autoBaseFor(next));
       const placed = shortsToColumns(next, l);
@@ -11655,10 +11638,10 @@ function describeSession(data) {
   const layoutName = getLayout(savedLayoutId(data)).name;
   const order = isPermutation(data.order) ? data.order : Array.from({ length: MAX_TILES }, (_, i) => i);
   const audible = new Set(Array.isArray(data.audible) ? data.audible : []);
-  const shownIdx = order.slice(0, savedVisibleCount(data)).filter((i) => data.tiles?.[i]?.videoId);
+  const shownIdx = order.slice(0, savedVisibleCount(data)).filter((i) => tileFilled(data.tiles?.[i]));
   const shown = shownIdx.map((i) => data.tiles[i]);
   // 音が出ていた配信には 🔊 を付ける
-  const names = shownIdx.map((i) => (audible.has(i) ? '🔊 ' : '') + (data.tiles[i].label || data.tiles[i].input || data.tiles[i].videoId));
+  const names = shownIdx.map((i) => (audible.has(i) ? '🔊 ' : '') + (data.tiles[i].label || data.tiles[i].input || data.tiles[i].videoId || data.tiles[i].web));
   const when = data.updatedAt ? new Date(data.updatedAt).toLocaleString(LANG === 'ja' ? 'ja-JP' : undefined, { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
   const lines = [
     [when, layoutName, tr('streams', shown.length), data.autoMode ? tr('autoTag') : ''].filter(Boolean).join(' ・ '),
