@@ -14,10 +14,10 @@ const ChannelPack = (() => {
   const TYPE = 'channels';
   const MAX_CHANNELS = 1000;
   const MAX_BYTES = 2 * 1024 * 1024;
-  const CHANNEL_RE = /^UC[\w-]{22}$/;
+  const CHANNEL_RE = /^(?:UC[\w-]{22}|tw:[a-z0-9_]{1,25})$/; // YouTube (UC…) と Twitch (tw:<名前>) のチャンネル
   const HANDLE_RE = /^@[^\s/?#]{1,100}$/;
-  // アイコンは YouTube の画像の置き場所のものだけ (ほかの URL は読み込ませない)
-  const ICON_RE = /^https:\/\/(yt3\.ggpht\.com|yt3\.googleusercontent\.com|i\.ytimg\.com)\//;
+  // アイコンは YouTube・Twitch の画像の置き場所のものだけ (ほかの URL は読み込ませない)
+  const ICON_RE = /^https:\/\/(yt3\.ggpht\.com|yt3\.googleusercontent\.com|i\.ytimg\.com|static-cdn\.jtvnw\.net)\//;
 
   // パックの一覧 (リポジトリの packs/)。一覧の各パックは、この下のファイル名だけを持つ (ほかの場所の URL は持たせない)
   const CATALOG_BASE = 'https://raw.githubusercontent.com/contee213/hakomado/main/packs/';

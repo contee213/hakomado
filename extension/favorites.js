@@ -5,8 +5,10 @@
 //   開始予定の時刻のころだけ、その動画のページを確かめる
 // - 配信予定のアドオン (addons/。ホロジュールなど) が ON なら補助に使う (載っているチャンネルの予定が 1 回で分かるので、
 //   RSS を見に行く間隔を長くできる。アドオンが OFF・取れなくても RSS だけで動く)
+// - Twitch のチャンネル (channelId = 'tw:<名前>') は、チャンネルの公開ページの先頭で配信中と最近の VOD を調べる
+//   (「Twitch のチャンネル」の節)
 /* exported Favorites */
-/* global PRESET_VERSION, PRESET_FAVORITES, LANG, tr, ErrLog, Addons */
+/* global PRESET_VERSION, PRESET_FAVORITES, LANG, tr, ErrLog, Addons, twitchIdFromUrl */
 'use strict';
 
 const Favorites = (() => {
@@ -55,35 +57,61 @@ const Favorites = (() => {
 
   class RateLimitedError extends Error {}
 
+  /** fetchText の opts から、fetch に渡すもの (この中だけで使う項目を除く) */
+  const fetchInit = ({ until, allow404, ...init }) => init;
+
+  /**
+   * 応答の本文を読む。until (読んだところまでの文字列 → 足りたら true) があれば、そこまで読んだら通信を打ち切る
+   * (ページの先頭だけ要るとき。Twitch のチャンネルのページ)。maxChars を超えても打ち切る
+   */
+  async function readBody(res, { until, maxChars = 256 * 1024 } = {}) {
+    if (!until || !res.body) return res.text();
+    const reader = res.body.getReader();
+    const dec = new TextDecoder();
+    let text = '';
+    try {
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        text += dec.decode(value, { stream: true });
+        if (until(text) || text.length > maxChars) break;
+      }
+    } finally {
+      reader.cancel().catch(() => {});
+    }
+    return text;
+  }
+
   /**
    * YouTube のページを取る順番が来たら fn(fetchText) を呼ぶ (タブ間で 1 件ずつ)。
-   * 制限中は取りに行かずに RateLimitedError を投げる (呼び出し側では「取得失敗」扱い)
+   * 制限中は取りに行かずに RateLimitedError を投げる (呼び出し側では「取得失敗」扱い)。
+   * backoffKey = 制限中かを覚えておく項目 (Twitch は YouTube と別にする)
    */
-  function ytTurn(fn, { lock = 'hakomado-yt-fetch', gap = YT_GAP_MS, lastKey = 'lastYtFetch' } = {}) {
+  function ytTurn(fn, { lock = 'hakomado-yt-fetch', gap = YT_GAP_MS, lastKey = 'lastYtFetch', backoffKey = 'backoff' } = {}) {
     return withLock(lock, async () => {
       const st = await readShared();
-      if ((st.backoff?.until || 0) > Date.now()) throw new RateLimitedError(tr('rateLimited'));
+      if ((st[backoffKey]?.until || 0) > Date.now()) throw new RateLimitedError(tr('rateLimited'));
       const fetchText = async (url, opts = {}) => {
         const wait = (st[lastKey] || 0) + gap - Date.now();
         if (wait > 0) await sleep(wait);
         let res;
         try {
-          res = await fetch(url, withTimeout(opts));
+          res = await fetch(url, withTimeout(fetchInit(opts)));
         } finally {
           await updateShared((v) => (v[lastKey] = Date.now()));
         }
         // 制限 (429、または「ロボットではありません」の確認ページに飛ばされた)
         if (res.status === 429 || /\/sorry\//.test(res.url)) {
           await updateShared((v) => {
-            const step = Math.min((v.backoff?.step || 0) + 1, 10);
-            v.backoff = { step, until: Date.now() + Math.min(BACKOFF_BASE_MS * 2 ** (step - 1), BACKOFF_MAX_MS) };
+            const step = Math.min((v[backoffKey]?.step || 0) + 1, 10);
+            v[backoffKey] = { step, until: Date.now() + Math.min(BACKOFF_BASE_MS * 2 ** (step - 1), BACKOFF_MAX_MS) };
           });
           throw new RateLimitedError(tr('rateLimited'));
         }
         if (res.status === 404 && opts.allow404) return null;
         if (!res.ok) throw new Error(tr('fetchFail', res.status));
-        const text = await res.text();
-        if (st.backoff) await updateShared((v) => delete v.backoff);
+        const text = await readBody(res, { until: opts.until });
+        if (st[backoffKey]) await updateShared((v) => delete v[backoffKey]);
         return text;
       };
       return fn(fetchText);
@@ -139,6 +167,7 @@ const Favorites = (() => {
    * 縦型の配信はショートではなくふつうの配信 (「ライブ配信」の再生リストに入る) なので、live のまま
    */
   async function fetchArchives(channelId, { force = false, shorts = false } = {}) {
+    if (isTwitchChannel(channelId)) return twitchArchives(channelId, { force });
     const maxAge = force ? 0 : ARCHIVE_TTL_MS;
     const lives = await fetchFeed(channelId, { maxAge });
     // 動画・ショートの方が取れなくても (制限中も)、配信の分は出す
@@ -175,6 +204,158 @@ const Favorites = (() => {
         views: Number(e.getElementsByTagNameNS('*', 'statistics')[0]?.getAttribute('views') ?? NaN),
       }))
       .filter((v) => VIDEO_RE.test(v.videoId));
+  }
+
+  // ------------------------------------------------------------ Twitch のチャンネル (channelId = 'tw:<ログイン名>'。枠の ID と同じ形)
+  // チャンネルの公開ページ (www.twitch.tv/<名前>) の先頭の構造化データ (JSON-LD) に、配信中か・始まった時刻・配信の題名と、
+  // 最近の VOD 10 件 (題名・日時・再生数・サムネイル) が入っている。ページは 230KB ほどあるが、この部分は先頭の 13KB ほどまで
+  // なので、そこまで読んだら通信を打ち切る。Cookie は送らない。取るには twitch.tv の許可 (optional_host_permissions) が要る。
+  // 許可が無いとき (外したとき) は、配信のサムネイル画像 (static-cdn.jtvnw.net。誰でも読める) が「404」の画像に転送されるかで
+  // 配信中かだけを見る (この画像は配信元で最大 15 分覚えられているので、始まったのに気づくのが遅れる)
+  const TW = 'https://www.twitch.tv';
+  const TW_ORIGINS = ['https://*.twitch.tv/*'];
+  const TW_CHANNEL_RE = /^tw:[a-z0-9_]{1,25}$/;
+  const isTwitchChannel = (id) => TW_CHANNEL_RE.test(id || '');
+  const TW_PAGE_PREFIX = 'twpage:'; // 'twpage:<名前>' → {at, page} (タブ間で共有)
+  const TW_AUTO_MS = 2 * 60 * 1000; // 配信状況を見に行く間隔 (ページの先頭だけなので、YouTube の RSS より短く)
+  const TW_GAP_MS = 300;
+  const TW_RETRY_MS = 1500; // チャンネルの情報が入っていないページが返ったとき、取り直すまで
+  const TW_THUMB_RE = /^https:\/\/static-cdn\.jtvnw\.net\//;
+  const LD_OPEN = '<script type="application/ld+json">';
+  const hasTwitch = () => chrome.permissions.contains({ origins: TW_ORIGINS }).catch(() => false);
+  /** JSON-LD の終わりまで読んだか */
+  const ldRead = (text) => {
+    const at = text.indexOf(LD_OPEN);
+    return at >= 0 && text.indexOf('</script>', at) > 0;
+  };
+
+  /**
+   * Twitch のチャンネルのページを読む (maxAge より新しい結果があればそれを使う)。
+   * Twitch は、チャンネルが無いときも、あるのにときどきも、チャンネルの情報が入っていない共通のページ (題名が「Twitch」だけ) を返す。
+   * そのときは 1 回だけ取り直し、それでも同じなら null (覚えない。無いチャンネルか、たまたま取れなかったかは見分けられない)
+   * @returns {Promise<{name: string, icon: string, live: {title: string, startAt?: number}|null, vods: Array}|null>}
+   */
+  async function twitchPage(login, { maxAge }) {
+    const key = TW_PAGE_PREFIX + login;
+    const read = async () => (await shared.get(key))[key];
+    const fresh = (c) => c && Date.now() - c.at < maxAge && c.page;
+    const hit = await read();
+    if (fresh(hit)) return hit.page;
+    return ytTurn(
+      async (fetchText) => {
+        // 順番を待つ間に他のタブが取っていれば、それを使う
+        const again = await read();
+        if (fresh(again)) return again.page;
+        const get = async () => parseTwitchPage(await fetchText(`${TW}/${encodeURIComponent(login)}`, { credentials: 'omit', until: ldRead }));
+        const page = (await get()) || (await sleep(TW_RETRY_MS), await get());
+        if (page) await shared.set({ [key]: { at: Date.now(), page } });
+        return page;
+      },
+      { lock: 'hakomado-tw-fetch', gap: TW_GAP_MS, lastKey: 'lastTwFetch', backoffKey: 'twBackoff' },
+    );
+  }
+
+  /** Twitch のチャンネルのページの先頭から、名前・アイコン・配信中か・最近の VOD を読む (無いチャンネルなら null) */
+  function parseTwitchPage(html) {
+    const at = html.indexOf(LD_OPEN);
+    const end = at >= 0 ? html.indexOf('</script>', at) : -1;
+    let graph = [];
+    if (end > at) {
+      try {
+        const d = JSON.parse(html.slice(at + LD_OPEN.length, end));
+        graph = Array.isArray(d?.['@graph']) ? d['@graph'] : [d];
+      } catch {
+        graph = [];
+      }
+    }
+    const isType = (x, t) => !!x && typeof x === 'object' && x['@type'] === t;
+    // チャンネルのページなら ProfilePage がある (配信中のページには og:type が無い)
+    const profile = graph.find((x) => isType(x, 'ProfilePage'));
+    if (!profile && meta(html, 'og:type') !== 'profile') return null;
+    const text = (v, n) => (typeof v === 'string' ? v : '').trim().slice(0, n);
+    // 名前・アイコンはチャンネルの情報 (mainEntity) から。og:title は表示言語で後ろが変わり
+    // (「<名前> - Twitchでライブ配信中」など)、og:image は配信中だと配信の画像になることがあるので、無いときだけ使う
+    const person = isType(profile?.mainEntity, 'Person') ? profile.mainEntity : null;
+    const name = text(person?.name, 100) || meta(html, 'og:title').replace(/ - Twitch.*$/, '').slice(0, 100);
+    const icon = [person?.image, meta(html, 'og:image')].find((u) => typeof u === 'string' && TW_THUMB_RE.test(u)) || '';
+    const liveObj = graph.find((x) => isType(x, 'VideoObject') && x.publication?.isLiveBroadcast === true);
+    const startAt = liveObj ? Date.parse(liveObj.publication.startDate) : NaN;
+    // 配信中の VideoObject は、name が「<名前> - Twitch」で、description が配信の題名
+    const live = liveObj ? { title: text(liveObj.description, 300), ...(startAt ? { startAt } : {}) } : null;
+    const items = graph.find((x) => isType(x, 'ItemList'))?.itemListElement;
+    const vods = (Array.isArray(items) ? items : [])
+      .filter((v) => isType(v, 'VideoObject'))
+      .map((v) => {
+        const id = String(v.url || '').match(/^https:\/\/www\.twitch\.tv\/videos\/(\d{1,12})$/)?.[1];
+        if (!id) return null;
+        const thumbs = (Array.isArray(v.thumbnailUrl) ? v.thumbnailUrl : [v.thumbnailUrl]).filter((u) => typeof u === 'string' && TW_THUMB_RE.test(u));
+        const thumb = thumbs.find((u) => u.includes('320x180')) || thumbs[thumbs.length - 1] || '';
+        const views = Number(v.interactionStatistic?.userInteractionCount);
+        return {
+          videoId: `tw:v:${id}`,
+          title: text(v.name, 300),
+          at: Date.parse(v.uploadDate) || 0,
+          views: Number.isFinite(views) ? views : 1,
+          ...(thumb ? { thumb: thumb.slice(0, 1000) } : {}),
+        };
+      })
+      .filter(Boolean);
+    return { name, icon: icon.slice(0, 1000), live, vods };
+  }
+
+  /** 許可が無いとき: 配信のサムネイル画像が「404」の画像に転送されなければ配信中 */
+  async function twitchPreviewLive(login) {
+    const url = `https://static-cdn.jtvnw.net/previews-ttv/live_user_${encodeURIComponent(login)}-80x45.jpg`;
+    const res = await fetch(url, withTimeout({ credentials: 'omit', cache: 'no-store' }));
+    res.body?.cancel().catch(() => {});
+    if (!res.ok) throw new Error(tr('fetchFail', res.status));
+    return !/\/404_preview/.test(res.url);
+  }
+
+  /** Twitch のチャンネルの今の配信状況。配信中なら videoId はチャンネルの枠の ID (tw:<名前>) */
+  async function twitchStatus(fav, { maxAge }) {
+    const login = fav.channelId.slice(3);
+    let live = null;
+    if (await hasTwitch()) {
+      const page = await twitchPage(login, { maxAge });
+      if (!page) throw new Error(tr('twitchReadFail'));
+      live = page.live;
+    } else if (await twitchPreviewLive(login)) {
+      live = { title: '' };
+    }
+    if (!live) return { state: 'offline' };
+    return { state: 'live', kind: 'live', videoId: fav.channelId, title: live.title, ...(live.startAt ? { startAt: live.startAt } : {}) };
+  }
+
+  /** Twitch のチャンネルの最近の VOD (新しい順。配信中の配信の VOD は除く)。list = 'TW'、kind = 'live' (配信のアーカイブ) */
+  async function twitchArchives(channelId, { force }) {
+    if (!(await hasTwitch())) throw new Error(tr('twitchNeedAllow'));
+    const page = await twitchPage(channelId.slice(3), { maxAge: force ? 0 : ARCHIVE_TTL_MS });
+    if (!page) throw new Error(tr('twitchReadFail'));
+    // 配信中の配信も VOD として載る (終わるまでは最後まで見られない) ので、始まった時刻より後のものは除く
+    const since = page.live ? (page.live.startAt || Date.now()) - 5 * 60e3 : Infinity;
+    return page.vods
+      .filter((v) => v.views > 0 && v.at < since)
+      .sort((a, b) => b.at - a.at)
+      .map(({ views, ...v }) => ({ ...v, list: 'TW', kind: 'live' }));
+  }
+
+  /** 入力が Twitch のチャンネル (URL / tw:<名前>) なら tw:<名前>、Twitch の VOD なら 'vod'、Twitch でなければ null */
+  function twitchChannelOf(input) {
+    const s = String(input || '').trim();
+    if (TW_CHANNEL_RE.test(s)) return s;
+    if (/^tw:v:\d+$/.test(s)) return 'vod';
+    const id = typeof twitchIdFromUrl === 'function' ? twitchIdFromUrl(s) : null;
+    if (!id) return null;
+    return id.startsWith('tw:v:') ? 'vod' : id;
+  }
+
+  /** Twitch のチャンネルの名前・アイコン (登録用) */
+  async function fetchTwitchChannel(channelId) {
+    if (!(await hasTwitch())) throw new Error(tr('twitchNeedAllow'));
+    const page = await twitchPage(channelId.slice(3), { maxAge: 0 });
+    if (!page) throw new Error(tr('twitchNotFound'));
+    return { channelId, handle: '', name: page.name || channelId.slice(3), icon: page.icon };
   }
 
   // ------------------------------------------------------------ storage
@@ -277,7 +458,9 @@ const Favorites = (() => {
    * 保存先の名前は以前のまま 'favorites' (中身はチャンネル一覧。ピックアップは star: true の印)
    */
   async function add(input, { star = false } = {}) {
-    const info = await fetchChannel(input); // 取得は順番待ちの外で
+    const tw = twitchChannelOf(input);
+    if (tw === 'vod') throw new Error(tr('twitchVodChannel'));
+    const info = tw ? await fetchTwitchChannel(tw) : await fetchChannel(input); // 取得は順番待ちの外で
     return withListLock(() => addLocked(info, { star }));
   }
 
@@ -358,7 +541,9 @@ const Favorites = (() => {
   // チャンネルのページは重い (1 件 1MB ほど) ので、1 回に数件だけ、YouTube への取得の順番待ちに並べて取る
   const iconTried = new Set(); // このタブで取りに行ったチャンネル (失敗しても、開き直すまでは取り直さない)
   async function fillIcons({ limit = 4 } = {}) {
-    const targets = (await list()).filter((f) => !f.icon && !f.preset && !iconTried.has(f.channelId)).slice(0, limit);
+    const targets = (await list())
+      .filter((f) => !f.icon && !f.preset && CHANNEL_ID_RE.test(f.channelId) && !iconTried.has(f.channelId))
+      .slice(0, limit);
     if (!targets.length) return 0;
     const found = new Map();
     for (const f of targets) {
@@ -949,6 +1134,11 @@ const Favorites = (() => {
     const kk = `${!!kinds.video}${!!kinds.short}`;
     const cached = statusCache.get(fav.channelId);
     if (!force && !auto && cached && cached.kk === kk && Date.now() - cached.at < STATUS_TTL_MS) return cached.status;
+    if (isTwitchChannel(fav.channelId)) {
+      const status = await twitchStatus(fav, { maxAge: force && !auto ? FEED_MANUAL_MS : TW_AUTO_MS });
+      statusCache.set(fav.channelId, { at: Date.now(), status, kk });
+      return status;
+    }
 
     // 配信予定のアドオンに載るチャンネルは、その枠も使う。アドオンが「全部載る」とするチャンネル (ホロジュールなら
     // 既定のホロライブのチャンネル) は、載っていなければ「予定なし」が分かるので、RSS を見に行く間隔を長くする
@@ -984,6 +1174,7 @@ const Favorites = (() => {
    *   unknown = 判定できない (ログイン状態が分からない / 取得失敗など)。unknown では除外しない
    */
   async function checkAccess(videoId) {
+    if (!VIDEO_RE.test(videoId || '')) return 'ok'; // Twitch の配信 (tw:…) は確かめない
     const c = accessCache.get(videoId);
     if (c && (c.result === 'ok' || Date.now() - c.at < ACCESS_NG_TTL_MS)) return c.result;
     let result = 'unknown';
@@ -1015,7 +1206,7 @@ const Favorites = (() => {
   }
 
   return {
-    list, add, removeMany, setStar, seedPresets, restorePresets, removeAllPresets, presetCount, removedPresetCount, fetchStatus, fetchArchives,
+    list, add, removeMany, isTwitchChannel, setStar, seedPresets, restorePresets, removeAllPresets, presetCount, removedPresetCount, fetchStatus, fetchArchives,
     previewPack, importPack, packs, removePack, fillIcons,
     checkAccess, rememberMembersOnly, isMembersBlock,
     videoStates, inspectVideos, fetchYouTubePlaylist, fetchSubscriptions,
