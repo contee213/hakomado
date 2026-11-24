@@ -369,6 +369,7 @@
           <section class="help-page" data-help-page="library" role="tabpanel" data-i18n-html="helpPage.library" hidden>
             <ul>
               <li>「📚 ライブラリ」(<kbd>B</kbd>): 🎞 最近の動画 (最近 7 日に終わった配信と、公開された動画) / 🕘 視聴履歴 (100 件) / 🔖 あとで見る (100 件) / 📃 再生リスト</li>
+              <li><b>種類の絞り込み</b>: 一覧の上の「🔴 ライブ / 🎬 動画 / 📱 ショート」で、出す種類を選べます (いくつでも。最近の動画・視聴履歴・あとで見るで共通)</li>
               <li><b>あとで見る</b>: 枠のバーや一覧の 🔖 で入れます。「▶ 今の枠で順に再生」で今ある枠に順に入れ、最後まで見た枠には次が入ります。最後まで見たものは消えます</li>
               <li><b>再生リスト</b>: 名前を付けた並び (30 個・1 つに 200 本まで)。「＋ 新規」「▦ 今の枠から作る」「📥 読み込む」で作り、URL の欄や、「ℹ️ 枠の情報」・一覧の 📃 で足します。⠿ で並べ替え、行の名前は枠に出す名前になります</li>
               <li>「▶ 順に再生」は今の枠に上から入れて、見終わった枠に次を入れます (最後まで見たものに ✓ を付け、次は続きから)。「⏱ まとめて同期再生」は全部を一度に並べて、アーカイブを同じ瞬間にそろえます (16 本まで)</li>
@@ -596,6 +597,9 @@
       <div class="fav-tools">
         <span id="libScope" class="seg lib-scope" role="radiogroup" data-i18n-title="scope.title" title="対象のチャンネル: すべて / ピックアップ (📌) に入れたものだけ (どのタブでも共通)">
           <button type="button" data-scope="all" data-i18n="scope.all">📺 すべて</button><button type="button" data-scope="star" data-i18n="scope.star">📌 ピックアップ</button>
+        </span>
+        <span id="libKind" class="seg lib-kind" role="group" data-i18n-title="kind.title" title="出す種類 (押すたびに出す / 出さないを切り替える。最近の動画・視聴履歴・あとで見るで共通)">
+          <button type="button" data-kind="live" data-i18n="kind.live">🔴 ライブ</button><button type="button" data-kind="video" data-i18n="kind.video">🎬 動画</button><button type="button" data-kind="short" data-i18n="kind.short">📱 ショート</button>
         </span>
         <select id="plSelect" class="pl-select" data-i18n-title="pl.selectTitle" title="表示する再生リスト" hidden></select>
         <button type="button" id="plNew" class="pl-new" data-i18n="pl.new" data-i18n-title="pl.newTitle" title="空の再生リストを作る。下の欄や、枠・一覧の 📃 で中身を入れる" hidden>＋ 新規</button>

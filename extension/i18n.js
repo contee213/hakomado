@@ -614,6 +614,7 @@ const MESSAGES = {
   archiveEmpty: ['最近 {0} 日に終わった配信・公開された動画はありません。', 'No streams or videos in the last {0} days.'],
   archiveNoMatch: ['「{0}」に一致する配信はありません。', 'No streams match "{0}".'],
   archiveNoPick: ['ピックアップ (📌) のチャンネルがありません。「すべて」に切り替えるか、チャンネルを 📌 でピックアップに入れてください。', 'No channels in pickup (📌). Switch to "All", or pick up channels with 📌.'],
+  kindNoMatch: ['選んだ種類のものはありません。上の「🔴 ライブ / 🎬 動画 / 📱 ショート」で出す種類を変えられます。', 'Nothing of the selected types. Change which types to show with "🔴 Live / 🎬 Videos / 📱 Shorts" above.'],
   scopeNoPicked: ['ピックアップ (📌) のチャンネルのものはありません。「📺 すべて」に切り替えると、全部見られます。', 'Nothing from your pickup (📌) channels. Switch to "📺 All" to see everything.'],
   chTitle: ['📺 チャンネル', '📺 Channels'],
   libTitle: ['📚 ライブラリ', '📚 Library'],
@@ -1095,6 +1096,7 @@ const HTML_EN = {
 </ul>`,
   'helpPage.library': `<ul>
 <li>“📚 Library” (<kbd>B</kbd>): 🎞 Recent videos (streams ended and videos published in the last 7 days) / 🕘 Watch history (100) / 🔖 Watch later (100) / 📃 Playlists</li>
+<li><b>Type filter</b>: choose which types to show with “🔴 Live / 🎬 Videos / 📱 Shorts” above the list (any combination; shared by Recent videos, Watch history and Watch later)</li>
 <li><b>Watch later</b>: add with 🔖 on tile bars and lists. “▶ Play in current tiles” fills the tiles you have in order and puts the next one in each tile that finishes. Items watched to the end are removed</li>
 <li><b>Playlists</b>: named lists (up to 30, 200 items each). Make one with “+ New”, “▦ From current tiles” or “📥 Import”, and add with the URL box or 📃 in “ℹ️ Tile info” and lists. Drag ⠿ to reorder; a row’s name is what its tile shows</li>
 <li>“▶ In order” fills the current tiles from the top and puts the next one in each tile that finishes (items watched to the end get ✓ and it continues from there next time). “⏱ All at once, in sync” lays out all of them and plays the archives in step (up to 16)</li>
@@ -1188,6 +1190,10 @@ const HTML_EN = {
   'fav.archive': '🎞 Recent videos',
   'fav.archiveTitle': 'Streams from your channels that ended, and videos (premieres etc.) published, in the last 7 days (newest first)',
   'scope.star': '📌 Pickup',
+  'kind.title': 'Types to show (click to show / hide each. Shared by Recent videos, Watch history and Watch later)',
+  'kind.video': '🎬 Videos',
+  'kind.short': '📱 Shorts',
+  'kind.live': '🔴 Live',
   'scope.all': '📺 All',
   'fav.playlists': '📃 Playlists',
   'fav.playlistsTitle': 'Named lists of streams and videos. Play them in order in the current tiles, or all at once in sync. Nothing is removed when played (shared by all tabs)',

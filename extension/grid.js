@@ -978,7 +978,8 @@ function renderTile(i, { reloadPlayer = false, reloadChat = false } = {}) {
     });
     el.querySelector('.player-slot').appendChild(f);
     v.player = f;
-    WatchHistory.opened(t.videoId, { label: t.label, input: t.input });
+    WatchHistory.opened(t.videoId, { label: t.label, input: t.input, ...(t.short ? { kind: 'short' } : {}) });
+    v.kindSaved = t.short ? 'short' : ''; // 履歴などに書いた種類 (プレイヤーが種類を知らせてきたら書き足す)
     v.meta = null;
     v.social = null;
     v.replay = ''; // アーカイブなら、読み込んだプレイヤーがリプレイを開く鍵を知らせてくる
@@ -4752,6 +4753,7 @@ window.addEventListener('message', (e) => {
     };
     Sync.refresh();
     TileInfo.update();
+    saveTileKind(i);
     relayoutIfVerticalChanged(); // 縦型の配信と分かった (設定が ON のときだけ形が変わる)
   } else if (data.hakomado === 'ended') {
     onEnded(i, data.reason === 'played' ? 'played' : 'already');
@@ -7448,6 +7450,50 @@ function updateLibScopeButtons() {
   }
 }
 
+/**
+ * ライブラリの種類の絞り込み (最近の動画・視聴履歴・あとで見るで共通): 出す種類 (live = ライブ (配信中・配信予定・アーカイブ) / video = 動画 / short = ショート)。
+ * 全部出すのが既定。最後の 1 つは外せない (何も出ない画面にしないため)。
+ * 種類の分からないもの (種類を書く前の版で残した履歴など) は、全部出すときだけ出す
+ */
+const LIB_KINDS = ['live', 'video', 'short'];
+let libKinds = (() => {
+  try {
+    const saved = JSON.parse(localStorage.getItem('hakomado.libKinds') || 'null');
+    const ok = Array.isArray(saved) ? LIB_KINDS.filter((k) => saved.includes(k)) : [];
+    if (ok.length) return new Set(ok);
+  } catch {
+    /* ignore */
+  }
+  return new Set(LIB_KINDS);
+})();
+const libKindFiltered = () => libKinds.size < LIB_KINDS.length;
+const libKindShown = (kind) => !libKindFiltered() || libKinds.has(kind);
+
+function toggleLibKind(kind) {
+  if (!LIB_KINDS.includes(kind)) return;
+  if (libKinds.has(kind)) {
+    if (libKinds.size === 1) return;
+    libKinds.delete(kind);
+  } else {
+    libKinds.add(kind);
+  }
+  try {
+    localStorage.setItem('hakomado.libKinds', JSON.stringify([...libKinds]));
+  } catch {
+    /* ignore */
+  }
+  updateLibKindButtons();
+  renderFavPane();
+}
+
+function updateLibKindButtons() {
+  for (const b of document.querySelectorAll('#libKind [data-kind]')) {
+    const on = libKinds.has(b.dataset.kind);
+    b.classList.toggle('selected', on);
+    b.setAttribute('aria-pressed', String(on));
+  }
+}
+
 /** ライブラリを 📌 ピックアップで絞っているか */
 async function pickedOnly() {
   return libScopeNow(await Favorites.list()) === 'star';
@@ -7475,7 +7521,7 @@ async function renderArchiveTab({ force = false } = {}) {
     if (d !== 'loading') done++;
     if (!Array.isArray(d)) continue;
     for (const v of d) {
-      if (v.at < since || !isFinishedArchive(v, f)) continue;
+      if (v.at < since || !isFinishedArchive(v, f) || !libKindShown(v.kind)) continue;
       if (q && ![v.title, f.name, f.handle].some((s) => String(s ?? '').toLowerCase().includes(q))) continue;
       items.push({ v, f });
     }
@@ -7492,7 +7538,9 @@ async function renderArchiveTab({ force = false } = {}) {
     done < targets.length ? tr('archiveProgress', done, targets.length) : tr('items', items.length);
   document.getElementById('favEmpty').textContent = q
     ? tr('archiveNoMatch', favFilter)
-    : !targets.length
+    : libKindFiltered() && done >= targets.length && targets.length
+      ? tr('kindNoMatch')
+      : !targets.length
       ? tr(scope === 'star' ? 'archiveNoPick' : 'favEmpty')
       : done < targets.length
         ? tr('archiveLoading')
@@ -7500,6 +7548,29 @@ async function renderArchiveTab({ force = false } = {}) {
   updateSelMarks();
 }
 
+
+/**
+ * 一覧の 1 件の種類 (ライブラリの種類の絞り込み用): live = 配信 / video = 動画 / short = ショート / '' = 分からない。
+ * 種類を書く前の版で残した履歴などは、/shorts/ の URL ならショート
+ */
+function entryKind(h) {
+  if (h.kind === 'live' || h.kind === 'video' || h.kind === 'short') return h.kind;
+  return isShortHint(h.input) ? 'short' : '';
+}
+
+/** 枠 i の種類が分かったら、視聴履歴・あとで見る・再生リストに書き足す (変わったときだけ) */
+function saveTileKind(i) {
+  const t = state.tiles[i];
+  const v = views[i];
+  const k = v?.info?.kind;
+  if (!t?.videoId || !v || t.short) return; // ショートは読み込んだときに書いてある
+  const kind = k === 'live' || k === 'upcoming' || k === 'archive' ? 'live' : k === 'video' ? 'video' : '';
+  if (!kind || kind === v.kindSaved) return;
+  v.kindSaved = kind;
+  WatchHistory.update(t.videoId, { kind });
+  if (savedIds.has(t.videoId)) SavedVideos.update(t.videoId, { kind });
+  if (playlistIds.has(t.videoId)) Playlists.update(t.videoId, { kind });
+}
 
 /** 自動再生・おまかせで流してよい種類か (設定の「動画も流す」「ショートも流す」) */
 function autoKindAllowed(v) {
@@ -7517,7 +7588,7 @@ function isFinishedArchive(v, f) {
 /** アーカイブの 1 行 (履歴と同じ見た目。🔖 で保存できる。✕ は無し) */
 function archiveItem(v, f) {
   // ショートは /shorts/ の URL で入れて、縦長の枠にする
-  const h = { videoId: v.videoId, title: v.title, label: f.name, channelId: f.channelId, handle: f.handle || '', at: v.at, input: videoInput(v) };
+  const h = { videoId: v.videoId, title: v.title, label: f.name, channelId: f.channelId, handle: f.handle || '', at: v.at, input: videoInput(v), kind: v.kind };
   const li = videoItem(h, false, { entry: videoSelEntry(h, f, COLLAB_WIN.archive) });
   li.querySelector('.fav-del')?.remove();
   return li;
@@ -7567,6 +7638,8 @@ function setFavMode(mode, { render = true } = {}) {
   // 再生リストは自分で選んで並べたものなので、ピックアップ (📌) では絞らない
   const isPl = favMode === 'playlists';
   document.getElementById('libScope').hidden = isPl;
+  document.getElementById('libKind').hidden = isPl || favMode === 'all'; // チャンネルの一覧には種類が無い
+  updateLibKindButtons();
   for (const id of ['plSelect', 'plNew', 'plFromTiles', 'plImport']) document.getElementById(id).hidden = !isPl;
   // 再生リストは行の ▶ で読み込む (行そのものは編集に使うので、クリックで読み込む案内は出さない)
   favErrorEl.textContent = '';
@@ -7594,6 +7667,7 @@ async function renderVideoList() {
   const shown = all.filter(
     (h) =>
       (!picked || isPickedEntry(h)) &&
+      libKindShown(entryKind(h)) &&
       (!q || [h.title, h.channel, h.handle, h.label, h.input].some((s) => String(s ?? '').toLowerCase().includes(q))),
   );
   if (favMode !== mode) return; // 読み込んでいる間に切り替えられた
@@ -7608,8 +7682,10 @@ async function renderVideoList() {
   favListEl.replaceChildren(...(shown.length ? [ul] : []));
   document.getElementById('favEmpty').textContent = q
     ? tr(saved ? 'savedNoMatch' : 'historyNoMatch', favFilter)
-    : picked && all.length
+    : picked && all.length && !all.some(isPickedEntry)
       ? tr('scopeNoPicked')
+      : libKindFiltered() && all.length
+      ? tr('kindNoMatch')
       : tr(saved ? 'savedEmpty' : 'historyEmpty');
   if (saved) document.getElementById('savedCount').textContent = tr('savedCount', all.length, SavedVideos.MAX);
   else document.getElementById('historyClear').hidden = all.length === 0;
@@ -10341,6 +10417,9 @@ function setupFavorites() {
   });
   for (const b of document.querySelectorAll('#libScope [data-scope]')) {
     b.addEventListener('click', () => setLibScope(b.dataset.scope));
+  }
+  for (const b of document.querySelectorAll('#libKind [data-kind]')) {
+    b.addEventListener('click', () => toggleLibKind(b.dataset.kind));
   }
   document.getElementById('autoMode').addEventListener('click', () => setAutoMode(!state.autoMode));
   document.getElementById('cruise').addEventListener('click', (e) => {

@@ -366,3 +366,42 @@ test.describe('ライブラリの複数選択', () => {
     await expect(card).toHaveAttribute('data-mark', '1'); // 同じ要素のまま
   });
 });
+
+test.describe('ライブラリの種類の絞り込み', () => {
+  const now = Date.now();
+  const HISTORY = [
+    { videoId: 'live0000001', title: '雑談配信', label: 'A', kind: 'live', at: now },
+    { videoId: 'video000002', title: 'MV', label: 'B', kind: 'video', at: now - 60e3 },
+    { videoId: 'short000003', title: 'ショート', label: 'C', input: 'https://www.youtube.com/shorts/short000003', at: now - 120e3 }, // 種類を書く前の版の履歴 (/shorts/ の URL でショート)
+    { videoId: 'unknown0004', title: '種類の分からないもの', label: 'D', at: now - 180e3 },
+  ];
+  const shownIds = (page) => page.locator('#favList .fav-item').evaluateAll((els) => els.map((e) => e.dataset.sel));
+
+  test('🔴 ライブ / 🎬 動画 / 📱 ショート で出す種類を切り替え、最後の 1 つは外せず、次に開いたときも覚えている', async ({ openGrid }) => {
+    const page = await openGrid();
+    await skipTour(page);
+    await page.evaluate((h) => chrome.storage.local.set({ history: h }), HISTORY);
+    await page.locator('#openFavorites').click();
+    await page.locator('[data-favtab="history"]').click();
+    const kinds = page.locator('#libKind [data-kind]');
+    await expect(kinds).toHaveText(['🔴 ライブ', '🎬 動画', '📱 ショート']);
+    await expect(page.locator('#favList .fav-item')).toHaveCount(4); // 全部出すときは種類の分からないものも出す
+    await page.locator('#libKind [data-kind="short"]').click();
+    await expect.poll(() => shownIds(page)).toEqual(['live0000001', 'video000002']);
+    await page.locator('#libKind [data-kind="live"]').click();
+    await expect.poll(() => shownIds(page)).toEqual(['video000002']);
+    await page.locator('#libKind [data-kind="video"]').click(); // 最後の 1 つは外せない
+    await expect(page.locator('#libKind [data-kind="video"]')).toHaveClass('selected');
+    await expect.poll(() => shownIds(page)).toEqual(['video000002']);
+    // あとで見るでも同じ絞り込み。チャンネルの一覧と再生リストでは出さない
+    await page.locator('[data-favtab="playlists"]').click();
+    await expect(page.locator('#libKind')).toBeHidden();
+    await page.reload();
+    await skipTour(page).catch(() => {});
+    await page.locator('#openFavorites').click();
+    await page.locator('[data-favtab="history"]').click();
+    await expect.poll(() => shownIds(page)).toEqual(['video000002']);
+    await page.locator('#libKind [data-kind="short"]').click();
+    await expect.poll(() => shownIds(page)).toEqual(['video000002', 'short000003']);
+  });
+});
