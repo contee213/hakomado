@@ -1044,6 +1044,17 @@ let twitchAllowed = false;
 const isTwitchId = (id) => typeof id === 'string' && TWITCH_ID_RE.test(id);
 const isTwitchTile = (i) => isTwitchId(state.tiles[i]?.videoId);
 
+// ---- Twitch の枠の弾幕: プレイヤーの中のスクリプトに、ON / OFF と弾幕の設定を送る (コメントはチャット欄から届くたびに回す)
+const DM_SETTING_KEYS = ['duration', 'fontScale', 'area', 'areaPos', 'maxOnScreen', 'authorName', 'showPaid', 'opacity'];
+function applyTwitchDanmaku(i) {
+  const v = views[i];
+  if (!v?.player || v.player.dataset.twitch !== '1') return;
+  const st = state.settings;
+  const s = Object.fromEntries(DM_SETTING_KEYS.map((k) => [k, st[k]]));
+  s.look = { font: DM_FONTS[st.dmFont] || DM_FONTS.standard, weight: st.dmWeight === 'normal' ? '400' : '700' };
+  postToFrame(v.player, { hakomado: 'danmaku', on: !!v.dmOn && isVisible(i), s });
+}
+
 // ---- Twitch が自分で止めた枠を再生に戻す
 // Twitch のプレイヤーは、何か (ダイアログ・枠の上の印など。透明でも) が重なると自分で止まり、重なりが消えても戻らない
 // (2026-11-25 に確かめた)。そこで、Hakomado が止めた (wantPause)・枠の中で使う人が止めた・最後まで再生した
@@ -1253,6 +1264,8 @@ function postToTwitch(frame, msg) {
     case 'mix':
     case 'speed':
     case 'infoReq':
+    case 'danmaku':
+    case 'chat':
       toScript();
       return;
     default:
@@ -1379,8 +1392,9 @@ function renderTile(i, { reloadPlayer = false, reloadChat = false } = {}) {
   const twitch = isTwitchId(t.videoId);
   el.classList.toggle('is-twitch', twitch);
   el.classList.toggle('is-twitch-vod', twitch && t.videoId.startsWith('tw:v:'));
-  // Twitch の枠は弾幕を出さない (コメントを読み取らない)。チャット欄はライブのチャンネルだけ
-  const danmakuOn = !twitch && state.danmakuAll && tileDanmaku(i);
+  // Twitch の枠の弾幕はチャンネルのライブだけ (VOD のチャットは埋め込めない)。チャット欄 (content/twitch-chat.js) から読み、
+  // プレイヤーの中 (content/twitch-player.js) に描く (この画面の弾幕の層は使わない。プレイヤーに重ねると Twitch が止まるため)
+  const danmakuOn = (!twitch || (twitchAllowed && !!twitchChannelOfTile(t))) && state.danmakuAll && tileDanmaku(i);
   v.dmOn = danmakuOn;
   const needChat = visible && !!t.videoId && (t.chat || danmakuOn) && !(twitch && (!twitchAllowed || !twitchChatUrl(t)));
 
@@ -1438,6 +1452,7 @@ function renderTile(i, { reloadPlayer = false, reloadChat = false } = {}) {
           applyAudio(i);
           applySpeed(i, true);
           applyLoop(i);
+          applyTwitchDanmaku(i);
           if (pausedAll) postToFrame(f, { hakomado: 'playback', play: false });
         }, 2000);
       });
@@ -1522,7 +1537,8 @@ function renderTile(i, { reloadPlayer = false, reloadChat = false } = {}) {
   el.classList.toggle('chat-open', !!t.videoId && t.chat);
 
   // --- danmaku
-  v.danmaku.setEnabled(visible && danmakuOn);
+  v.danmaku.setEnabled(visible && danmakuOn && !twitch);
+  if (twitch) applyTwitchDanmaku(i);
 
   // --- bar state
   const audio = el.querySelector('.bar [data-act="audio"]');
@@ -2478,15 +2494,23 @@ document.addEventListener('fullscreenchange', () => {
 
 // ---------------------------------------------------------------- chat messages → danmaku
 
+// チャット欄 (YouTube: content/chat.js / Twitch: content/twitch-chat.js) からのコメント → 弾幕
+// (Twitch の枠は、プレイヤーの中のスクリプトに回して、そこで描く)
+const TWITCH_SITE = 'https://www.twitch.tv';
 window.addEventListener('message', (e) => {
-  if (e.origin !== YT) return;
+  if (e.origin !== YT && e.origin !== TWITCH_SITE) return;
   const data = e.data;
   if (!data || (data.hakomado !== 'chat' && data.hakomado !== 'chatReady')) return;
   const i = views.findIndex((v) => v.chatFrame && v.chatFrame.contentWindow === e.source);
-  if (i < 0) return;
-  Diagnose.chatSeen(i);
+  if (i < 0 || (e.origin === TWITCH_SITE) !== isTwitchTile(i)) return;
+  if (e.origin === YT) Diagnose.chatSeen(i);
   if (data.hakomado !== 'chat' || !Array.isArray(data.messages)) return;
-  for (const msg of data.messages.slice(0, 50)) views[i].danmaku.add(msg);
+  const messages = data.messages.slice(0, 50);
+  if (isTwitchTile(i)) {
+    if (views[i].dmOn) postToFrame(views[i].player, { hakomado: 'chat', messages });
+    return;
+  }
+  for (const msg of messages) views[i].danmaku.add(msg);
 });
 
 // ---------------------------------------------------------------- ⏱ アーカイブの同期再生
@@ -7763,6 +7787,8 @@ function setupToolbar() {
     if (key === 'cruiseSec') restartCruise();
     if (key === 'verticalLiveFit') relayoutIfVerticalChanged();
     if (dmLookKeys.has(key)) applyDanmakuLook();
+    // Twitch の枠の弾幕 (プレイヤーの中で描く) にも、変えた設定を送る
+    for (let j = 0; j < MAX_TILES; j++) if (isTwitchTile(j)) applyTwitchDanmaku(j);
     saveSettings(key);
   };
   // 弾幕の流れる位置 (上 / 中央 / 下)
