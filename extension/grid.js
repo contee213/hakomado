@@ -332,10 +332,17 @@ function replaceSettings(next) {
 /** 設定をすべて初期値に戻す (確認してから。表示言語とお気に入りのレイアウトはそのまま) */
 function resetSettings() {
   if (!confirm(tr('settingsResetConfirm'))) return;
+  const onBefore = Addons.list().filter((a) => Addons.isOn(a.id));
   replaceSettings({ layoutFavs: state.settings.layoutFavs }); // お気に入りのレイアウトは設定ではないので残す
   clearTimeout(settingsTimer);
   dirtySettings.clear();
   chrome.storage.local.set({ settings: state.settings });
+  // 初期値で OFF になったアドオンの任意の権限は、チェックを外したときと同じに手放す (ON のまま残るアドオンが使うものは残す)
+  const stillUsed = new Set(Addons.list().filter((a) => Addons.isOn(a.id)).flatMap((a) => a.origins));
+  const release = [
+    ...new Set(onBefore.filter((a) => !Addons.isOn(a.id)).flatMap((a) => a.origins).filter((o) => OPTIONAL_ORIGINS.has(o) && !stillUsed.has(o))),
+  ];
+  if (release.length) chrome.permissions.remove({ origins: release }).catch(() => {});
 }
 
 // 他のタブで共通設定が変わったら、このタブにも反映する
@@ -7504,7 +7511,7 @@ function setupToolbar() {
   };
   for (const t of tabs) t.addEventListener('click', () => showTab(t.dataset.tab));
   // 「? 詳しい説明」: 今のタブの設定の説明を、使い方の画面で開く
-  const HELP_OF_TAB = { danmaku: 'look', audio: 'look', chat: 'look', auto: 'auto', channels: 'channels', addons: 'channels', backup: 'backup' };
+  const HELP_OF_TAB = { danmaku: 'look', audio: 'look', chat: 'look', view: 'tiles', auto: 'auto', channels: 'channels', addons: 'channels', backup: 'backup' };
   document.getElementById('settingsHelp').addEventListener('click', () => {
     const tab = [...tabs].find((t) => t.classList.contains('selected'))?.dataset.tab;
     openHelp(HELP_OF_TAB[tab] || 'start');

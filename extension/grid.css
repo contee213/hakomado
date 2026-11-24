@@ -407,7 +407,7 @@ body.hl-animate .tile.audible::before { animation: hl-flow 6s ease-in-out infini
 }
 @container (max-width: 260px) {
   .empty-actions .pick-fav { font-size: 0; }
-  .empty-actions .pick-fav::before { content: "📺"; font-size: 12px; }
+  .empty-actions .pick-fav::before { content: "📚"; font-size: 12px; }
 }
 
 /* ---------- per-tile bar ---------- */
