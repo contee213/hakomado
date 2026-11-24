@@ -244,6 +244,21 @@ const MESSAGES = {
   infoKind_video: ['動画', 'Video'],
   infoKind_blocked: ['見られない', 'Unavailable'],
   infoKind_loading: ['確認中', 'Checking'],
+  infoKind_empty: ['空き', 'Empty'],
+  infoOpenChannel: ['YouTube でチャンネルを開く: {0}', 'Open the channel on YouTube: {0}'],
+  infoDanmaku: ['この枠の弾幕の表示', 'Danmaku on this tile'],
+  infoAudioOn: ['この枠の音を出す (ほかの枠はそのまま)', 'Unmute this tile (other tiles stay as they are)'],
+  infoAudioOff: ['この枠をミュートする (ほかの枠はそのまま)', 'Mute this tile (other tiles stay as they are)'],
+  infoInput: ['URL / 動画 ID / @チャンネル名', 'URL / video ID / @handle'],
+  infoLoad: ['読み込む', 'Load'],
+  infoPickCh: ['📺 選ぶ', '📺 Pick'],
+  infoPickChTitle: ['チャンネルから選んでこの枠に入れる', 'Pick from channels for this tile'],
+  infoPickFav: ['📚 選ぶ', '📚 Pick'],
+  infoPickFavTitle: ['ライブラリから選んでこの枠に入れる', 'Pick from the library for this tile'],
+  infoPickAny: ['🎲 おまかせ', '🎲 Surprise me'],
+  infoPickAnyTitle: ['まだ出ていない配信を 1 本入れる (ピックアップのライブを優先)', 'Add one stream not shown yet (pickup live streams first)'],
+  infoAddTileTitle: ['空き枠を 1 つ足す (枠の数に合ったレイアウトに変わります)', 'Add one empty tile (the layout changes to fit the number of tiles)'],
+  infoAddTileNo: ['枠は {0} 枠までです', 'Up to {0} tiles'],
   infoSync_live: ['ライブ中 (終わると使えます)', 'Live (usable after it ends)'],
   infoSync_upcoming: ['配信前', 'Not started yet'],
   infoSync_video: ['動画は同期できません', 'Videos cannot be synced'],
@@ -759,7 +774,7 @@ const MESSAGES = {
   reasonClosed: ['✕ で閉じた', 'Closed'],
   reasonMembers: ['メンバー限定', 'Members-only'],
   reasonReplaced: ['入れ替え', 'Replaced'],
-  starEmpty: ['ピックアップはまだありません。「📺 すべて」に切り替えてチャンネルの 📌 を押すか、「ℹ️ 枠の情報」の 📌 を押すと入ります。箱企画などで注目したいチャンネルを入れて、自動再生の対象を「ピックアップ (📌) だけ」にすると、その配信だけを並べられます。', 'Nothing picked up yet. Switch to "📺 All" and press 📌 on a channel, or press 📌 in “ℹ️ Tile info”. Pick the channels you want to follow (e.g. a group event) and set auto play to "Pickup (📌) only" to show just those streams.'],
+  starEmpty: ['ピックアップはまだありません。「📺 すべて」に切り替えてチャンネルの 📌 を押すか、「ℹ️ 枠の情報」の 📌 を押すと入ります。箱企画などで注目したいチャンネルを入れて、「自動再生のチャンネル」を「ピックアップ (📌) だけ」にすると、その配信だけを並べられます。', 'Nothing picked up yet. Switch to "📺 All" and press 📌 on a channel, or press 📌 in “ℹ️ Tile info”. Pick the channels you want to follow (e.g. a group event) and set “Auto play channels” to "Pickup (📌) only" to show just those streams.'],
   starOn: ['ピックアップに入れる', 'Pick up'],
   starOff: ['ピックアップから外す (チャンネル一覧には残ります)', 'Remove from pickup (stays in channels)'],
   tilePickOn: ['この枠のチャンネルをピックアップに入れる', "Pick up this tile's channel"],
@@ -943,8 +958,11 @@ const HTML_EN = {
   'auto.skipNote': 'Streams your signed-in account cannot watch are not added',
   'auto.archive': 'Play recent videos when nothing is live',
   'auto.archiveNote': 'Plays 4 recent videos when nothing is live',
-  'auto.archiveVideos': 'Include videos (premieres, MVs, etc.)',
-  'auto.archiveShorts': 'Include Shorts',
+  'auto.kinds': 'Auto play content',
+  'auto.archiveLives': 'Streams',
+  'auto.archiveVideos': 'Videos',
+  'auto.archiveShorts': 'Shorts',
+  'auto.kindsNote': 'Kinds of recent videos to play (Streams = stream archives, Videos = premieres, MVs, etc.). Live streams are always played',
   'auto.maxTiles': 'Max tiles in auto play',
   'auto.maxTilesNote': 'Lower it if things get slow',
   'auto.prestart': 'Prepare tiles for upcoming streams',
@@ -969,7 +987,7 @@ const HTML_EN = {
   'info.colViews': 'Views',
   'info.colPos': 'Position',
   'info.colSync': 'Archive sync',
-  'info.empty': 'No streams are loaded in the tiles yet.',
+  'info.add': '＋ Add a tile',
   'info.note': 'Refreshes every few seconds while open. Watching counts are shown only for live streams; view counts are as of when the tile was opened.',
   'sync.seekTitle': 'Move all synced archives to this time',
   'sync.dockTitle': 'Show / hide the sync panel (groups, reference, offsets, ✨ auto-correct)',
@@ -1049,7 +1067,7 @@ const HTML_EN = {
 <li><b>Max tiles in auto play</b>: never plays more than this many, however many are live. Lower it on a slow connection or a busy computer</li>
 <li><b>Put pickup (📌) streams in the main tiles first</b>: puts pickup live streams in the big main tile and others in sub tiles. Pickup also goes first when the limit is reached. Not rearranged in uniform layouts (no main tile) or while cruising</li>
 <li><b>Prepare tiles for upcoming streams</b>: makes tiles before streams start, so you see them from the beginning. When nothing is live, shows the next upcoming stream and any starting within an hour after it</li>
-<li><b>Play recent videos when nothing is live</b>: when nothing is live (late at night, for example), plays 4 recently ended streams and new videos from your channels (pickup first, already watched ones skipped; choose in Settings whether to include videos and Shorts). They are cleared when a live stream starts</li>
+<li><b>Play recent videos when nothing is live</b>: when nothing is live (late at night, for example), plays 4 recently ended streams and new videos from your channels (pickup first, already watched ones skipped; choose stream archives, videos and Shorts in “Auto play content”). They are cleared when a live stream starts</li>
 </ul>`,
   'helpPage.cruise': `<p>Turn on “Cruise” (<kbd>C</kbd>) to move the main tile and audio to the next stream at a set interval, so you can sample many streams. It works without auto play, with tiles you arranged yourself.</p>
 <ul>
@@ -1062,7 +1080,7 @@ const HTML_EN = {
 <li>“Recent ⌄” on a row opens that channel’s recent videos, and 📌 adds it to pickup</li>
 <li><b>Pickup</b>: the channels you are following right now (e.g. the members of a group event). Filter the list with “📺 All / 📌 Pickup” at the top, and use it as the target of auto play and notifications</li>
 <li>Add a channel by entering an <code>@handle</code>, a channel URL or a video URL in the box at the bottom</li>
-<li><b>🔔 Notifications</b>: tell you when a channel goes live. Choose the target in Settings → Auto play → “Notifications for”</li>
+<li><b>🔔 Notifications</b>: tell you when a channel goes live. Choose which channels in Settings → Auto play → “Notification channels”</li>
 </ul>
 <h3>Settings → Channels (channel packs)</h3>
 <ul>
@@ -1146,16 +1164,15 @@ const HTML_EN = {
   'notice.empty': 'No notifications yet. When a channel goes live, it shows up here (checked while this page is open).',
   'progress.title': 'Preparing auto play',
   'layout.anchor': 'Placement',
-  'fit.fill': 'Stretch',
   'fit.fillTitle': 'Stretch: fill the screen with no margins. Videos are zoomed to fit their tiles and the edges are cropped (vertical videos are not cropped). When off (standard), every tile is exactly 16:9 and any leftover space goes to the outer margins',
   'layout.note': 'Darker tiles are main tiles. Streams fill tile 1 (main) first. Drag ⠿ on a tile to swap.',
 
   // チャンネル・ピックアップ
   'scope.title': 'Which channels to show: only pickup (📌) / all (shared by every tab)',
-  'auto.target': 'Auto play plays',
+  'auto.target': 'Auto play channels',
   'auto.pickupMain': 'Put pickup (📌) streams in the main tiles first',
   'auto.pickupMainNote': 'Puts pickup live streams in the big main tile',
-  'notice.target': 'Notifications for',
+  'notice.target': 'Notification channels',
   'target.all': 'All channels',
   'target.fav': 'Pickup (📌) only',
   'target.off': 'Off',

@@ -132,11 +132,11 @@ const Favorites = (() => {
    * そのチャンネルの最近の配信アーカイブと動画 (新しい順)。force = 覚えている結果を使わずに取り直す。
    * 「ライブ配信」の再生リスト (UULV) に加えて「動画」の再生リスト (UULF。プレミア公開・MV など。ショートは入らない) も見る。
    * プレミア公開 (同時視聴の本編になりやすい) は「ライブ配信」の方に入らないため。
-   * shorts = 「ショート」の再生リスト (UUSH) も見る (自動再生でショートも流す設定のときだけ)。
+   * 「ショート」の再生リスト (UUSH) も見る (ライブラリの最近の動画に出す。自動再生で流すかは設定で決める)。
    * 各項目の kind = live (配信のアーカイブ) / video (動画) / short (ショート)、list = 取った再生リスト。
    * 縦型の配信はショートではなくふつうの配信 (「ライブ配信」の再生リストに入る) なので、live のまま
    */
-  async function fetchArchives(channelId, { force = false, shorts = false } = {}) {
+  async function fetchArchives(channelId, { force = false } = {}) {
     const maxAge = force ? 0 : ARCHIVE_TTL_MS;
     const lives = await fetchFeed(channelId, { maxAge });
     // 動画・ショートの方が取れなくても (制限中も)、配信の分は出す
@@ -152,7 +152,7 @@ const Favorites = (() => {
     const all = [
       ...tag(lives, 'UULV', 'live'),
       ...tag(await more('UULF'), 'UULF', 'video'),
-      ...(shorts ? tag(await more('UUSH'), 'UUSH', 'short') : []),
+      ...tag(await more('UUSH'), 'UUSH', 'short'),
     ];
     const seen = new Set();
     // 配信予定・公開予定 (再生数 0) は除く

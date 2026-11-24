@@ -59,17 +59,17 @@ button:hover, select:hover { border-color: #444450; }
 .toolbar button { display: inline-flex; align-items: center; gap: 5px; height: 26px; }
 .toolbar .tb-icon { width: 1em; text-align: center; }
 /* クルーズの船 (SVG)。文字のアイコンと同じ大きさ・色 (ON / OFF の色に従う) */
-/* クルーズの船・自動再生の舵輪は、同じ大きさの単色の絵 */
+/* クルーズの船・自動再生の舵輪・速度のメーターは、同じ大きさの単色の絵 */
 /* 枠のバーのチャンネル登録 (人 + の絵) */
 .bar-buttons .sub-icon { display: block; width: 1.1em; height: 1.1em; fill: currentColor; }
-.toolbar .tb-icon .ship, .toolbar .tb-icon .helm { display: block; width: 1.15em; height: 1.15em; margin: 0 -0.075em; fill: currentColor; }
+.toolbar .tb-icon .ship, .toolbar .tb-icon .helm, .toolbar .tb-icon .gauge { display: block; width: 1.15em; height: 1.15em; margin: 0 -0.075em; fill: currentColor; }
 .toolbar .icon-only { width: 28px; justify-content: center; padding: 0; }
 /* レイアウト名は長いものもあるので幅を抑えて省略 */
 /* 幅は grid.js がいちばん長いレイアウト名に合わせて固定する (切り替えても後ろのボタンが動かないように) */
 #openLayout .tb-label { max-width: 9em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* 枠を増やす / 減らすボタン (押せないときは薄く) */
-#addTile:disabled, #removeTile:disabled, .bar .close:disabled { opacity: .35; cursor: default; }
+#addTile:disabled, #removeTile:disabled, #cruise:disabled, #pauseAll:disabled, #speedAll:disabled, .bar .close:disabled { opacity: .35; cursor: default; }
 
 /* ON / OFF のボタンは文字を変えずに色で状態を出す */
 button.toggle { color: var(--muted); }
@@ -670,6 +670,9 @@ dialog.fav-dialog.tour-preview {
 /* 配信予定はタイトルが取れないことがある (YouTube が返さない) */
 .fav-title:empty { display: none; }
 .fav-where { flex: none; color: #8ab4ff; font-size: 11px; white-space: nowrap; }
+/* ライブラリの行の「枠 N で表示中」(チャンネルの行の .fav-where と同じ見た目) */
+.fav-shown { flex: none; color: #8ab4ff; font-size: 11px; white-space: nowrap; }
+.fav-where:empty { display: none; }
 
 .badge {
   flex: none;
@@ -1338,6 +1341,10 @@ dialog.settings-dialog { width: min(780px, calc(100% - 32px)); overflow: hidden;
 .settings-form label.check { flex-direction: row; align-items: center; gap: 6px; color: var(--text); }
 /* すぐ上の項目の細かい設定 (自動再生で流す種類など) */
 .settings-form label.check.sub-check { margin-left: 1.5em; }
+/* 自動再生のコンテンツ (配信・動画・ショート) は 1 行に並べる */
+.settings-form .auto-kinds { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; margin-left: 1.5em; }
+.settings-form .auto-kinds .field-label { flex-basis: 100%; }
+.settings-form .settings-note.sub-check { margin-left: 1.5em; }
 .settings-form label.check > span { font-weight: 600; }
 /* 使い方 */
 /* 使い方: 左にメニュー、右に説明。右は高さを決めてスクロールさせる (メニューを切り替えても画面が動かない) */
@@ -1853,4 +1860,18 @@ dialog.info-dialog::backdrop { background: rgba(0, 0, 0, .15); }
 .info-pan button.on { color: #8fd3ff; border-color: #8fd3ff; position: relative; }
 /* 枠の情報のタイトル: 押すと YouTube の新しいタブで開く */
 a.info-title { display: block; text-decoration: none; }
+a.info-channel { display: block; text-decoration: none; color: inherit; }
+a.info-channel:hover, a.info-channel:focus-visible { text-decoration: underline; }
+/* 空き枠の行: URL などを入れて読み込む・選ぶ・おまかせ・✕ (空き枠を消す) */
+.info-kind.kind-empty { color: var(--muted); font-weight: 400; }
+.info-load { display: flex; gap: 4px; min-width: 0; }
+.info-load .url-input { flex: 1 1 auto; min-width: 0; height: 24px; font-size: 12px; }
+.info-load button { flex: none; height: 24px; padding: 0 8px; font-size: 12px; }
+.info-error { margin-top: 3px; color: var(--muted); font-size: 11px; }
+.info-ops button.close { color: var(--muted); }
+.info-ops button.close:disabled { opacity: .35; cursor: default; }
+.info-ops button:disabled { opacity: .35; cursor: default; }
+/* 表の下の ＋ (空き枠を足す) */
+.info-add { display: block; margin: 8px 0 4px; height: 26px; padding: 0 12px; font-size: 12px; }
+.info-add:disabled { opacity: .35; cursor: default; }
 a.info-title:hover, a.info-title:focus-visible { color: var(--text); text-decoration: underline; }

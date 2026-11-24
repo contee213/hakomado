@@ -20,11 +20,11 @@
     <button id="openLayout" type="button" data-i18n-title="layout.title" title="レイアウトを選ぶ"><span class="tb-icon">▦</span><span id="layoutName" class="tb-label"></span></button>
     <button id="addTile" type="button" data-i18n-title="addTile.title" title="枠を 1 つ増やす (枠の数に合ったレイアウトに変わります)"><span class="tb-icon">＋</span></button>
     <button id="removeTile" type="button" data-i18n-title="removeTile.title" title="空き枠を 1 つ減らす (枠の数に合ったレイアウトに変わります)。配信を読み込んだ枠は消しません"><span class="tb-icon">−</span></button>
-    <button id="fitFill" class="toggle" type="button" aria-pressed="false" data-i18n-title="fit.fillTitle" title="ストレッチ: 余白なしで画面を埋める。映像は枠に合わせて拡大し、はみ出た端は切れる (縦長の動画は切らずに収める)。OFF (標準) はどの枠も 16:9 ちょうどの大きさにし、画面と比率が合わない分は外側の余白になる"><span class="tb-icon">⤢</span><span class="tb-label" data-i18n="fit.fill">ストレッチ</span></button>
+    <button id="fitFill" class="toggle icon-only" type="button" aria-pressed="false" data-i18n-title="fit.fillTitle" title="ストレッチ: 余白なしで画面を埋める。映像は枠に合わせて拡大し、はみ出た端は切れる (縦長の動画は切らずに収める)。OFF (標準) はどの枠も 16:9 ちょうどの大きさにし、画面と比率が合わない分は外側の余白になる"><span class="tb-icon">⤢</span></button>
     <button id="autoMode" class="toggle" type="button" aria-pressed="false" data-i18n-title="auto.title" title="自動再生 (L): 配信中のチャンネルを並べ、始まった・終わった配信に合わせて枠を増減する"><span class="tb-icon"><svg class="helm" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="4.3" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="8" cy="8" r="1.4"/><path d="M7.25 0.6h1.5v14.8h-1.5z M0.6 7.25h14.8v1.5H0.6z"/><path transform="rotate(45 8 8)" d="M7.25 0.6h1.5v14.8h-1.5z M0.6 7.25h14.8v1.5H0.6z"/></svg></span><span class="tb-label" data-i18n="auto.label">自動再生</span></button>
     <button id="cruise" class="toggle" type="button" aria-pressed="false" data-i18n-title="cruise.title" title="クルーズ (C): 一定時間ごとに、メイン枠と音声を次の配信へ回す"><span class="tb-icon"><svg class="ship" viewBox="0 0 16 16" aria-hidden="true"><path d="M9 2.5h2v2.5H9z"/><path d="M4.5 5h8v2h-8z"/><path d="M3.5 7.5h10v2h-10z"/><path d="M1 10h14l-2.4 3.5H3.4z"/></svg></span><span class="tb-label" data-i18n="cruise.label">クルーズ</span><i class="cruise-progress" aria-hidden="true"></i></button>
     <button id="pauseAll" class="toggle" type="button" aria-pressed="false" data-i18n-title="pauseAll.title" title="全部の枠をまとめて一時停止 / 再開 (Space)。再開するとき、ライブ配信は最新の位置に戻ります"><span class="tb-icon">⏸</span><span class="tb-label" data-i18n="pauseAll.label">一時停止</span></button>
-    <button id="speedAll" class="speed-all" type="button" data-i18n-title="speedAll.title" title="全部の枠の再生速度をまとめて変える (同期しているグループはグループごと。ライブ配信は等速のまま)"><span class="tb-icon">⏩</span><span class="tb-label">1×</span></button>
+    <button id="speedAll" class="speed-all" type="button" data-i18n-title="speedAll.title" title="全部の枠の再生速度をまとめて変える (同期しているグループはグループごと。ライブ配信は等速のまま)"><span class="tb-icon"><svg class="gauge" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.2A7 7 0 0 0 1 9.2c0 1.6.55 3.1 1.5 4.3l1.2-.95A5.4 5.4 0 0 1 2.6 9.2a5.4 5.4 0 0 1 10.8 0c0 1.25-.42 2.4-1.12 3.35l1.2.95A7 7 0 0 0 8 2.2z"/><path d="M11.9 4.6 8.9 8.4a1.5 1.5 0 1 1-1.2-.95z"/></svg></span><span class="tb-label">1×</span></button>
     <button id="nowPlaying" class="now-playing" type="button" data-i18n="nowPlaying">🔇 ミュート中</button>
     <button id="syncToggle" class="toggle unavailable" type="button" aria-pressed="false" aria-disabled="true" data-i18n-title="sync.title" title="アーカイブ同期: 配信のアーカイブを、配信していた実際の時刻でそろえて再生する"><span class="tb-icon">⏱</span><span class="tb-label" data-i18n="sync.label">アーカイブ同期</span></button>
     <!-- 同期中だけ: 音を出している枠のグループの時刻とつまみ (グループが 2 つ以上なら、その番号と色)。☰ = 同期の調整パネル (画面の右の列) -->
@@ -191,10 +191,10 @@
 
       <section class="settings-panel" data-panel="auto" role="tabpanel" hidden>
         <div class="settings-col">
-        <label><span data-i18n="auto.target">自動再生の対象</span>
+        <label><span data-i18n="auto.target">自動再生のチャンネル</span>
           <select id="autoTarget"><option value="all" data-i18n="target.all">チャンネル全部</option><option value="fav" data-i18n="target.fav">ピックアップ (📌) だけ</option></select>
         </label>
-        <label><span data-i18n="notice.target">通知の対象</span>
+        <label><span data-i18n="notice.target">通知のチャンネル</span>
           <select id="noticeTarget"><option value="all" data-i18n="target.all">チャンネル全部</option><option value="fav" data-i18n="target.fav">ピックアップ (📌) だけ</option><option value="off" data-i18n="target.off">知らせない</option></select>
         </label>
         <label class="check"><input type="checkbox" id="skipMembersOnly"> <span data-i18n="auto.skip">メンバーになっていないメンバー限定配信は再生しない</span></label>
@@ -213,8 +213,14 @@
         <p class="settings-note" data-i18n="auto.prestartNote">配信予定の枠を開始前に作っておきます</p>
         <label class="check"><input type="checkbox" id="autoArchive"> <span data-i18n="auto.archive">配信中が無いときは、最近の動画を流す</span></label>
         <p class="settings-note" data-i18n="auto.archiveNote">ライブが無いときに、最近の動画を 4 枠流します</p>
-        <label class="check sub-check"><input type="checkbox" id="autoArchiveVideos"> <span data-i18n="auto.archiveVideos">動画 (プレミア公開・MV など) も流す</span></label>
-        <label class="check sub-check"><input type="checkbox" id="autoArchiveShorts"> <span data-i18n="auto.archiveShorts">ショートも流す</span></label>
+        <!-- 自動再生のコンテンツ: 最近の動画 (ライブが無いとき・🎲 おまかせ) で流す種類。ライブ配信はいつも流す -->
+        <div class="auto-kinds sub-check">
+          <span class="field-label" data-i18n="auto.kinds">自動再生のコンテンツ</span>
+          <label class="check"><input type="checkbox" id="autoArchiveLives"> <span data-i18n="auto.archiveLives">配信</span></label>
+          <label class="check"><input type="checkbox" id="autoArchiveVideos"> <span data-i18n="auto.archiveVideos">動画</span></label>
+          <label class="check"><input type="checkbox" id="autoArchiveShorts"> <span data-i18n="auto.archiveShorts">ショート</span></label>
+        </div>
+        <p class="settings-note sub-check" data-i18n="auto.kindsNote">最近の動画で流す種類 (配信 = 配信のアーカイブ、動画 = プレミア公開・MV など)。ライブ配信はいつも流します</p>
         <label><span data-i18n="auto.cruise">クルーズの間隔</span> <output id="cruiseSecOut"></output>
           <input type="range" id="cruiseSec" min="0" max="13" step="1">
         </label>
@@ -325,12 +331,12 @@
             </ul>
             <h3>設定 → 自動再生</h3>
             <ul>
-              <li><b>自動再生の対象</b>: すべてのチャンネルか、ピックアップ (📌) だけか</li>
+              <li><b>自動再生のチャンネル</b>: すべてのチャンネルか、ピックアップ (📌) だけか</li>
               <li><b>メンバーになっていないメンバー限定配信は再生しない</b>: ログイン中のアカウントで見られるかを、枠に入れる前に確かめます</li>
               <li><b>自動再生の最大枠数</b>: 配信中のものが多くても、この数までしか再生しません。回線が細いときや、パソコンが重いときは減らしてください</li>
               <li><b>ピックアップ (📌) の配信をメイン枠に優先して置く</b>: ピックアップのライブ配信を大きいメイン枠に入れ、ほかはサブ枠に回します。最大枠数に届いたときも、ピックアップを先に入れます。メイン枠の無い均等レイアウトと、クルーズ中は並べ替えません</li>
               <li><b>配信予定の枠を用意する</b>: 開始前から枠を作り、最初から見られるようにします。配信中のものが 1 つも無いときは、次に始まる配信予定と、その開始から 1 時間以内に始まる予定を出します</li>
-              <li><b>配信中が無いときは、最近の動画を流す</b>: 深夜などライブが 1 本も無いときに、チャンネルの最近終わった配信や公開された動画を 4 枠流します (ピックアップが先、一度見たものは除く。動画・ショートも流すかは設定で選べます)。ライブが始まったら片付けます</li>
+              <li><b>配信中が無いときは、最近の動画を流す</b>: 深夜などライブが 1 本も無いときに、チャンネルの最近終わった配信や公開された動画を 4 枠流します (ピックアップが先、一度見たものは除く。配信のアーカイブ・動画・ショートのどれを流すかは「自動再生のコンテンツ」で選べます)。ライブが始まったら片付けます</li>
             </ul>
           </section>
           <section class="help-page" data-help-page="cruise" role="tabpanel" data-i18n-html="helpPage.cruise" hidden>
@@ -347,7 +353,7 @@
               <li>行の「最近 ⌄」でそのチャンネルの最近の動画を開き、📌 でピックアップに入れます</li>
               <li><b>ピックアップ</b>: 今注目しているチャンネル (箱企画の参加者など)。上の「📺 すべて / 📌 ピックアップ」で一覧を絞れて、自動再生や通知の対象にもできます</li>
               <li>下の欄に <code>@チャンネル名</code>・チャンネルの URL・動画の URL を入れると追加できます</li>
-              <li><b>🔔 通知</b>: チャンネルの配信が始まると知らせます。対象は 設定 → 自動再生 →「通知の対象」で選びます</li>
+              <li><b>🔔 通知</b>: チャンネルの配信が始まると知らせます。どのチャンネルを知らせるかは 設定 → 自動再生 →「通知のチャンネル」で選びます</li>
             </ul>
             <h3>設定 → チャンネル (チャンネルパック)</h3>
             <ul>
@@ -658,8 +664,9 @@
           </thead>
           <tbody id="infoRows"></tbody>
         </table>
+        <!-- 空き枠を 1 つ足す (上部バーの ＋ と同じ) -->
+        <button type="button" id="infoAddTile" class="info-add" data-i18n="info.add">＋ 枠を追加</button>
       </div>
-      <p id="infoEmpty" class="fav-empty" data-i18n="info.empty">まだ枠に配信を読み込んでいません。</p>
       <p class="info-note" data-i18n="info.note">開いている間、数秒ごとに新しくします。視聴者数はライブ配信中だけ、再生数は枠を開いたときの数です。</p>
     </div>
   </dialog>
