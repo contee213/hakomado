@@ -1,0 +1,295 @@
+<!doctype html>
+<!-- このファイルは tools/gen-layout-evolution.js が tools/layout-evolution.template.html から作る。手で書き換えない -->
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hakomado レイアウト進化図</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* 要点 → 選び方 → 「今 / − / ＋」をたどる → 段 (横長・全部ショート) → 枠数ごとの一覧 → 気になる動き */
+:root {
+  --bg: #f3f4f1; --panel: #ffffff; --fg: #1d2421; --muted: #5d6762; --line: #d8dcd6;
+  --main: #e0a526; --sub: #9aa7a1; --even: #6e9bb5; --vert: #b07ab3; --frame: #2c3531;
+  --add: #2f8a5b; --rem: #c0533d; --warn-bg: #fbf1dc;
+  --font-body: "Zen Kaku Gothic New", "Hiragino Sans", "Yu Gothic UI", "Meiryo", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) { :root {
+  --bg: #161b19; --panel: #1f2623; --fg: #e5ebe7; --muted: #9aa59f; --line: #34403b;
+  --main: #f0b93c; --sub: #6f7d77; --even: #6fa3c2; --vert: #c08ac3; --frame: #0d1110;
+  --add: #5cc18b; --rem: #ea7a63; --warn-bg: #3a3020; color-scheme: dark } }
+body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 15px; line-height: 1.7; padding: 28px 16px 64px; }
+.wrap { max-width: 1080px; margin: 0 auto; display: grid; gap: 32px; }
+h1 { font-size: 1.75rem; margin: 0; }
+h2 { font-size: 1.2rem; margin: 0 0 10px; }
+h3 { font-size: 1rem; margin: 16px 0 2px; }
+.lead, .sub { color: var(--muted); margin: 4px 0 8px; max-width: 72ch; }
+.sub { font-size: .88rem; }
+code, .mono { font-family: var(--font-mono); font-size: .86em; }
+.facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+.fact { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; }
+.fact b { display: block; margin-bottom: 4px; }
+.fact p { margin: 0; color: var(--muted); font-size: .92rem; }
+.steps { margin: 0; padding-left: 1.6em; color: var(--muted); font-size: .92rem; }
+.explorer { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 20px; display: grid; gap: 16px; }
+.trio { display: grid; grid-template-columns: 1fr auto 1.3fr auto 1fr; align-items: center; gap: 10px; }
+.arrow { font-size: 1.4rem; color: var(--muted); text-align: center; }
+.node { display: grid; gap: 6px; justify-items: center; text-align: center; min-width: 0; }
+.node .tag { font-size: .78rem; font-weight: 700; letter-spacing: .08em; padding: 1px 10px; border-radius: 99px; }
+.node.rem .tag { background: color-mix(in srgb, var(--rem) 16%, transparent); color: var(--rem); }
+.node.add .tag { background: color-mix(in srgb, var(--add) 16%, transparent); color: var(--add); }
+.node.cur .tag { background: color-mix(in srgb, var(--main) 22%, transparent); }
+.thumbbtn { all: unset; cursor: pointer; border-radius: 6px; padding: 4px; display: grid; justify-items: center; gap: 4px; }
+.thumbbtn:hover { background: color-mix(in srgb, var(--fg) 6%, transparent); }
+.thumbbtn:focus-visible, .chip:focus-visible, .vcell:focus-visible, button:focus-visible { outline: 2px solid var(--main); outline-offset: 2px; }
+.node .name { font-weight: 700; font-size: 1.05rem; }
+.node .meta { font-size: .8rem; color: var(--muted); }
+.node .none { color: var(--muted); font-size: .9rem; padding: 24px 0; }
+.delta { font-size: .78rem; font-weight: 700; }
+.delta.jump { color: var(--rem); }
+.notes { display: grid; gap: 6px; }
+.note { background: var(--warn-bg); border-radius: 6px; padding: 6px 12px; font-size: .9rem; }
+.controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.controls button, .filters button { font: inherit; font-size: .88rem; border: 1px solid var(--line); background: var(--bg); color: var(--fg); border-radius: 6px; padding: 3px 12px; cursor: pointer; }
+.controls button:disabled { opacity: .4; cursor: default; }
+.filters { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.filters button { border-radius: 99px; background: var(--panel); }
+.filters button[aria-pressed="true"] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+.trail { font-size: .82rem; color: var(--muted); overflow-wrap: anywhere; }
+.legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: .82rem; color: var(--muted); }
+.legend i { display: inline-block; width: 12px; height: 9px; border-radius: 2px; margin-right: 5px; vertical-align: middle; }
+.vchain { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 4px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
+.vcell { all: unset; cursor: pointer; display: grid; justify-items: center; gap: 1px; padding: 4px 6px; border-radius: 6px; border: 1px solid transparent; }
+.vcell:hover { border-color: var(--line); background: var(--bg); }
+.vcell span { font-size: .78rem; font-weight: 700; }
+.vcell small { font-size: .68rem; color: var(--muted); }
+.varrow { font-size: .8rem; color: var(--muted); }
+.varrow.oneway { color: var(--rem); font-weight: 700; }
+.rows { display: grid; gap: 4px; }
+.row { display: grid; grid-template-columns: 52px 1fr; gap: 10px; align-items: start; border-top: 1px solid var(--line); padding-top: 8px; }
+.row .count { font-family: var(--font-mono); font-weight: 600; padding-top: 6px; }
+.row .count small { display: block; font-weight: 400; color: var(--muted); font-size: .7rem; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { all: unset; cursor: pointer; display: grid; justify-items: center; gap: 2px; padding: 4px 6px; border-radius: 6px; border: 1px solid transparent; }
+.chip:hover { background: var(--panel); border-color: var(--line); }
+.chip.sel { background: var(--panel); border-color: var(--main); }
+.chip .lbl { font-size: .72rem; color: var(--muted); white-space: nowrap; }
+.star { color: var(--main); }
+.quirks { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; }
+.qbox { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; }
+.qbox h3 { margin: 0 0 2px; }
+.qbox h3 .cnt { font-family: var(--font-mono); font-size: .8rem; font-weight: 400; color: var(--muted); margin-left: 4px; }
+.qbox p { margin: 0 0 8px; color: var(--muted); font-size: .85rem; }
+.qbox ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 2px; }
+.qbox li button { all: unset; cursor: pointer; font-size: .86rem; border-radius: 4px; padding: 1px 4px; }
+.qbox li button:hover { background: color-mix(in srgb, var(--fg) 7%, transparent); }
+.qbox li.empty { color: var(--muted); font-size: .86rem; }
+.op-add { color: var(--add); font-weight: 700; }
+.op-rem { color: var(--rem); font-weight: 700; }
+footer { color: var(--muted); font-size: .82rem; }
+@media (max-width: 640px) {
+  .trio { grid-template-columns: 1fr 1fr; }
+  .trio .arrow { display: none; }
+  .trio .cur { grid-column: 1 / -1; order: -1; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Hakomado レイアウト進化図</h1>
+    <p class="lead">マルチビュー画面の上部バーの「＋」「−」と空き枠の ✕ を押したとき、どのレイアウトに移るか。<code>extension/layouts.js</code> の <code>resizeLayoutFor</code> をそのまま動かして、全レイアウトについて求めたものです。</p>
+  </header>
+
+  <section class="facts" aria-label="要点">
+    <div class="fact"><b>削除する枠の位置では変わらない</b><p>次のレイアウトは「今のレイアウト」と「枠数」だけで決まります。違うのは、はみ出した配信をどの空き枠へ移すか (✕ を押した枠が先) だけです。</p></div>
+    <div class="fact"><b>枠数ごとに形が 1 つに決まる</b><p>着くのは、その枠数でメイン枠が一番多い形。均等がある枠数では均等になり、段の上では ＋ → − で必ず元に戻ります。</p></div>
+    <div class="fact"><b>縦長は縦長の段だけ</b><p>縦長 (ショート) を使っているときは、3〜16 枠の縦長だけを 1 枠ずつ上り下りします。1×1・1×2 で読み込んだ枠が全部ショートなら、＋ で ▯1×3 へ進みます。</p></div>
+  </section>
+
+  <section aria-labelledby="h-rule">
+    <h2 id="h-rule">選び方 (優先する順)</h2>
+    <ol class="steps">
+      <li>増減後の枠数がちょうど合うもの (無い枠数は飛ばす)</li>
+      <li>縦長を使っているときは縦長、PinP を使っているときは PinP</li>
+      <li>メイン枠が減らないもの (均等・縦長の均等はすべてメイン枠。無ければ今に一番近いもの)</li>
+      <li>その中でメイン枠が一番多いもの</li>
+      <li>おすすめ</li>
+      <li>今と同じ基準位置</li>
+      <li>映像が画面を占める割合が大きいもの</li>
+      <li>レイアウトの並び順</li>
+    </ol>
+  </section>
+
+  <section class="explorer" aria-label="たどる">
+    <div class="trio" id="trio"></div>
+    <div class="notes" id="notes"></div>
+    <div class="controls">
+      <button type="button" id="back">← 戻る</button>
+      <button type="button" id="reset">2×2 から始める</button>
+      <span class="trail" id="trail"></span>
+    </div>
+    <div class="legend">
+      <span><i style="background:var(--main)"></i>メイン枠</span>
+      <span><i style="background:var(--sub)"></i>サブ枠</span>
+      <span><i style="background:var(--even)"></i>均等</span>
+      <span><i style="background:var(--vert)"></i>縦長 (9:16)</span>
+      <span><span class="star">★</span> おすすめ</span>
+    </div>
+  </section>
+
+  <section aria-labelledby="h-ladder">
+    <h2 id="h-ladder">段 (1×1 から ＋ を押し続けたとき)</h2>
+    <h3>横長 (ふつうの配信・動画)</h3>
+    <p class="sub">縦長・PinP 以外のどのレイアウトからでも、1 回押せばこの段に乗ります。</p>
+    <div class="vchain" id="ladder"></div>
+    <h3>全部ショート (縦長)</h3>
+    <p class="sub">縦長の無い 7・9・11・13・15 枠は、基準位置の側の 2 × 2 マスを大きな枠にした形です。1×2 → ▯1×3 は読み込んだ枠が全部ショートのときだけで、− で 1×2 にすると、ふつうの段へ戻ります。</p>
+    <div class="vchain" id="vladder"></div>
+    <h3>ショートと横長が混じるとき</h3>
+    <p class="sub">「＋」「−」は横長の段のまま選び、ショートの枠だけ、映像が狭くならない範囲で 9:16 に寄せます。自動再生のときは均等にして、ショートを右の列にまとめます (<code>shortsToColumns</code>)。</p>
+  </section>
+
+  <section aria-labelledby="h-list">
+    <h2 id="h-list">枠数ごとのレイアウト</h2>
+    <div class="filters" id="filters"></div>
+    <div class="rows" id="rows"></div>
+  </section>
+
+  <section aria-labelledby="h-q">
+    <h2 id="h-q">気になる動き</h2>
+    <div class="quirks" id="quirks"></div>
+  </section>
+
+  <footer>前提: 基準位置は左上 (ほかの角は反転しただけで同じ動き)。クルーズ中ではないとき (クルーズ中はメイン + サブだけ)。空き枠は十分にある (「−」は空き枠が無いと押せない)。映像の広さの比べ合いは 1920×1000 の画面で計算。自動再生が並べ直すときは別の選び方 (<code>chooseLayoutFor</code>) を使うので、この図には入れていません。作り直すには <code>node tools/gen-layout-evolution.js</code>。</footer>
+</div>
+
+<script>
+'use strict';
+const { layouts: DATA, ladder: LADDER, vladder: VLADDER } = {"layouts":[{"id":"u1x1","name":"1×1","group":"uniform","mains":0,"n":1,"slots":[[0,0,1,1]],"rec":true,"tr":{"c":[16],"r":[9]},"add":"u1x2","rem":null},{"id":"u1x2","name":"1×2","group":"uniform","mains":0,"n":2,"slots":[[0,0,1,1],[1,0,1,1]],"rec":true,"tr":{"c":[16,16],"r":[9]},"add":"tl-m1s2-sw","rem":"u1x1"},{"id":"u2x1","name":"2×1","group":"uniform","mains":0,"n":2,"slots":[[0,0,1,1],[0,1,1,1]],"rec":false,"tr":{"c":[16],"r":[9,9]},"add":"tl-m1s2-sw","rem":"u1x1"},{"id":"u2x2","name":"2×2","group":"uniform","mains":0,"n":4,"slots":[[0,0,1,1],[1,0,1,1],[0,1,1,1],[1,1,1,1]],"rec":true,"tr":{"c":[16,16],"r":[9,9]},"add":"tl-m2s3-st","rem":"tl-m1s2-sw"},{"id":"u2x3","name":"2×3","group":"uniform","mains":0,"n":6,"slots":[[0,0,1,1],[1,0,1,1],[2,0,1,1],[0,1,1,1],[1,1,1,1],[2,1,1,1]],"rec":true,"tr":{"c":[16,16,16],"r":[9,9]},"add":"tl-m4s3-sw","rem":"tl-m2s3-st"},{"id":"u3x2","name":"3×2","group":"uniform","mains":0,"n":6,"slots":[[0,0,1,1],[1,0,1,1],[0,1,1,1],[1,1,1,1],[0,2,1,1],[1,2,1,1]],"rec":false,"tr":{"c":[16,16],"r":[9,9,9]},"add":"tl-m4s3-sw","rem":"tl-m2s3-st"},{"id":"u3x3","name":"3×3","group":"uniform","mains":0,"n":9,"slots":[[0,0,1,1],[1,0,1,1],[2,0,1,1],[0,1,1,1],[1,1,1,1],[2,1,1,1],[0,2,1,1],[1,2,1,1],[2,2,1,1]],"rec":true,"tr":{"c":[16,16,16],"r":[9,9,9]},"add":"tl-m6s4-st","rem":"tl-m4s4-sw"},{"id":"u3x4","name":"3×4","group":"uniform","mains":0,"n":12,"slots":[[0,0,1,1],[1,0,1,1],[2,0,1,1],[3,0,1,1],[0,1,1,1],[1,1,1,1],[2,1,1,1],[3,1,1,1],[0,2,1,1],[1,2,1,1],[2,2,1,1],[3,2,1,1]],"rec":true,"tr":{"c":[16,16,16,16],"r":[9,9,9]},"add":"tl-m4s9-sw","rem":"tl-m3s8-st"},{"id":"u4x3","name":"4×3","group":"uniform","mains":0,"n":12,"slots":[[0,0,1,1],[1,0,1,1],[2,0,1,1],[0,1,1,1],[1,1,1,1],[2,1,1,1],[0,2,1,1],[1,2,1,1],[2,2,1,1],[0,3,1,1],[1,3,1,1],[2,3,1,1]],"rec":false,"tr":{"c":[16,16,16],"r":[9,9,9,9]},"add":"tl-m4s9-sw","rem":"tl-m3s8-st"},{"id":"u3x5","name":"3×5","group":"uniform","mains":0,"n":15,"slots":[[0,0,1,1],[1,0,1,1],[2,0,1,1],[3,0,1,1],[4,0,1,1],[0,1,1,1],[1,1,1,1],[2,1,1,1],[3,1,1,1],[4,1,1,1],[0,2,1,1],[1,2,1,1],[2,2,1,1],[3,2,1,1],[4,2,1,1]],"rec":true,"tr":{"c":[16,16,16,16,16],"r":[9,9,9]},"add":"u4x4","rem":"tl-m8s6-sw"},{"id":"u5x3","name":"5×3","group":"uniform","mains":0,"n":15,"slots":[[0,0,1,1],[1,0,1,1],[2,0,1,1],[0,1,1,1],[1,1,1,1],[2,1,1,1],[0,2,1,1],[1,2,1,1],[2,2,1,1],[0,3,1,1],[1,3,1,1],[2,3,1,1],[0,4,1,1],[1,4,1,1],[2,4,1,1]],"rec":false,"tr":{"c":[16,16,16],"r":[9,9,9,9,9]},"add":"u4x4","rem":"tl-m8s6-sw"},{"id":"u4x4","name":"4×4","group":"uniform","mains":0,"n":16,"slots":[[0,0,1,1],[1,0,1,1],[2,0,1,1],[3,0,1,1],[0,1,1,1],[1,1,1,1],[2,1,1,1],[3,1,1,1],[0,2,1,1],[1,2,1,1],[2,2,1,1],[3,2,1,1],[0,3,1,1],[1,3,1,1],[2,3,1,1],[3,3,1,1]],"rec":true,"tr":{"c":[16,16,16,16],"r":[9,9,9,9]},"add":null,"rem":"u3x5"},{"id":"v1x3","name":"▯1×3","group":"vertical","mains":0,"n":3,"slots":[[0,0,1,1],[1,0,1,1],[2,0,1,1]],"rec":false,"tr":{"c":[9,9,9],"r":[16]},"add":"v1x4","rem":"u1x2"},{"id":"v1x4","name":"▯1×4","group":"vertical","mains":0,"n":4,"slots":[[0,0,1,1],[1,0,1,1],[2,0,1,1],[3,0,1,1]],"rec":false,"tr":{"c":[9,9,9,9],"r":[16]},"add":"v1x5","rem":"v1x3"},{"id":"v1x5","name":"▯1×5","group":"vertical","mains":0,"n":5,"slots":[[0,0,1,1],[1,0,1,1],[2,0,1,1],[3,0,1,1],[4,0,1,1]],"rec":false,"tr":{"c":[9,9,9,9,9],"r":[16]},"add":"v1x6","rem":"v1x4"},{"id":"v1x6","name":"▯1×6","group":"vertical","mains":0,"n":6,"slots":[[0,0,1,1],[1,0,1,1],[2,0,1,1],[3,0,1,1],[4,0,1,1],[5,0,1,1]],"rec":false,"tr":{"c":[9,9,9,9,9,9],"r":[16]},"add":"tl-vm2x5","rem":"v1x5"},{"id":"v2x4","name":"▯2×4","group":"vertical","mains":0,"n":8,"slots":[[0,0,1,1],[1,0,1,1],[2,0,1,1],[3,0,1,1],[0,1,1,1],[1,1,1,1],[2,1,1,1],[3,1,1,1]],"rec":false,"tr":{"c":[9,9,9,9],"r":[16,16]},"add":"tl-vm2x6","rem":"tl-vm2x5"},{"id":"v2x5","name":"▯2×5","group":"vertical","mains":0,"n":10,"slots":[[0,0,1,1],[1,0,1,1],[2,0,1,1],[3,0,1,1],[4,0,1,1],[0,1,1,1],[1,1,1,1],[2,1,1,1],[3,1,1,1],[4,1,1,1]],"rec":false,"tr":{"c":[9,9,9,9,9],"r":[16,16]},"add":"tl-vm2x7","rem":"tl-vm2x6"},{"id":"v2x6","name":"▯2×6","group":"vertical","mains":0,"n":12,"slots":[[0,0,1,1],[1,0,1,1],[2,0,1,1],[3,0,1,1],[4,0,1,1],[5,0,1,1],[0,1,1,1],[1,1,1,1],[2,1,1,1],[3,1,1,1],[4,1,1,1],[5,1,1,1]],"rec":false,"tr":{"c":[9,9,9,9,9,9],"r":[16,16]},"add":"tl-vm2x8","rem":"tl-vm2x7"},{"id":"v2x7","name":"▯2×7","group":"vertical","mains":0,"n":14,"slots":[[0,0,1,1],[1,0,1,1],[2,0,1,1],[3,0,1,1],[4,0,1,1],[5,0,1,1],[6,0,1,1],[0,1,1,1],[1,1,1,1],[2,1,1,1],[3,1,1,1],[4,1,1,1],[5,1,1,1],[6,1,1,1]],"rec":false,"tr":{"c":[9,9,9,9,9,9,9],"r":[16,16]},"add":"tl-vm2x9","rem":"tl-vm2x8"},{"id":"v2x8","name":"▯2×8","group":"vertical","mains":0,"n":16,"slots":[[0,0,1,1],[1,0,1,1],[2,0,1,1],[3,0,1,1],[4,0,1,1],[5,0,1,1],[6,0,1,1],[7,0,1,1],[0,1,1,1],[1,1,1,1],[2,1,1,1],[3,1,1,1],[4,1,1,1],[5,1,1,1],[6,1,1,1],[7,1,1,1]],"rec":false,"tr":{"c":[9,9,9,9,9,9,9,9],"r":[16,16]},"add":null,"rem":"tl-vm2x9"},{"id":"tl-m1s2-g3x2","name":"1+2","group":"main","mains":1,"n":3,"slots":[[0,0,2,2],[0,2,1,1],[1,2,1,1]],"rec":false,"tr":{"c":[16,16],"r":[9,9,9]},"add":"u2x2","rem":"u1x2"},{"id":"tl-m1s2-sw","name":"1+2","group":"main","mains":1,"n":3,"slots":[[0,0,2,2],[2,0,1,1],[2,1,1,1]],"rec":true,"tr":{"c":[16,16,16],"r":[9,9]},"add":"u2x2","rem":"u1x2"},{"id":"tl-m1s3-st","name":"1+3","group":"main","mains":1,"n":4,"slots":[[0,0,3,3],[0,3,1,1],[1,3,1,1],[2,3,1,1]],"rec":false,"tr":{"c":[16,16,16],"r":[9,9,9,9]},"add":"tl-m2s3-st","rem":"tl-m1s2-sw"},{"id":"tl-m1s3-sw","name":"1+3","group":"main","mains":1,"n":4,"slots":[[0,0,3,3],[3,0,1,1],[3,1,1,1],[3,2,1,1]],"rec":true,"tr":{"c":[16,16,16,16],"r":[9,9,9]},"add":"tl-m2s3-st","rem":"tl-m1s2-sw"},{"id":"tl-m1s4-g2x4","name":"1+4","group":"main","mains":1,"n":5,"slots":[[0,0,2,2],[2,0,1,1],[3,0,1,1],[2,1,1,1],[3,1,1,1]],"rec":false,"tr":{"c":[16,16,16,16],"r":[9,9]},"add":"u2x3","rem":"u2x2"},{"id":"tl-m1s4-g4x2","name":"1+4","group":"main","mains":1,"n":5,"slots":[[0,0,2,2],[0,2,1,1],[1,2,1,1],[0,3,1,1],[1,3,1,1]],"rec":false,"tr":{"c":[16,16],"r":[9,9,9,9]},"add":"u2x3","rem":"u2x2"},{"id":"tl-m1s4-st","name":"1+4","group":"main","mains":1,"n":5,"slots":[[0,0,4,4],[0,4,1,1],[1,4,1,1],[2,4,1,1],[3,4,1,1]],"rec":false,"tr":{"c":[16,16,16,16],"r":[9,9,9,9,9]},"add":"u2x3","rem":"u2x2"},{"id":"tl-m1s4-sw","name":"1+4","group":"main","mains":1,"n":5,"slots":[[0,0,4,4],[4,0,1,1],[4,1,1,1],[4,2,1,1],[4,3,1,1]],"rec":true,"tr":{"c":[16,16,16,16,16],"r":[9,9,9,9]},"add":"u2x3","rem":"u2x2"},{"id":"tl-m2s3-st","name":"2+3","group":"main","mains":2,"n":5,"slots":[[0,0,3,3],[0,3,3,3],[3,0,2,2],[3,2,2,2],[3,4,2,2]],"rec":true,"tr":{"c":[16,16,16,16,16],"r":[9,9,9,9,9,9]},"add":"u2x3","rem":"u2x2"},{"id":"tl-m2s3-sw","name":"2+3","group":"main","mains":2,"n":5,"slots":[[0,0,3,3],[3,0,3,3],[0,3,2,2],[2,3,2,2],[4,3,2,2]],"rec":false,"tr":{"c":[16,16,16,16,16,16],"r":[9,9,9,9,9]},"add":"u2x3","rem":"u2x2"},{"id":"tl-m1s5-bw","name":"1+5","group":"main","mains":1,"n":6,"slots":[[0,0,2,2],[2,0,1,1],[2,1,1,1],[0,2,1,1],[1,2,1,1],[2,2,1,1]],"rec":false,"tr":{"c":[16,16,16],"r":[9,9,9]},"add":"tl-m4s3-sw","rem":"tl-m2s3-st"},{"id":"tl-m1s5-ft","name":"1+5","group":"main","mains":1,"n":6,"slots":[[0,0,5,5],[0,5,1,1],[1,5,1,1],[2,5,1,1],[3,5,1,1],[4,5,1,1]],"rec":false,"tr":{"c":[16,16,16,16,16],"r":[9,9,9,9,9,9]},"add":"tl-m4s3-sw","rem":"tl-m2s3-st"},{"id":"tl-m1s5-fw","name":"1+5","group":"main","mains":1,"n":6,"slots":[[0,0,5,5],[5,0,1,1],[5,1,1,1],[5,2,1,1],[5,3,1,1],[5,4,1,1]],"rec":true,"tr":{"c":[16,16,16,16,16,16],"r":[9,9,9,9,9]},"add":"tl-m4s3-sw","rem":"tl-m2s3-st"},{"id":"tl-m2s4-st","name":"2+4","group":"main","mains":2,"n":6,"slots":[[0,0,2,2],[0,2,2,2],[2,0,1,1],[2,1,1,1],[2,2,1,1],[2,3,1,1]],"rec":true,"tr":{"c":[16,16,16],"r":[9,9,9,9]},"add":"tl-m4s3-sw","rem":"tl-m2s3-st"},{"id":"tl-m2s4-sw","name":"2+4","group":"main","mains":2,"n":6,"slots":[[0,0,2,2],[2,0,2,2],[0,2,1,1],[1,2,1,1],[2,2,1,1],[3,2,1,1]],"rec":false,"tr":{"c":[16,16,16,16],"r":[9,9,9]},"add":"tl-m4s3-sw","rem":"tl-m2s3-st"},{"id":"tl-m1s6-g3x5","name":"1+6","group":"main","mains":1,"n":7,"slots":[[0,0,3,3],[3,0,1,1],[4,0,1,1],[3,1,1,1],[4,1,1,1],[3,2,1,1],[4,2,1,1]],"rec":false,"tr":{"c":[16,16,16,16,16],"r":[9,9,9]},"add":"tl-m4s4-sw","rem":"u2x3"},{"id":"tl-m1s6-g5x3","name":"1+6","group":"main","mains":1,"n":7,"slots":[[0,0,3,3],[0,3,1,1],[1,3,1,1],[2,3,1,1],[0,4,1,1],[1,4,1,1],[2,4,1,1]],"rec":false,"tr":{"c":[16,16,16],"r":[9,9,9,9,9]},"add":"tl-m4s4-sw","rem":"u2x3"},{"id":"tl-m1s6-st","name":"1+6","group":"main","mains":1,"n":7,"slots":[[0,0,6,6],[0,6,1,1],[1,6,1,1],[2,6,1,1],[3,6,1,1],[4,6,1,1],[5,6,1,1]],"rec":true,"tr":{"c":[16,16,16,16,16,16],"r":[9,9,9,9,9,9,9]},"add":"tl-m4s4-sw","rem":"u2x3"},{"id":"tl-m3s4-g4x4l21","name":"3+4","group":"main","mains":3,"n":7,"slots":[[0,0,2,2],[2,0,2,2],[0,2,2,2],[2,2,1,1],[3,2,1,1],[2,3,1,1],[3,3,1,1]],"rec":true,"tr":{"c":[16,16,16,16],"r":[9,9,9,9]},"add":"tl-m4s4-sw","rem":"u2x3"},{"id":"tl-m3s4-sw","name":"3+4","group":"main","mains":3,"n":7,"slots":[[0,0,4,4],[4,0,4,4],[8,0,4,4],[0,4,3,3],[3,4,3,3],[6,4,3,3],[9,4,3,3]],"rec":false,"tr":{"c":[16,16,16,16,16,16,16,16,16,16,16,16],"r":[9,9,9,9,9,9,9]},"add":"tl-m4s4-sw","rem":"u2x3"},{"id":"tl-m4s3-st","name":"4+3","group":"main","mains":4,"n":7,"slots":[[0,0,3,3],[3,0,3,3],[0,3,3,3],[3,3,3,3],[0,6,2,2],[2,6,2,2],[4,6,2,2]],"rec":false,"tr":{"c":[16,16,16,16,16,16],"r":[9,9,9,9,9,9,9,9]},"add":"tl-m4s4-sw","rem":"u2x3"},{"id":"tl-m4s3-sw","name":"4+3","group":"main","mains":4,"n":7,"slots":[[0,0,3,3],[3,0,3,3],[0,3,3,3],[3,3,3,3],[6,0,2,2],[6,2,2,2],[6,4,2,2]],"rec":true,"tr":{"c":[16,16,16,16,16,16,16,16],"r":[9,9,9,9,9,9]},"add":"tl-m4s4-sw","rem":"u2x3"},{"id":"tl-m1s7-g4x4","name":"1+7","group":"main","mains":1,"n":8,"slots":[[0,0,3,3],[3,0,1,1],[3,1,1,1],[3,2,1,1],[0,3,1,1],[1,3,1,1],[2,3,1,1],[3,3,1,1]],"rec":true,"tr":{"c":[16,16,16,16],"r":[9,9,9,9]},"add":"u3x3","rem":"tl-m4s3-sw"},{"id":"tl-m2s6-g4x6","name":"2+6","group":"main","mains":2,"n":8,"slots":[[0,0,3,3],[3,0,3,3],[0,3,1,1],[1,3,1,1],[2,3,1,1],[3,3,1,1],[4,3,1,1],[5,3,1,1]],"rec":false,"tr":{"c":[16,16,16,16,16,16],"r":[9,9,9,9]},"add":"u3x3","rem":"tl-m4s3-sw"},{"id":"tl-m2s6-g6x4","name":"2+6","group":"main","mains":2,"n":8,"slots":[[0,0,3,3],[0,3,3,3],[3,0,1,1],[3,1,1,1],[3,2,1,1],[3,3,1,1],[3,4,1,1],[3,5,1,1]],"rec":false,"tr":{"c":[16,16,16,16],"r":[9,9,9,9,9,9]},"add":"u3x3","rem":"tl-m4s3-sw"},{"id":"tl-m2s6-st","name":"2+6","group":"main","mains":2,"n":8,"slots":[[0,0,3,3],[3,0,3,3],[0,3,2,2],[2,3,2,2],[4,3,2,2],[0,5,2,2],[2,5,2,2],[4,5,2,2]],"rec":false,"tr":{"c":[16,16,16,16,16,16],"r":[9,9,9,9,9,9,9]},"add":"u3x3","rem":"tl-m4s3-sw"},{"id":"tl-m2s6-sw","name":"2+6","group":"main","mains":2,"n":8,"slots":[[0,0,3,3],[0,3,3,3],[3,0,2,2],[5,0,2,2],[3,2,2,2],[5,2,2,2],[3,4,2,2],[5,4,2,2]],"rec":true,"tr":{"c":[16,16,16,16,16,16,16],"r":[9,9,9,9,9,9]},"add":"u3x3","rem":"tl-m4s3-sw"},{"id":"tl-m4s4-st","name":"4+4","group":"main","mains":4,"n":8,"slots":[[0,0,2,2],[2,0,2,2],[0,2,2,2],[2,2,2,2],[0,4,1,1],[1,4,1,1],[2,4,1,1],[3,4,1,1]],"rec":false,"tr":{"c":[16,16,16,16],"r":[9,9,9,9,9]},"add":"u3x3","rem":"tl-m4s3-sw"},{"id":"tl-m4s4-sw","name":"4+4","group":"main","mains":4,"n":8,"slots":[[0,0,2,2],[2,0,2,2],[0,2,2,2],[2,2,2,2],[4,0,1,1],[4,1,1,1],[4,2,1,1],[4,3,1,1]],"rec":true,"tr":{"c":[16,16,16,16,16],"r":[9,9,9,9]},"add":"u3x3","rem":"tl-m4s3-sw"},{"id":"tl-m1s8-g4x6","name":"1+8","group":"main","mains":1,"n":9,"slots":[[0,0,4,4],[4,0,1,1],[5,0,1,1],[4,1,1,1],[5,1,1,1],[4,2,1,1],[5,2,1,1],[4,3,1,1],[5,3,1,1]],"rec":true,"tr":{"c":[16,16,16,16,16,16],"r":[9,9,9,9]},"add":"tl-m6s4-st","rem":"tl-m4s4-sw"},{"id":"tl-m1s8-g6x4","name":"1+8","group":"main","mains":1,"n":9,"slots":[[0,0,4,4],[0,4,1,1],[1,4,1,1],[2,4,1,1],[3,4,1,1],[0,5,1,1],[1,5,1,1],[2,5,1,1],[3,5,1,1]],"rec":false,"tr":{"c":[16,16,16,16],"r":[9,9,9,9,9,9]},"add":"tl-m6s4-st","rem":"tl-m4s4-sw"},{"id":"tl-m1s8-st","name":"1+8","group":"main","mains":1,"n":9,"slots":[[0,0,2,2],[2,0,1,1],[2,1,1,1],[0,2,1,1],[1,2,1,1],[2,2,1,1],[0,3,1,1],[1,3,1,1],[2,3,1,1]],"rec":false,"tr":{"c":[16,16,16],"r":[9,9,9,9]},"add":"tl-m6s4-st","rem":"tl-m4s4-sw"},{"id":"tl-m1s8-sw","name":"1+8","group":"main","mains":1,"n":9,"slots":[[0,0,2,2],[2,0,1,1],[3,0,1,1],[2,1,1,1],[3,1,1,1],[0,2,1,1],[1,2,1,1],[2,2,1,1],[3,2,1,1]],"rec":false,"tr":{"c":[16,16,16,16],"r":[9,9,9]},"add":"tl-m6s4-st","rem":"tl-m4s4-sw"},{"id":"tl-m2s7-g3x5","name":"2+7","group":"main","mains":2,"n":9,"slots":[[0,0,2,2],[2,0,2,2],[4,0,1,1],[4,1,1,1],[0,2,1,1],[1,2,1,1],[2,2,1,1],[3,2,1,1],[4,2,1,1]],"rec":true,"tr":{"c":[16,16,16,16,16],"r":[9,9,9]},"add":"tl-m6s4-st","rem":"tl-m4s4-sw"},{"id":"tl-m2s7-g5x3","name":"2+7","group":"main","mains":2,"n":9,"slots":[[0,0,2,2],[0,2,2,2],[2,0,1,1],[2,1,1,1],[2,2,1,1],[2,3,1,1],[0,4,1,1],[1,4,1,1],[2,4,1,1]],"rec":false,"tr":{"c":[16,16,16],"r":[9,9,9,9,9]},"add":"tl-m6s4-st","rem":"tl-m4s4-sw"},{"id":"tl-m3s6-g6x3","name":"3+6","group":"main","mains":3,"n":9,"slots":[[0,0,2,2],[0,2,2,2],[0,4,2,2],[2,0,1,1],[2,1,1,1],[2,2,1,1],[2,3,1,1],[2,4,1,1],[2,5,1,1]],"rec":true,"tr":{"c":[16,16,16],"r":[9,9,9,9,9,9]},"add":"tl-m6s4-st","rem":"tl-m4s4-sw"},{"id":"tl-m3s6-sw","name":"3+6","group":"main","mains":3,"n":9,"slots":[[0,0,2,2],[2,0,2,2],[4,0,2,2],[0,2,1,1],[1,2,1,1],[2,2,1,1],[3,2,1,1],[4,2,1,1],[5,2,1,1]],"rec":false,"tr":{"c":[16,16,16,16,16,16],"r":[9,9,9]},"add":"tl-m6s4-st","rem":"tl-m4s4-sw"},{"id":"tl-m5s4-g4x6l32","name":"5+4","group":"main","mains":5,"n":9,"slots":[[0,0,2,2],[2,0,2,2],[4,0,2,2],[0,2,2,2],[2,2,2,2],[4,2,1,1],[5,2,1,1],[4,3,1,1],[5,3,1,1]],"rec":true,"tr":{"c":[16,16,16,16,16,16],"r":[9,9,9,9]},"add":"tl-m6s4-st","rem":"tl-m4s4-sw"},{"id":"tl-m5s4-g6x4l221","name":"5+4","group":"main","mains":5,"n":9,"slots":[[0,0,2,2],[2,0,2,2],[0,2,2,2],[2,2,2,2],[0,4,2,2],[2,4,1,1],[3,4,1,1],[2,5,1,1],[3,5,1,1]],"rec":false,"tr":{"c":[16,16,16,16],"r":[9,9,9,9,9,9]},"add":"tl-m6s4-st","rem":"tl-m4s4-sw"},{"id":"tl-m1s9-g3x6","name":"1+9","group":"main","mains":1,"n":10,"slots":[[0,0,3,3],[3,0,1,1],[4,0,1,1],[5,0,1,1],[3,1,1,1],[4,1,1,1],[5,1,1,1],[3,2,1,1],[4,2,1,1],[5,2,1,1]],"rec":false,"tr":{"c":[16,16,16,16,16,16],"r":[9,9,9]},"add":"tl-m3s8-st","rem":"u3x3"},{"id":"tl-m1s9-g6x3","name":"1+9","group":"main","mains":1,"n":10,"slots":[[0,0,3,3],[0,3,1,1],[1,3,1,1],[2,3,1,1],[0,4,1,1],[1,4,1,1],[2,4,1,1],[0,5,1,1],[1,5,1,1],[2,5,1,1]],"rec":false,"tr":{"c":[16,16,16],"r":[9,9,9,9,9,9]},"add":"tl-m3s8-st","rem":"u3x3"},{"id":"tl-m1s9-sw","name":"1+9","group":"main","mains":1,"n":10,"slots":[[0,0,4,4],[4,0,1,1],[4,1,1,1],[4,2,1,1],[4,3,1,1],[0,4,1,1],[1,4,1,1],[2,4,1,1],[3,4,1,1],[4,4,1,1]],"rec":true,"tr":{"c":[16,16,16,16,16],"r":[9,9,9,9,9]},"add":"tl-m3s8-st","rem":"u3x3"},{"id":"tl-m2s8-g4x4","name":"2+8","group":"main","mains":2,"n":10,"slots":[[0,0,2,2],[0,2,2,2],[2,0,1,1],[3,0,1,1],[2,1,1,1],[3,1,1,1],[2,2,1,1],[3,2,1,1],[2,3,1,1],[3,3,1,1]],"rec":true,"tr":{"c":[16,16,16,16],"r":[9,9,9,9]},"add":"tl-m3s8-st","rem":"u3x3"},{"id":"tl-m2s8-sw","name":"2+8","group":"main","mains":2,"n":10,"slots":[[0,0,2,2],[2,0,2,2],[0,2,1,1],[1,2,1,1],[2,2,1,1],[3,2,1,1],[0,3,1,1],[1,3,1,1],[2,3,1,1],[3,3,1,1]],"rec":false,"tr":{"c":[16,16,16,16],"r":[9,9,9,9]},"add":"tl-m3s8-st","rem":"u3x3"},{"id":"tl-m4s6-st","name":"4+6","group":"main","mains":4,"n":10,"slots":[[0,0,3,3],[3,0,3,3],[0,3,3,3],[3,3,3,3],[0,6,1,1],[1,6,1,1],[2,6,1,1],[3,6,1,1],[4,6,1,1],[5,6,1,1]],"rec":true,"tr":{"c":[16,16,16,16,16,16],"r":[9,9,9,9,9,9,9]},"add":"tl-m3s8-st","rem":"u3x3"},{"id":"tl-m6s4-st","name":"6+4","group":"main","mains":6,"n":10,"slots":[[0,0,4,4],[4,0,4,4],[0,4,4,4],[4,4,4,4],[0,8,4,4],[4,8,4,4],[8,0,3,3],[8,3,3,3],[8,6,3,3],[8,9,3,3]],"rec":true,"tr":{"c":[16,16,16,16,16,16,16,16,16,16,16],"r":[9,9,9,9,9,9,9,9,9,9,9,9]},"add":"tl-m3s8-st","rem":"u3x3"},{"id":"tl-m6s4-sw","name":"6+4","group":"main","mains":6,"n":10,"slots":[[0,0,4,4],[4,0,4,4],[8,0,4,4],[0,4,4,4],[4,4,4,4],[8,4,4,4],[0,8,3,3],[3,8,3,3],[6,8,3,3],[9,8,3,3]],"rec":false,"tr":{"c":[16,16,16,16,16,16,16,16,16,16,16,16],"r":[9,9,9,9,9,9,9,9,9,9,9]},"add":"tl-m3s8-st","rem":"u3x3"},{"id":"tl-m1s10-st","name":"1+10","group":"main","mains":1,"n":11,"slots":[[0,0,5,5],[0,5,1,1],[1,5,1,1],[2,5,1,1],[3,5,1,1],[4,5,1,1],[0,6,1,1],[1,6,1,1],[2,6,1,1],[3,6,1,1],[4,6,1,1]],"rec":false,"tr":{"c":[16,16,16,16,16],"r":[9,9,9,9,9,9,9]},"add":"u3x4","rem":"tl-m6s4-st"},{"id":"tl-m1s10-sw","name":"1+10","group":"main","mains":1,"n":11,"slots":[[0,0,5,5],[5,0,1,1],[6,0,1,1],[5,1,1,1],[6,1,1,1],[5,2,1,1],[6,2,1,1],[5,3,1,1],[6,3,1,1],[5,4,1,1],[6,4,1,1]],"rec":true,"tr":{"c":[16,16,16,16,16,16,16],"r":[9,9,9,9,9]},"add":"u3x4","rem":"tl-m6s4-st"},{"id":"tl-m2s9-sw","name":"2+9","group":"main","mains":2,"n":11,"slots":[[0,0,3,3],[0,3,3,3],[3,0,2,2],[5,0,2,2],[7,0,2,2],[3,2,2,2],[5,2,2,2],[7,2,2,2],[3,4,2,2],[5,4,2,2],[7,4,2,2]],"rec":true,"tr":{"c":[16,16,16,16,16,16,16,16,16],"r":[9,9,9,9,9,9]},"add":"u3x4","rem":"tl-m6s4-st"},{"id":"tl-m3s8-g4x5l21","name":"3+8","group":"main","mains":3,"n":11,"slots":[[0,0,2,2],[2,0,2,2],[0,2,2,2],[4,0,1,1],[4,1,1,1],[2,2,1,1],[3,2,1,1],[4,2,1,1],[2,3,1,1],[3,3,1,1],[4,3,1,1]],"rec":false,"tr":{"c":[16,16,16,16,16],"r":[9,9,9,9]},"add":"u3x4","rem":"tl-m6s4-st"},{"id":"tl-m3s8-g5x4l21","name":"3+8","group":"main","mains":3,"n":11,"slots":[[0,0,2,2],[2,0,2,2],[0,2,2,2],[2,2,1,1],[3,2,1,1],[2,3,1,1],[3,3,1,1],[0,4,1,1],[1,4,1,1],[2,4,1,1],[3,4,1,1]],"rec":false,"tr":{"c":[16,16,16,16],"r":[9,9,9,9,9]},"add":"u3x4","rem":"tl-m6s4-st"},{"id":"tl-m3s8-st","name":"3+8","group":"main","mains":3,"n":11,"slots":[[0,0,4,4],[0,4,4,4],[0,8,4,4],[4,0,3,3],[7,0,3,3],[4,3,3,3],[7,3,3,3],[4,6,3,3],[7,6,3,3],[4,9,3,3],[7,9,3,3]],"rec":true,"tr":{"c":[16,16,16,16,16,16,16,16,16,16],"r":[9,9,9,9,9,9,9,9,9,9,9,9]},"add":"u3x4","rem":"tl-m6s4-st"},{"id":"tl-m3s8-sw","name":"3+8","group":"main","mains":3,"n":11,"slots":[[0,0,4,4],[4,0,4,4],[8,0,4,4],[0,4,3,3],[3,4,3,3],[6,4,3,3],[9,4,3,3],[0,7,3,3],[3,7,3,3],[6,7,3,3],[9,7,3,3]],"rec":false,"tr":{"c":[16,16,16,16,16,16,16,16,16,16,16,16],"r":[9,9,9,9,9,9,9,9,9,9]},"add":"u3x4","rem":"tl-m6s4-st"},{"id":"tl-m1s11-g3x5","name":"1+11","group":"main","mains":1,"n":12,"slots":[[0,0,2,2],[2,0,1,1],[3,0,1,1],[4,0,1,1],[2,1,1,1],[3,1,1,1],[4,1,1,1],[0,2,1,1],[1,2,1,1],[2,2,1,1],[3,2,1,1],[4,2,1,1]],"rec":false,"tr":{"c":[16,16,16,16,16],"r":[9,9,9]},"add":"tl-m4s9-sw","rem":"tl-m3s8-st"},{"id":"tl-m1s11-g4x5","name":"1+11","group":"main","mains":1,"n":12,"slots":[[0,0,3,3],[3,0,1,1],[4,0,1,1],[3,1,1,1],[4,1,1,1],[3,2,1,1],[4,2,1,1],[0,3,1,1],[1,3,1,1],[2,3,1,1],[3,3,1,1],[4,3,1,1]],"rec":false,"tr":{"c":[16,16,16,16,16],"r":[9,9,9,9]},"add":"tl-m4s9-sw","rem":"tl-m3s8-st"},{"id":"tl-m1s11-g5x3","name":"1+11","group":"main","mains":1,"n":12,"slots":[[0,0,2,2],[2,0,1,1],[2,1,1,1],[0,2,1,1],[1,2,1,1],[2,2,1,1],[0,3,1,1],[1,3,1,1],[2,3,1,1],[0,4,1,1],[1,4,1,1],[2,4,1,1]],"rec":false,"tr":{"c":[16,16,16],"r":[9,9,9,9,9]},"add":"tl-m4s9-sw","rem":"tl-m3s8-st"},{"id":"tl-m1s11-g5x4","name":"1+11","group":"main","mains":1,"n":12,"slots":[[0,0,3,3],[3,0,1,1],[3,1,1,1],[3,2,1,1],[0,3,1,1],[1,3,1,1],[2,3,1,1],[3,3,1,1],[0,4,1,1],[1,4,1,1],[2,4,1,1],[3,4,1,1]],"rec":false,"tr":{"c":[16,16,16,16],"r":[9,9,9,9,9]},"add":"tl-m4s9-sw","rem":"tl-m3s8-st"},{"id":"tl-m1s11-g6x6","name":"1+11","group":"main","mains":1,"n":12,"slots":[[0,0,5,5],[5,0,1,1],[5,1,1,1],[5,2,1,1],[5,3,1,1],[5,4,1,1],[0,5,1,1],[1,5,1,1],[2,5,1,1],[3,5,1,1],[4,5,1,1],[5,5,1,1]],"rec":true,"tr":{"c":[16,16,16,16,16,16],"r":[9,9,9,9,9,9]},"add":"tl-m4s9-sw","rem":"tl-m3s8-st"},{"id":"tl-m2s10-st","name":"2+10","group":"main","mains":2,"n":12,"slots":[[0,0,5,5],[0,5,5,5],[5,0,2,2],[7,0,2,2],[5,2,2,2],[7,2,2,2],[5,4,2,2],[7,4,2,2],[5,6,2,2],[7,6,2,2],[5,8,2,2],[7,8,2,2]],"rec":true,"tr":{"c":[16,16,16,16,16,16,16,16,16],"r":[9,9,9,9,9,9,9,9,9,9]},"add":"tl-m4s9-sw","rem":"tl-m3s8-st"},{"id":"tl-m2s10-sw","name":"2+10","group":"main","mains":2,"n":12,"slots":[[0,0,5,5],[5,0,5,5],[0,5,2,2],[2,5,2,2],[4,5,2,2],[6,5,2,2],[8,5,2,2],[0,7,2,2],[2,7,2,2],[4,7,2,2],[6,7,2,2],[8,7,2,2]],"rec":false,"tr":{"c":[16,16,16,16,16,16,16,16,16,16],"r":[9,9,9,9,9,9,9,9,9]},"add":"tl-m4s9-sw","rem":"tl-m3s8-st"},{"id":"tl-m3s9-g6x6l21","name":"3+9","group":"main","mains":3,"n":12,"slots":[[0,0,3,3],[3,0,3,3],[0,3,3,3],[3,3,1,1],[4,3,1,1],[5,3,1,1],[3,4,1,1],[4,4,1,1],[5,4,1,1],[3,5,1,1],[4,5,1,1],[5,5,1,1]],"rec":true,"tr":{"c":[16,16,16,16,16,16],"r":[9,9,9,9,9,9]},"add":"tl-m4s9-sw","rem":"tl-m3s8-st"},{"id":"tl-m4s8-g4x6","name":"4+8","group":"main","mains":4,"n":12,"slots":[[0,0,2,2],[2,0,2,2],[0,2,2,2],[2,2,2,2],[4,0,1,1],[5,0,1,1],[4,1,1,1],[5,1,1,1],[4,2,1,1],[5,2,1,1],[4,3,1,1],[5,3,1,1]],"rec":true,"tr":{"c":[16,16,16,16,16,16],"r":[9,9,9,9]},"add":"tl-m4s9-sw","rem":"tl-m3s8-st"},{"id":"tl-m4s8-g6x4","name":"4+8","group":"main","mains":4,"n":12,"slots":[[0,0,2,2],[2,0,2,2],[0,2,2,2],[2,2,2,2],[0,4,1,1],[1,4,1,1],[2,4,1,1],[3,4,1,1],[0,5,1,1],[1,5,1,1],[2,5,1,1],[3,5,1,1]],"rec":false,"tr":{"c":[16,16,16,16],"r":[9,9,9,9,9,9]},"add":"tl-m4s9-sw","rem":"tl-m3s8-st"},{"id":"tl-m6s6-g6x5","name":"6+6","group":"main","mains":6,"n":12,"slots":[[0,0,2,2],[2,0,2,2],[0,2,2,2],[2,2,2,2],[0,4,2,2],[2,4,2,2],[4,0,1,1],[4,1,1,1],[4,2,1,1],[4,3,1,1],[4,4,1,1],[4,5,1,1]],"rec":true,"tr":{"c":[16,16,16,16,16],"r":[9,9,9,9,9,9]},"add":"tl-m4s9-sw","rem":"tl-m3s8-st"},{"id":"tl-m6s6-sw","name":"6+6","group":"main","mains":6,"n":12,"slots":[[0,0,2,2],[2,0,2,2],[4,0,2,2],[0,2,2,2],[2,2,2,2],[4,2,2,2],[0,4,1,1],[1,4,1,1],[2,4,1,1],[3,4,1,1],[4,4,1,1],[5,4,1,1]],"rec":false,"tr":{"c":[16,16,16,16,16,16],"r":[9,9,9,9,9]},"add":"tl-m4s9-sw","rem":"tl-m3s8-st"},{"id":"tl-m8s4-g6x6l332","name":"8+4","group":"main","mains":8,"n":12,"slots":[[0,0,2,2],[2,0,2,2],[4,0,2,2],[0,2,2,2],[2,2,2,2],[4,2,2,2],[0,4,2,2],[2,4,2,2],[4,4,1,1],[5,4,1,1],[4,5,1,1],[5,5,1,1]],"rec":true,"tr":{"c":[16,16,16,16,16,16],"r":[9,9,9,9,9,9]},"add":"tl-m4s9-sw","rem":"tl-m3s8-st"},{"id":"tl-m1s12-bw","name":"1+12","group":"main","mains":1,"n":13,"slots":[[0,0,2,2],[2,0,1,1],[3,0,1,1],[2,1,1,1],[3,1,1,1],[0,2,1,1],[1,2,1,1],[2,2,1,1],[3,2,1,1],[0,3,1,1],[1,3,1,1],[2,3,1,1],[3,3,1,1]],"rec":false,"tr":{"c":[16,16,16,16],"r":[9,9,9,9]},"add":"tl-m8s6-sw","rem":"u3x4"},{"id":"tl-m1s12-ft","name":"1+12","group":"main","mains":1,"n":13,"slots":[[0,0,6,6],[0,6,1,1],[1,6,1,1],[2,6,1,1],[3,6,1,1],[4,6,1,1],[5,6,1,1],[0,7,1,1],[1,7,1,1],[2,7,1,1],[3,7,1,1],[4,7,1,1],[5,7,1,1]],"rec":true,"tr":{"c":[16,16,16,16,16,16],"r":[9,9,9,9,9,9,9,9]},"add":"tl-m8s6-sw","rem":"u3x4"},{"id":"tl-m3s10-st","name":"3+10","group":"main","mains":3,"n":13,"slots":[[0,0,5,5],[0,5,5,5],[0,10,5,5],[5,0,3,3],[8,0,3,3],[5,3,3,3],[8,3,3,3],[5,6,3,3],[8,6,3,3],[5,9,3,3],[8,9,3,3],[5,12,3,3],[8,12,3,3]],"rec":true,"tr":{"c":[16,16,16,16,16,16,16,16,16,16,16],"r":[9,9,9,9,9,9,9,9,9,9,9,9,9,9,9]},"add":"tl-m8s6-sw","rem":"u3x4"},{"id":"tl-m3s10-sw","name":"3+10","group":"main","mains":3,"n":13,"slots":[[0,0,5,5],[5,0,5,5],[10,0,5,5],[0,5,3,3],[3,5,3,3],[6,5,3,3],[9,5,3,3],[12,5,3,3],[0,8,3,3],[3,8,3,3],[6,8,3,3],[9,8,3,3],[12,8,3,3]],"rec":false,"tr":{"c":[16,16,16,16,16,16,16,16,16,16,16,16,16,16,16],"r":[9,9,9,9,9,9,9,9,9,9,9]},"add":"tl-m8s6-sw","rem":"u3x4"},{"id":"tl-m4s9-sw","name":"4+9","group":"main","mains":4,"n":13,"slots":[[0,0,2,2],[2,0,2,2],[0,2,2,2],[2,2,2,2],[4,0,1,1],[4,1,1,1],[4,2,1,1],[4,3,1,1],[0,4,1,1],[1,4,1,1],[2,4,1,1],[3,4,1,1],[4,4,1,1]],"rec":true,"tr":{"c":[16,16,16,16,16],"r":[9,9,9,9,9]},"add":"tl-m8s6-sw","rem":"u3x4"},{"id":"tl-m2s12-bt","name":"2+12","group":"main","mains":2,"n":14,"slots":[[0,0,2,2],[2,0,2,2],[0,2,1,1],[1,2,1,1],[2,2,1,1],[3,2,1,1],[0,3,1,1],[1,3,1,1],[2,3,1,1],[3,3,1,1],[0,4,1,1],[1,4,1,1],[2,4,1,1],[3,4,1,1]],"rec":false,"tr":{"c":[16,16,16,16],"r":[9,9,9,9,9]},"add":"u3x5","rem":"tl-m4s9-sw"},{"id":"tl-m2s12-bw","name":"2+12","group":"main","mains":2,"n":14,"slots":[[0,0,2,2],[2,0,2,2],[4,0,1,1],[4,1,1,1],[0,2,1,1],[1,2,1,1],[2,2,1,1],[3,2,1,1],[4,2,1,1],[0,3,1,1],[1,3,1,1],[2,3,1,1],[3,3,1,1],[4,3,1,1]],"rec":false,"tr":{"c":[16,16,16,16,16],"r":[9,9,9,9]},"add":"u3x5","rem":"tl-m4s9-sw"},{"id":"tl-m2s12-fw","name":"2+12","group":"main","mains":2,"n":14,"slots":[[0,0,3,3],[3,0,3,3],[0,3,1,1],[1,3,1,1],[2,3,1,1],[3,3,1,1],[4,3,1,1],[5,3,1,1],[0,4,1,1],[1,4,1,1],[2,4,1,1],[3,4,1,1],[4,4,1,1],[5,4,1,1]],"rec":false,"tr":{"c":[16,16,16,16,16,16],"r":[9,9,9,9,9]},"add":"u3x5","rem":"tl-m4s9-sw"},{"id":"tl-m2s12-g4x5","name":"2+12","group":"main","mains":2,"n":14,"slots":[[0,0,2,2],[0,2,2,2],[2,0,1,1],[3,0,1,1],[4,0,1,1],[2,1,1,1],[3,1,1,1],[4,1,1,1],[2,2,1,1],[3,2,1,1],[4,2,1,1],[2,3,1,1],[3,3,1,1],[4,3,1,1]],"rec":false,"tr":{"c":[16,16,16,16,16],"r":[9,9,9,9]},"add":"u3x5","rem":"tl-m4s9-sw"},{"id":"tl-m2s12-g5x4","name":"2+12","group":"main","mains":2,"n":14,"slots":[[0,0,2,2],[0,2,2,2],[2,0,1,1],[3,0,1,1],[2,1,1,1],[3,1,1,1],[2,2,1,1],[3,2,1,1],[2,3,1,1],[3,3,1,1],[0,4,1,1],[1,4,1,1],[2,4,1,1],[3,4,1,1]],"rec":false,"tr":{"c":[16,16,16,16],"r":[9,9,9,9,9]},"add":"u3x5","rem":"tl-m4s9-sw"},{"id":"tl-m2s12-g6x5","name":"2+12","group":"main","mains":2,"n":14,"slots":[[0,0,3,3],[0,3,3,3],[3,0,1,1],[4,0,1,1],[3,1,1,1],[4,1,1,1],[3,2,1,1],[4,2,1,1],[3,3,1,1],[4,3,1,1],[3,4,1,1],[4,4,1,1],[3,5,1,1],[4,5,1,1]],"rec":true,"tr":{"c":[16,16,16,16,16],"r":[9,9,9,9,9,9]},"add":"u3x5","rem":"tl-m4s9-sw"},{"id":"tl-m4s10-st","name":"4+10","group":"main","mains":4,"n":14,"slots":[[0,0,5,5],[5,0,5,5],[0,5,5,5],[5,5,5,5],[0,10,2,2],[2,10,2,2],[4,10,2,2],[6,10,2,2],[8,10,2,2],[0,12,2,2],[2,12,2,2],[4,12,2,2],[6,12,2,2],[8,12,2,2]],"rec":false,"tr":{"c":[16,16,16,16,16,16,16,16,16,16],"r":[9,9,9,9,9,9,9,9,9,9,9,9,9,9]},"add":"u3x5","rem":"tl-m4s9-sw"},{"id":"tl-m4s10-sw","name":"4+10","group":"main","mains":4,"n":14,"slots":[[0,0,5,5],[5,0,5,5],[0,5,5,5],[5,5,5,5],[10,0,2,2],[12,0,2,2],[10,2,2,2],[12,2,2,2],[10,4,2,2],[12,4,2,2],[10,6,2,2],[12,6,2,2],[10,8,2,2],[12,8,2,2]],"rec":true,"tr":{"c":[16,16,16,16,16,16,16,16,16,16,16,16,16,16],"r":[9,9,9,9,9,9,9,9,9,9]},"add":"u3x5","rem":"tl-m4s9-sw"},{"id":"tl-m6s8-st","name":"6+8","group":"main","mains":6,"n":14,"slots":[[0,0,4,4],[4,0,4,4],[8,0,4,4],[0,4,4,4],[4,4,4,4],[8,4,4,4],[0,8,3,3],[3,8,3,3],[6,8,3,3],[9,8,3,3],[0,11,3,3],[3,11,3,3],[6,11,3,3],[9,11,3,3]],"rec":false,"tr":{"c":[16,16,16,16,16,16,16,16,16,16,16,16],"r":[9,9,9,9,9,9,9,9,9,9,9,9,9,9]},"add":"u3x5","rem":"tl-m4s9-sw"},{"id":"tl-m6s8-sw","name":"6+8","group":"main","mains":6,"n":14,"slots":[[0,0,4,4],[4,0,4,4],[0,4,4,4],[4,4,4,4],[0,8,4,4],[4,8,4,4],[8,0,3,3],[11,0,3,3],[8,3,3,3],[11,3,3,3],[8,6,3,3],[11,6,3,3],[8,9,3,3],[11,9,3,3]],"rec":true,"tr":{"c":[16,16,16,16,16,16,16,16,16,16,16,16,16,16],"r":[9,9,9,9,9,9,9,9,9,9,9,9]},"add":"u3x5","rem":"tl-m4s9-sw"},{"id":"tl-m8s6-sw","name":"8+6","group":"main","mains":8,"n":14,"slots":[[0,0,3,3],[3,0,3,3],[6,0,3,3],[9,0,3,3],[0,3,3,3],[3,3,3,3],[6,3,3,3],[9,3,3,3],[0,6,2,2],[2,6,2,2],[4,6,2,2],[6,6,2,2],[8,6,2,2],[10,6,2,2]],"rec":true,"tr":{"c":[16,16,16,16,16,16,16,16,16,16,16,16],"r":[9,9,9,9,9,9,9,9]},"add":"u3x5","rem":"tl-m4s9-sw"},{"id":"tl-m1s14-g5x6","name":"1+14","group":"main","mains":1,"n":15,"slots":[[0,0,4,4],[4,0,1,1],[5,0,1,1],[4,1,1,1],[5,1,1,1],[4,2,1,1],[5,2,1,1],[4,3,1,1],[5,3,1,1],[0,4,1,1],[1,4,1,1],[2,4,1,1],[3,4,1,1],[4,4,1,1],[5,4,1,1]],"rec":true,"tr":{"c":[16,16,16,16,16,16],"r":[9,9,9,9,9]},"add":"u4x4","rem":"tl-m8s6-sw"},{"id":"tl-m1s14-g6x5","name":"1+14","group":"main","mains":1,"n":15,"slots":[[0,0,4,4],[4,0,1,1],[4,1,1,1],[4,2,1,1],[4,3,1,1],[0,4,1,1],[1,4,1,1],[2,4,1,1],[3,4,1,1],[4,4,1,1],[0,5,1,1],[1,5,1,1],[2,5,1,1],[3,5,1,1],[4,5,1,1]],"rec":false,"tr":{"c":[16,16,16,16,16],"r":[9,9,9,9,9,9]},"add":"u4x4","rem":"tl-m8s6-sw"},{"id":"tl-m3s12-st","name":"3+12","group":"main","mains":3,"n":15,"slots":[[0,0,4,4],[4,0,4,4],[8,0,4,4],[0,4,3,3],[3,4,3,3],[6,4,3,3],[9,4,3,3],[0,7,3,3],[3,7,3,3],[6,7,3,3],[9,7,3,3],[0,10,3,3],[3,10,3,3],[6,10,3,3],[9,10,3,3]],"rec":false,"tr":{"c":[16,16,16,16,16,16,16,16,16,16,16,16],"r":[9,9,9,9,9,9,9,9,9,9,9,9,9]},"add":"u4x4","rem":"tl-m8s6-sw"},{"id":"tl-m3s12-sw","name":"3+12","group":"main","mains":3,"n":15,"slots":[[0,0,4,4],[0,4,4,4],[0,8,4,4],[4,0,3,3],[7,0,3,3],[10,0,3,3],[4,3,3,3],[7,3,3,3],[10,3,3,3],[4,6,3,3],[7,6,3,3],[10,6,3,3],[4,9,3,3],[7,9,3,3],[10,9,3,3]],"rec":true,"tr":{"c":[16,16,16,16,16,16,16,16,16,16,16,16,16],"r":[9,9,9,9,9,9,9,9,9,9,9,9]},"add":"u4x4","rem":"tl-m8s6-sw"},{"id":"tl-m5s10-g5x6l32","name":"5+10","group":"main","mains":5,"n":15,"slots":[[0,0,2,2],[2,0,2,2],[4,0,2,2],[0,2,2,2],[2,2,2,2],[4,2,1,1],[5,2,1,1],[4,3,1,1],[5,3,1,1],[0,4,1,1],[1,4,1,1],[2,4,1,1],[3,4,1,1],[4,4,1,1],[5,4,1,1]],"rec":true,"tr":{"c":[16,16,16,16,16,16],"r":[9,9,9,9,9]},"add":"u4x4","rem":"tl-m8s6-sw"},{"id":"tl-m5s10-g6x5l221","name":"5+10","group":"main","mains":5,"n":15,"slots":[[0,0,2,2],[2,0,2,2],[0,2,2,2],[2,2,2,2],[0,4,2,2],[4,0,1,1],[4,1,1,1],[4,2,1,1],[4,3,1,1],[2,4,1,1],[3,4,1,1],[4,4,1,1],[2,5,1,1],[3,5,1,1],[4,5,1,1]],"rec":false,"tr":{"c":[16,16,16,16,16],"r":[9,9,9,9,9,9]},"add":"u4x4","rem":"tl-m8s6-sw"},{"id":"tl-m7s8-g6x6l322","name":"7+8","group":"main","mains":7,"n":15,"slots":[[0,0,2,2],[2,0,2,2],[4,0,2,2],[0,2,2,2],[2,2,2,2],[0,4,2,2],[2,4,2,2],[4,2,1,1],[5,2,1,1],[4,3,1,1],[5,3,1,1],[4,4,1,1],[5,4,1,1],[4,5,1,1],[5,5,1,1]],"rec":true,"tr":{"c":[16,16,16,16,16,16],"r":[9,9,9,9,9,9]},"add":"u4x4","rem":"tl-m8s6-sw"},{"id":"tl-m7s8-g6x6l331","name":"7+8","group":"main","mains":7,"n":15,"slots":[[0,0,2,2],[2,0,2,2],[4,0,2,2],[0,2,2,2],[2,2,2,2],[4,2,2,2],[0,4,2,2],[2,4,1,1],[3,4,1,1],[4,4,1,1],[5,4,1,1],[2,5,1,1],[3,5,1,1],[4,5,1,1],[5,5,1,1]],"rec":false,"tr":{"c":[16,16,16,16,16,16],"r":[9,9,9,9,9,9]},"add":"u4x4","rem":"tl-m8s6-sw"},{"id":"tl-m1s15-g4x6","name":"1+15","group":"main","mains":1,"n":16,"slots":[[0,0,3,3],[3,0,1,1],[4,0,1,1],[5,0,1,1],[3,1,1,1],[4,1,1,1],[5,1,1,1],[3,2,1,1],[4,2,1,1],[5,2,1,1],[0,3,1,1],[1,3,1,1],[2,3,1,1],[3,3,1,1],[4,3,1,1],[5,3,1,1]],"rec":true,"tr":{"c":[16,16,16,16,16,16],"r":[9,9,9,9]},"add":null,"rem":"u3x5"},{"id":"tl-m1s15-g6x4","name":"1+15","group":"main","mains":1,"n":16,"slots":[[0,0,3,3],[3,0,1,1],[3,1,1,1],[3,2,1,1],[0,3,1,1],[1,3,1,1],[2,3,1,1],[3,3,1,1],[0,4,1,1],[1,4,1,1],[2,4,1,1],[3,4,1,1],[0,5,1,1],[1,5,1,1],[2,5,1,1],[3,5,1,1]],"rec":false,"tr":{"c":[16,16,16,16],"r":[9,9,9,9,9,9]},"add":null,"rem":"u3x5"},{"id":"tl-m3s13-g5x5l21","name":"3+13","group":"main","mains":3,"n":16,"slots":[[0,0,2,2],[2,0,2,2],[0,2,2,2],[4,0,1,1],[4,1,1,1],[2,2,1,1],[3,2,1,1],[4,2,1,1],[2,3,1,1],[3,3,1,1],[4,3,1,1],[0,4,1,1],[1,4,1,1],[2,4,1,1],[3,4,1,1],[4,4,1,1]],"rec":true,"tr":{"c":[16,16,16,16,16],"r":[9,9,9,9,9]},"add":null,"rem":"u3x5"},{"id":"tl-m4s12-st","name":"4+12","group":"main","mains":4,"n":16,"slots":[[0,0,3,3],[3,0,3,3],[0,3,3,3],[3,3,3,3],[0,6,1,1],[1,6,1,1],[2,6,1,1],[3,6,1,1],[4,6,1,1],[5,6,1,1],[0,7,1,1],[1,7,1,1],[2,7,1,1],[3,7,1,1],[4,7,1,1],[5,7,1,1]],"rec":true,"tr":{"c":[16,16,16,16,16,16],"r":[9,9,9,9,9,9,9,9]},"add":null,"rem":"u3x5"},{"id":"tl-m6s10-st","name":"6+10","group":"main","mains":6,"n":16,"slots":[[0,0,5,5],[5,0,5,5],[10,0,5,5],[0,5,5,5],[5,5,5,5],[10,5,5,5],[0,10,3,3],[3,10,3,3],[6,10,3,3],[9,10,3,3],[12,10,3,3],[0,13,3,3],[3,13,3,3],[6,13,3,3],[9,13,3,3],[12,13,3,3]],"rec":false,"tr":{"c":[16,16,16,16,16,16,16,16,16,16,16,16,16,16,16],"r":[9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9]},"add":null,"rem":"u3x5"},{"id":"tl-m6s10-sw","name":"6+10","group":"main","mains":6,"n":16,"slots":[[0,0,5,5],[5,0,5,5],[0,5,5,5],[5,5,5,5],[0,10,5,5],[5,10,5,5],[10,0,3,3],[13,0,3,3],[10,3,3,3],[13,3,3,3],[10,6,3,3],[13,6,3,3],[10,9,3,3],[13,9,3,3],[10,12,3,3],[13,12,3,3]],"rec":true,"tr":{"c":[16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16],"r":[9,9,9,9,9,9,9,9,9,9,9,9,9,9,9]},"add":null,"rem":"u3x5"},{"id":"tl-pip1","name":"PinP 1+1","group":"pip","mains":1,"n":2,"slots":[[0,0,5,5],[4,4,1,1]],"rec":true,"tr":{"c":[16,16,16,16,16],"r":[9,9,9,9,9]},"add":"tl-pip2","rem":"u1x1"},{"id":"tl-pip2","name":"PinP 1+2","group":"pip","mains":1,"n":3,"slots":[[0,0,5,5],[4,4,1,1],[4,3,1,1]],"rec":false,"tr":{"c":[16,16,16,16,16],"r":[9,9,9,9,9]},"add":"tl-pip3","rem":"tl-pip1"},{"id":"tl-pip3","name":"PinP 1+3","group":"pip","mains":1,"n":4,"slots":[[0,0,5,5],[4,4,1,1],[4,3,1,1],[4,2,1,1]],"rec":false,"tr":{"c":[16,16,16,16,16],"r":[9,9,9,9,9]},"add":"tl-m2s3-st","rem":"tl-pip2"},{"id":"tl-vm2x5","name":"▯1+6","group":"vertical","mains":1,"n":7,"slots":[[0,0,2,2],[2,0,1,1],[3,0,1,1],[4,0,1,1],[2,1,1,1],[3,1,1,1],[4,1,1,1]],"rec":false,"tr":{"c":[9,9,9,9,9],"r":[16,16]},"add":"v2x4","rem":"v1x6"},{"id":"tl-vm2x6","name":"▯1+8","group":"vertical","mains":1,"n":9,"slots":[[0,0,2,2],[2,0,1,1],[3,0,1,1],[4,0,1,1],[5,0,1,1],[2,1,1,1],[3,1,1,1],[4,1,1,1],[5,1,1,1]],"rec":false,"tr":{"c":[9,9,9,9,9,9],"r":[16,16]},"add":"v2x5","rem":"v2x4"},{"id":"tl-vm2x7","name":"▯1+10","group":"vertical","mains":1,"n":11,"slots":[[0,0,2,2],[2,0,1,1],[3,0,1,1],[4,0,1,1],[5,0,1,1],[6,0,1,1],[2,1,1,1],[3,1,1,1],[4,1,1,1],[5,1,1,1],[6,1,1,1]],"rec":false,"tr":{"c":[9,9,9,9,9,9,9],"r":[16,16]},"add":"v2x6","rem":"v2x5"},{"id":"tl-vm2x8","name":"▯1+12","group":"vertical","mains":1,"n":13,"slots":[[0,0,2,2],[2,0,1,1],[3,0,1,1],[4,0,1,1],[5,0,1,1],[6,0,1,1],[7,0,1,1],[2,1,1,1],[3,1,1,1],[4,1,1,1],[5,1,1,1],[6,1,1,1],[7,1,1,1]],"rec":false,"tr":{"c":[9,9,9,9,9,9,9,9],"r":[16,16]},"add":"v2x7","rem":"v2x6"},{"id":"tl-vm2x9","name":"▯1+14","group":"vertical","mains":1,"n":15,"slots":[[0,0,2,2],[2,0,1,1],[3,0,1,1],[4,0,1,1],[5,0,1,1],[6,0,1,1],[7,0,1,1],[8,0,1,1],[2,1,1,1],[3,1,1,1],[4,1,1,1],[5,1,1,1],[6,1,1,1],[7,1,1,1],[8,1,1,1]],"rec":false,"tr":{"c":[9,9,9,9,9,9,9,9,9],"r":[16,16]},"add":"v2x8","rem":"v2x7"}],"ladder":["u1x1","u1x2","tl-m1s2-sw","u2x2","tl-m2s3-st","u2x3","tl-m4s3-sw","tl-m4s4-sw","u3x3","tl-m6s4-st","tl-m3s8-st","u3x4","tl-m4s9-sw","tl-m8s6-sw","u3x5","u4x4"],"vladder":["u1x1","u1x2","v1x3","v1x4","v1x5","v1x6","tl-vm2x5","v2x4","tl-vm2x6","v2x5","tl-vm2x7","v2x6","tl-vm2x8","v2x7","tl-vm2x9","v2x8"]};
+const byId = Object.fromEntries(DATA.map((l) => [l.id, l]));
+const $ = (id) => document.getElementById(id);
+const groupName = { uniform: '均等', vertical: '縦長', main: 'メイン + サブ', pip: 'PinP' };
+const mainCount = (l) => (l.group === 'uniform' || (l.group === 'vertical' && !l.mains) ? l.n : l.mains);
+
+function thumb(l, h) {
+  const sum = (a) => a.reduce((s, v) => s + v, 0);
+  const scale = h / sum(l.tr.r), w = sum(l.tr.c) * scale, g = 1.5;
+  const off = (a, i) => sum(a.slice(0, i)) * scale;
+  const fill = (k) => (l.mains && k < l.mains ? 'var(--main)' : l.group === 'uniform' ? 'var(--even)' : l.group === 'vertical' ? 'var(--vert)' : 'var(--sub)');
+  let s = `<svg width="${w.toFixed(1)}" height="${h}" viewBox="0 0 ${w.toFixed(1)} ${h}" role="img" aria-label="${l.name}"><rect width="${w.toFixed(1)}" height="${h}" rx="2" fill="var(--frame)"/>`;
+  l.slots.forEach(([x, y, sw, sh], k) => {
+    const rw = sum(l.tr.c.slice(x, x + sw)) * scale - 2 * g, rh = sum(l.tr.r.slice(y, y + sh)) * scale - 2 * g;
+    const stroke = l.group === 'pip' && k > 0 ? ' stroke="var(--frame)" stroke-width="1.5"' : '';
+    s += `<rect x="${(off(l.tr.c, x) + g).toFixed(1)}" y="${(off(l.tr.r, y) + g).toFixed(1)}" width="${Math.max(1, rw).toFixed(1)}" height="${Math.max(1, rh).toFixed(1)}" rx="1.5" fill="${l.group === 'pip' && k > 0 ? 'var(--sub)' : fill(k)}"${stroke}/>`;
+  });
+  return s + '</svg>';
+}
+const label = (l) => `${l.name}${l.rec ? ' ★' : ''}`;
+const meta = (l) => `${l.n} 枠 · ${groupName[l.group]}${l.mains ? ` · メイン ${l.mains}` : ''}`;
+
+let cur = 'u2x2';
+let trailIds = [];
+try { const h = decodeURIComponent(location.hash.slice(1)); if (byId[h]) cur = h; } catch {}
+
+function go(id) {
+  if (!byId[id] || id === cur) return;
+  trailIds.push(cur);
+  cur = id;
+  try { history.replaceState(null, '', '#' + id); } catch {}
+  render();
+}
+
+function nodeHtml(kind, l, from) {
+  const tag = { rem: '−  減らす', cur: '今のレイアウト', add: '＋  足す' }[kind];
+  if (!l) return `<div class="node ${kind}"><span class="tag">${tag}</span><div class="none">${kind === 'add' ? '16 枠で最大' : 'これ以上減らせない'}</div></div>`;
+  const d = from ? l.n - from.n : 0;
+  const delta = kind === 'cur' ? '' : `<span class="delta ${Math.abs(d) > 1 ? 'jump' : ''}">${d > 0 ? '+' : ''}${d} 枠</span>`;
+  const inner = `${thumb(l, kind === 'cur' ? 120 : 84)}<span class="name">${label(l)}</span><span class="meta">${meta(l)}</span>${delta}`;
+  return `<div class="node ${kind}"><span class="tag">${tag}</span>${kind === 'cur' ? `<div class="thumbbtn" style="cursor:default">${inner}</div>` : `<button type="button" class="thumbbtn" data-go="${l.id}" aria-label="${label(l)} へ進む">${inner}</button>`}</div>`;
+}
+
+function notesFor(l) {
+  const out = [];
+  const a = l.add && byId[l.add], r = l.rem && byId[l.rem];
+  if (a && a.group !== l.group) out.push(`＋ で種類が変わる (${groupName[l.group]} → ${groupName[a.group]})`);
+  if (r && r.group !== l.group) out.push(`− で種類が変わる (${groupName[l.group]} → ${groupName[r.group]})`);
+  if (a && mainCount(a) < mainCount(l)) out.push(`＋ でメイン枠が減る (${mainCount(l)} → ${mainCount(a)}。均等は全部メイン枠として数える)`);
+  if (r && mainCount(r) < mainCount(l)) out.push(`− でメイン枠が減る (${mainCount(l)} → ${mainCount(r)}。均等は全部メイン枠として数える)`);
+  if (a && a.rem && a.rem !== l.id) out.push(`＋ してから − しても戻らない (${label(a)} の − は ${label(byId[a.rem])})`);
+  if (r && r.add && r.add !== l.id) out.push(`− してから ＋ しても戻らない (${label(r)} の ＋ は ${label(byId[r.add])})`);
+  return out;
+}
+
+function render() {
+  const l = byId[cur];
+  const a = l.add && byId[l.add], r = l.rem && byId[l.rem];
+  $('trio').innerHTML = nodeHtml('rem', r, l) + '<div class="arrow">←</div>' + nodeHtml('cur', l) + '<div class="arrow">→</div>' + nodeHtml('add', a, l);
+  $('notes').innerHTML = notesFor(l).map((t) => `<div class="note">${t}</div>`).join('');
+  $('back').disabled = !trailIds.length;
+  $('trail').textContent = trailIds.length ? 'たどった道: ' + [...trailIds.slice(-6), cur].map((id) => byId[id].name).join(' → ') : '左右のレイアウトを押すと、そこへ進みます';
+  document.querySelectorAll('.chip').forEach((c) => c.classList.toggle('sel', c.dataset.go === cur));
+}
+
+function renderLadders() {
+  const cell = (l) => `<button type="button" class="vcell" data-go="${l.id}">${thumb(l, 34)}<span>${l.name}</span><small>${l.n} 枠</small></button>`;
+  const chain = (ids) => ids.map((id, i) => {
+    if (!i) return cell(byId[id]);
+    const prev = byId[ids[i - 1]], l = byId[id];
+    // 戻れるか (この段の − で 1 つ前に戻る)。全部ショートの 1×2 → ▯1×3 は、− で 1×2 にするとふつうの段に戻る
+    const back = l.rem === prev.id;
+    const jump = l.n - prev.n > 1 ? ` +${l.n - prev.n}` : '';
+    return `<span class="varrow ${back ? '' : 'oneway'}">${back ? '⇄' : '→'}${jump}</span>` + cell(l);
+  }).join('');
+  $('ladder').innerHTML = chain(LADDER);
+  $('vladder').innerHTML = chain(VLADDER);
+}
+
+const FILTERS = [['all', 'すべて'], ['rec', 'おすすめだけ'], ['uniform', '均等'], ['vertical', '縦長'], ['main', 'メイン + サブ'], ['pip', 'PinP']];
+let filter = 'rec';
+function renderList() {
+  $('filters').innerHTML = FILTERS.map(([k, t]) => `<button type="button" data-f="${k}" aria-pressed="${k === filter}">${t}</button>`).join('');
+  const pass = (l) => filter === 'all' || (filter === 'rec' ? l.rec || l.group === 'vertical' : l.group === filter);
+  let html = '';
+  for (let n = 1; n <= 16; n++) {
+    const ls = DATA.filter((l) => l.n === n && pass(l));
+    if (!ls.length) continue;
+    html += `<div class="row"><div class="count">${n}<small>枠</small></div><div class="chips">${ls.map((l) => `<button type="button" class="chip${l.id === cur ? ' sel' : ''}" data-go="${l.id}">${thumb(l, 40)}<span class="lbl">${l.name}${l.rec ? ' <span class="star">★</span>' : ''}</span></button>`).join('')}</div></div>`;
+  }
+  $('rows').innerHTML = html;
+}
+
+function renderQuirks() {
+  const pick = DATA.filter((l) => l.rec || l.group === 'vertical');
+  const item = (l, op) => {
+    const t = byId[op === 'add' ? l.add : l.rem];
+    return `<li><button type="button" data-go="${l.id}">${l.name} <span class="op-${op}">${op === 'add' ? '＋' : '−'}</span> ${t.name}${Math.abs(t.n - l.n) > 1 ? ` <span class="mono">(${l.n}→${t.n} 枠)</span>` : ''}</button></li>`;
+  };
+  const box = (title, desc, items) => {
+    const list = items.filter(Boolean);
+    return `<div class="qbox"><h3>${title}<span class="cnt">${list.length}</span></h3><p>${desc}</p><ul>${list.join('') || '<li class="empty">なし</li>'}</ul></div>`;
+  };
+  $('quirks').innerHTML =
+    box('2 枠以上動く', 'おすすめ・縦長のうち、＋ / − で空き枠がまとめて増える・減るもの', pick.flatMap((l) => [l.add && byId[l.add].n - l.n > 1 ? item(l, 'add') : '', l.rem && l.n - byId[l.rem].n > 1 ? item(l, 'rem') : ''])) +
+    box('種類が変わる', '均等 ⇄ メイン + サブ など (おすすめ・縦長のうち)', pick.flatMap((l) => [l.add && byId[l.add].group !== l.group ? item(l, 'add') : '', l.rem && byId[l.rem].group !== l.group ? item(l, 'rem') : ''])) +
+    box('＋ → − で元に戻らない', '足してすぐ減らすと別のレイアウトになるもの (おすすめ・縦長のうち)', pick.filter((l) => l.add && byId[l.add].rem && byId[l.add].rem !== l.id).map((l) => `<li><button type="button" data-go="${l.id}">${l.name} <span class="op-add">＋</span> ${byId[l.add].name} <span class="op-rem">−</span> ${byId[byId[l.add].rem].name}</button></li>`));
+}
+
+document.addEventListener('click', (e) => {
+  const g = e.target.closest('[data-go]');
+  if (g) {
+    go(g.dataset.go);
+    if (!g.closest('.explorer')) document.querySelector('.explorer').scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+    return;
+  }
+  const f = e.target.closest('[data-f]');
+  if (f) { filter = f.dataset.f; renderList(); }
+});
+$('back').addEventListener('click', () => { if (trailIds.length) { cur = trailIds.pop(); render(); } });
+$('reset').addEventListener('click', () => { trailIds = []; cur = 'u2x2'; render(); });
+renderLadders(); renderList(); renderQuirks(); render();
+</script>
+</body>
+</html>
