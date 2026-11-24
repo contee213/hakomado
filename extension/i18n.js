@@ -483,6 +483,22 @@ const MESSAGES = {
   packFetchFail: ['チャンネルパックを取得できませんでした: {0}', 'Could not get the channel pack: {0}'],
   packLoading: ['読み込んでいます…', 'Loading…'],
   packRemove: ['外す', 'Remove'],
+  subsCount: ['{0} 件を選択中 (まだ足していないもの {1} 件)', '{0} selected ({1} not in your list yet)'],
+  subsHave: ['追加済み', 'Added'],
+  subsEmpty: ['登録チャンネルがありません', 'You have no subscriptions'],
+  subsNoMatch: ['合うチャンネルがありません', 'No matching channels'],
+  subsMore: [
+    '先頭の {0} 件だけ読めました (残りは読み込めません)',
+    'Only the first {0} could be read (the rest could not be loaded)',
+  ],
+  subsMany: [
+    '{0} 件を足しますか？\nチャンネルが多いほど、配信状況の確認に時間がかかり、YouTube の制限にもかかりやすくなります',
+    'Add {0} channels?\nThe more channels you have, the longer checking stream status takes, and the more likely YouTube limits requests',
+  ],
+  subsAdded: ['登録チャンネルから {0} 件を追加しました', 'Added {0} channels from your subscriptions'],
+  subsNotLoggedIn: ['YouTube にログインしてから、もう一度押してください', 'Sign in to YouTube, then press again'],
+  subsReadFail: ['登録チャンネルを読めませんでした (YouTube のページの作りが変わったかもしれません)', 'Could not read your subscriptions (the YouTube page may have changed)'],
+  subsFetchFail: ['登録チャンネルを取得できませんでした: {0}', 'Could not get your subscriptions: {0}'],
   mixBlocked: [
     'この枠では左右・音量・遅延を変えられませんでした (ブラウザが音の処理を止めています)。枠をクリックしてから、もう一度試してください',
     "Couldn't change left/right, volume or delay in this tile (the browser is holding back audio processing). Click the tile and try again",
@@ -921,6 +937,14 @@ const HTML_EN = {
   'catalog.load': 'Get the list',
   'pack.listH': 'Channel packs',
   'pack.listNote': 'Packs in your channel list. Remove or bring back a whole pack',
+  'subs.h': 'Your YouTube subscriptions',
+  'subs.note': 'Pick channels from the subscriptions of the YouTube account you are signed in to',
+  'subs.open': 'Choose from subscriptions',
+  'subs.dialogH': '📥 Your YouTube subscriptions',
+  'subs.filter': 'Filter by name',
+  'subs.all': 'Select all',
+  'subs.none': 'Clear selection',
+  'subs.add': 'Add to channel list',
   'tab.addons': 'Add-ons',
   'addon.h': 'Schedule sites',
   'addon.note': 'Loads stream schedules from sites that list them in one place, so checking stream status is lighter. Stream status still works when off',
@@ -1113,12 +1137,14 @@ const HTML_EN = {
 <li><b>Find packs</b>: choose from the packs collected in the Hakomado repository (GitHub). They are unofficial, made by users, and not affiliated with any agency or streamer. Report mistakes or requests on GitHub</li>
 <li><b>Import a channel pack</b>: paste the URL or contents of a pack made by someone else, or choose a file. Channels you already have stay as they are</li>
 <li><b>Export a channel pack</b>: save the bundled Hololive pack, an imported pack, the channels you added, or all of them as a pack (JSON) to give to others or publish</li>
+<li><b>Your YouTube subscriptions</b>: reads the subscriptions of the YouTube account you are signed in to in the browser, and adds only the ones you pick. They are grouped in the pack “YouTube subscriptions”, so you can remove them all at once. With the “YouTube subscriptions” add-on on, stream checks keep up even if you add many</li>
 </ul>
 <h3>Settings → Add-ons</h3>
 <ul>
 <li>Add-ons are features that rely on a particular site. Turn each one on or off. When you turn one on, you may be asked to allow access to its site</li>
 <li><b>Holodule</b> (on by default): loads the hololive stream schedule (schedule.hololive.tv) in one go, so the bundled channels and channels added from the hololive channel pack are checked less often on YouTube. When off, stream status is still found from each channel’s feed (a little heavier)</li>
 <li><b>NIJISANJI</b> (off by default): loads the live schedule from the NIJISANJI website (www.nijisanji.jp). Channels added from a NIJISANJI channel pack (such as “にじさんじ” in Find packs) are checked less often on YouTube. Turning it on asks for access to www.nijisanji.jp</li>
+<li><b>YouTube subscriptions</b> (on by default): reads the subscriptions feed of your signed-in YouTube account at most once every 2 minutes to learn about live and upcoming streams in one go. Channels added with “Choose from subscriptions” are checked less often on YouTube (so checks keep up even with hundreds of channels). It does not load the feed when you have none of those channels</li>
 </ul>`,
   'helpPage.library': `<ul>
 <li>“📚 Library” (<kbd>B</kbd>): 🎞 Recent videos (streams ended and videos published in the last 7 days) / 🕘 Watch history (100) / 🔖 Watch later (100) / 📃 Playlists</li>

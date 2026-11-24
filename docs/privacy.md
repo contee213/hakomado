@@ -30,7 +30,7 @@ Hakomado (以下「この拡張機能」) は、YouTube の配信・動画を 1 
 
 | 相手 | 内容 |
 | --- | --- |
-| YouTube (`www.youtube.com`, `i.ytimg.com`, `yt3.googleusercontent.com`) | 配信・動画・チャンネル・再生リストの情報とサムネイル・チャンネルのアイコン、プレイヤーとライブチャットの表示。メンバー限定配信も見られるように、ブラウザでログインしている YouTube の Cookie が付きます (YouTube を普通に見るときと同じです) |
+| YouTube (`www.youtube.com`, `i.ytimg.com`, `yt3.googleusercontent.com`) | 配信・動画・チャンネル・再生リストの情報とサムネイル・チャンネルのアイコン、プレイヤーとライブチャットの表示。設定 →「チャンネル」の「登録チャンネルから選ぶ」を押したときだけ、登録チャンネルの一覧を読みます (選んだチャンネルだけをブラウザの中に保存し、一覧はどこにも送りません)。そうして足したチャンネルがあるときは、アドオン「YouTube の登録チャンネル」(設定 →「アドオン」で OFF にできます) が登録チャンネルのフィードを 2 分に 1 回まで読み、配信中・配信予定を調べます (配信の ID・チャンネル ID・開始予定だけをブラウザの中に一時保存します)。メンバー限定配信も見られるように、ブラウザでログインしている YouTube の Cookie が付きます (YouTube を普通に見るときと同じです) |
 | ホロジュール (`schedule.hololive.tv`) | 初期データのチャンネルの配信予定 (設定の「アドオン」で ON のときだけ。初期値は ON)。Cookie は送りません |
 | にじさんじ公式サイト (`www.nijisanji.jp`) | にじさんじのライブスケジュール (設定の「アドオン」で「にじさんじ」を ON にしたときだけ。初期値は OFF)。Cookie は送りません |
 | GitHub (`api.github.com`) | 新しい版が出ていないかの確認 (1 日 1 回まで。Chrome ウェブストアから入れた版では行いません)。Cookie は送りません |
@@ -95,7 +95,7 @@ The extension only connects to the following. Each connection fetches what is ne
 
 | Destination | What |
 | --- | --- |
-| YouTube (`www.youtube.com`, `i.ytimg.com`, `yt3.googleusercontent.com`) | Information and thumbnails for streams, videos, channels and playlists, and channel icons; showing the player and live chat. Requests carry the cookies of the YouTube account you are signed in to in the browser, so members-only streams work (the same as visiting YouTube normally) |
+| YouTube (`www.youtube.com`, `i.ytimg.com`, `yt3.googleusercontent.com`) | Information and thumbnails for streams, videos, channels and playlists, and channel icons; showing the player and live chat. Only when you press "Choose from subscriptions" in Settings → Channels, your subscriptions list is read (only the channels you pick are saved in your browser; the list is not sent anywhere). While such channels are in your list, the "YouTube subscriptions" add-on (can be turned off in Settings → Add-ons) reads your subscriptions feed at most every 2 minutes to find live and upcoming streams (only video IDs, channel IDs and start times are kept in your browser, temporarily). Requests carry the cookies of the YouTube account you are signed in to in the browser, so members-only streams work (the same as visiting YouTube normally) |
 | Holodule (`schedule.hololive.tv`) | Stream schedules for the bundled channels (only while the add-on is on under Settings > Add-ons; on by default). No cookies are sent |
 | NIJISANJI website (`www.nijisanji.jp`) | The NIJISANJI live schedule (only while the NIJISANJI add-on is on under Settings > Add-ons; off by default). No cookies are sent |
 | GitHub (`api.github.com`) | Checking for a newer version (at most once a day; not done in the version installed from the Chrome Web Store). No cookies are sent |

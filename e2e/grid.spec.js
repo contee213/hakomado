@@ -241,6 +241,8 @@ test.describe('視聴セッション', () => {
 });
 
 test.describe('共有', () => {
+  const SHARE_RENDER_MS = 15000;
+
   test('画像の各枠の名前は既定で入れず、切り替えると作り直して、次に開いたときも覚えている', async ({ openGrid }) => {
     const page = await openGrid();
     await skipTour(page);
@@ -256,7 +258,8 @@ test.describe('共有', () => {
     await expect(page.locator('#shareToX')).toBeEnabled();
     const before = await img.getAttribute('src');
     await labels.check();
-    await expect(img).not.toHaveAttribute('src', before);
+    // 画像を作るのは CI の遅いマシンでは 5 秒近くかかることがある (配信状況の確認の通信が重なると、PNG にするのが後回しになる)
+    await expect(img).not.toHaveAttribute('src', before, { timeout: SHARE_RENDER_MS });
     await expect(img).toHaveAttribute('src', /^blob:/);
     // 別のタブで開いても覚えている (ツアーは最初の 1 回だけ)
     const second = await openGrid();
@@ -276,7 +279,8 @@ test.describe('共有', () => {
     await expect(img).toHaveAttribute('src', /^blob:/);
     const before = await img.getAttribute('src');
     await page.locator('#shareAuthor').fill('@someone');
-    await expect(img).not.toHaveAttribute('src', before);
+    // 画像を作るのは CI の遅いマシンでは 5 秒近くかかることがある (配信状況の確認の通信が重なると、PNG にするのが後回しになる)
+    await expect(img).not.toHaveAttribute('src', before, { timeout: SHARE_RENDER_MS });
     await expect(img).toHaveAttribute('src', /^blob:/);
     const second = await openGrid();
     await second.locator('#openShare').click();

@@ -39,7 +39,7 @@ test('ON / OFF: 書いていなければ初期値。初期値と同じにした�
   assert.equal(off, 'holodule:off');
   A.setStates(off);
   assert.equal(A.isOn('holodule'), false);
-  assert.deepEqual(plain(A.enabled('schedule').map((a) => a.id)), []);
+  assert.deepEqual(plain(A.enabled('schedule').map((a) => a.id)), ['ytsubs'], 'ほかに初期値で ON なのは YouTube の登録チャンネルだけ');
   assert.equal(A.withState(off, 'holodule', true), '', '初期値に戻したら書かない');
   A.setStates('holodule:maybe,<bad>:on,,nosuch:on');
   assert.equal(A.isOn('holodule'), true);
@@ -172,4 +172,72 @@ test('パックを作るアドオン: pack の名前は covers の条件に合�
       assert.ok(!declared.has(o) || a.origins.includes(o), `${a.id}: ${o} はパック作り専用なので権限に入れない`);
     }
   }
+});
+
+// ---- YouTube の登録チャンネル (addons/youtube-subs.js)
+const subsPage = (items, { loggedIn = true } = {}) => {
+  const data = { contents: { twoColumnBrowseResultsRenderer: { tabs: [{ tabRenderer: { content: { richGridRenderer: { contents: items } } } }] } } };
+  return `<script>ytcfg.set({"LOGGED_IN":${loggedIn}});</script><script>var ytInitialData = ${JSON.stringify(data)};</script>`;
+};
+const lockup = (videoId, channelId, { live = false, texts = [] } = {}) => ({
+  richItemRenderer: {
+    content: {
+      lockupViewModel: {
+        contentId: videoId,
+        contentType: 'LOCKUP_CONTENT_TYPE_VIDEO',
+        contentImage: { thumbnailViewModel: { overlays: [{ thumbnailBadgeViewModel: { badgeStyle: live ? 'THUMBNAIL_OVERLAY_BADGE_STYLE_LIVE' : 'THUMBNAIL_OVERLAY_BADGE_STYLE_DEFAULT' } }] } },
+        metadata: {
+          lockupMetadataViewModel: {
+            image: { decoratedAvatarViewModel: { rendererContext: { commandContext: { onTap: { innertubeCommand: { browseEndpoint: { browseId: channelId } } } } } } },
+            metadata: { contentMetadataViewModel: { metadataRows: texts.map((t) => ({ metadataParts: [{ text: { content: t } }] })) } },
+          },
+        },
+      },
+    },
+  },
+});
+
+test('YouTube の登録チャンネル: 開始予定の文字 (日本語・英語) を、利用者の環境の時刻として読む', () => {
+  const y = env().get('Addons').list().find((a) => a.id === 'ytsubs');
+  assert.equal(y.parseStart('2026/11/24 21:00 に公開予定'), new Date(2026, 10, 24, 21, 0).getTime());
+  assert.equal(y.parseStart('2026/1/5 9:05 に配信予定'), new Date(2026, 0, 5, 9, 5).getTime());
+  assert.equal(y.parseStart('Scheduled for 11/24/26, 9:00 PM'), new Date(2026, 10, 24, 21, 0).getTime());
+  assert.equal(y.parseStart('Premieres 11/24/26, 12:30 AM'), new Date(2026, 10, 24, 0, 30).getTime());
+  assert.ok(Number.isNaN(y.parseStart('9 時間前')));
+  assert.ok(Number.isNaN(y.parseStart('585 人が視聴中')));
+});
+
+test('YouTube の登録チャンネル: フィードから配信中・配信予定だけを読む (ふつうの動画・形の違うものは捨てる)', () => {
+  const y = env().get('Addons').list().find((a) => a.id === 'ytsubs');
+  const A = 'UCAAAAAAAAAAAAAAAAAAAAAA';
+  const B = 'UCBBBBBBBBBBBBBBBBBBBBBB';
+  const html = subsPage([
+    lockup('live0000001', A, { live: true, texts: ['チャンネル A', '585 人が視聴中'] }),
+    lockup('soon0000001', B, { texts: ['チャンネル B', '2026/11/24 21:00 に公開予定'] }),
+    lockup('done0000001', B, { texts: ['チャンネル B', '1234 回視聴', '9 時間前'] }),
+    lockup('live0000001', A, { live: true }), // 同じ動画は 1 つ
+    lockup('noch0000001', 'bad', { live: true }), // チャンネルが分からない
+  ]);
+  assert.deepEqual(plain(y.parse(html)), [
+    { videoId: 'live0000001', channelId: A, live: true },
+    { videoId: 'soon0000001', channelId: B, live: false, startAt: new Date(2026, 10, 24, 21, 0).getTime() },
+  ]);
+  assert.throws(() => y.parse(subsPage([], { loggedIn: false })), /ログイン/);
+  assert.throws(() => y.parse('<html>"LOGGED_IN":true</html>'), /読めない/);
+});
+
+test('YouTube の登録チャンネル: 登録チャンネルから足したパックだけが載る。Cookie 付き・2 分に 1 回まで・載るものが無ければ取らない', () => {
+  const A = env().get('Addons');
+  const y = A.list().find((a) => a.id === 'ytsubs');
+  assert.equal(y.defaultOn, true);
+  for (const name of y.packNames) assert.equal(y.covers({ pack: name }), true, name);
+  assert.equal(y.covers({ pack: 'ホロライブ' }), false);
+  assert.equal(y.covers({ preset: true }), false);
+  assert.equal(y.covers({}), false);
+  assert.equal(y.signedIn, true);
+  assert.equal(y.onlyIfCovers, true);
+  assert.ok(y.minAgeMs >= 60 * 1000);
+  assert.equal(A.allowed(y, 'https://www.youtube.com/feed/subscriptions'), true);
+  // 画面 (grid.js) の「登録チャンネルから選ぶ」は、このパックの名前で足す
+  assert.match(readExt('grid.js'), /a\.id === 'ytsubs'\)\.packNames/);
 });
