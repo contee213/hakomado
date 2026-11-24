@@ -10,6 +10,10 @@
 //     icon (アイコン画像の URL) を入れておくと、本体がチャンネル一覧・既定のチャンネルと突き合わせる (それでもだめなら oEmbed)
 //   covers(fav) → そのチャンネルの予定がこのサイトに全部載るか。載るチャンネルは、載っていなければ「予定なし」と分かるので
 //     RSS を見に行く間隔を長くする
+//   (任意) listChannels({fetchText, wait}) → 配信者の一覧 [{channelId, name, group, handle?, icon?}] と
+//     pack ({file, name, nameEn?, description, descriptionEn?, origins?})。origins = 一覧を読むサイトが配信予定のサイトと違うとき
+//     (パック作り専用。拡張機能は通信しないので manifest.json には書かない)。tools/make-pack.js がこれでチャンネルパック (packs/) を作る。
+//     pack.name は covers が「載る」とするパックの名前に合わせる。拡張機能の画面からは呼ばない
 /* exported Addons */
 /* global LANG */
 'use strict';

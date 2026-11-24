@@ -35,6 +35,24 @@
    - 読み込めないチャンネル (ID の形が違う・同じチャンネルが 2 回) が無いか
    - `packs/` のパックがすべて一覧に載っているか
 
+## 配信予定のアドオンから作る (保守者向け)
+
+配信予定のアドオン (`extension/addons/<id>.js`) が配信者の一覧の読み方 (`listChannels`) とパックの名前 (`pack`) を持っていれば、
+公式サイトの一覧からパックを作り直せます (今は `nijisanji` → `nijisanji.json`、`holodule` → `hololive.json`)。
+
+```sh
+node tools/make-pack.js nijisanji --dry   # 書かずに、増えた・減ったチャンネルだけ見る
+node tools/make-pack.js nijisanji         # packs/nijisanji.json と index.json を書き換える
+node tools/make-pack.js holodule          # packs/hololive.json (ホロライブ) を作り直す
+```
+
+- アドオンのサイト (`origins` の中) から YouTube のチャンネル ID を読み、ハンドル・アイコンは YouTube のチャンネルページで補います (1.5 秒おき。200 件で 5〜6 分)
+- 配信予定のサイトに配信者の一覧が無いときは、アドオンの `pack.origins` のサイトから読みます (ホロジュールは公式サイト `hololive.hololivepro.com/talents`。パック作り専用で、拡張機能はここへ通信しません)
+- 何人かで使うチャンネル (FUWAMOCO など) は前のパックの名前を残し、並びも前のパックのままにします。中身が変わらなければ `updated` も変えません
+- ホロライブのパックは同梱の初期データ (`extension/presets.js`) と同じチャンネルにそろえます。増えた・減ったら presets.js も直します (テストが見ます)
+- パックの名前はアドオンの `covers` の条件に合わせてあります (このパックから足したチャンネルは、アドオンで配信状況の確認が軽くなる)
+- 書き換えたら差分を見て、いくつかのチャンネルを開いて確かめ、`npm test` を通してから PR にします
+
 ## 更新する
 
 チャンネルを足したら `updated` (パックと一覧の両方) と `channels` を直して PR を出してください。
