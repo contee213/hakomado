@@ -33,7 +33,7 @@ function setup({ gridTabs = [], tabs = {}, answer = () => undefined } = {}) {
     i18n: { getMessage: (k) => k },
     storage: { session: { get: async () => ({ gridTabs }) }, local: { set: async () => {} } },
     declarativeNetRequest: { updateDynamicRules: async () => {}, updateSessionRules: async () => {} },
-    permissions: { onRemoved: on('permissionsRemoved'), contains: async () => false },
+    permissions: { onAdded: on('permissionsAdded'), onRemoved: on('permissionsRemoved'), contains: async () => false },
     tabs: {
       onRemoved: on('tabRemoved'),
       onUpdated: on('tabUpdated'),

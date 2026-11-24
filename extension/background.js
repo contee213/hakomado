@@ -9,7 +9,7 @@ importScripts('errlog.js'); // ErrLog (エラーの記録。最初に始めて�
 ErrLog.install('background');
 importScripts('share-code.js'); // videoIdFromUrl
 
-const RULE_IDS = [1, 2, 3];
+const RULE_IDS = [1, 2, 3, 4, 5];
 
 // アイコンを押すたびに新しいタブを開く (タブごとに別の視聴セッションになるので、いくつ開いてもよい)
 chrome.action.onClicked.addListener((current) => {
@@ -81,6 +81,33 @@ async function applyRules(tabIds) {
         condition: { requestDomains: domains, resourceTypes: ['sub_frame'], tabIds },
       });
     }
+    // Twitch の埋め込みプレイヤー / チャットは、応答の Content-Security-Policy (frame-ancestors だけが入っている) で
+    // parent= に書いた https のサイトの中でしか開けない。拡張機能のページは https でないので、その 2 か所だけ外す。
+    // twitch.tv の権限 (optional_host_permissions) を許可したときだけ入れる (許可が変わったら入れ直す: permissions.onAdded / onRemoved)
+    const twitch = await chrome.permissions.contains({ origins: ['https://*.twitch.tv/*'] }).catch(() => false);
+    const stripTwitchFrame = {
+      type: 'modifyHeaders',
+      responseHeaders: [
+        { header: 'content-security-policy', operation: 'remove' },
+        { header: 'x-frame-options', operation: 'remove' },
+      ],
+    };
+    if (twitch) {
+      addRules.push(
+        {
+          id: 4,
+          priority: 1,
+          action: stripTwitchFrame,
+          condition: { urlFilter: '|https://player.twitch.tv/', resourceTypes: ['sub_frame'], tabIds },
+        },
+        {
+          id: 5,
+          priority: 1,
+          action: stripTwitchFrame,
+          condition: { urlFilter: '|https://www.twitch.tv/embed/', resourceTypes: ['sub_frame'], tabIds },
+        },
+      );
+    }
   }
   await chrome.declarativeNetRequest.updateSessionRules({ removeRuleIds: RULE_IDS, addRules });
 }
@@ -116,6 +143,11 @@ async function syncWebPlayer() {
   }
   await applyRules(await getGridTabs());
 }
+
+// twitch.tv の権限を許可したら、開いているマルチビュー画面のタブに Twitch のルールを入れる (外したときは下の onRemoved が入れ直す)
+chrome.permissions.onAdded.addListener(() => {
+  serialized(async () => applyRules(await getGridTabs())).catch((e) => console.warn('hakomado: ルールを入れ直せませんでした', e));
+});
 
 chrome.permissions.onRemoved.addListener(() => {
   serialized(async () => {
