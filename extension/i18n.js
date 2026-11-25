@@ -1185,7 +1185,7 @@ const HTML_EN = {
 <li><b>Auto play channels</b>: all channels, or pickup (📌) only</li>
 <li><b>Treat video / Shorts premieres as streams</b>: whether scheduled videos and Shorts (premieres) are also added to tiles and notified like streams. Turning them off means fewer checks for upcoming premieres</li>
 <li><b>Skip members-only streams you're not a member of</b>: checks whether your signed-in account can watch a stream before adding it</li>
-<li><b>Max tiles in auto play</b>: never plays more than this many, however many are live. Lower it on a slow connection or a busy computer</li>
+<li><b>Max tiles in auto play</b>: never plays more than this many, however many are live. Raising it adds streams to the free tiles right away (lowering it doesn't close tiles on screen; they go as streams end). Lower it on a slow connection or a busy computer</li>
 <li><b>Put pickup (📌) streams in the main tiles first</b>: puts pickup live streams in the big main tile and others in sub tiles. Pickup also goes first when the limit is reached. Not rearranged in uniform layouts (no main tile) or while cruising</li>
 <li><b>Prepare tiles for upcoming streams</b>: makes tiles before streams start, so you see them from the beginning. When nothing is live, shows the next upcoming stream and any starting within an hour after it</li>
 <li><b>Play recent videos when nothing is live</b>: when nothing is live (late at night, for example), plays 4 recently ended streams and new videos from your channels (pickup first, already watched ones skipped; choose in Settings whether to include videos and Shorts). They are cleared when a live stream starts</li>
