@@ -201,18 +201,47 @@ const Favorites = (() => {
         return [];
       }
     };
-    const tag = (items, list, kind) => items.map((v) => ({ ...v, list, kind }));
-    const all = [
-      ...tag(lives, 'UULV', 'live'),
-      ...tag(await more('UULF'), 'UULF', 'video'),
-      ...(shorts ? tag(await more('UUSH'), 'UUSH', 'short') : []),
-    ];
+    return mergeArchiveLists([
+      [lives, 'UULV', 'live'],
+      [await more('UULF'), 'UULF', 'video'],
+      ...(shorts ? [[await more('UUSH'), 'UUSH', 'short']] : []),
+    ]);
+  }
+
+  /** 再生リストごとの結果 ([items, list, kind] の並び) を、最近の配信・動画の 1 つの一覧 (新しい順) にする */
+  function mergeArchiveLists(lists) {
     const seen = new Set();
     // 配信予定・公開予定 (再生数 0) は除く
-    return all
+    return lists
+      .flatMap(([items, list, kind]) => items.map((v) => ({ ...v, list, kind })))
       .filter((v) => v.views > 0 && !seen.has(v.videoId) && seen.add(v.videoId))
       .sort((a, b) => b.at - a.at)
       .map(({ views, ...v }) => v);
+  }
+
+  /**
+   * 最近の配信・動画 (fetchArchives と同じ形) を、取りに行かずに覚えている結果だけで作る (古くても使う)。
+   * ライブラリの最近の動画を開いたときに、全チャンネル分を 1 回で先に出すため (届くたびに並びが変わらないように)。
+   * 覚えていないチャンネルは入れない。@returns {Promise<Map<string, Array>>} channelId -> 一覧
+   */
+  async function peekArchives(channelIds, { shorts = false } = {}) {
+    const yt = channelIds.filter((id) => CHANNEL_ID_RE.test(id));
+    const tw = channelIds.some(isTwitchChannel) && (await hasTwitch()) ? channelIds.filter(isTwitchChannel) : [];
+    const lists = ['UULV', 'UULF', ...(shorts ? ['UUSH'] : [])];
+    const keys = [...yt.flatMap((id) => lists.map((list) => feedKey(id, list))), ...tw.map((id) => TW_PAGE_PREFIX + id.slice(3))];
+    const got = keys.length ? await persist.get(keys) : {};
+    const out = new Map();
+    for (const id of yt) {
+      const items = (list) => got[feedKey(id, list)]?.items;
+      if (!Array.isArray(items('UULV'))) continue;
+      const kinds = { UULV: 'live', UULF: 'video', UUSH: 'short' };
+      out.set(id, mergeArchiveLists(lists.map((list) => [Array.isArray(items(list)) ? items(list) : [], list, kinds[list]])));
+    }
+    for (const id of tw) {
+      const page = got[TW_PAGE_PREFIX + id.slice(3)]?.page;
+      if (page) out.set(id, twitchVods(page));
+    }
+    return out;
   }
 
   function parseFeed(xml) {
@@ -356,6 +385,11 @@ const Favorites = (() => {
     if (!(await hasTwitch())) throw new Error(tr('twitchNeedAllow'));
     const page = await twitchPage(channelId.slice(3), { maxAge: force ? 0 : ARCHIVE_TTL_MS });
     if (!page) throw new Error(tr('twitchReadFail'));
+    return twitchVods(page);
+  }
+
+  /** Twitch のチャンネルのページから、最近の VOD の一覧 (fetchArchives と同じ形) */
+  function twitchVods(page) {
     // 配信中の配信の VOD は、配信している間は載らない (2026-11-25 に確かめた)。載るようになったときのために、
     // 始まった時刻より後のもの (終わるまでは最後まで見られない) は除いておく
     const since = page.live ? (page.live.startAt || Date.now()) - 5 * 60e3 : Infinity;
@@ -1433,7 +1467,7 @@ const Favorites = (() => {
   return {
     list, add, removeMany, isTwitchChannel, twitchVodStart, twitchVodInfo, twitchLiveInfo, twitchCurrentVod, setStar, seedPresets, restorePresets, removeAllPresets, presetCount, removedPresetCount, fetchStatus, fetchArchives,
     previewPack, importPack, packs, removePack, fillIcons,
-    checkAccess, rememberMembersOnly, isMembersBlock, setFeedIntervals, peekStatuses, pruneCache,
+    checkAccess, rememberMembersOnly, isMembersBlock, setFeedIntervals, peekStatuses, peekArchives, pruneCache,
     videoStates, inspectVideos, fetchYouTubePlaylist, fetchSubscriptions,
   };
 })();

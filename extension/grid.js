@@ -8744,6 +8744,10 @@ function favItem({ f, st, prev }) {
 // ---------------------------------------------------------------- 最近の配信 (ライブラリの「🎞 最近の配信」タブと、チャンネルの行の「最近 ⌄」)
 
 const archiveData = new Map(); // channelId -> 'loading' | 'error' | [{videoId, title, at}]
+// このタブで取りに行ったチャンネル (失敗も)。archiveData にあっても、ここに無いものは前回の結果を先に出しただけ (peekArchiveData)
+const archiveFetched = new Set();
+// 取りに行っている最中のチャンネル。取り直している間も、前回の結果 (archiveData) は消さずに出しておく (HAKO-9)
+const archiveBusy = new Set();
 const archiveOpen = new Set(); // 「最近 ⌄」で開いているチャンネル
 const ARCHIVE_DAYS = 7; // 「最近の配信」に出す範囲 (日)
 const archiveQueue = [];
@@ -8752,27 +8756,52 @@ let archiveWorkers = 0;
 /** チャンネルのアーカイブを取りに行く (同時に 3 件まで)。force = 覚えている結果を使わない */
 function loadArchives(favs, { force = false } = {}) {
   for (const f of favs) {
-    const d = archiveData.get(f.channelId);
     // 取得に失敗したチャンネルは、「⟳ 更新」を押すまで取り直さない (描き直すたびに取りに行かないように)
-    if (d === 'loading' || (!force && d)) continue;
-    archiveData.set(f.channelId, 'loading');
+    if (archiveBusy.has(f.channelId) || (!force && archiveFetched.has(f.channelId))) continue;
+    archiveBusy.add(f.channelId);
+    if (!Array.isArray(archiveData.get(f.channelId))) archiveData.set(f.channelId, 'loading');
     archiveQueue.push({ f, force });
   }
   while (archiveWorkers < 3 && archiveQueue.length) {
     archiveWorkers++;
     (async () => {
       for (let q = archiveQueue.shift(); q; q = archiveQueue.shift()) {
+        const id = q.f.channelId;
         try {
-          const d = await Favorites.fetchArchives(q.f.channelId, { force: q.force, shorts: true });
+          const d = await Favorites.fetchArchives(id, { force: q.force, shorts: true });
           rememberThumbs(d);
-          archiveData.set(q.f.channelId, d);
+          archiveData.set(id, d);
         } catch (e) {
           ErrLog.warnFetch('hakomado: アーカイブの取得に失敗', q.f.name, e);
-          archiveData.set(q.f.channelId, 'error');
+          // 前回の結果があれば、それを出したままにする
+          if (!Array.isArray(archiveData.get(id))) archiveData.set(id, 'error');
         }
+        archiveFetched.add(id);
+        archiveBusy.delete(id);
         scheduleArchiveRender();
       }
     })().finally(() => archiveWorkers--);
+  }
+}
+
+/**
+ * まだ何も持っていないチャンネルの、ブラウザに残っている前回の結果 (古くても) を、全チャンネル分まとめて読んでおく。
+ * 最近の動画を開いたときに一覧を 1 回で揃えて出し、1 チャンネル届くたびに並びが変わらないようにするため (HAKO-9)
+ */
+const archivePeeked = new Set(); // 前回の結果を読みに行ったチャンネル (残っていなかったものを、描き直すたびに読み直さないように)
+async function peekArchiveData(favs) {
+  const ids = favs.map((f) => f.channelId).filter((id) => !archivePeeked.has(id) && !Array.isArray(archiveData.get(id)));
+  if (!ids.length) return;
+  for (const id of ids) archivePeeked.add(id);
+  try {
+    const got = await Favorites.peekArchives(ids, { shorts: true });
+    for (const [id, d] of got) {
+      if (Array.isArray(archiveData.get(id))) continue; // 読んでいる間に取れた
+      rememberThumbs(d);
+      archiveData.set(id, d);
+    }
+  } catch (e) {
+    console.warn('hakomado: 前回の最近の動画を読めませんでした', e);
   }
 }
 
@@ -8875,6 +8904,8 @@ async function renderArchiveTab({ force = false } = {}) {
   const scope = libScopeNow(favs);
   updateLibScopeButtons();
   const targets = scope === 'star' ? favs.filter((f) => f.star) : favs;
+  // 前回の結果を先に全部読んでから取りに行く (取りに行った分は、届いたものから入れ替わる)
+  await peekArchiveData(targets);
   loadArchives(targets, { force });
   const since = Date.now() - ARCHIVE_DAYS * 24 * 60 * 60 * 1000;
   const q = favFilter.trim().toLowerCase();
@@ -8882,7 +8913,7 @@ async function renderArchiveTab({ force = false } = {}) {
   const items = [];
   for (const f of targets) {
     const d = archiveData.get(f.channelId);
-    if (d !== 'loading') done++;
+    if (!archiveBusy.has(f.channelId)) done++;
     if (!Array.isArray(d)) continue;
     for (const v of d) {
       if (v.at < since || !isFinishedArchive(v, f) || !libKindShown(v.kind)) continue;
@@ -8897,7 +8928,7 @@ async function renderArchiveTab({ force = false } = {}) {
   const ul = document.createElement('ul');
   ul.className = 'fav-sub video-grid';
   ul.append(...items.map(({ v, f }) => archiveItem(v, f)));
-  favListEl.replaceChildren(...(items.length ? [ul] : []));
+  replaceKeepingPlaces(favListEl, items.length ? [ul] : []);
   document.getElementById('savedCount').textContent =
     done < targets.length ? tr('archiveProgress', done, targets.length) : tr('items', items.length);
   document.getElementById('favEmpty').textContent = q
@@ -8988,7 +9019,45 @@ function archiveItem(v, f) {
   const h = { videoId: v.videoId, title: v.title, label: f.name, channelId: f.channelId, handle: f.handle || '', at: v.at, input: videoInput(v), kind: v.kind, ...(v.thumb ? { thumb: v.thumb } : {}) };
   const li = videoItem(h, false, { entry: videoSelEntry(h, f, COLLAB_WIN.archive) });
   li.querySelector('.fav-del')?.remove();
+  li.dataset.key = v.videoId; // 描き直したときに、同じ動画を元の位置から滑らせるため (replaceKeepingPlaces)
   return li;
+}
+
+/**
+ * 一覧 (scroller の中) を描き直す。描き直す前後で同じ data-key の行は、元の位置から新しい位置へ滑らせて動かし、
+ * 新しく入った行はふわっと出す (パッと入れ替わって、見ていた動画を見失わないように。HAKO-9)。
+ * スクロールしているときは、画面のいちばん上に見えていた行が同じ高さに残るようにスクロール位置を合わせる
+ * (上に入った分で、見ているところが押し下げられないように)。動きを減らす設定のときは滑らせない
+ */
+function replaceKeepingPlaces(scroller, nodes) {
+  const before = new Map();
+  let anchor = null;
+  const top = scroller.getBoundingClientRect().top;
+  for (const el of scroller.querySelectorAll('[data-key]')) {
+    const r = el.getBoundingClientRect();
+    before.set(el.dataset.key, r);
+    if (!anchor && scroller.scrollTop > 0 && r.bottom > top) anchor = { key: el.dataset.key, top: r.top };
+  }
+  scroller.replaceChildren(...nodes);
+  if (!before.size) return; // 初めて描くとき・空だったときは、そのまま出す
+  const after = new Map([...scroller.querySelectorAll('[data-key]')].map((el) => [el.dataset.key, el]));
+  const anchorEl = anchor && after.get(anchor.key);
+  if (anchorEl) scroller.scrollTop += anchorEl.getBoundingClientRect().top - anchor.top;
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const view = scroller.getBoundingClientRect();
+  for (const [key, el] of after) {
+    const r = el.getBoundingClientRect();
+    if (r.bottom < view.top || r.top > view.bottom) continue; // 見えていない行は動かさない (軽くするため)
+    const old = before.get(key);
+    if (!old) {
+      el.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 250, easing: 'ease-out' });
+      continue;
+    }
+    const dx = old.left - r.left;
+    const dy = old.top - r.top;
+    if (!dx && !dy) continue;
+    el.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: 'none' }], { duration: 250, easing: 'ease-out' });
+  }
 }
 
 // ---------------------------------------------------------------- 視聴履歴・あとで見る (ライブラリの「🕘 視聴履歴」「🔖 あとで見る」タブ)
@@ -12002,6 +12071,7 @@ async function archiveCandidates(channels, { onProgress = null, until = null } =
         d = await Favorites.fetchArchives(f.channelId, { shorts });
         rememberThumbs(d);
         archiveData.set(f.channelId, d);
+        archiveFetched.add(f.channelId);
         archiveFailedAt.delete(f.channelId);
       } catch {
         archiveFailedAt.set(f.channelId, Date.now());
