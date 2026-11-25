@@ -1308,6 +1308,7 @@ const HTML_EN = {
   'notice.clear': 'Clear all',
   'notice.empty': 'No notifications yet. When a channel goes live, it shows up here (checked while this page is open).',
   'progress.title': 'Preparing auto play',
+  'progress.close': 'Hide (auto play keeps preparing; progress stays on the Auto play button)',
   'layout.anchor': 'Placement',
   'fit.fillTitle': 'Stretch: fill the screen with no margins. Videos are zoomed to fit their tiles and the edges are cropped (vertical videos are not cropped). When off (standard), every tile is exactly 16:9 and any leftover space goes to the outer margins',
   'layout.note': 'Darker tiles are main tiles. Streams fill tile 1 (main) first. Drag ⠿ on a tile to swap.',

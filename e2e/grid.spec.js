@@ -831,7 +831,7 @@ test.describe('デザインガイドの決まり', () => {
 });
 
 test.describe('自動再生の進み具合', () => {
-  test('動画の上には出さず、ボタンの下端の線で見せる。配信予定のチャンネルがあっても、確認が終わったら消える', async ({ openGrid }) => {
+  test('ボタンの下端の線でも見せる。配信予定のチャンネルがあっても、確認が終わったら消える', async ({ openGrid }) => {
     const page = await openGrid();
     await skipTour(page);
     const btn = page.locator('#autoMode');
@@ -864,7 +864,40 @@ test.describe('自動再生の進み具合', () => {
     await expect(page.locator('#autoProgressBar')).toBeHidden();
     await expect(btn).toHaveAttribute('title', idleTitle);
     await expect(page.locator('#autoProgressText')).toHaveText('');
-    // 画面の中央に箱を出さない
-    await expect(page.locator('.auto-progress')).toHaveCount(0);
+    await expect(page.locator('#autoProgressBox')).toBeHidden();
+  });
+
+  test('画面中央の箱は ✕ で隠せる。隠しても準備は続き、ボタンの線には出し続ける', async ({ openGrid }) => {
+    const page = await openGrid();
+    await skipTour(page);
+    const box = page.locator('#autoProgressBox');
+    const bar = page.locator('#autoProgressBar');
+    // 確認が終わらないように、配信状況の取得を止めておく (release で進める)
+    await page.evaluate(() => {
+      const chs = Array.from({ length: 3 }, (_, n) => ({ channelId: `UC${String(n).padStart(22, '0')}`, name: `ch${n}`, star: false }));
+      Favorites.list = async () => chs;
+      Favorites.checkAccess = async () => 'ok';
+      let release;
+      const gate = new Promise((r) => (release = r));
+      window.__releaseStatus = release;
+      Favorites.fetchStatus = async (f, opts = {}) => {
+        if (opts.force) await gate;
+        return { state: 'none' };
+      };
+      window.__autoDone = setAutoMode(true);
+    });
+    // 線は 0% の間は幅が 0 なので、見えるかでなく hidden で確かめる
+    await expect(box).toBeVisible();
+    await expect(bar).not.toHaveAttribute('hidden');
+    await page.locator('#autoProgressClose').click();
+    await expect(box).toBeHidden();
+    await expect(bar).not.toHaveAttribute('hidden');
+    await expect(page.locator('#autoMode')).toHaveAttribute('title', /自動再生を準備しています/);
+    await page.evaluate(async () => {
+      window.__releaseStatus();
+      await window.__autoDone;
+    });
+    await expect(bar).toBeHidden();
+    await expect(box).toBeHidden();
   });
 });

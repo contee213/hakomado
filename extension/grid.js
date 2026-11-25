@@ -12122,26 +12122,35 @@ function rotateCruise() {
 }
 
 // ---- 自動再生を始めるときの進み具合
-// 動画の上には出さない。「自動再生」ボタンの下端に線を伸ばし、マウスを乗せたときの説明に今していることを出す。
+// 「自動再生」ボタンの下端に線を伸ばし、マウスを乗せたときの説明に今していることを出す。
+// 画面中央にも箱を出す。✕ で隠しても準備は続き、ボタンの線と説明には出し続ける (次に自動再生を始めるときは、また箱を出す)。
 // 読み上げは見えない #autoProgress (role=status) で行う
+let autoProgressBoxClosed = false;
 function showAutoProgress(text, frac) {
   const btn = document.getElementById('autoMode');
   const bar = document.getElementById('autoProgressBar');
+  const box = document.getElementById('autoProgressBox');
   const pct = Math.round(Math.min(1, Math.max(0, frac)) * 100);
   if (bar.hidden) {
     btn.dataset.idleTitle = btn.title;
     bar.hidden = false;
     document.getElementById('autoProgressTitle').hidden = false;
+    autoProgressBoxClosed = false;
   }
   bar.style.width = `${pct}%`;
   btn.title = `${tr('progressHead')} (${pct}%)
 ${text}`;
   document.getElementById('autoProgressText').textContent = text;
+  box.hidden = autoProgressBoxClosed;
+  document.getElementById('autoProgressBoxText').textContent = text;
+  document.getElementById('autoProgressBoxBar').style.width = `${pct}%`;
+  document.getElementById('autoProgressPct').textContent = `${pct}%`;
 }
 
 function hideAutoProgress() {
   const btn = document.getElementById('autoMode');
   const bar = document.getElementById('autoProgressBar');
+  document.getElementById('autoProgressBox').hidden = true;
   if (bar.hidden) return;
   bar.hidden = true;
   bar.style.width = '0';
@@ -12469,6 +12478,11 @@ function setupFavorites() {
     b.addEventListener('click', () => toggleLibKind(b.dataset.kind));
   }
   document.getElementById('autoMode').addEventListener('click', () => setAutoMode(!state.autoMode));
+  // 進み具合の箱の ✕: 箱だけ隠す (準備は続き、ボタンの線と説明には出し続ける)
+  document.getElementById('autoProgressClose').addEventListener('click', () => {
+    autoProgressBoxClosed = true;
+    document.getElementById('autoProgressBox').hidden = true;
+  });
   document.getElementById('cruise').addEventListener('click', (e) => {
     e.currentTarget.blur(); // 全画面中に上部バーを隠すため
     setCruise(!state.cruise);
