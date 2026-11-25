@@ -3824,6 +3824,11 @@ const Sync = (() => {
 
     function show(i = null) {
       if (!on) return;
+      if (!shown) {
+        // ほかのタブで変えた置き方・位置も使う
+        loadPref();
+        applyFloating();
+      }
       shown = true;
       el().hidden = false;
       document.body.classList.add('sync-dock-open');
@@ -3858,13 +3863,16 @@ const Sync = (() => {
     /** 浮かぶ小窓 / 右の列を切り替える */
     function setFloating(v) {
       floating = v;
+      applyFloating();
+      savePref();
+    }
+    function applyFloating() {
       document.body.classList.toggle('sync-dock-float', floating);
       el().classList.toggle('floating', floating);
       const b = document.getElementById('syncDockFloat');
       b.textContent = floating ? '⇲' : '⧉';
       b.title = tr(floating ? 'syncDockToSide' : 'syncDockToFloat');
       place();
-      savePref();
     }
     /** 小窓の位置を画面の中に収めて置く (右の列のときは位置を外す) */
     function place() {
@@ -7298,8 +7306,12 @@ function setupShare() {
   };
   for (const t of tabs) t.addEventListener('click', () => showTab(t.dataset.stab));
   tab = TabMemory.get('shareTab') || tab;
-  labelsEl.checked = UiPrefs.get('shareImgLabels') === true;
-  authorEl.value = UiPrefs.get('shareAuthor') || '';
+  // ほかのタブで変えたものも使うので、開くたびに読み直す (restorePrefs)
+  const restorePrefs = () => {
+    labelsEl.checked = UiPrefs.get('shareImgLabels') === true;
+    authorEl.value = UiPrefs.get('shareAuthor') || '';
+  };
+  restorePrefs();
   showTab(tab);
   labelsEl.addEventListener('change', () => {
     UiPrefs.set('shareImgLabels', labelsEl.checked);
@@ -7316,6 +7328,7 @@ function setupShare() {
 
   openShareDialog = async ({ source: src = 'tiles' } = {}) => {
     source = src;
+    restorePrefs();
     await fillSources();
     await fillName();
     clearImage();
@@ -8447,6 +8460,7 @@ function openFavorites(target, view, { modal = true } = {}) {
   favErrorEl.textContent = '';
   document.getElementById('favTitle').textContent = tr(favView === 'channels' ? 'chTitle' : 'libTitle');
   document.querySelector('.fav-tabs').hidden = favView === 'channels';
+  if (!favDialog.open) restoreLibPrefs(); // ほかのタブで変えた絞り込み・再生リストも使う
   setFavMode(favView === 'channels' ? 'all' : savedLibraryTab(), { render: false });
   if (!favDialog.open) {
     if (modal) favDialog.showModal();
@@ -8808,11 +8822,17 @@ function updateLibScopeButtons() {
  */
 const LIB_KINDS = ['live', 'video', 'short'];
 let libKinds = new Set(LIB_KINDS);
-/** 覚えた絞り込みに戻す (UiPrefs.load() のあとに main から) */
-function restoreLibKinds() {
+/**
+ * 覚えた絞り込み・すべて / ピックアップ・再生リストに戻す (UiPrefs.load() のあとに main から、チャンネル・ライブラリを開くたびに openFavorites から)。
+ * ほかのタブで変えたものも使うため。すべて / ピックアップは、このタブで一度決めたあとだけ読み直す (最初はピックアップの有無で決める。libScopeNow)
+ */
+function restoreLibPrefs() {
   const saved = UiPrefs.get('libKinds');
   const ok = Array.isArray(saved) ? LIB_KINDS.filter((k) => saved.includes(k)) : [];
   libKinds = new Set(ok.length ? ok : LIB_KINDS);
+  plSelected = UiPrefs.get('libPlaylist') ?? plSelected;
+  const scope = UiPrefs.get('libScope');
+  if (libScope && (scope === 'star' || scope === 'all')) libScope = scope;
 }
 const libKindFiltered = () => libKinds.size < LIB_KINDS.length;
 const libKindShown = (kind) => !libKindFiltered() || libKinds.has(kind);
@@ -13010,8 +13030,7 @@ async function chooseSession() {
   // 再生リスト: 以前の版の形 (全部で 1 つの項目) なら 1 つずつに分けて移す。1 つも無ければ既定の「新規マイリスト」を作る
   await Promise.all([loadSettings(), Favorites.seedPresets(), SyncOffsets.load(), MovieAnchors.load(), Playlists.setup(tr('plSeedName')), UiPrefs.load()]);
   // 画面の覚え (UiPrefs) のうち、最初から使うものを戻す
-  restoreLibKinds();
-  plSelected = UiPrefs.get('libPlaylist') ?? null;
+  restoreLibPrefs();
   twitchAllowed = await chrome.permissions.contains({ origins: TWITCH_ORIGINS }).catch(() => false);
   buildTiles();
   refreshFavKeys().catch(() => {});

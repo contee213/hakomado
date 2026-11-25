@@ -996,6 +996,14 @@ test.describe('画面の覚え (HAKO-8)', () => {
       .toEqual({ 'ui:libKinds': ['video'], 'ui:shareAuthor': 'TK', 'ui:syncDock': { floating: false } });
     const left = await page.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith('hakomado.')));
     expect(left).toEqual(['hakomado.lang']);
+    // 引き継いだ覚えが画面に戻る
+    await page.locator('#openFavorites').click();
+    await expect(page.locator('#libKind [data-kind="video"]')).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('#libKind [data-kind="live"]')).toHaveAttribute('aria-pressed', 'false');
+    await page.keyboard.press('Escape');
+    await page.locator('#openShare').click();
+    await expect(page.locator('#shareAuthor')).toHaveValue('TK');
+    await page.keyboard.press('Escape');
     // タブの位置は引き継がないので、設定は最初のタブ (弾幕) から
     await page.locator('#openSettings').click();
     await expect(page.locator('#settings [data-tab="danmaku"]')).toHaveAttribute('aria-selected', 'true');
@@ -1010,5 +1018,19 @@ test.describe('画面の覚え (HAKO-8)', () => {
     const other = await openGrid();
     await other.locator('#openSettings').click();
     await expect(other.locator('#settings [data-tab="danmaku"]')).toHaveAttribute('aria-selected', 'true');
+    await other.keyboard.press('Escape');
+    // ほかのタブで変えた覚えは、開いたままのタブでも次に開いたときに使う
+    await other.locator('#openFavorites').click();
+    await other.locator('#libKind [data-kind="short"]').click();
+    await other.keyboard.press('Escape');
+    await other.locator('#openShare').click();
+    await other.locator('#shareAuthor').fill('Hako');
+    await expect.poll(() => page.evaluate(() => UiPrefs.get('shareAuthor'))).toBe('Hako');
+    await page.keyboard.press('Escape');
+    await page.locator('#openFavorites').click();
+    await expect(page.locator('#libKind [data-kind="short"]')).toHaveAttribute('aria-pressed', 'true');
+    await page.keyboard.press('Escape');
+    await page.locator('#openShare').click();
+    await expect(page.locator('#shareAuthor')).toHaveValue('Hako');
   });
 });
