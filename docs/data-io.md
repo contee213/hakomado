@@ -14,6 +14,8 @@
 - **取り直せる:** YouTube などからもう一度取れるもの、使っていればまたたまるもの。
 - **一時:** 消えても既定に戻るだけのもの、使う人が気にしなくてよいもの。
 
+各データの項目の形 (型・必須・取りうる値) は [データ定義一覧](data-definitions.md) と [データ定義詳細](data-definitions/) に書く。
+
 ## 1. chrome.storage.local (すべてのタブで共有、ブラウザを閉じても残る)
 
 拡張機能を削除すると消える。ID の違う版に入れ替えたときも引き継がれない (そのためのバックアップは 3 章)。
@@ -49,7 +51,7 @@
 
 | キー | 中身 | 使うところ |
 | --- | --- | --- |
-| `gridTabs` | 開いているマルチビュー画面のタブ (最後に使った順) | 右クリックの追加の送り先 (`background.js`) |
+| `gridTabs` | 開いているマルチビュー画面のタブ (読むときに最後に使った順に並べる) | 右クリックの追加の送り先 (`background.js`) |
 | `statusShared` | 配信状況の取得結果のうち、開き直したら使わないもの (配信予定のアドオンの予定、YouTube・RSS・Twitch に最後に取りに行った時刻) | タブが複数あっても、YouTube などへの取得を 1 回で済ませる (`favorites.js`) |
 | `twvod:<番号>` | Twitch の VOD の配信の開始時刻 (VOD のページから。アーカイブ同期用) | 同上 |
 
@@ -61,7 +63,6 @@
 | --- | --- |
 | `hakomado.lang` | 表示言語 (auto / ja / en)。バックアップに入る |
 | `hakomado.settingsTab` | 設定で最後に開いたタブ |
-| `hakomado.helpPage` | 使い方で最後に開いたページ |
 | `hakomado.libTab` `hakomado.libScope` `hakomado.libKinds` `hakomado.libPlaylist` | ライブラリ・チャンネルの最後のタブ、すべて / ピックアップ、種類の絞り込み、開いていた再生リスト |
 | `hakomado.shareTab` `hakomado.shareImgLabels` `hakomado.shareAuthor` | 受け渡しの最後のタブ、共有画像に枠の名前を入れるか、画像に描く作者名 |
 | `hakomado.syncDock` | 同期の調整パネルの置き方と小窓の位置 |
@@ -78,6 +79,7 @@
 | --- | --- |
 | `hakomado.sessionId` | このタブで使っている視聴セッションの id (再読み込みで同じセッションに戻るため) |
 | `hakomado.startChoice` | 開き直したときに始める内容 (ロゴから選んだもの) |
+| `hakomado.helpPage` | 使い方で最後に開いたページ |
 
 ## 3. ファイル・コード・リンクでの出し入れ
 
