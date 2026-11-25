@@ -313,12 +313,10 @@ body.hl-animate .tile.audible::before { animation: hl-flow 6s ease-in-out infini
 
 /* Twitch の枠: YouTube だけの機能 (表示の切り方・高評価・ピックアップ) のボタンは出さない。弾幕はチャンネルのライブだけ (VOD は出さない)。
    音の左右・遅延 (mix) と速度は、枠の中のスクリプト (content/twitch-player.js) で効く。
-   あとで見る・再生リストは VOD だけ (チャンネルのライブは開くたびに中身が変わるので入れない) */
+   あとで見る・再生リストは、チャンネルのライブならその配信の VOD を入れる (grid.js の keepableIdOf) */
 .tile.is-twitch .bar [data-act="corner"],
 .tile.is-twitch-vod .bar [data-act="danmaku"],
-.tile.is-twitch:not(.is-twitch-vod) .bar [data-act="save"],
 .tile.is-twitch .bar [data-act="like"],
-.tile.is-twitch:not(.is-twitch-vod) .bar [data-act="playlist"],
 .tile.is-twitch .bar [data-act="fav"],
 .tile.is-twitch-vod .bar [data-act="chat"] { display: none; }
 /* Twitch のプレイヤーは、ほかの要素が少しでも重なっていると (透明でも) 自動再生しない (IntersectionObserver v2 で確かめている)。
