@@ -11821,6 +11821,22 @@ async function autoTick() {
   }
 }
 
+/**
+ * 1 分ごとの確認を待たずに、今すぐ 1 回確かめる (自動再生の最大枠数を増やしたとき)。
+ * 確認の途中なら、終わるのを待ってから確かめる。何度呼ばれても、待っている間は 1 回にまとめる
+ */
+let autoTickSoonWaiting = false;
+async function autoTickSoon() {
+  if (!state.autoMode || autoTickSoonWaiting) return;
+  autoTickSoonWaiting = true;
+  try {
+    while (autoBusy) await new Promise((r) => setTimeout(r, 200));
+  } finally {
+    autoTickSoonWaiting = false;
+  }
+  await autoTick();
+}
+
 function autoTickOnce() {
   return withAutoLock(autoTickOnceInner);
 }
@@ -12508,6 +12524,13 @@ function setupFavorites() {
     b.addEventListener('click', () => toggleLibKind(b.dataset.kind));
   }
   document.getElementById('autoMode').addEventListener('click', () => setAutoMode(!state.autoMode));
+  // 自動再生の最大枠数を増やして空きができたら、1 分ごとの確認を待たずに空いた分を足す
+  // (スライダーを動かしている間は確かめず、手を離したとき (change) に 1 回だけ。
+  // 減らしたときは今の枠を消さないので、空きが無ければ何もしない。最近の配信で埋めた枠は空きとして数える)
+  document.getElementById('autoMaxTiles').addEventListener('change', () => {
+    const used = visibleIndexes().filter((i) => tileFilled(state.tiles[i]) && !state.tiles[i].fill).length;
+    if (used < autoMaxTiles()) autoTickSoon();
+  });
   // 進み具合の箱の ✕: 箱だけ隠す (準備は続き、ボタンの線と説明には出し続ける)
   document.getElementById('autoProgressClose').addEventListener('click', () => {
     autoProgressBoxClosed = true;
