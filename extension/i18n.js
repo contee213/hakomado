@@ -1072,6 +1072,8 @@ const HTML_EN = {
   'auto.maxTilesNote': 'Lower it if things get slow',
   'auto.prestart': 'Prepare tiles for upcoming streams',
   'auto.prestartNote': 'Makes tiles for upcoming streams before they start',
+  'auto.openAuto': 'Start auto play as soon as Hakomado opens',
+  'auto.openAutoNote': 'Skips the start screen, starts fresh and turns auto play on. You can resume your previous tiles from the logo',
   'auto.feedPick': 'How often to check pickup (📌) channels for new streams',
   'auto.feedOther': 'How often to check other channels for new streams',
   'auto.feedNote': 'Scheduled streams are always checked around their start time. Longer intervals mean streams started without a schedule are noticed later',

@@ -46,6 +46,7 @@ const DEFAULT_SETTINGS = {
   autoLive: true,
   autoVideos: false,
   autoShorts: false,
+  openAuto: false, // 開いたら、起動画面を出さずに新しく始めて自動再生を ON にする (テレビのように、つけたら流れている)
   autoTarget: 'all', // 自動再生のチャンネル: 'all' = チャンネル全部 / 'fav' = ピックアップ (📌) だけ
   noticeTarget: 'all', // 通知のチャンネル: 'all' = チャンネル全部 / 'fav' = ピックアップだけ / 'off' = 知らせない
   // 配信状況の確認で、チャンネルの新着 (RSS) を見に行く間隔 (分)。ピックアップ (📌) は短く、それ以外は長く
@@ -7633,7 +7634,7 @@ function stepIndex(key, v) {
   return best;
 }
 
-const SETTING_CHECKBOXES = ['showPaid', 'chatHideAvatars', 'hlAnimate', 'verticalLiveFit', 'skipMembersOnly', 'autoLive', 'autoVideos', 'autoShorts', 'autoArchive', 'autoArchiveVideos', 'autoArchiveShorts', 'autoPremiereVideos', 'autoPremiereShorts', 'autoPickupMain'];
+const SETTING_CHECKBOXES = ['showPaid', 'chatHideAvatars', 'hlAnimate', 'verticalLiveFit', 'skipMembersOnly', 'autoLive', 'autoVideos', 'autoShorts', 'autoArchive', 'autoArchiveVideos', 'autoArchiveShorts', 'autoPremiereVideos', 'autoPremiereShorts', 'autoPickupMain', 'openAuto'];
 const SETTING_SELECTS = ['dmFont', 'dmWeight', 'authorName', 'autoTarget', 'noticeTarget'];
 
 /** 設定画面の入力欄を state.settings に合わせる (他のタブで設定が変わったときも呼ぶ) */
@@ -12565,6 +12566,13 @@ async function chooseSession() {
   if (/^#(add|import)=/.test(location.hash)) {
     startNew();
     return false;
+  }
+
+  // 設定「開いたら、すぐ自動再生で始める」: 起動画面を出さずに新しく始めて、自動再生を ON にする
+  // (前の内容は残るので、ロゴからいつでも再開できる)
+  if (state.settings.openAuto) {
+    startNew();
+    return true;
   }
 
   const resumable = sessions.filter((s) => describeSession(s.data).count > 0).slice(0, 3);
