@@ -687,6 +687,9 @@ dialog.fav-dialog.tour-preview {
 .fav-item.offline { cursor: default; }
 .fav-item.offline .fav-icon { filter: grayscale(1); opacity: .6; }
 .fav-item.offline .fav-name { color: var(--muted); }
+/* 確かめている間に見せる前回の結果: 薄くして、押せないようにする */
+.fav-item.stale { opacity: .5; cursor: default; }
+.fav-item.stale:hover { background: none; }
 
 .fav-icon {
   width: 40px;

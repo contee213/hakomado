@@ -17,12 +17,16 @@ const Favorites = (() => {
   const statusCache = new Map(); // channelId -> {at, status}
 
   // ------------------------------------------------------------ 取得の負荷を抑える
-  // - 取得結果はタブ間で共有する (chrome.storage.session。ブラウザを閉じると消える)。
-  //   他のタブが少し前に取ったものはそのまま使い、タブがいくつあっても取得は 1 つ分で済むようにする
+  // - 取得結果はタブ間で共有する。他のタブが少し前に取ったものはそのまま使い、タブがいくつあっても取得は 1 つ分で済むようにする
+  // - 取得結果のうち、ブラウザを開き直しても使えるもの (チャンネルの RSS・Twitch のページ・動画ごとの状態・制限中の待ち時間) は
+  //   chrome.storage.local に残す (persist)。開き直した直後に全部を取り直さないように。外したチャンネルの分と古い分は prune で片付ける。
+  //   それ以外 (配信予定のアドオンの結果・順番待ちの時刻など) は chrome.storage.session (shared。ブラウザを閉じると消える)
   // - YouTube へのページ取得はタブ間で 1 件ずつ、間を空けて行う (一度にまとめて取らない)
   // - YouTube に制限 (429) をかけられたら、しばらく取りに行かない (5 分 → 10 分 → … 最大 60 分)
   const shared = chrome.storage.session;
-  const SHARED_KEY = 'statusShared'; // {sched3: {アドオンの id: {at, byKey}}, yt: {channelId: {at, status}}, backoff: {until, step}, lastYtFetch}
+  const persist = chrome.storage.local;
+  const SHARED_KEY = 'statusShared'; // {sched3: {アドオンの id: {at, byKey}}, lastYtFetch, lastFeedFetch, lastTwFetch}
+  const BACKOFF_KEY = 'fetchBackoff'; // (persist) {backoff: {until, step}, twBackoff: {until, step}}。YouTube / Twitch の制限中の待ち時間
   // チャンネルの RSS を見に行く間隔 (設定。setFeedIntervals)。ピックアップ (📌) は短く、それ以外は長く。
   // 配信予定が見えている配信は、RSS を取り直さなくても覚えている分から開始の前後に動画のページで確かめるので、
   // 長くして遅れるのは、新しく出た配信予定と、予定を出さずに始めた配信 (ゲリラ配信) に気づくまで
@@ -57,6 +61,17 @@ const Favorites = (() => {
       const v = await readShared();
       fn(v);
       await shared.set({ [SHARED_KEY]: v });
+    });
+  }
+  async function readBackoff() {
+    const { [BACKOFF_KEY]: v } = await persist.get(BACKOFF_KEY);
+    return v && typeof v === 'object' ? v : {};
+  }
+  function updateBackoff(fn) {
+    return withLock('hakomado-backoff', async () => {
+      const v = await readBackoff();
+      fn(v);
+      await persist.set({ [BACKOFF_KEY]: v });
     });
   }
 
@@ -95,7 +110,8 @@ const Favorites = (() => {
   function ytTurn(fn, { lock = 'hakomado-yt-fetch', gap = YT_GAP_MS, lastKey = 'lastYtFetch', backoffKey = 'backoff' } = {}) {
     return withLock(lock, async () => {
       const st = await readShared();
-      if ((st[backoffKey]?.until || 0) > Date.now()) throw new RateLimitedError(tr('rateLimited'));
+      const bo = await readBackoff();
+      if ((bo[backoffKey]?.until || 0) > Date.now()) throw new RateLimitedError(tr('rateLimited'));
       const fetchText = async (url, opts = {}) => {
         const wait = (st[lastKey] || 0) + gap - Date.now();
         if (wait > 0) await sleep(wait);
@@ -107,7 +123,7 @@ const Favorites = (() => {
         }
         // 制限 (429、または「ロボットではありません」の確認ページに飛ばされた)
         if (res.status === 429 || /\/sorry\//.test(res.url)) {
-          await updateShared((v) => {
+          await updateBackoff((v) => {
             const step = Math.min((v[backoffKey]?.step || 0) + 1, 10);
             v[backoffKey] = { step, until: Date.now() + Math.min(BACKOFF_BASE_MS * 2 ** (step - 1), BACKOFF_MAX_MS) };
           });
@@ -116,7 +132,7 @@ const Favorites = (() => {
         if (res.status === 404 && opts.allow404) return null;
         if (!res.ok) throw new Error(tr('fetchFail', res.status));
         const text = await readBody(res, { until: opts.until });
-        if (st[backoffKey]) await updateShared((v) => delete v[backoffKey]);
+        if (bo[backoffKey]) await updateBackoff((v) => delete v[backoffKey]);
         return text;
       };
       return fn(fetchText);
@@ -126,11 +142,11 @@ const Favorites = (() => {
   // ------------------------------------------------------------ チャンネルの「ライブ配信」の再生リストの RSS
   // 再生リスト UULV + チャンネル ID の 3 文字目以降。ログイン不要の軽い XML で、新しい順 15 件 (配信予定・配信中・アーカイブ)。
   // 配信予定 (待機所) は再生数が 0。配信中とアーカイブは再生数では見分けられない。日時は「枠を作った日時」
-  // 取った結果はタブ間で共有する (配信状況と最近の配信の両方で使う)
+  // 取った結果はタブ間で共有し、ブラウザを閉じても残す (persist。配信状況と最近の配信の両方で使う)
   const FEED_PREFIX = 'feed:'; // 'feed:<チャンネル ID>' → {at, items: [{videoId, title, at, views}]} (チャンネルごとに別の項目にして、書き込みを軽く)
   // 「動画」(UULF)・「ショート」(UUSH) の再生リストは 'feed:UULF:<チャンネル ID>' など (最近の動画でだけ使う)
   const feedKey = (channelId, list = 'UULV') => FEED_PREFIX + (list === 'UULV' ? '' : `${list}:`) + channelId;
-  const readFeed = async (channelId, list) => (await shared.get(feedKey(channelId, list)))[feedKey(channelId, list)];
+  const readFeed = async (channelId, list) => (await persist.get(feedKey(channelId, list)))[feedKey(channelId, list)];
   const ARCHIVE_TTL_MS = 30 * 60 * 1000;
   const CHANNEL_ID_RE = /^UC[\w-]{22}$/;
   const VIDEO_RE = /^[A-Za-z0-9_-]{11}$/;
@@ -156,7 +172,7 @@ const Favorites = (() => {
         if (fresh(again)) return again.items;
         const xml = await fetchText(`${YT}/feeds/videos.xml?playlist_id=${list}${channelId.slice(2)}`, { credentials: 'omit', allow404: true });
         const items = xml == null ? [] : parseFeed(xml);
-        await shared.set({ [feedKey(channelId, list)]: { at: Date.now(), items } });
+        await persist.set({ [feedKey(channelId, list)]: { at: Date.now(), items } });
         return items;
       },
       { lock: 'hakomado-feed-fetch', gap: FEED_GAP_MS, lastKey: 'lastFeedFetch' },
@@ -221,7 +237,7 @@ const Favorites = (() => {
   const TW_ORIGINS = ['https://*.twitch.tv/*'];
   const TW_CHANNEL_RE = /^tw:[a-z0-9_]{1,25}$/;
   const isTwitchChannel = (id) => TW_CHANNEL_RE.test(id || '');
-  const TW_PAGE_PREFIX = 'twpage:'; // 'twpage:<名前>' → {at, page} (タブ間で共有)
+  const TW_PAGE_PREFIX = 'twpage:'; // 'twpage:<名前>' → {at, page} (タブ間で共有し、ブラウザを閉じても残す)
   const TW_AUTO_MS = 2 * 60 * 1000; // 配信状況を見に行く間隔 (ページの先頭だけなので、YouTube の RSS より短く)
   const TW_GAP_MS = 300;
   const TW_RETRY_MS = 1500; // チャンネルの情報が入っていないページが返ったとき、取り直すまで
@@ -244,7 +260,7 @@ const Favorites = (() => {
    */
   async function twitchPage(login, { maxAge }) {
     const key = TW_PAGE_PREFIX + login;
-    const read = async () => (await shared.get(key))[key];
+    const read = async () => (await persist.get(key))[key];
     const fresh = (c) => c && Date.now() - c.at < maxAge && c.page;
     const hit = await read();
     if (fresh(hit)) return hit.page;
@@ -255,7 +271,7 @@ const Favorites = (() => {
         if (fresh(again)) return again.page;
         const get = async () => parseTwitchPage(await fetchText(`${TW}/${encodeURIComponent(login)}`, TW_FETCH));
         const page = (await get()) || (await sleep(TW_RETRY_MS), await get());
-        if (page) await shared.set({ [key]: { at: Date.now(), page } });
+        if (page) await persist.set({ [key]: { at: Date.now(), page } });
         return page;
       },
       { lock: 'hakomado-tw-fetch', gap: TW_GAP_MS, lastKey: 'lastTwFetch', backoffKey: 'twBackoff' },
@@ -791,8 +807,9 @@ const Favorites = (() => {
   //  - 配信中: 5 分ごと (終わったことを知るため。枠のプレイヤーが知らせる方が早い)
   //  - 終わった / 配信ではない: もう確かめない
   // 確かめるのは動画のページ (1 件 1MB 以上。圧縮されて 150KB ほど) なので、1 回あたりの件数を budget.watch で抑える
-  const VSTATE_KEY = 'videoStates'; // {videoId: {state, startAt, title, at}} (共有データとは別の項目)
-  const readStates = async () => (await shared.get(VSTATE_KEY))[VSTATE_KEY] || {};
+  const VSTATE_KEY = 'videoStates'; // (persist) {videoId: {state, startAt, title, at}}
+  const VSTATE_MAX = 3000; // 覚えておく動画の数の上限 (超えたら、古く確かめたものから忘れる)
+  const readStates = async () => (await persist.get(VSTATE_KEY))[VSTATE_KEY] || {};
   const RECENT_MS = 24 * 3600e3;
   const MIN = 60e3;
 
@@ -991,12 +1008,13 @@ const Favorites = (() => {
    * チャンネルの今の配信状況。
    * @param {{maxFeedAge: number, budget: {watch: number}|null, sched: Array|null, kinds: {video: boolean, short: boolean}}} o
    *   sched = 配信予定のアドオンに載っているこのチャンネルの枠 [{videoId, live, startAt}] (アドオンで分からないチャンネルは null)。
-   *   kinds = プレミア公開の動画・ショートも配信と同じに扱うか (設定の「自動再生のコンテンツ」)
+   *   kinds = プレミア公開の動画・ショートも配信と同じに扱うか (設定の「自動再生のコンテンツ」)。
+   *   peek = 取りに行かず、覚えている RSS と動画の状態だけで決める (確かめる前に前回の結果を見せるため。何も書き込まない)
    */
-  async function channelStatus(fav, { maxFeedAge, budget, sched, kinds, feedCacheOnly = false }) {
+  async function channelStatus(fav, { maxFeedAge, budget, sched, kinds, feedCacheOnly = false, peek = false }) {
     let items = [];
     try {
-      items = await fetchFeed(fav.channelId, { maxAge: maxFeedAge, cacheOnly: feedCacheOnly });
+      items = await fetchFeed(fav.channelId, { maxAge: maxFeedAge, cacheOnly: feedCacheOnly || peek });
     } catch (e) {
       // RSS が取れなくても、配信予定のアドオンで分かる分は使う
       if (!sched || e instanceof RateLimitedError) throw e;
@@ -1008,7 +1026,7 @@ const Favorites = (() => {
       for (const [on, list] of [[kinds.video, 'UULF'], [kinds.short, 'UUSH']]) {
         if (!on) continue;
         try {
-          premieres.push(...(await fetchFeed(fav.channelId, { maxAge: Math.max(maxFeedAge, FEED_PREMIERE_MS), list })));
+          premieres.push(...(await fetchFeed(fav.channelId, { maxAge: Math.max(maxFeedAge, FEED_PREMIERE_MS), list, cacheOnly: peek })));
         } catch (e) {
           if (e instanceof RateLimitedError) throw e;
           console.warn('hakomado: プレミア公開の確認に失敗', list, fav.channelId, e);
@@ -1039,7 +1057,7 @@ const Favorites = (() => {
     }
     // 確かめる順: 開始予定が近いもの → 初めて見たもの (新しい順)
     const due = [...cands.keys()]
-      .filter((vid) => needsCheck(state(vid), now))
+      .filter((vid) => !peek && needsCheck(state(vid), now))
       .sort((a, b) => {
         const k = (vid) => (state(vid)?.startAt ? Math.abs(state(vid).startAt - now) : 1e13 - (cands.get(vid).at || 0));
         return k(a) - k(b);
@@ -1055,13 +1073,14 @@ const Favorites = (() => {
         ErrLog.warnFetch('hakomado: 動画の状態の確認に失敗', vid, e);
       }
     }
-    if (Object.keys(updates).length) await saveStates(updates);
+    if (!peek && Object.keys(updates).length) await saveStates(updates);
 
     // 配信中があればそれ (新しく始まったもの)、無ければ一番近い配信予定。
     // 対象にしていない種類 (プレミア公開の動画・ショート) は除く (種類がまだ分からないものは除かない)
     const allowed = (s) => !s?.kind || s.kind === 'live' || kinds[s.kind] !== false;
     const list = [...cands.keys()].map((vid) => ({ vid, s: state(vid), title: cands.get(vid).title })).filter((x) => allowed(x.s));
-    const live = list.filter((x) => x.s?.state === 'live').sort((a, b) => (b.s.startAt || 0) - (a.s.startAt || 0))[0];
+    // 前回の結果 (peek) では、長く確かめていない「配信中」は使わない (ブラウザを閉じている間に終わっているはず)
+    const live = list.filter((x) => x.s?.state === 'live' && !(peek && now - (x.s.at || 0) > 6 * 60 * MIN)).sort((a, b) => (b.s.startAt || 0) - (a.s.startAt || 0))[0];
     if (live) return { state: 'live', kind: live.s.kind, videoId: live.vid, title: live.s.title || live.title, startAt: live.s.startAt };
     const soon = list
       .filter((x) => x.s?.state === 'upcoming' && (!x.s.startAt || x.s.startAt > now - 6 * 60 * MIN))
@@ -1079,8 +1098,15 @@ const Favorites = (() => {
         const old = now - (s.at || 0);
         if ((s.state === 'ended' || s.state === 'none') && old > 3 * 24 * 3600e3) delete all[vid];
         else if (s.state === 'upcoming' && s.startAt && s.startAt < now - 24 * 3600e3) delete all[vid];
+        // 外したチャンネルの配信など、確かめ直されないまま残ったもの
+        else if (old > 7 * 24 * 3600e3) delete all[vid];
       }
-      await shared.set({ [VSTATE_KEY]: all });
+      const ids = Object.keys(all);
+      if (ids.length > VSTATE_MAX) {
+        ids.sort((a, b) => (all[a].at || 0) - (all[b].at || 0));
+        for (const vid of ids.slice(0, ids.length - VSTATE_MAX)) delete all[vid];
+      }
+      await persist.set({ [VSTATE_KEY]: all });
     });
   }
 
@@ -1264,6 +1290,45 @@ const Favorites = (() => {
     return status;
   }
 
+  /**
+   * 前回の配信状況 (取りに行かず、ブラウザを閉じても残している RSS・Twitch のページ・動画の状態だけで決める)。
+   * 確かめる前の「確認中」の間に薄く見せるためのもの。分からなければ null
+   * @returns {Promise<{state: 'live'|'upcoming'|'offline', videoId?: string, title?: string, startAt?: number}|null>}
+   */
+  async function peekStatus(fav, { kinds = { video: true, short: true } } = {}) {
+    try {
+      if (isTwitchChannel(fav.channelId)) {
+        const page = (await persist.get(TW_PAGE_PREFIX + fav.channelId.slice(3)))[TW_PAGE_PREFIX + fav.channelId.slice(3)]?.page;
+        if (!page) return null;
+        const live = page.live;
+        if (!live) return { state: 'offline' };
+        return { state: 'live', kind: 'live', videoId: fav.channelId, title: live.title, ...(live.startAt ? { startAt: live.startAt } : {}) };
+      }
+      if (!(await readFeed(fav.channelId, 'UULV'))) return null;
+      return await channelStatus(fav, { maxFeedAge: 0, budget: { watch: 0 }, sched: null, kinds, peek: true });
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * ブラウザを閉じても残している取得結果のうち、一覧に無いチャンネルの分と、古くて使わない分 (3 日より前) を消す。
+   * 画面を開いたときに呼ぶ
+   */
+  async function pruneCache() {
+    const keys = persist.getKeys ? await persist.getKeys() : Object.keys(await persist.get(null));
+    const ids = new Set((await list()).map((f) => f.channelId));
+    const cand = keys.filter((k) => k.startsWith(FEED_PREFIX) || k.startsWith(TW_PAGE_PREFIX));
+    if (!cand.length) return;
+    const all = await persist.get(cand);
+    const old = Date.now() - 3 * 24 * 3600e3;
+    const drop = cand.filter((k) => {
+      const ch = k.startsWith(TW_PAGE_PREFIX) ? 'tw:' + k.slice(TW_PAGE_PREFIX.length) : k.slice(FEED_PREFIX.length).replace(/^UU(LF|SH):/, '');
+      return !ids.has(ch) || !(all[k]?.at > old);
+    });
+    if (drop.length) await persist.remove(drop);
+  }
+
   /** RSS を見に行く間隔 (分) を設定から決める (ピックアップ / それ以外)。おかしな値は既定に戻す */
   function setFeedIntervals({ pickMin, otherMin }) {
     const ms = (v, def) => (Number.isFinite(Number(v)) && Number(v) > 0 ? Number(v) * 60 * 1000 : def);
@@ -1322,7 +1387,7 @@ const Favorites = (() => {
   return {
     list, add, removeMany, isTwitchChannel, twitchVodStart, twitchVodInfo, twitchLiveInfo, twitchCurrentVod, setStar, seedPresets, restorePresets, removeAllPresets, presetCount, removedPresetCount, fetchStatus, fetchArchives,
     previewPack, importPack, packs, removePack, fillIcons,
-    checkAccess, rememberMembersOnly, isMembersBlock, setFeedIntervals,
+    checkAccess, rememberMembersOnly, isMembersBlock, setFeedIntervals, peekStatus, pruneCache,
     videoStates, inspectVideos, fetchYouTubePlaylist, fetchSubscriptions,
   };
 })();
