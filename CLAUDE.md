@@ -5,6 +5,17 @@
 `web/` は共有されたセットを集める Web アプリ「Hakomado Feed」(画面の名前は「Hakomado」)(Cloudflare Workers + D1)。拡張機能の `share-code.js`・`layouts.js` をビルドのときに読み込んで使う (詳しくは `web/README.md`)。コードやリンクの形を変えたら `web/` でも読めるかを確かめる。
 web/ の機能 (公開範囲・タグ・検索・消えた動画の見直し・英語の画面) は `web/wrangler.jsonc` の `FEATURES` でオンオフする。拡張機能は Feed と通信しない (短縮リンクは 2026-11-24 にやめた)。共有画面の「📮 サイトに投稿」は Feed の `/post#text=<コード>` をタブで開くだけ。
 
+## Jira と Confluence
+
+サイトは `contee213-dev.atlassian.net`。Atlassian MCP で読み書きする。
+
+- 作業は Jira のプロジェクト HAKO の作業項目から始める。頼まれた作業に項目が無ければ、始める前に作り (Story・Bug・Task)、キーを伝える
+- ブランチ名・コミットの見出し・PR のタイトルに必ずキーを入れる (例: ブランチ `claude/HAKO-12-drag-ghost`、見出しと PR タイトル「feat: HAKO-12 ドラッグ中の影を小さくする」)。キーが無いと Jira の開発パネルにつながらない
+- 受け入れ条件は作業項目に書き、`docs/design-guide.md` 10 章のストーリーの「うまくいっている状態」に照らす。終わったかはこれで決める
+- 画面やデータの持ち方が変わる大きめの機能は、作る前に Confluence のスペース HAKO の「仕様」の下にページを作り、作業項目からリンクする (`/spec`)
+- `docs/` の設計の文書と `decisions.md` はこれまでどおり repo に置き、同じ PR で直す
+- Jira の状態は `/start` と `/ship` が Atlassian MCP で変える (`/start` で「進行中」、`/ship` でマージできたら「完了」)。Jira の自動化 (Automation) は使わない (フリープランで回数が少ないため)
+
 ## 設計の文書 (改修したら必ず更新する)
 
 画面の見た目・動き・言葉は `docs/design-guide.md` (デザインガイド) の決まりに合わせる。決まりに無いことを新しく決めたときは、ユーザーに確かめてからガイドに足す。
