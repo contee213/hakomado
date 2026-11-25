@@ -903,30 +903,42 @@ test.describe('自動再生の進み具合', () => {
 });
 
 test.describe('枠の入れ替え', () => {
-  test('ドラッグ中の影は、つかんだ場所がカーソルの下に来るようについてくる。離すと消える', async ({ openGrid }) => {
+  test('ドラッグ中の影は 240px までに縮めて、つかんだ場所 (比) がカーソルの下に来る。落とし先の枠は塗る。離すと消える', async ({ openGrid }) => {
     const page = await openGrid();
     await skipTour(page);
     await page.evaluate(() => setTileWeb(state.order[0], 'https://video.example.com/watch/1'));
     const tile = visibleTiles(page).first();
+    const target = visibleTiles(page).nth(1);
     const bar = tile.locator('.bar');
     await tile.hover();
     const t = await tile.boundingBox();
     const b = await bar.boundingBox();
-    // バーの右寄り (ボタンの無いところ) をつかむ
+    expect(t.width).toBeGreaterThan(240); // 縮める大きさの枠で確かめる
+    const k = Math.min(1, 240 / t.width, 240 / t.height);
+    // バーの真ん中寄り (ボタンの無いところ) をつかむ
     const grab = { x: b.x + b.width * 0.45, y: b.y + b.height / 2 };
     await page.mouse.move(grab.x, grab.y);
     await page.mouse.down();
     await page.mouse.move(grab.x + 30, grab.y + 20, { steps: 5 });
-    await page.mouse.move(grab.x + 150, grab.y + 120, { steps: 10 });
+    const tb = await target.boundingBox();
+    const to = { x: tb.x + tb.width / 2, y: tb.y + tb.height / 2 };
+    await page.mouse.move(to.x, to.y, { steps: 10 });
     const ghost = page.locator('.drag-ghost');
     await expect(ghost).toHaveCount(1);
     const g = await ghost.boundingBox();
-    expect(Math.abs(g.width - t.width)).toBeLessThan(2);
-    // 影の中でのカーソルの位置 = つかんだときの枠の中での位置
-    expect(Math.abs(grab.x + 150 - g.x - (grab.x - t.x))).toBeLessThan(3);
-    expect(Math.abs(grab.y + 120 - g.y - (grab.y - t.y))).toBeLessThan(3);
+    expect(Math.abs(g.width - t.width * k)).toBeLessThan(2);
+    expect(Math.abs(g.height - t.height * k)).toBeLessThan(2);
+    // 影の中でのカーソルの位置 = つかんだときの枠の中での位置 × 縮めた比
+    expect(Math.abs(to.x - g.x - (grab.x - t.x) * k)).toBeLessThan(3);
+    expect(Math.abs(to.y - g.y - (grab.y - t.y) * k)).toBeLessThan(3);
+    // 落とし先の枠に、塗る板が重なる
+    const fill = page.locator('.drop-fill');
+    await expect(fill).toBeVisible();
+    const f = await fill.boundingBox();
+    expect(Math.abs(f.x - tb.x) + Math.abs(f.y - tb.y) + Math.abs(f.width - tb.width)).toBeLessThan(3);
     await page.mouse.up();
     await expect(ghost).toHaveCount(0);
+    await expect(fill).toHaveCount(0);
   });
 });
 
