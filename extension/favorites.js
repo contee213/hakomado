@@ -339,7 +339,8 @@ const Favorites = (() => {
     if (!(await hasTwitch())) throw new Error(tr('twitchNeedAllow'));
     const page = await twitchPage(channelId.slice(3), { maxAge: force ? 0 : ARCHIVE_TTL_MS });
     if (!page) throw new Error(tr('twitchReadFail'));
-    // 配信中の配信も VOD として載る (終わるまでは最後まで見られない) ので、始まった時刻より後のものは除く
+    // 配信中の配信の VOD は、配信している間は載らない (2026-11-25 に確かめた)。載るようになったときのために、
+    // 始まった時刻より後のもの (終わるまでは最後まで見られない) は除いておく
     const since = page.live ? (page.live.startAt || Date.now()) - 5 * 60e3 : Infinity;
     return page.vods
       .filter((v) => v.views > 0 && v.at < since)
