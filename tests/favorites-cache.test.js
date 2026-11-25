@@ -142,3 +142,42 @@ test('開き直しても、終わった配信・先の配信予定は動画の�
   assert.equal(st.videoId, VID2);
   assert.deepEqual(calls, []);
 });
+
+// HAKO-9: ライブラリの最近の動画を開いたとき、残っている前回の結果を全チャンネル分まとめて先に出す
+test('前回の最近の動画 (peekArchives): 古くても残っている RSS から作り、取りに行かず、残っていないチャンネルは入れない', async () => {
+  const { F, calls, local } = setup();
+  const old = Date.now() - 5 * 3600e3; // 30 分の間隔を過ぎた結果も使う
+  local._seed({
+    ['feed:' + CH]: feed(old, [item(VID, { at: Date.now() - 3 * 3600e3 })]),
+    ['feed:UULF:' + CH]: feed(old, [item(VID2, { at: Date.now() - 1 * 3600e3 }), item('cdefghijklm', { views: 0 })]),
+    ['feed:UUSH:' + CH]: feed(old, [item('defghijklmn', { at: Date.now() - 2 * 3600e3 })]),
+  });
+  const before = JSON.stringify(local._dump());
+  const got = await F.peekArchives([CH, CH2], { shorts: true });
+  const list = plain(got.get(CH));
+  assert.ok(list, 'CH の分がある');
+  // fetchArchives と同じ形: 新しい順・種類付き・公開予定 (再生数 0) は除く
+  assert.deepEqual(list.map((v) => [v.videoId, v.kind]), [[VID2, 'video'], ['defghijklmn', 'short'], [VID, 'live']]);
+  assert.equal(got.has(CH2), false);
+  assert.equal(calls.length, 0);
+  assert.equal(JSON.stringify(local._dump()), before);
+});
+
+test('前回の最近の動画 (peekArchives): ショートを見ないときは UUSH を入れない', async () => {
+  const { F, local } = setup();
+  local._seed({
+    ['feed:' + CH]: feed(Date.now(), [item(VID)]),
+    ['feed:UUSH:' + CH]: feed(Date.now(), [item(VID2)]),
+  });
+  local._seed({ ['feed:UULF:' + CH]: feed(Date.now(), []) });
+  const got = await F.peekArchives([CH]);
+  assert.deepEqual(plain(got.get(CH)).map((v) => v.videoId), [VID]);
+});
+
+test('前回の最近の動画 (peekArchives): 「動画」の再生リストが残っていない (配信だけ残っている) チャンネルは入れない', async () => {
+  const { F, local } = setup();
+  // 「ライブ配信」は配信状況の確認でいつも残るが、「動画」「ショート」は最近の動画でしか取らず、3 日で消える
+  local._seed({ ['feed:' + CH]: feed(Date.now(), [item(VID)]), ['feed:UULF:' + CH]: feed(Date.now(), []) });
+  const got = await F.peekArchives([CH], { shorts: true });
+  assert.equal(got.has(CH), false);
+});

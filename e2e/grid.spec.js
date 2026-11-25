@@ -1034,3 +1034,93 @@ test.describe('画面の覚え (HAKO-8)', () => {
     await expect(page.locator('#shareAuthor')).toHaveValue('Hako');
   });
 });
+
+test.describe('ライブラリの最近の動画 (HAKO-9)', () => {
+  const SORA = 'UCp6993wxpyDPHUpavwDFqgg';
+  const ROBO = 'UCDqI2jOz0weumE8s7paEk6g';
+  const now = Date.now();
+  const old = now - 5 * 3600e3; // 30 分の間隔を過ぎている (取りに行くが、通信は止めているので失敗する)
+  const item = (videoId, hoursAgo) => ({ videoId, title: videoId, at: now - hoursAgo * 3600e3, views: 10 });
+  const SEED = {
+    favorites: [
+      { channelId: SORA, name: 'ときのそら' },
+      { channelId: ROBO, name: 'ロボ子さん' },
+    ],
+    ['feed:' + SORA]: { at: old, items: [item('sora0000001', 1), item('sora0000003', 3)] },
+    ['feed:UULF:' + SORA]: { at: old, items: [] },
+    ['feed:UUSH:' + SORA]: { at: old, items: [] },
+    ['feed:' + ROBO]: { at: old, items: [item('robo0000002', 2)] },
+    ['feed:UULF:' + ROBO]: { at: old, items: [item('robo0000004', 4)] },
+    ['feed:UUSH:' + ROBO]: { at: old, items: [] },
+  };
+  const ORDER = ['sora0000001', 'robo0000002', 'sora0000003', 'robo0000004'];
+  const shownIds = (page) => page.locator('#favList [data-key]').evaluateAll((els) => els.map((e) => e.dataset.key));
+
+  test('前回の結果を 1 回で揃えて出し、取れなくても「⟳ 更新」しても消えず、並びが変わらない', async ({ openGrid }) => {
+    const page = await openGrid();
+    await skipTour(page);
+    // 既定のチャンネル (77) の配信状況の取得と取り合わないよう、2 チャンネルだけにして開き直す
+    await page.evaluate((seed) => chrome.storage.local.set(seed), SEED);
+    await page.reload();
+    await expect(page.locator('#grid .tile').first()).toBeAttached();
+    // 一覧の行の数が変わるたびに覚えておく (途中で一部だけ出た・消えたを見つける)
+    await page.evaluate(() => {
+      window.__counts = [];
+      new MutationObserver(() => {
+        const n = document.querySelectorAll('#favList [data-key]').length;
+        if (window.__counts.at(-1) !== n) window.__counts.push(n);
+      }).observe(document.getElementById('favList'), { childList: true, subtree: true });
+    });
+    await page.locator('#openFavorites').click();
+    await page.locator('[data-favtab="archive"]').click();
+    await expect.poll(() => shownIds(page)).toEqual(ORDER);
+    // 取りに行った分は (通信を止めているので) 失敗し、前回の結果のままであることを件数の横に出す
+    await expect(page.locator('#savedCount')).toHaveText('4 件 (2 チャンネルは取り直せず、前回の結果)');
+    expect(await page.evaluate(() => window.__counts.filter((n) => n > 0))).toEqual([4]);
+    await page.locator('#favRefresh').click();
+    await expect(page.locator('#savedCount')).toHaveText('4 件 (2 チャンネルは取り直せず、前回の結果)');
+    expect(await shownIds(page)).toEqual(ORDER);
+    expect(await page.evaluate(() => window.__counts.filter((n) => n > 0))).toEqual([4]);
+  });
+
+  // 取り直して新しい動画が届いたら、元からある動画は元の位置から滑って動く (パッと飛ばない)。動きを減らす設定では滑らせない
+  for (const reduced of [false, true]) {
+    test(`新しく届いた動画が入るとき、ほかの動画を${reduced ? '滑らせない (動きを減らす設定)' : '滑らせて動かす'}`, async ({ openGrid }) => {
+      const page = await openGrid();
+      await skipTour(page);
+      if (reduced) await page.emulateMedia({ reducedMotion: 'reduce' });
+      await page.evaluate((seed) => chrome.storage.local.set(seed), SEED);
+      await page.reload();
+      await expect(page.locator('#grid .tile').first()).toBeAttached();
+      // そらの「ライブ配信」の RSS だけ、いちばん新しい動画が 1 本増えて返る
+      const entry = (id, hoursAgo) =>
+        `<entry><yt:videoId>${id}</yt:videoId><title>${id}</title><published>${new Date(now - hoursAgo * 3600e3).toISOString()}</published>` +
+        `<media:group><media:community><media:statistics views="10"/></media:community></media:group></entry>`;
+      let release;
+      const gate = new Promise((r) => (release = r));
+      await page.route(/\/feeds\/videos\.xml\?playlist_id=UULV/, async (route) => {
+        if (!route.request().url().includes(SORA.slice(2))) return route.abort();
+        await gate; // 前回の結果を出したあとで届くように
+        await route.fulfill({
+          contentType: 'application/xml',
+          body: `<feed xmlns:yt="http://www.youtube.com/xml/schemas/2015" xmlns:media="http://search.yahoo.com/mrss/">${entry('sora0000000', 0.5)}${entry('sora0000001', 1)}${entry('sora0000003', 3)}</feed>`,
+        });
+      });
+      await page.locator('#openFavorites').click();
+      await page.locator('[data-favtab="archive"]').click();
+      await expect.poll(() => shownIds(page)).toEqual(ORDER);
+      // 描き直しで入れ替わった行に動きが付いたかを覚えておく
+      await page.evaluate(() => {
+        window.__moved = new Set();
+        new MutationObserver(() => {
+          for (const el of document.querySelectorAll('#favList [data-key]')) if (el.getAnimations().length) window.__moved.add(el.dataset.key);
+        }).observe(document.getElementById('favList'), { childList: true, subtree: true });
+      });
+      release();
+      await expect.poll(() => shownIds(page)).toEqual(['sora0000000', ...ORDER]);
+      await page.waitForTimeout(50);
+      const moved = await page.evaluate(() => [...window.__moved].sort());
+      expect(moved).toEqual(reduced ? [] : ['robo0000002', 'robo0000004', 'sora0000000', 'sora0000001', 'sora0000003']);
+    });
+  }
+});
