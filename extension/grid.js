@@ -1687,7 +1687,10 @@ function pickedChannelOf(i) {
 
 /** 枠の 📌 (枠の情報)・🔖 (枠のバーと枠の情報)・📃 (枠の情報) が点いているか */
 function tileMarks(i) {
-  const id = state.tiles[i].videoId;
+  const t = state.tiles[i];
+  // Twitch のライブは、🔖・📃 で入れたその配信の VOD で見る (押すまでは分からないので点かない)
+  const lv = views[i]?.liveVod;
+  const id = twitchChannelOfTile(t) ? (lv?.for === t.videoId ? lv.id : null) : t.videoId;
   return {
     picked: !!id && pickedChannelOf(i) != null,
     saved: !!id && savedIds.has(id),
@@ -1738,8 +1741,14 @@ function updateSavedMarks() {
 async function toggleSaveTile(i) {
   const t = state.tiles[i];
   if (!t.videoId) return;
-  const m = views[i].meta || {};
-  const r = await SavedVideos.toggle(t.videoId, { ...vodInfo(t.videoId), ...m, label: t.label, input: t.input });
+  // Twitch のライブは、その配信の VOD を入れる (チャンネルのままだと、後から開くと別の配信になる)
+  const id = await keepableIdOf(i);
+  if (!id) {
+    showToast(i, tr('tileTwitchNoVod'));
+    return;
+  }
+  const { videoId, ...info } = keepInfoOf(i, id);
+  const r = await SavedVideos.toggle(videoId, info);
   if (r === 'saved') showToast(i, tr('savedAdded'));
   else if (r === 'removed') showToast(i, tr('savedRemoved'));
   else if (r === 'full') showToast(i, tr('savedFull', SavedVideos.MAX));
@@ -2472,7 +2481,13 @@ function onBarAction(i, act, e) {
       if (t.videoId) pickAnything(i, { replace: true });
       return;
     case 'playlist':
-      if (t.videoId) openPlaylistPicker({ ...vodInfo(t.videoId), ...views[i].meta, label: t.label, input: t.input, videoId: t.videoId });
+      if (t.videoId) {
+        // Twitch のライブは、その配信の VOD を入れる
+        keepableIdOf(i).then((id) => {
+          if (!id) showToast(i, tr('tileTwitchNoVod'));
+          else openPlaylistPicker(keepInfoOf(i, id));
+        });
+      }
       return;
     case 'max':
       toggleFullscreen(i);
@@ -5040,8 +5055,6 @@ const TileInfo = (() => {
     fav.disabled = !!views[i].favBusy;
     const save = btn('save', { text: '🔖', title: tr(m.saved ? 'tileSaveOff' : 'tileSaveOn'), on: m.saved, cls: 'mark' });
     const pl = btn('playlist', { text: '📃', title: tr('tilePlaylist'), on: m.listed, cls: 'mark' });
-    // Twitch のチャンネルのライブは、あとで見る・再生リストに入れない (チャンネルごとに同じ ID で、開くたびに中身が変わる)
-    if (twitchChannelOfTile(t)) save.hidden = pl.hidden = true;
     const social = ['subscribe', 'like'].map((act) => {
       const b = btn(act, { text: '👍', html: act === 'subscribe' ? SUB_ICON : '', cls: 'social' });
       Object.assign(b, socialButtonState(i, act));
@@ -6269,26 +6282,49 @@ async function parseIncoming(text, onProgress) {
 }
 
 /**
- * 共有するときは、Twitch のライブの枠 (チャンネル tw:<名前>) を、その配信の VOD に置き換える
- * (チャンネルのままだと、後から開くと別の配信になる)。VOD が分からない枠はチャンネルのまま。
- * @returns {Promise<{set: ShareSet, vods: number, kept: string[]}>} kept はチャンネルのままの枠の名前
+ * Twitch のライブ (チャンネル tw:<名前>) を、その配信の VOD (tw:v:<番号>) に置き換える関数を作る。
+ * チャンネルのままだと、後から開くと別の配信になるので、共有・あとで見る・再生リストに入れるときに使う。
+ * VOD が分からないもの (録画を残さない設定など) はチャンネルのまま返す (知らせはヘルプにだけ書く)
+ * @returns {Promise<(id: string) => string>}
  */
-async function withTwitchVods(set) {
-  const lives = [...new Set(set.items.map((h) => h.videoId).filter((id) => Favorites.isTwitchChannel(id)))];
-  if (!lives.length) return { set, vods: 0, kept: [] };
+async function twitchVodSwapper(ids) {
+  const lives = [...new Set(ids.filter((id) => Favorites.isTwitchChannel(id)))];
   const map = new Map(await Promise.all(lives.map(async (id) => [id, await Favorites.twitchCurrentVod(id).catch(() => null)])));
-  const swap = (id) => map.get(id) || id;
-  const kept = lives.filter((id) => !map.get(id)).map(twitchName);
+  return (id) => map.get(id) || id;
+}
+
+/** 並びの中の Twitch のライブを VOD に置き換える */
+async function withTwitchVodItems(items) {
+  const swap = await twitchVodSwapper(items.map((h) => h.videoId));
+  return items.map((h) => (swap(h.videoId) === h.videoId ? h : { ...h, videoId: swap(h.videoId) }));
+}
+
+/** 共有セットの中の Twitch のライブを VOD に置き換える (基準の枠・本編の枠も) */
+async function withTwitchVods(set) {
+  const swap = await twitchVodSwapper(set.items.map((h) => h.videoId));
   return {
-    set: {
-      ...set,
-      items: set.items.map((h) => ({ ...h, videoId: swap(h.videoId) })),
-      ...(set.ref ? { ref: swap(set.ref) } : {}),
-      ...(set.main ? { main: swap(set.main) } : {}),
-    },
-    vods: lives.length - kept.length,
-    kept,
+    ...set,
+    items: set.items.map((h) => ({ ...h, videoId: swap(h.videoId) })),
+    ...(set.ref ? { ref: swap(set.ref) } : {}),
+    ...(set.main ? { main: swap(set.main) } : {}),
   };
+}
+
+/** 枠 i の配信を、あとで見る・再生リストに入れるときの ID (Twitch のライブはその配信の VOD。分からなければ null) */
+async function keepableIdOf(i) {
+  const t = state.tiles[i];
+  if (!twitchChannelOfTile(t)) return t.videoId;
+  const id = await Favorites.twitchCurrentVod(t.videoId).catch(() => null);
+  if (state.tiles[i].videoId !== t.videoId) return null;
+  views[i].liveVod = id ? { for: t.videoId, id } : null;
+  return id;
+}
+
+/** 枠 i の配信を、あとで見る・再生リストに入れるときの情報 (Twitch のライブは、チャンネル名と今の題名) */
+function keepInfoOf(i, id) {
+  const t = state.tiles[i];
+  const live = id !== t.videoId ? { channel: views[i].meta?.channel || twitchName(t.videoId), kind: 'live' } : {};
+  return { ...vodInfo(id), ...views[i].meta, ...live, label: t.label, input: id !== t.videoId ? id : t.input, videoId: id };
 }
 
 // ---- 共有セットの書き出し (各形式)
@@ -6901,11 +6937,10 @@ function setupShare() {
   let renderSeq = 0;
   let refreshSeq = 0;
   let nameTimer = 0;
-  let note = ''; // 何も知らせることが無いときに出しておく文 (Twitch のライブを VOD にしたこと)
   closeOnBackdrop(dialog);
 
   const setStatus = (text, isError = false) => {
-    status.textContent = text || note;
+    status.textContent = text;
     status.classList.toggle('share-error', isError);
   };
 
@@ -6943,15 +6978,13 @@ function setupShare() {
     const seq = ++refreshSeq;
     const name = nameEl.value.trim();
     let next = null;
-    let tw = { vods: 0, kept: [] };
-    if (source === 'tiles') ({ set: next, ...tw } = await withTwitchVods(tilesShareSet(name)));
+    if (source === 'tiles') next = await withTwitchVods(tilesShareSet(name));
     else {
       const pl = await Playlists.get(source);
       if (pl) next = { ...pl, name };
     }
     if (seq !== refreshSeq) return;
     set = next?.items.length ? next : null;
-    note = [tw.vods ? tr('shareTwVod', tw.vods) : '', tw.kept.length ? tr('shareTwKept', tw.kept.join(tr('sep'))) : ''].filter(Boolean).join(' ');
     const n = set?.items.length || 0;
     const count = (max) => (n > max ? tr('shareFirstN', max, n) : tr('shareAllN', n));
     textEl.value = set ? playlistText(set) : '';
@@ -9816,8 +9849,8 @@ async function addToPlaylistFromText(id, text) {
     favErrorEl.textContent = tr('shareLoading', done, total);
   });
   const { bad, tooMany } = got;
-  // Twitch のチャンネルのライブは再生リストに入れない (チャンネルごとに同じ ID で、開くたびに中身が変わる。VOD は入れる)
-  const items = got.items.filter((x) => !twitchChannelOfTile(x));
+  // Twitch のチャンネルのライブは、配信中ならその配信の VOD を入れる。分からなければ入れない (チャンネルごとに同じ ID で、開くたびに中身が変わる)
+  const items = (await withTwitchVodItems(got.items)).filter((x) => !twitchChannelOfTile(x));
   const live = got.items.length - items.length;
   if (!items.length) {
     favErrorEl.textContent = live ? tr('plTwitchLive') : tr(bad ? 'plAddFailed' : 'shareNothing');
@@ -9841,8 +9874,8 @@ function tileEntries() {
 /** 今の枠の配信を再生リストの最後に足す */
 async function addTilesToPlaylist(id) {
   const pl = await Playlists.get(id);
-  const all = tileEntries();
-  const items = all.filter((x) => !twitchChannelOfTile(x)); // Twitch のチャンネルのライブは入れない (VOD は入れる)
+  const all = await withTwitchVodItems(tileEntries());
+  const items = all.filter((x) => !twitchChannelOfTile(x)); // Twitch のライブは、その配信の VOD にする。分からなければ入れない
   if (!pl) return;
   if (!items.length) {
     favErrorEl.textContent = tr(all.length ? 'plTwitchLive' : 'shareEmpty');
@@ -9872,7 +9905,8 @@ async function newPlaylist() {
  * 同期再生中か、ずれを合わせた動画があれば「同期再生」にして、今の基準の枠を基準にする
  */
 async function playlistFromTiles() {
-  const { items, sync, layoutId, ref } = tilesShareSet();
+  // Twitch のライブは、その配信の VOD にする
+  const { items, sync, layoutId, ref } = await withTwitchVods(tilesShareSet());
   if (!items.length) {
     favErrorEl.textContent = tr('shareEmpty');
     return;
