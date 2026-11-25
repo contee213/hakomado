@@ -181,6 +181,8 @@ const MESSAGES = {
   rateLimited: ['YouTube から取得を制限されたため、しばらく取りに行きません', 'YouTube is limiting requests; pausing for a while'],
   progressStatus: ['チャンネルの配信状況を確認しています ({0} / {1})', 'Checking live status of channels ({0} / {1})'],
   shareEmpty: ['表示中の枠に配信がありません', 'No streams in the shown tiles'],
+  shareTwVod: ['Twitch のライブ {0} 本は、その配信の VOD にして共有します (後から見ても同じ配信になるように)', 'Twitch lives ({0}) are shared as the VOD of the stream, so they show the same stream later'],
+  shareTwKept: ['{0} は VOD が見つからないので、チャンネルのまま共有します (後から見ると、別の配信になります)', 'No VOD found for {0}, so it is shared as the channel (it will show a different stream later)'],
   shareImageMaking: ['画像を作っています…', 'Making the image…'],
   shareImageCopied: ['画像をコピーしました。X などの投稿欄に貼り付けられます', 'Copied the image. You can paste it into a post on X or elsewhere'],
   shareImageFail: ['画像を作れませんでした: {0}', 'Could not make the image: {0}'],

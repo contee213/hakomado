@@ -6268,6 +6268,29 @@ async function parseIncoming(text, onProgress) {
   return { name: meta.playlist || '', items, sync, layoutId: meta.layout || null, ref, bad, tooMany };
 }
 
+/**
+ * 共有するときは、Twitch のライブの枠 (チャンネル tw:<名前>) を、その配信の VOD に置き換える
+ * (チャンネルのままだと、後から開くと別の配信になる)。VOD が分からない枠はチャンネルのまま。
+ * @returns {Promise<{set: ShareSet, vods: number, kept: string[]}>} kept はチャンネルのままの枠の名前
+ */
+async function withTwitchVods(set) {
+  const lives = [...new Set(set.items.map((h) => h.videoId).filter((id) => Favorites.isTwitchChannel(id)))];
+  if (!lives.length) return { set, vods: 0, kept: [] };
+  const map = new Map(await Promise.all(lives.map(async (id) => [id, await Favorites.twitchCurrentVod(id).catch(() => null)])));
+  const swap = (id) => map.get(id) || id;
+  const kept = lives.filter((id) => !map.get(id)).map(twitchName);
+  return {
+    set: {
+      ...set,
+      items: set.items.map((h) => ({ ...h, videoId: swap(h.videoId) })),
+      ...(set.ref ? { ref: swap(set.ref) } : {}),
+      ...(set.main ? { main: swap(set.main) } : {}),
+    },
+    vods: lives.length - kept.length,
+    kept,
+  };
+}
+
 // ---- 共有セットの書き出し (各形式)
 
 /** 行の後ろに付ける名前 (# や改行は入れない) */
@@ -6878,10 +6901,11 @@ function setupShare() {
   let renderSeq = 0;
   let refreshSeq = 0;
   let nameTimer = 0;
+  let note = ''; // 何も知らせることが無いときに出しておく文 (Twitch のライブを VOD にしたこと)
   closeOnBackdrop(dialog);
 
   const setStatus = (text, isError = false) => {
-    status.textContent = text;
+    status.textContent = text || note;
     status.classList.toggle('share-error', isError);
   };
 
@@ -6919,13 +6943,15 @@ function setupShare() {
     const seq = ++refreshSeq;
     const name = nameEl.value.trim();
     let next = null;
-    if (source === 'tiles') next = tilesShareSet(name);
+    let tw = { vods: 0, kept: [] };
+    if (source === 'tiles') ({ set: next, ...tw } = await withTwitchVods(tilesShareSet(name)));
     else {
       const pl = await Playlists.get(source);
       if (pl) next = { ...pl, name };
     }
     if (seq !== refreshSeq) return;
     set = next?.items.length ? next : null;
+    note = [tw.vods ? tr('shareTwVod', tw.vods) : '', tw.kept.length ? tr('shareTwKept', tw.kept.join(tr('sep'))) : ''].filter(Boolean).join(' ');
     const n = set?.items.length || 0;
     const count = (max) => (n > max ? tr('shareFirstN', max, n) : tr('shareAllN', n));
     textEl.value = set ? playlistText(set) : '';

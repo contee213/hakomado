@@ -69,7 +69,7 @@
 | 21 | テキストの説明 | 表示 | `#shareNoteText` | 入るもの (全部) と AI チャットに渡せること | | | |
 | 22 | 📋 テキストをコピー | ボタン | `#shareCopyText` | テキストをコピー | | | |
 | 23 | 📮 サイトに投稿 | ボタン | `#shareToFeed` | Hakomado Feed の投稿画面 `https://hakomado.contee.net/post#text=<コード>` を新しいタブで開く | | | タブの外に 1 つだけ。拡張機能からは送らない (投稿は利用者がサイトで押す) |
-| 24 | 状態の一言 | 表示 | `#shareStatus` (role=status) | 作成中・コピーした・失敗・共有するものが無い などを出す | | | 失敗は `.share-error` |
+| 24 | 状態の一言 | 表示 | `#shareStatus` (role=status) | 作成中・コピーした・失敗・共有するものが無い などを出す。今の枠に Twitch のライブがあるときは、ほかに出すものが無い間「Twitch のライブ N 本は、その配信の VOD にして共有します (後から見ても同じ配信になるように)」、VOD が分からない枠があれば「○○ は VOD が見つからないので、チャンネルのまま共有します (後から見ると、別の配信になります)」 | | | 失敗は `.share-error`。VOD は Twitch の内部の窓口で聞く (`withTwitchVods`。data-io.md 4a の例外) |
 
 ### 画面項目状態表
 
