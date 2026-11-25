@@ -339,7 +339,8 @@ const Favorites = (() => {
     if (!(await hasTwitch())) throw new Error(tr('twitchNeedAllow'));
     const page = await twitchPage(channelId.slice(3), { maxAge: force ? 0 : ARCHIVE_TTL_MS });
     if (!page) throw new Error(tr('twitchReadFail'));
-    // 配信中の配信も VOD として載る (終わるまでは最後まで見られない) ので、始まった時刻より後のものは除く
+    // 配信中の配信の VOD は、配信している間は載らない (2026-11-25 に確かめた)。載るようになったときのために、
+    // 始まった時刻より後のもの (終わるまでは最後まで見られない) は除いておく
     const since = page.live ? (page.live.startAt || Date.now()) - 5 * 60e3 : Infinity;
     return page.vods
       .filter((v) => v.views > 0 && v.at < since)
@@ -404,6 +405,43 @@ const Favorites = (() => {
     const page = await twitchPage(channelId.slice(3), { maxAge: TW_AUTO_MS });
     if (!page) return null;
     return { title: page.live?.title || '', channel: page.name || '', ...(page.live?.startAt ? { start: page.live.startAt } : {}) };
+  }
+
+  // 配信中の配信の VOD は、公開ページに載らないので、Twitch のサイトが使う内部の窓口 (GQL) で聞く。
+  // 非公式の窓口の例外 (docs/data-io.md の「公開されていない窓口の例外」)。使えなくなったら null を返し、チャンネルのまま共有する
+  const TW_GQL = 'https://gql.twitch.tv/gql';
+  const TW_GQL_CLIENT = 'kimne78kx3ncx6brgo4mv6wki5h1ko'; // Twitch のサイトが、ログインしていないときに使う ID
+  const TW_VOD_TTL_MS = 2 * 60 * 1000;
+  const twCurrentVod = new Map(); // ログイン名 -> {at, id}
+
+  /**
+   * Twitch のチャンネルの今の配信の VOD (tw:v:<番号>)。共有するとき、ライブ (後から見ると別の配信になる) の代わりに使う。
+   * 配信中でない・VOD を残さない設定・許可が無い・聞けなかったときは null (Cookie は付けない)
+   */
+  async function twitchCurrentVod(channelId) {
+    if (!isTwitchChannel(channelId) || !(await hasTwitch())) return null;
+    const login = channelId.slice(3);
+    const hit = twCurrentVod.get(login);
+    if (hit && Date.now() - hit.at < TW_VOD_TTL_MS) return hit.id;
+    let id = null;
+    try {
+      const res = await fetch(
+        TW_GQL,
+        withTimeout({
+          method: 'POST',
+          credentials: 'omit',
+          headers: { 'client-id': TW_GQL_CLIENT, 'content-type': 'application/json' },
+          body: JSON.stringify({ query: 'query($l:String!){user(login:$l){stream{archiveVideo{id}}}}', variables: { l: login } }),
+        }),
+      );
+      if (!res.ok) return null;
+      const vod = (await res.json())?.data?.user?.stream?.archiveVideo?.id;
+      id = /^\d{1,12}$/.test(String(vod ?? '')) ? `tw:v:${vod}` : null;
+    } catch {
+      return null;
+    }
+    twCurrentVod.set(login, { at: Date.now(), id });
+    return id;
   }
 
   /** 入力が Twitch のチャンネル (URL / tw:<名前>) なら tw:<名前>、Twitch の VOD なら 'vod'、Twitch でなければ null */
@@ -1282,7 +1320,7 @@ const Favorites = (() => {
   }
 
   return {
-    list, add, removeMany, isTwitchChannel, twitchVodStart, twitchVodInfo, twitchLiveInfo, setStar, seedPresets, restorePresets, removeAllPresets, presetCount, removedPresetCount, fetchStatus, fetchArchives,
+    list, add, removeMany, isTwitchChannel, twitchVodStart, twitchVodInfo, twitchLiveInfo, twitchCurrentVod, setStar, seedPresets, restorePresets, removeAllPresets, presetCount, removedPresetCount, fetchStatus, fetchArchives,
     previewPack, importPack, packs, removePack, fillIcons,
     checkAccess, rememberMembersOnly, isMembersBlock, setFeedIntervals,
     videoStates, inspectVideos, fetchYouTubePlaylist, fetchSubscriptions,

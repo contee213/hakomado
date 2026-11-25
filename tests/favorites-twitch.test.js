@@ -73,7 +73,7 @@ function streamed({ head, tail }, log) {
 /**
  * pages = {名前: page() か、取るたびに呼ぶ関数} (無ければ 404)、previews = 配信中の名前の一覧 (許可が無いときのサムネイル画像)
  */
-function setup({ allowed = true, pages = {}, previews = [] } = {}) {
+function setup({ allowed = true, pages = {}, previews = [], gql = () => ({ data: { user: null } }) } = {}) {
   const calls = [];
   const log = {};
   const fetch = async (url, init) => {
@@ -84,6 +84,10 @@ function setup({ allowed = true, pages = {}, previews = [] } = {}) {
       const p = pages[decodeURIComponent(u.pathname.slice(1))];
       const v = typeof p === 'function' ? p() : p;
       return v ? streamed(v, log) : new Response('', { status: 404 });
+    }
+    if (u.hostname === 'gql.twitch.tv') {
+      const r = gql(JSON.parse(init.body));
+      return r instanceof Response ? r : new Response(JSON.stringify(r), { status: 200 });
     }
     if (u.hostname === 'static-cdn.jtvnw.net') {
       const login = u.pathname.match(/live_user_(\w+)-/)?.[1];
@@ -227,4 +231,33 @@ test('バックアップとチャンネルパックは Twitch のチャンネル
   );
   assert.deepEqual(r.channels, [{ channelId: 'tw:lofigirl', name: 'LofiGirl', group: 'T', icon: 'https://static-cdn.jtvnw.net/jtv_user_pictures/x.png' }]);
   assert.throws(() => P.parse(JSON.stringify({ app: 'hakomado', type: 'channels', name: 'T', channels: [{ channelId: 'tw:Bad!', name: 'x' }] })));
+});
+
+test('配信中の VOD: 内部の窓口 (GQL) で聞き、2 分は覚えておく。Cookie は付けない', async () => {
+  const asked = [];
+  const { F, calls } = setup({
+    gql: (b) => {
+      asked.push(b.variables.l);
+      return { data: { user: { stream: b.variables.l === 'onair' ? { archiveVideo: { id: '2940156931' } } : null } } };
+    },
+  });
+  assert.equal(await F.twitchCurrentVod('tw:onair'), 'tw:v:2940156931');
+  assert.equal(await F.twitchCurrentVod('tw:onair'), 'tw:v:2940156931');
+  assert.equal(await F.twitchCurrentVod('tw:offair'), null);
+  assert.deepEqual(asked, ['onair', 'offair']);
+  assert.equal(calls[0].init.credentials, 'omit');
+  assert.equal(calls[0].init.method, 'POST');
+});
+
+test('配信中の VOD: VOD を残さない・答えがおかしい・聞けない・許可が無いときは null', async () => {
+  const answers = {
+    novod: { data: { user: { stream: { archiveVideo: null } } } },
+    weird: { data: { user: { stream: { archiveVideo: { id: '../x' } } } } },
+    gone: new Response('', { status: 500 }),
+  };
+  const { F } = setup({ gql: (b) => answers[b.variables.l] });
+  for (const login of Object.keys(answers)) assert.equal(await F.twitchCurrentVod('tw:' + login), null, login);
+  assert.equal(await F.twitchCurrentVod('tw:v:123'), null);
+  const denied = setup({ allowed: false, gql: () => assert.fail('許可が無いのに聞いた') });
+  assert.equal(await denied.F.twitchCurrentVod('tw:onair'), null);
 });

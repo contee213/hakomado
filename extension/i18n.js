@@ -186,6 +186,7 @@ const MESSAGES = {
   rateLimited: ['YouTube から取得を制限されたため、しばらく取りに行きません', 'YouTube is limiting requests; pausing for a while'],
   progressStatus: ['チャンネルの配信状況を確認しています ({0} / {1})', 'Checking live status of channels ({0} / {1})'],
   shareEmpty: ['表示中の枠に配信がありません', 'No streams in the shown tiles'],
+  tileTwitchNoVod: ['この配信は、あとで見る・再生リストに入れられません', "This stream can't be added to Watch later or a playlist"],
   shareImageMaking: ['画像を作っています…', 'Making the image…'],
   shareImageCopied: ['画像をコピーしました。X などの投稿欄に貼り付けられます', 'Copied the image. You can paste it into a post on X or elsewhere'],
   shareImageFail: ['画像を作れませんでした: {0}', 'Could not make the image: {0}'],
@@ -812,7 +813,7 @@ const MESSAGES = {
   plCopyName: ['{0} のコピー', 'Copy of {0}'],
   plDuplicated: ['📃 「{0}」を作りました', '📃 Made "{0}"'],
   plAddPlaceholder: ['追加: YouTube の URL / 動画 ID / @チャンネル名 / YouTube の再生リストの URL / Twitch の VOD の URL (何行でも貼れます)', 'Add: YouTube URL / video ID / @handle / YouTube playlist URL / Twitch VOD URL (paste several lines at once)'],
-  plTwitchLive: ['Twitch のチャンネルのライブは再生リストに入れられません (VOD は入れられます)', "Twitch channel lives can't be added to a playlist (VODs can)"],
+  plTwitchLive: ['再生リストに入れられない Twitch の配信がありました', "Some Twitch streams couldn't be added to the playlist"],
   plAddBtn: ['追加', 'Add'],
   plAddTiles: ['▦ 今の枠を追加', '▦ Add current tiles'],
   plAddTilesTitle: ['表示中の枠の配信を、並び順のまま最後に足す (合わせた同期の補正も入れる)', 'Add the streams in the shown tiles to the end, in order (with their sync offsets)'],
@@ -1225,6 +1226,7 @@ const HTML_EN = {
 <li><b>Type filter</b>: choose which types to show with “🔴 Live / 🎬 Videos / 📱 Shorts” above the list (any combination; shared by Recent videos, Watch history and Watch later)</li>
 <li><b>Watch later</b>: add with 🔖 on tile bars and lists. “▶ Play in current tiles” fills the tiles you have in order and puts the next one in each tile that finishes. Items watched to the end are removed</li>
 <li><b>Playlists</b>: named lists (up to 30, 200 items each). Make one with “+ New”, “▦ From current tiles” or “📥 Import”, and add with the URL box or 📃 in “ℹ️ Tile info” and lists. Drag ⠿ to reorder; a row’s name is what its tile shows</li>
+<li><b>Twitch lives</b>: when you share one, or add it to Watch later or a playlist, it becomes the recording (VOD) of that stream, so it shows the same stream from the start later. If the channel doesn’t keep recordings, it can’t be added (sharing keeps the channel, which shows whatever is live when opened)</li>
 <li>“▶ In order” fills the current tiles from the top and puts the next one in each tile that finishes (items watched to the end get ✓ and it continues from there next time). “⏱ All at once, in sync” lays out all of them and plays the archives in step (up to 16)</li>
 </ul>`,
   'helpPage.sync': `<ul>
