@@ -108,6 +108,21 @@ const isWebTile = (t) => !t.videoId && !!t.web;
 /** 何か入っている枠か (YouTube の動画か URL の枠)。枠が空いているかは必ずこれで見る (tile-slots.js) */
 const tileFilled = TileSlots.filled;
 
+/** URL の枠の iframe の sandbox: 一番外側のページを移すこと (allow-top-navigation) だけを許さない (mountWebTile) */
+const WEB_FRAME_SANDBOX = [
+  'allow-scripts',
+  'allow-same-origin',
+  'allow-forms',
+  'allow-popups',
+  'allow-popups-to-escape-sandbox',
+  'allow-presentation',
+  'allow-modals',
+  'allow-downloads',
+  'allow-pointer-lock',
+  'allow-orientation-lock',
+  'allow-storage-access-by-user-activation',
+].join(' ');
+
 /** URL の枠に入れられる URL の長さの上限 (視聴セッション・バックアップに残るので、長すぎるものは入れない) */
 const WEB_URL_MAX = 2048;
 
@@ -908,12 +923,13 @@ async function loadInput(i, raw) {
 }
 
 /**
- * URL の枠で許可を求める範囲: そのサイトのサブドメインごと ('https://*.example.com/*'。先頭の www. は除く)。
- * プレイヤーは同じサイトの別のサブドメイン (視聴権の確認など) にもアクセスする。許可の無いサブドメインへのアクセスは
- * Chrome がサードパーティとして扱い、ログインの Cookie が付かずに失敗する (Prime Video の「購入済みでない」エラーなど) ため
+ * URL の枠で許可を求める範囲: そのサイトのドメインごと ('https://*.example.com/*'。live.example.co.jp なら example.co.jp。
+ * WebSite.siteDomain)。プレイヤーは同じドメインの別のサブドメイン (ログイン・視聴権の確認など) にもアクセスする。
+ * 許可の無いサブドメインへのアクセスは Chrome がサードパーティとして扱い、ログインの Cookie が付かずに失敗する
+ * (「購入済みでない」「ログインしていない」などのエラーになる) ため
  */
 function webSitePattern(url) {
-  return `https://*.${url.hostname.replace(/^www\./, '')}/*`;
+  return WebSite.pattern(url);
 }
 
 /**
@@ -989,6 +1005,13 @@ async function mountWebTile(i) {
   if (ok) {
     const f = document.createElement('iframe');
     f.allow = 'autoplay; encrypted-media; picture-in-picture; fullscreen';
+    // サイトによっては、枠の中に入ったと分かると一番外側のページ (このマルチビュー画面) を自分のページへ移す。
+    // 移されると視聴中の枠が全部消えるので、それだけを禁じる (allow-top-navigation を付けない)。ほかはふつうのページと同じに動かす
+    f.sandbox = WEB_FRAME_SANDBOX;
+    // この画面は暗いテーマ (color-scheme: dark)。枠の中のページのテーマと違うと、Chrome が枠の中に白い下地を敷き、
+    // 動画だけを映すときの余り (content/web-player.js) が白くなる。たいていのサイトは明るいテーマなので、枠は明るいテーマにする
+    // (暗いテーマのサイトでは下地が暗い色になるだけ)
+    f.style.colorScheme = 'light';
     f.dataset.web = web;
     f.src = web;
     f.addEventListener('load', () => {

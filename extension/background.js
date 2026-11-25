@@ -8,8 +8,9 @@
 importScripts('errlog.js'); // ErrLog (エラーの記録。最初に始めて、ほかのファイルのエラーも記録する)
 ErrLog.install('background');
 importScripts('share-code.js'); // videoIdFromUrl・twitchIdFromUrl
+importScripts('web-site.js'); // WebSite (URL の枠のサイトの範囲・ヘッダーを外すルール)
 
-const RULE_IDS = [1, 2, 3, 4, 5];
+const RULE_IDS = [1, 2, 3, 4, 5, 6];
 
 // アイコンを押すたびに新しいタブを開く (タブごとに別の視聴セッションになるので、いくつ開いてもよい)
 chrome.action.onClicked.addListener((current) => {
@@ -69,18 +70,11 @@ async function applyRules(tabIds) {
         condition: { urlFilter: '||www.youtube.com/watch', resourceTypes: ['sub_frame'], tabIds },
       },
     );
-    // URL の枠 (YouTube 以外) に入れることを使う人が許可したサイトも、X-Frame-Options だけを外す。
-    // Content-Security-Policy (frame-ancestors) は外さない (サイトの XSS 対策まで切らないため。それで入らないサイトは入らない)
-    // requestDomains はサブドメインも含む ('https://*.example.com/*' → example.com)
+    // URL の枠 (YouTube 以外) に入れることを使う人が許可したサイトは、枠に入るのを断るヘッダーを外す (WebSite.frameRules)。
+    // X-Frame-Options は外す。Content-Security-Policy は frame-ancestors だけのとき (XSS 対策の指定が無いとき) に限って外す
+    // (サイトの XSS 対策は切らない。それで入らないサイトは入らない)。requestDomains はサブドメインも含む
     const domains = (await webOrigins()).map((o) => o.match(WEB_ORIGIN_RE)[1].toLowerCase());
-    if (domains.length > 0) {
-      addRules.push({
-        id: 3,
-        priority: 1,
-        action: stripFrameHeaders,
-        condition: { requestDomains: domains, resourceTypes: ['sub_frame'], tabIds },
-      });
-    }
+    addRules.push(...WebSite.frameRules(domains, tabIds, [3, 6]));
     // Twitch の埋め込みプレイヤー / チャットは、応答の Content-Security-Policy (frame-ancestors だけが入っている) で
     // parent= に書いた https のサイトの中でしか開けない。拡張機能のページは https でないので、その 2 か所だけ外す。
     // twitch.tv の権限 (optional_host_permissions) を許可したときだけ入れる (許可が変わったら入れ直す: permissions.onAdded / onRemoved)
@@ -137,7 +131,7 @@ async function syncWebPlayer() {
   if (origins.length === 0) {
     if (registered.length) await chrome.scripting.unregisterContentScripts({ ids: [WEB_SCRIPT_ID] });
   } else {
-    const script = { id: WEB_SCRIPT_ID, matches: origins, js: ['content/web-player.js'], allFrames: true, runAt: 'document_idle', persistAcrossSessions: true };
+    const script = { id: WEB_SCRIPT_ID, matches: origins, js: ['web-site.js', 'content/web-player.js'], allFrames: true, runAt: 'document_idle', persistAcrossSessions: true };
     if (registered.length) await chrome.scripting.updateContentScripts([script]);
     else await chrome.scripting.registerContentScripts([script]);
   }
@@ -207,6 +201,7 @@ chrome.runtime.onInstalled.addListener(({ reason }) => {
   createMenus();
   // 更新で中身の変わったスクリプトを登録し直す (許可がある間だけ)
   serialized(syncTwitchPlayer).catch((e) => console.warn('hakomado: Twitch の枠のスクリプトを登録できませんでした', e));
+  serialized(syncWebPlayer).catch((e) => console.warn('hakomado: URL の枠のスクリプトを登録できませんでした', e));
 });
 
 // ---- 取り込み用リンク (AI チャットなどが作る再生リストのリンク)

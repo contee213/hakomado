@@ -324,19 +324,20 @@ body.hl-animate .tile.audible::before { animation: hl-flow 6s ease-in-out infini
 /* Twitch のプレイヤーは、ほかの要素が少しでも重なっていると (透明でも) 自動再生しない (IntersectionObserver v2 で確かめている)。
    そこで Twitch の枠は、操作バーの場所を映像の上に取り、プレイヤーはその下に置く。上 2 割のつかみ範囲は無くし (バーでつかむ)、
    枠内のお知らせはバーの上に出す。バーの場所はふだんは映像の余白と同じ黒一色にして、中身はほかの枠と同じくマウスを乗せたときだけ出す */
-.tile.is-twitch { --tw-bar: 34px; }
-.tile.is-twitch .bar { height: var(--tw-bar); opacity: 1; background: #000; }
-.tile.is-twitch .bar > * { opacity: 0; transition: opacity .15s; }
-.tile.is-twitch:is(:hover, :focus-within) .bar > * { opacity: 1; }
+.tile:is(.is-twitch, .is-web) { --tw-bar: 34px; }
+.tile:is(.is-twitch, .is-web) .bar { height: var(--tw-bar); opacity: 1; background: #000; }
+.tile:is(.is-twitch, .is-web) .bar > * { opacity: 0; transition: opacity .15s; }
+.tile:is(.is-twitch, .is-web):is(:hover, :focus-within) .bar > * { opacity: 1; }
 /* スクリーンショットを撮っている間は、マウスが乗っていても黒一色のまま (中身だけ消す) */
-body.shooting .tile.is-twitch:is(:hover, :focus-within) .bar { opacity: 1; }
-body.shooting .tile.is-twitch:is(:hover, :focus-within) .bar > * { opacity: 0; transition: none; }
-.tile.is-twitch .player-slot { top: var(--tw-bar); height: auto; }
-.tile.is-twitch .drag-zone { display: none; }
-/* 枠のバーを隠しているとき (上部バーの ▭・H キー): どの枠も操作バーを出さず、Twitch の枠は黒い帯も無くして映像を枠いっぱいにする */
+body.shooting .tile:is(.is-twitch, .is-web):is(:hover, :focus-within) .bar { opacity: 1; }
+body.shooting .tile:is(.is-twitch, .is-web):is(:hover, :focus-within) .bar > * { opacity: 0; transition: none; }
+.tile:is(.is-twitch, .is-web) .player-slot { top: var(--tw-bar); height: auto; }
+.tile:is(.is-twitch, .is-web) .drag-zone { display: none; }
+/* 枠のバーを隠しているとき (上部バーの ▭・H キー): どの枠も操作バーを出さず、Twitch・URL の枠は黒い帯も無くして映像を枠いっぱいにする */
 body.bars-off .tile .bar { display: none; }
 body.bars-off .tile.is-twitch .player-slot { top: var(--hl-width); }
-.tile.is-twitch .toast { top: 4px; bottom: auto; }
+body.bars-off .tile.is-web .player-slot { top: 0; }
+.tile:is(.is-twitch, .is-web) .toast { top: 4px; bottom: auto; }
 /* Twitch は、プレイヤーに何かが重なって見える (重なっていそうな) ときも再生しない (IntersectionObserver v2 の見え方の判定)。
    隣の枠の外側の線 (::before) や光 (::after) が少しでもかかると、その枠は読み込んでも再生が始まらず、再生の命令も受け付けない
    (2026-11-25 に確かめた)。そこで:
@@ -423,9 +424,12 @@ body.shooting .global-toast { visibility: hidden; }
 /* 空の枠では、入れ替え (⠿) と、空き枠を消す ✕ だけ出す */
 .tile.is-empty .tile-name, .tile.is-empty .bar-buttons > :not(.close) { display: none; }
 .tile.is-empty .bar-buttons { margin-left: auto; }
-/* URL の枠 (YouTube 以外のサイト) では、枠のバーとつかむ範囲 (枠の上 2 割) を出さない。サイトのプレイヤーの操作が
-   どこにあるか (Prime Video は右上など) はサイトごとに違い、重ねると押せなくなるため。枠の操作は「ℹ️ 枠の情報」の一覧から */
-.tile.is-web .bar, .tile.is-web .drag-zone { display: none; }
+/* URL の枠 (YouTube 以外のサイト): サイトのプレイヤーの操作がどこにあるか (上の端・右上など) はサイトごとに違い、
+   枠のバーを重ねると押せなくなる。そこで Twitch の枠と同じく、バーの場所を映像の上に黒い帯で取り、サイトのページはその下に置く
+   (つかむ範囲 (枠の上 2 割) も出さない。バーでつかむ)。ボタンは URL の枠で効くものだけ (🎧・⟳・⛶・✕)。
+   音の左右・速度・チャット・弾幕など、YouTube・Twitch の枠の中のスクリプトで効くものは出さない */
+.tile.is-web .bar :is([data-act="mix"], [data-act="speed"], [data-act="corner"], [data-act="chat"], [data-act="danmaku"],
+  [data-act="save"], [data-act="like"], [data-act="surf"]) { display: none; }
 
 /* 名前は残りの幅いっぱいに出し、長ければ省略。ボタンは右に寄せて縮めない */
 .bar .tile-name {

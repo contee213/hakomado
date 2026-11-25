@@ -3,6 +3,8 @@
 // - 使う人が URL の枠に入れて許可したサイトにだけ、background.js が登録する (chrome.scripting.registerContentScripts)。
 //   そのサイトを普通に開いたとき・ほかの拡張機能やサイトの枠に入ったときは何もしない (一番外側が Hakomado の画面のときだけ動く)
 // - サイトの中の、さらに内側の枠 (同じサイト) にプレイヤーがあることもあるので、全部の枠で動き、動画のある枠が親に知らせる
+// - 動画だけを枠いっぱいに見せる: ページ全体を拡大して、選んだ動画の部分を枠にぴったり映す (WebSite.fitZoom)。
+//   内側の枠に動画があるときは、その枠が親の枠に知らせ、親はその枠 (iframe) を広げる。動画の無いページ (ログインなど) はそのまま見せる
 (() => {
   'use strict';
 
@@ -42,6 +44,119 @@
     return best;
   }
 
+  // ---- 動画だけを枠いっぱいに見せる
+  // ページの作り (要素の大きさ・並び) は変えず、ページ全体を拡大・移動して、動画の部分を枠にぴったり映す
+  // (html に transform をかけ、動画の外側は clip-path で切る)。動画に重なっている操作ボタン・字幕・コメントは
+  // 元のページと同じ位置関係のまま残る。サイトのプレイヤーの作りは見ない (どこに操作ボタンを置くかはサイトごとに違うため)
+  // 動画が内側の枠 (同じサイトの埋め込みのプレイヤー) にあるときは、その枠 (iframe) を画面いっぱいに広げる。
+  // 内側の枠は中身全体がプレイヤーなので、広げれば中のプレイヤーが枠の大きさに並べ直す (拡大で合わせると、狭い枠向けの
+  // 縦長の並びのまま大きくなってしまう)
+  const ZOOM = 'data-hakomado-zoom';
+  const FILL = 'data-hakomado-fill'; // 画面いっぱいに広げる内側の枠
+  const FILL_ANC = 'data-hakomado-fill-anc'; // その外側の要素 (広げた枠を閉じ込める変形を外し、兄弟を隠す)
+  const CHILD_TTL = TICK_MS * 3; // 内側の枠の知らせがこれより古ければ、もう動画は無い
+  let zoom = null; // 今の拡大 { s, tx, ty, x, y, w, h } (x〜h は拡大する前の、合わせている部分の位置と大きさ)
+  let child = null; // { el: 動画のある内側の枠 (iframe), at: 知らせを受けた時刻 }
+  let styleEl = null;
+  let fillEl = null;
+
+  /** 拡大する前の位置と大きさ (今の拡大を戻して計算する) */
+  function rawRect(el) {
+    const r = el.getBoundingClientRect();
+    // 拡大する前はページの左上からの位置 (スクロールの分を足す。拡大するときにスクロールを 0 に戻すため)
+    if (!zoom) return { x: r.left + scrollX, y: r.top + scrollY, width: r.width, height: r.height };
+    return { x: (r.left - zoom.tx) / zoom.s, y: (r.top - zoom.ty) / zoom.s, width: r.width / zoom.s, height: r.height / zoom.s };
+  }
+
+  function setZoom(r) {
+    const root = document.documentElement;
+    if (!r) {
+      if (!zoom) return;
+      zoom = null;
+      root.removeAttribute(ZOOM);
+      styleEl?.remove();
+      styleEl = null;
+      return;
+    }
+    const z = WebSite.fitZoom(r, innerWidth, innerHeight);
+    // 変わっていなければ書き直さない (位置は 0.5px、倍率は 0.2% まで同じとみなす)
+    if (zoom && Math.abs(zoom.s - z.s) < 0.002 && ['tx', 'ty', 'x', 'y', 'w', 'h'].every((k) => Math.abs(zoom[k] - z[k]) < 0.5)) return;
+    if (!zoom) scrollTo(0, 0); // 拡大は html の左上を基準にするので、ページの位置を戻しておく (位置はスクロールの分を含めて計算し直す)
+    zoom = z;
+    if (!styleEl?.isConnected) {
+      styleEl = document.createElement('style');
+      (document.head || root).appendChild(styleEl);
+    }
+    const px = (n) => `${Math.round(n * 100) / 100}px`;
+    const [x1, y1, x2, y2] = [z.x, z.y, z.x + z.w, z.y + z.h].map(px);
+    styleEl.textContent = `
+html[${ZOOM}] { transform-origin: 0 0 !important; transform: translate(${px(z.tx)}, ${px(z.ty)}) scale(${z.s}) !important;
+  clip-path: polygon(${x1} ${y1}, ${x2} ${y1}, ${x2} ${y2}, ${x1} ${y2}) !important; }
+html[${ZOOM}] { background: #000 !important; }
+html[${ZOOM}], html[${ZOOM}] body { scrollbar-width: none !important; }
+`;
+    root.setAttribute(ZOOM, '');
+  }
+
+  /** 内側の枠 el を画面いっぱいに広げる (null で戻す) */
+  function setFill(el) {
+    if (el === fillEl) return;
+    for (const e of document.querySelectorAll(`[${FILL}], [${FILL_ANC}]`)) {
+      e.removeAttribute(FILL);
+      e.removeAttribute(FILL_ANC);
+    }
+    fillEl = el;
+    if (!el) return;
+    if (!document.getElementById('hakomado-fill-style')) {
+      const s = document.createElement('style');
+      s.id = 'hakomado-fill-style';
+      s.textContent = `
+html:has([${FILL}]), html:has([${FILL}]) body { overflow: hidden !important; background: #000 !important; }
+[${FILL_ANC}] { transform: none !important; filter: none !important; perspective: none !important; contain: none !important; will-change: auto !important; backdrop-filter: none !important; }
+[${FILL_ANC}] > :not([${FILL_ANC}]):not([${FILL}]) { visibility: hidden !important; }
+[${FILL}] { position: fixed !important; inset: 0 !important; width: 100vw !important; height: 100vh !important; max-width: none !important; max-height: none !important; margin: 0 !important; border: 0 !important; z-index: 2147483647 !important; transform: none !important; }
+`;
+      (document.head || document.documentElement).appendChild(s);
+    }
+    el.setAttribute(FILL, '');
+    for (let a = el.parentElement; a; a = a.parentElement) a.setAttribute(FILL_ANC, '');
+  }
+
+  function updateZoom(v) {
+    // 大きめの動画 (おすすめの小さな試聴などは除く) があれば、その部分を拡大して映す
+    if (v && v.isConnected) {
+      // 拡大はページの左上を基準にするので、拡大している間にサイトがスクロールしたら戻してから測る
+      if (zoom && (scrollX || scrollY)) scrollTo(0, 0);
+      const r = rawRect(v);
+      if (WebSite.bigEnough(r, innerWidth, innerHeight)) {
+        setFill(null);
+        setZoom(r);
+        return;
+      }
+    }
+    setZoom(null);
+    // 無ければ、動画のある内側の枠を広げる
+    setFill(child && Date.now() - child.at < CHILD_TTL && child.el.isConnected ? child.el : null);
+  }
+
+  /** 広げるものがあれば、親の枠 (Hakomado の画面でなく、サイトの外側の枠) に、この枠を広げてもらう */
+  function tellParent() {
+    if ((zoom || fillEl) && window.parent !== window.top) window.parent.postMessage({ hakomadoWeb: 'child' }, '*');
+  }
+
+  /** 内側の枠からの知らせ。同じサイト (ドメイン) の枠だけを広げる (広告の枠などに広げさせない) */
+  function onChild(e) {
+    let same = false;
+    try {
+      same = WebSite.siteDomain(new URL(e.origin).hostname) === WebSite.siteDomain(location.hostname);
+    } catch {
+      /* 読めないオリジン */
+    }
+    if (!same) return;
+    const el = [...document.querySelectorAll('iframe')].find((f) => f.contentWindow === e.source);
+    if (el) child = { el, at: Date.now() };
+  }
+
   function apply(v) {
     if (want.muted != null) v.muted = want.muted;
     if (want.rate != null && Number.isFinite(v.duration)) v.playbackRate = want.rate;
@@ -53,6 +168,8 @@
       current = v;
       if (v) apply(v);
     }
+    updateZoom(v);
+    tellParent();
     if (!v) return;
     const d = v.duration;
     window.top.postMessage(
@@ -71,6 +188,10 @@
   }
 
   window.addEventListener('message', (e) => {
+    if (e.data?.hakomadoWeb === 'child' && e.source && e.source !== window) {
+      onChild(e);
+      return;
+    }
     if (e.origin !== EXT_ORIGIN || e.source !== window.top) return;
     const m = e.data;
     if (!m || typeof m.hakomadoWeb !== 'string') return;

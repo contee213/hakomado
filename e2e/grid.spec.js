@@ -751,6 +751,26 @@ test.describe('デザインガイドの決まり', () => {
     await expect(page.locator('body')).not.toHaveClass(/bars-off/);
   });
 
+  test('URL の枠: 映像の上に黒い帯でバーの場所を取り、URL の枠で効くボタンだけを出す。バーを隠すと帯も無くす', async ({ openGrid }) => {
+    const page = await openGrid();
+    await skipTour(page);
+    // サイトの許可は取らない (取れない) ので、枠には「許可して読み込む」が出る。バーの形だけを見る
+    await page.evaluate(() => setTileWeb(state.order[0], 'https://video.example.com/watch/1'));
+    const tile = visibleTiles(page).first();
+    await expect(tile).toHaveClass(/is-web/);
+    await expect(tile.locator('.web-perm')).toBeVisible();
+    const slotTop = () => tile.evaluate((el) => el.querySelector('.player-slot').getBoundingClientRect().top - el.getBoundingClientRect().top);
+    expect(await slotTop()).toBeGreaterThanOrEqual(30); // バーの帯の下
+    await expect(tile.locator('.bar')).toBeVisible();
+    await expect(tile.locator('.drag-zone')).toBeHidden();
+    await tile.hover();
+    const acts = await tile.locator('.bar [data-act]').evaluateAll((bs) => bs.filter((b) => b.checkVisibility()).map((b) => b.dataset.act));
+    expect(acts).toEqual(['audio', 'reload', 'max', 'clear']);
+    await page.locator('#tileBars').click();
+    await expect(tile.locator('.bar')).toBeHidden();
+    expect(await slotTop()).toBeLessThan(5);
+  });
+
   test('ロゴから開いた起動画面は、背景のクリックでも閉じる (A8)', async ({ openGrid }) => {
     const page = await openGrid();
     await skipTour(page);
