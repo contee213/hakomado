@@ -824,6 +824,16 @@
 
   <!-- 自動再生の準備の進み具合を読み上げる (見た目は上部バーの「自動再生」ボタンの下端の線とマウスを乗せたときの説明) -->
   <div id="autoProgress" class="sr-only" role="status" aria-live="polite"><span id="autoProgressTitle" data-i18n="progress.title" hidden>自動再生を準備しています</span> <span id="autoProgressText"></span></div>
+  <!-- 自動再生の準備の進み具合の箱 (画面中央)。✕ で隠しても準備は続き、ボタンの下端の線とマウスを乗せたときの説明には出し続ける。読み上げは上の #autoProgress -->
+  <div id="autoProgressBox" class="auto-progress" aria-hidden="true" hidden>
+    <div class="auto-progress-head">
+      <span class="auto-progress-title" data-i18n="progress.title">自動再生を準備しています</span>
+      <button type="button" id="autoProgressClose" class="dock-close auto-progress-close" tabindex="-1" data-i18n-title="progress.close" title="隠す (準備は続きます。進み具合は「自動再生」のボタンに出ます)">✕</button>
+    </div>
+    <div id="autoProgressBoxText" class="auto-progress-text"></div>
+    <div class="auto-progress-track"><div id="autoProgressBoxBar" class="auto-progress-box-bar"></div></div>
+    <div id="autoProgressPct" class="auto-progress-pct"></div>
+  </div>
 
   <template id="favItemTemplate">
     <li class="fav-item">
