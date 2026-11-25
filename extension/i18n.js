@@ -860,6 +860,7 @@ const MESSAGES = {
   favEmpty: ['まだチャンネルがありません。「📺 チャンネル」の「⚙ 管理」から足してください。', 'No channels yet. Add some from “⚙ Manage” in “📺 Channels”.'],
   liveCount: ['配信中 {0}', '{0} live'],
   checking: ['確認中…', 'Checking…'],
+  favStaleTitle: ['前回の結果です。今の配信状況を確かめています', 'Showing the last result while checking the current status'],
   unavailable: ['取得できませんでした', 'Unavailable'],
   upcomingAt: ['予定 {0}', 'Upcoming {0}'],
   shownIn: ['枠 {0} で表示中', 'In tile {0}'],

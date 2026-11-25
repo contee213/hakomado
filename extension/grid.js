@@ -8424,6 +8424,15 @@ async function updateLiveCount() {
   el.title = tr('liveCountTitle', ids.size);
 }
 
+// 確かめている間 ('loading') に薄く見せる前回の結果 (channelId -> {state, videoId, title, startAt})。
+// このタブで前に分かったもの (lastKnownStatus) が無いとき、ブラウザを閉じても残している取得結果から作る (Favorites.peekStatuses)。
+// 配信中の件数には数えない
+const favPeek = new Map();
+/** 確かめている間に見せる前回の結果 (無ければ undefined) */
+function favPrevStatus(channelId) {
+  return lastKnownStatus.get(channelId) || favPeek.get(channelId);
+}
+
 // channelId -> 'loading' | 'error' | {state, videoId, title, startAt}。変わるたびに配信中の件数を数え直す
 const favStatus = new (class extends Map {
   set(k, v) {
@@ -8530,6 +8539,7 @@ function startTour() {
  * quick = ホロジュールで分かるチャンネルは RSS を取り直さない (Favorites.fetchStatus の quick)
  */
 function queueFavStatuses(favs, force, { quick = false } = {}) {
+  const peekFor = []; // 前回の結果をまだ持っていないチャンネル (まとめて 1 回で作る)
   for (const f of favs) {
     const st = favStatus.get(f.channelId);
     if (!force && st && st !== 'error' && st !== 'loading') continue;
@@ -8537,6 +8547,15 @@ function queueFavStatuses(favs, force, { quick = false } = {}) {
     if (st === 'loading' && !force) continue; // 取得中
     favStatus.set(f.channelId, 'loading');
     favQueue.push({ f, force, quick });
+    if (!favPrevStatus(f.channelId)) peekFor.push(f);
+  }
+  if (peekFor.length) {
+    Favorites.peekStatuses(peekFor, { kinds: premiereKinds() })
+      .then((prevs) => {
+        for (const [id, prev] of prevs) if (favStatus.get(id) === 'loading') favPeek.set(id, prev);
+        if (prevs.size && favDialog.open) scheduleFavRender();
+      })
+      .catch(() => {});
   }
   while (favWorkers < 4 && favQueue.length) {
     favWorkers++;
@@ -8601,14 +8620,19 @@ function renderFavorites(favs) {
   const shown = q
     ? favs.filter((f) => [f.name, f.nameJa, f.handle, f.group].some((s) => String(s ?? '').toLowerCase().includes(q)))
     : favs;
-  const entries = shown.map((f) => ({ f, st: favStatus.get(f.channelId) }));
-  const live = entries.filter((e) => e.st?.state === 'live').sort((a, b) => (a.st.startAt || 0) - (b.st.startAt || 0));
+  // 確かめている間 ('loading') は、前回の結果があればその並びに置いて薄く見せる (prev)
+  const entries = shown.map((f) => {
+    const st = favStatus.get(f.channelId);
+    const prev = st === 'loading' ? favPrevStatus(f.channelId) : undefined;
+    return { f, st, prev, at: prev || st };
+  });
+  const live = entries.filter((e) => e.at?.state === 'live').sort((a, b) => (a.at.startAt || 0) - (b.at.startAt || 0));
   const upcoming = entries
-    .filter((e) => e.st?.state === 'upcoming')
-    .sort((a, b) => (a.st.startAt || Infinity) - (b.st.startAt || Infinity));
-  const rest = entries.filter((e) => e.st?.state !== 'live' && e.st?.state !== 'upcoming');
+    .filter((e) => e.at?.state === 'upcoming')
+    .sort((a, b) => (a.at.startAt || Infinity) - (b.at.startAt || Infinity));
+  const rest = entries.filter((e) => e.at?.state !== 'live' && e.at?.state !== 'upcoming');
   selShown.clear();
-  buildCollabGroups([...live, ...upcoming].map(({ f, st }) => favSelEntry(f, st)));
+  buildCollabGroups([...live, ...upcoming].filter((e) => !e.prev).map(({ f, st }) => favSelEntry(f, st)));
 
   const sections = [];
   if (live.length) {
@@ -8625,11 +8649,12 @@ function renderFavorites(favs) {
     ? tr('favNoMatch', favFilter)
     : tr(scope === 'star' ? 'starEmpty' : 'chEmpty');
   updateFavEmptyActions(!q && scope !== 'star' && !favs.length);
-  document.getElementById('favLiveCount').textContent = live.length ? tr('liveCount', live.length) : '';
+  const liveNow = live.filter((e) => !e.prev).length;
+  document.getElementById('favLiveCount').textContent = liveNow ? tr('liveCount', liveNow) : '';
   updateSelMarks();
 }
 
-function favItem({ f, st }) {
+function favItem({ f, st, prev }) {
   const li = document.getElementById('favItemTemplate').content.firstElementChild.cloneNode(true);
   const icon = li.querySelector('.fav-icon');
   // アイコンが無い / 読めないときは灰色の丸だけ見せる
@@ -8643,7 +8668,17 @@ function favItem({ f, st }) {
   const badge = li.querySelector('.badge');
   const title = li.querySelector('.fav-title');
   const thumb = li.querySelector('.fav-thumb');
-  if (st === 'loading') {
+  if (st === 'loading' && prev) {
+    // 前回の結果を薄く見せる (確かめ終わるまで押せない。終わった配信を枠に入れないように)
+    li.classList.add('loading', 'stale');
+    badge.textContent = tr('checking');
+    li.title = `${li.title}\n${tr('favStaleTitle')}`;
+    if (prev.state !== 'offline') {
+      title.textContent = prev.title || '';
+      const src = thumbUrl(prev.videoId);
+      if (src) thumb.src = src;
+    }
+  } else if (st === 'loading') {
     li.classList.add('loading');
     badge.textContent = tr('checking');
   } else if (st === 'error' || !st) {
@@ -13027,6 +13062,8 @@ async function chooseSession() {
   twitchAllowed = await chrome.permissions.contains({ origins: TWITCH_ORIGINS }).catch(() => false);
   buildTiles();
   refreshFavKeys().catch(() => {});
+  // ブラウザを閉じても残している配信状況の取得結果のうち、外したチャンネルの分・古い分を片付ける
+  Favorites.pruneCache().catch((e) => console.warn('hakomado: 取得結果の片付けに失敗', e));
   refreshSavedIds().catch(() => {});
   refreshPlaylistIds().catch(() => {});
   setupDragSwap();
