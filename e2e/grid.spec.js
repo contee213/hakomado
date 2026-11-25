@@ -923,13 +923,15 @@ test.describe('枠の入れ替え', () => {
     const tb = await target.boundingBox();
     const to = { x: tb.x + tb.width / 2, y: tb.y + tb.height / 2 };
     await page.mouse.move(to.x, to.y, { steps: 10 });
+    // Linux の Playwright では、影の位置が 1 つ前のマウスの位置になることがある (dragover の座標が 1 回遅れる)。
+    // 同じ場所でもう一度動かして、最後の位置の dragover を届ける
+    await page.mouse.move(to.x, to.y);
     const ghost = page.locator('.drag-ghost');
     await expect(ghost).toHaveCount(1);
     const g = await ghost.boundingBox();
     expect(Math.abs(g.width - t.width * k)).toBeLessThan(2);
     expect(Math.abs(g.height - t.height * k)).toBeLessThan(2);
     // 影の中でのカーソルの位置 = つかんだときの枠の中での位置 × 縮めた比
-    // (dragover はマウスの動きより遅れて届くことがある (Linux) ので、追いつくまで待つ)
     await expect
       .poll(async () => {
         const p = await ghost.boundingBox();
