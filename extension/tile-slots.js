@@ -6,10 +6,10 @@
 
 const TileSlots = (() => {
   /**
-   * 何か入っている枠か (YouTube・Twitch の動画か、URL の枠)。
+   * 何か入っている枠か (YouTube・Twitch の動画か、URL の枠・ファイルの枠)。
    * 「枠が空いているか」は必ずこれで見る (videoId だけで見ると URL の枠を空き枠と取り違える)
    */
-  const filled = (t) => !!t && (!!t.videoId || !!t.web);
+  const filled = (t) => !!t && (!!t.videoId || !!t.web || !!t.file);
 
   /**
    * 表示する枠を n 個にするときの並び順。新しいレイアウトにもある番号 (n 番まで) の枠は中身をそのまま (番号を変えない)。

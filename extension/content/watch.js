@@ -11,6 +11,15 @@
   const PARENT_ORIGIN = 'chrome-extension://' + chrome.runtime.id;
   document.documentElement.classList.add('hakomado-frame');
 
+  // パソコンのファイルを持って枠の上に入ってきたら、親に知らせる (親が枠の iframe を無視して、ファイルの枠へのドロップを受け取れるように)
+  document.addEventListener(
+    'dragenter',
+    (e) => {
+      if ([...(e.dataTransfer?.types || [])].includes('Files')) window.parent.postMessage({ hakomado: 'fileDrag' }, PARENT_ORIGIN);
+    },
+    true,
+  );
+
   // ---- ミュートの操作は、ページ側で動く watch-main.js が YouTube プレイヤーの API で行う
   // (プレイヤーのスピーカー表示と実際の状態をそろえるため)。ここは親との中継だけ。
   const setMuted = (muted) =>

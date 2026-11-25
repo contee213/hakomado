@@ -25,6 +25,7 @@ const KINDS = [
   () => ({ videoId: null, web: '' }), // 空き枠
   (k) => ({ videoId: `vid${String(k).padStart(8, '0')}`, web: '' }), // YouTube
   (k) => ({ videoId: null, web: `https://example.com/${k}` }), // URL の枠
+  (k) => ({ videoId: null, web: '', file: `f${k}` }), // ファイルの枠
 ];
 
 function randomState(rand) {
@@ -41,9 +42,10 @@ function randomState(rand) {
 const isPermutation = (o) => o.length === MAX && new Set(o).size === MAX && o.every((i) => Number.isInteger(i) && i >= 0 && i < MAX);
 const filledShown = (s) => s.order.slice(0, s.count).filter((j) => TileSlots.filled(s.tiles[j]));
 
-test('filled: 配信・URL の枠は中身あり、空き枠・欠けた値は中身なし', () => {
+test('filled: 配信・URL の枠・ファイルの枠は中身あり、空き枠・欠けた値は中身なし', () => {
   assert.equal(TileSlots.filled({ videoId: 'abcdefghijk', web: '' }), true);
   assert.equal(TileSlots.filled({ videoId: null, web: 'https://example.com/' }), true);
+  assert.equal(TileSlots.filled({ videoId: null, web: '', file: 'f123' }), true);
   assert.equal(TileSlots.filled({ videoId: null, web: '' }), false);
   assert.equal(TileSlots.filled(null), false);
   assert.equal(TileSlots.filled(undefined), false);

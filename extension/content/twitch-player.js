@@ -25,6 +25,14 @@
   const vod = new URLSearchParams(location.search).has('video');
   const video = () => document.querySelector('video');
   const post = (msg) => window.parent.postMessage(msg, PARENT_ORIGIN);
+  // パソコンのファイルを持って枠の上に入ってきたら、親に知らせる (親が枠の iframe を無視して、ファイルの枠へのドロップを受け取れるように)
+  document.addEventListener(
+    'dragenter',
+    (e) => {
+      if ([...(e.dataTransfer?.types || [])].includes('Files')) post({ hakomado: 'fileDrag' });
+    },
+    true,
+  );
 
   // 消音は親が公式の命令で行う (測っている間の消音の付け外しも、親が命令を送る) ので、ここでは何もしない
   const Mix = HakomadoMix({ video, adShowing: () => false, setMuted: () => {}, unmuteQuietly: () => {}, parentOrigin: PARENT_ORIGIN });

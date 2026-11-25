@@ -428,6 +428,8 @@ body.shooting .global-toast { visibility: hidden; }
    枠のバーを重ねると押せなくなる。そこで Twitch の枠と同じく、バーの場所を映像の上に黒い帯で取り、サイトのページはその下に置く
    (つかむ範囲 (枠の上 2 割) も出さない。バーでつかむ)。ボタンは URL の枠で効くものだけ (🎧・⟳・⛶・✕)。
    音の左右・速度・チャット・弾幕など、YouTube・Twitch の枠の中のスクリプトで効くものは出さない */
+/* ファイルの枠: 動画を枠いっぱいに、比を変えずに入れる (動画の中の操作は Chrome の標準のもの) */
+.file-video { width: 100%; height: 100%; object-fit: contain; background: #000; display: block; }
 .tile.is-web .bar :is([data-act="mix"], [data-act="speed"], [data-act="corner"], [data-act="chat"], [data-act="danmaku"],
   [data-act="save"], [data-act="like"], [data-act="surf"]) { display: none; }
 

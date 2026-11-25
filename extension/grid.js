@@ -101,11 +101,19 @@ function newTileState() {
   // corner = ストレッチで映像の端を切るとき、残す角 (CORNERS)。配信者が映る角は配信ごとに違うので、動画を変えたら右下に戻す
   // web = URL の枠 (YouTube 以外のサイト。videoId は null のまま)。そのページをそのまま枠に入れ、
   //   content/web-player.js が中の動画プレイヤーを操作する。YouTube 用の機能 (チャット・同期・共有など) は使えない
-  return { input: '', videoId: null, web: '', chat: false, danmaku: null, muted: true, auto: false, queue: false, fill: false, label: '', pan: 0, gain: 1, delay: 0, speed: 1, short: false, corner: 'br' };
+  // file = ファイルの枠 (パソコンの動画ファイルを枠にドロップしたもの)。ファイルの持ち手 (LocalFiles) の ID。
+  //   label にファイル名を入れる。枠の操作・見た目は URL の枠と同じ (isWebTile)
+  return { input: '', videoId: null, web: '', file: '', chat: false, danmaku: null, muted: true, auto: false, queue: false, fill: false, label: '', pan: 0, gain: 1, delay: 0, speed: 1, short: false, corner: 'br' };
 }
 
-/** URL の枠か (YouTube の動画が入っておらず、サイトの URL が入っている) */
-const isWebTile = (t) => !t.videoId && !!t.web;
+/**
+ * URL の枠か (YouTube の動画が入っておらず、サイトの URL かファイルが入っている)。
+ * ファイルの枠も、枠の操作・見た目・自動再生での扱いは URL の枠と同じなので、ここに含める (区別は isFileTile)
+ */
+const isWebTile = (t) => !t.videoId && (!!t.web || !!t.file);
+/** ファイルの枠か (パソコンの動画ファイルを枠にドロップしたもの) */
+const isFileTile = (t) => !t.videoId && !t.web && !!t.file;
+const FILE_ID_RE = /^f\d{1,20}$/;
 /** 何か入っている枠か (YouTube の動画か URL の枠)。枠が空いているかは必ずこれで見る (tile-slots.js) */
 const tileFilled = TileSlots.filled;
 
@@ -219,6 +227,7 @@ function applySession(saved = {}) {
       }
       if (picked.videoId != null && !(typeof picked.videoId === 'string' && (ID_RE.test(picked.videoId) || TWITCH_ID_RE.test(picked.videoId)))) picked.videoId = null;
       if (picked.web && (picked.web.length > WEB_URL_MAX || webUrlOf(picked.web)?.protocol !== 'https:')) picked.web = '';
+      if (picked.file && !FILE_ID_RE.test(picked.file)) picked.file = '';
       if ('pan' in picked) picked.pan = clampPan(picked.pan);
       if ('gain' in picked) picked.gain = clampGain(picked.gain);
       if ('delay' in picked) picked.delay = clampDelay(picked.delay);
@@ -990,6 +999,7 @@ async function grantWebSite(url, setMsg) {
  * 前の版で狭く許可した など) 枠の中に案内と「許可して読み込む」を出す (そのまま入れると Chrome の「接続が拒否されました」になるため)
  */
 async function mountWebTile(i) {
+  if (isFileTile(state.tiles[i])) return mountFileTile(i);
   const v = views[i];
   const web = state.tiles[i].web;
   const token = (v.webToken = (v.webToken || 0) + 1);
@@ -1043,12 +1053,148 @@ async function mountWebTile(i) {
   v.webPrompt = box;
 }
 
-/** URL の枠の中身 (iframe・許可の案内) を片付ける */
+/** URL の枠・ファイルの枠の中身 (iframe・動画・許可の案内) を片付ける */
 function unmountWebTile(v) {
   v.webToken = (v.webToken || 0) + 1; // 確かめている途中の mountWebTile を捨てる
   v.webMounted = null;
   v.webPrompt?.remove();
   v.webPrompt = null;
+  if (v.fileUrl) {
+    URL.revokeObjectURL(v.fileUrl);
+    v.fileUrl = null;
+  }
+}
+
+// ---- ファイルの枠: パソコンの動画ファイルを枠にドロップすると、その枠で再生する (画面にボタンは足さない)
+// ドロップしたファイルの持ち手 (FileSystemFileHandle) を LocalFiles (IndexedDB) に覚え、開き直したら同じファイルを再生する。
+// 開き直したときに Chrome がファイルを開く許可を聞き直すときだけ、枠の中に「許可して再生」を出す (押した操作の中でしか聞けないため)
+
+/** ファイルの枠の中身を作る: 動画を入れる。読めなければ (許可が要る・ファイルが無い) 枠の中に案内を出す */
+async function mountFileTile(i) {
+  const v = views[i];
+  const t = state.tiles[i];
+  const id = t.file;
+  const name = t.label || t.input;
+  const token = (v.webToken = (v.webToken || 0) + 1);
+  let file = v.droppedFile?.id === id ? v.droppedFile.file : null; // ドロップした直後は持ち手を待たずに再生する
+  let handle = null;
+  let needPermission = false;
+  if (!file) {
+    try {
+      handle = await LocalFiles.get(id);
+      const p = handle ? await handle.queryPermission({ mode: 'read' }) : 'denied';
+      if (p === 'granted') file = await handle.getFile();
+      else needPermission = !!handle && p === 'prompt';
+    } catch {
+      /* ファイルを動かした・消した */
+    }
+  }
+  // 確かめている間に読み込み直した・別の中身にした・隠した
+  if (v.webToken !== token || state.tiles[i].file !== id || !isVisible(i)) return;
+  const slot = v.el.querySelector('.player-slot');
+  if (file) {
+    const vid = document.createElement('video');
+    vid.className = 'file-video';
+    vid.controls = true;
+    vid.autoplay = !pausedAll;
+    vid.playsInline = true;
+    vid.dataset.file = id;
+    vid.dataset.loaded = '1';
+    v.fileUrl = URL.createObjectURL(file);
+    vid.src = v.fileUrl;
+    // 再生の状態は URL の枠と同じ形で覚える (「ℹ 枠の情報」の再生位置・自動再生で止まった枠を戻すなど)
+    const report = () => {
+      const d = vid.duration;
+      v.web = { t: vid.currentTime, d: Number.isFinite(d) ? d : -1, paused: vid.paused, muted: vid.muted, w: vid.videoWidth, h: vid.videoHeight };
+    };
+    for (const ev of ['loadedmetadata', 'timeupdate', 'play', 'pause', 'volumechange', 'ratechange']) vid.addEventListener(ev, report);
+    vid.addEventListener(
+      'loadedmetadata',
+      () => {
+        applyAudio(i);
+        applySpeed(i, true);
+        applyLoop(i);
+      },
+      { once: true },
+    );
+    vid.addEventListener('error', () => showToast(i, tr('fileCantPlay', name)));
+    // 動画の中のスピーカーで音を切り替えたら、枠の音の状態もそろえる (ほかの枠の音の扱いは、ℹ 枠の情報の 🔊 と同じ)
+    vid.addEventListener('volumechange', () => {
+      if (state.tiles[i].file === id && vid.muted !== state.tiles[i].muted) setAudio(i, { solo: false, on: !vid.muted });
+    });
+    slot.appendChild(vid);
+    v.player = vid;
+    return;
+  }
+  const box = document.createElement('div');
+  box.className = 'web-perm';
+  const msg = document.createElement('p');
+  msg.textContent = tr(needPermission ? 'fileNeedPermission' : 'fileMissing', name);
+  box.append(msg);
+  if (needPermission) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.textContent = tr('fileAllow');
+    btn.addEventListener('click', async () => {
+      let p = 'denied';
+      try {
+        p = await handle.requestPermission({ mode: 'read' });
+      } catch {
+        /* 聞けなかった */
+      }
+      if (p === 'granted' && state.tiles[i].file === id) renderTile(i, { reloadPlayer: true });
+    });
+    box.append(btn);
+  }
+  slot.appendChild(box);
+  v.webPrompt = box;
+}
+
+/** ファイルの枠の動画に、YouTube の枠と同じ形の指示を読み替えて送る (音・一時停止・速度・繰り返し・シーク) */
+function postToVideo(vid, msg) {
+  if (msg.hakomado === 'audio') vid.muted = !!msg.muted;
+  else if (msg.hakomado === 'playback') {
+    if (msg.play) vid.play().catch(() => {});
+    else vid.pause();
+  } else if (msg.hakomado === 'speed') {
+    const r = Number(msg.r);
+    if (Number.isFinite(r) && r >= 0.25 && r <= 4) vid.playbackRate = r;
+  } else if (msg.hakomado === 'loop') vid.loop = !!msg.on;
+  else if (msg.hakomado === 'sync' && msg.op === 'seek') {
+    const t = Number(msg.t);
+    if (Number.isFinite(t) && t >= 0) vid.currentTime = t;
+  }
+}
+
+/**
+ * 枠 i にドロップされた動画ファイルを入れる。持ち手 (handlePromise) は、ドロップの中ですぐ頼んだもの
+ * (あとからは取れない)。取れたら覚えておき、開き直したときに同じファイルを再生する
+ */
+function setTileFile(i, file, handlePromise) {
+  const prev = state.tiles[i].videoId;
+  if (prev) WatchHistory.removed(prev, 'replaced');
+  views[i].danmaku.clear();
+  const id = LocalFiles.newId();
+  const name = file.name.slice(0, 200);
+  const anyAudible = state.tiles.some((t, j) => j !== i && isVisible(j) && tileFilled(t) && !t.muted);
+  state.tiles[i] = { ...newTileState(), input: name, label: name, file: id, muted: anyAudible };
+  views[i].droppedFile = { id, file };
+  renderTile(i, { reloadPlayer: true, reloadChat: true });
+  save();
+  handlePromise
+    .then((h) => (h?.kind === 'file' ? LocalFiles.put(id, h) : null))
+    .catch((e) => console.warn('hakomado: ファイルの場所を覚えられませんでした', e));
+}
+
+/** 使われていないファイルの持ち手を消す (どの視聴セッションの枠にも入っていないもの) */
+async function pruneLocalFiles() {
+  const all = await chrome.storage.local.get(null);
+  const keep = new Set(state.tiles.map((t) => t.file).filter(Boolean));
+  for (const [k, s] of Object.entries(all)) {
+    if (!k.startsWith(SESSION_PREFIX) || !Array.isArray(s?.tiles)) continue;
+    for (const t of s.tiles) if (typeof t?.file === 'string' && t.file) keep.add(t.file);
+  }
+  await LocalFiles.prune(keep);
 }
 
 function setTileWeb(i, href) {
@@ -1456,12 +1602,13 @@ function renderTile(i, { reloadPlayer = false, reloadChat = false } = {}) {
   if (visible && isWebTile(t)) {
     // URL の枠: そのページをそのまま入れる。中の動画は content/web-player.js が見つけて知らせてくる (onWebMessage)
     // (中身は許可を確かめてから作るので、作り始めた URL を覚えておき、ほかの描き直しで作り直さない)
-    if (reloadPlayer || v.webMounted !== t.web) {
+    const webKey = t.web || `file:${t.file}`;
+    if (reloadPlayer || v.webMounted !== webKey) {
       v.player?.remove();
       el.querySelector('.twitch-ask')?.remove();
       v.player = null;
       unmountWebTile(v);
-      v.webMounted = t.web;
+      v.webMounted = webKey;
       Object.assign(v, { archive: null, info: null, playStatus: '', ss: null, lv: null, meta: null, social: null, web: null });
       Diagnose.clear(i);
       el.classList.remove('is-live');
@@ -2113,6 +2260,7 @@ function setupMixPanel(i, el) {
  * 送ると「宛先のオリジンが違う」エラーになるので送らない (読み込み後に URL の指定と load 時の再送で反映される)
  */
 function postToFrame(frame, msg) {
+  if (frame?.dataset.file) return postToVideo(frame, msg); // ファイルの枠 (iframe でなく動画そのもの)
   if (!frame || frame.dataset.loaded !== '1' || !frame.contentWindow) return;
   if (frame.dataset.twitch === '1') return postToTwitch(frame, msg);
   if (frame.dataset.web) {
@@ -2156,7 +2304,7 @@ function postToWebFrame(frame, msg) {
 // (許可したときは、この画面の「許可して読み込む」か枠に URL を入れたときに、準備が済んでから読み込むので、ここでは何もしない)
 chrome.permissions.onRemoved.addListener(() => {
   state.tiles.forEach((t, i) => {
-    if (isWebTile(t) && isVisible(i)) renderTile(i, { reloadPlayer: true });
+    if (isWebTile(t) && !isFileTile(t) && isVisible(i)) renderTile(i, { reloadPlayer: true });
   });
 });
 
@@ -5163,19 +5311,23 @@ const TileInfo = (() => {
       return c;
     };
     td(String(n), 'info-num');
-    td(tr('infoKind_web'), 'info-kind kind-web');
+    const isFile = isFileTile(t);
+    td(tr(isFile ? 'infoKind_file' : 'infoKind_web'), 'info-kind kind-web');
     const v = document.createElement('td');
     v.className = 'info-video';
     const site = document.createElement('div');
     site.className = 'info-channel';
     site.textContent = tileName(i);
-    const link = document.createElement('a');
+    // ファイルの枠は、ファイル名を出すだけ (開くリンクは無い)
+    const link = document.createElement(isFile ? 'div' : 'a');
     link.className = 'info-title';
-    link.href = t.web;
-    link.target = '_blank';
-    link.rel = 'noopener noreferrer';
-    link.textContent = t.web;
-    v.append(site, link);
+    if (!isFile) {
+      link.href = t.web;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+    }
+    link.textContent = isFile ? t.label : t.web;
+    v.append(isFile ? '' : site, link);
     tr_.append(v);
     const ops = document.createElement('td');
     ops.className = 'info-ops';
@@ -6033,6 +6185,13 @@ function setupDragSwap() {
       handle.addEventListener('dragend', onDragEnd);
     }
     v.el.addEventListener('dragover', (e) => {
+      // パソコンのファイル: 枠にドロップすると、その枠で再生する (ファイルの枠)
+      if (dragFrom == null && hasFiles(e)) {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'copy';
+        v.el.classList.add('drag-over');
+        return;
+      }
       if (dragFrom == null || dragFrom === i) return;
       e.preventDefault();
       e.dataTransfer.dropEffect = 'move';
@@ -6044,8 +6203,48 @@ function setupDragSwap() {
     v.el.addEventListener('drop', (e) => {
       e.preventDefault();
       v.el.classList.remove('drag-over');
-      if (dragFrom != null && dragFrom !== i) swapTiles(dragFrom, i);
+      if (dragFrom == null && hasFiles(e)) dropFile(i, e);
+      else if (dragFrom != null && dragFrom !== i) swapTiles(dragFrom, i);
     });
+  }
+
+  // ---- パソコンのファイルを持って入ってきたとき
+  // 枠の iframe の上ではドラッグのイベントがこの画面に届かないので、ファイルを持っている間は iframe を無視させる (body.dragging)。
+  // iframe の上から入ってきたときは、枠の中のスクリプトが知らせてくる (下の message の 'fileDrag')。
+  // 枠の外でファイルを離しても、ブラウザがそのファイルを開いて (この画面から移って) しまわないようにする
+  window.addEventListener('dragenter', (e) => {
+    if (hasFiles(e)) fileDragPing();
+  });
+  window.addEventListener('dragover', (e) => {
+    if (!hasFiles(e)) return;
+    fileDragPing();
+    e.preventDefault();
+    if (!e.target.closest?.('.tile, dialog')) e.dataTransfer.dropEffect = 'none';
+  });
+  window.addEventListener('drop', (e) => {
+    if (!hasFiles(e)) return;
+    e.preventDefault();
+    fileDragEnd();
+  });
+
+  /** 枠 i に落とされたファイルのうち、最初の動画ファイルを入れる */
+  function dropFile(i, e) {
+    fileDragEnd();
+    const files = [...e.dataTransfer.files];
+    const k = files.findIndex((f) => LocalFiles.isVideo(f.name, f.type));
+    if (k < 0) {
+      showToast(i, tr('fileNotVideo'));
+      return;
+    }
+    // ファイルの持ち手はドロップの中ですぐ頼む (await のあとでは取れない)
+    const item = [...e.dataTransfer.items].filter((it) => it.kind === 'file')[k];
+    let handle = Promise.resolve(null);
+    try {
+      handle = item?.getAsFileSystemHandle?.() || handle;
+    } catch {
+      /* 持ち手を渡さない場所からのドロップ */
+    }
+    setTileFile(i, files[k], handle);
   }
 
   function onDragStart(e, i, v) {
@@ -6075,6 +6274,29 @@ function setupDragSwap() {
     views.forEach((x) => x.el.classList.remove('drag-source', 'drag-over'));
   }
 }
+
+/** ドラッグしているものにパソコンのファイルが入っているか */
+const hasFiles = (e) => [...(e.dataTransfer?.types || [])].includes('Files');
+
+let fileDragTimer = 0;
+/** ファイルを持っている間 (届き続けている間) は、枠の iframe を無視させる。届かなくなったら戻す */
+function fileDragPing() {
+  document.body.classList.add('dragging');
+  clearTimeout(fileDragTimer);
+  fileDragTimer = setTimeout(fileDragEnd, 800);
+}
+function fileDragEnd() {
+  clearTimeout(fileDragTimer);
+  document.body.classList.remove('dragging');
+  views.forEach((x) => x.el.classList.remove('drag-over'));
+}
+
+// 枠の中のスクリプト (YouTube・Twitch・URL の枠) が、ファイルを持って iframe の上に入ってきたことを知らせてくる
+window.addEventListener('message', (e) => {
+  const d = e.data;
+  if (!e.source || !(d?.hakomado === 'fileDrag' || d?.hakomadoWeb === 'fileDrag')) return;
+  if (views.some((v) => v.player?.contentWindow && isInsideFrame(v.player, e.source))) fileDragPing();
+});
 
 // ---------------------------------------------------------------- toolbar & settings
 
@@ -12656,6 +12878,8 @@ async function chooseSession() {
   }
   await registerTab();
   pruneSessions(await sessionsInUse());
+  // ファイルの枠のファイルの持ち手のうち、どの視聴セッションにも残っていないものを片付ける
+  pruneLocalFiles().catch((e) => console.warn('hakomado: ファイルの持ち手を片付けられませんでした', e));
 
   renderAll();
   save();

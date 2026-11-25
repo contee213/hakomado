@@ -223,6 +223,15 @@ html:has([${FILL}]), html:has([${FILL}]) body { overflow: hidden !important; bac
     if (v) tick();
   });
 
+  // パソコンのファイルを持って枠の上に入ってきたら、マルチビュー画面に知らせる (画面が枠の iframe を無視して、ドロップを受け取れるように)
+  document.addEventListener(
+    'dragenter',
+    (e) => {
+      if ([...(e.dataTransfer?.types || [])].includes('Files')) window.top.postMessage({ hakomadoWeb: 'fileDrag' }, EXT_ORIGIN);
+    },
+    true,
+  );
+
   const timer = setInterval(tick, TICK_MS);
   window.addEventListener('pagehide', (e) => {
     if (!e.persisted) clearInterval(timer);
