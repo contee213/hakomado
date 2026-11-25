@@ -829,33 +829,20 @@ dialog.cm-confirm { width: min(440px, calc(100% - 32px)); }
 .cm-confirm-star[hidden] { display: none; }
 .cm-confirm-buttons { justify-content: flex-end; }
 
-/* ---------- 自動再生を始めるときの進み具合 (画面中央。大きさを固定して、文字が変わっても動かない) ---------- */
-.auto-progress {
-  position: fixed;
-  left: 50%;
-  top: 40%;
-  transform: translate(-50%, -50%);
-  width: 380px;
-  max-width: calc(100% - 32px);
-  height: 118px;
-  box-sizing: border-box;
-  padding: 16px 18px;
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, .5);
-  z-index: 50;
+/* ---------- 自動再生を始めるときの進み具合 (動画の上には出さず、「自動再生」ボタンの下端の線で見せる) ---------- */
+#autoMode { position: relative; overflow: hidden; }
+.auto-progress-bar {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 2px;
+  width: 0;
+  background: var(--accent);
+  transition: width .25s;
   pointer-events: none;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
 }
-.auto-progress[hidden] { display: none; }
-.auto-progress-title { font-weight: 700; font-size: 14px; }
-.auto-progress-text { color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.auto-progress-track { height: 6px; border-radius: 3px; background: #2a2a31; overflow: hidden; }
-.auto-progress-bar { height: 100%; width: 0; background: var(--accent); transition: width .25s; }
-.auto-progress-pct { color: var(--muted); font-size: 11px; text-align: right; }
+.auto-progress-bar[hidden] { display: none; }
+.sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 
 /* 自動再生ボタンの中の、登録チャンネルで配信中の件数 (赤い点 + 数。0 件は灰色) */
 .live-count { display: inline-flex; align-items: center; gap: 3px; margin-left: 5px; font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; }

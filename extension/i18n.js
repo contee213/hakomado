@@ -594,6 +594,7 @@ const MESSAGES = {
   packAllGroups: ['すべてのチャンネル', 'All channels'],
   progressArchive: ['最近の動画を探しています ({0} / {1})', 'Looking for recent videos ({0} / {1})'],
   progressTiles: ['枠を準備しています', 'Preparing tiles'],
+  progressHead: ['自動再生を準備しています', 'Preparing auto play'],
   noticeStarted: ['▶ 配信開始: {0}', '▶ Now live: {0}'],
   noticeAt: ['{0} に開始', 'Started {0}'],
   historyEmpty: ['まだ視聴履歴がありません。枠で配信や動画を読み込むと、ここに残ります。', 'No history yet. Streams and videos you load into tiles will show up here.'],
