@@ -16,7 +16,7 @@ Jira はサイト `contee213-dev.atlassian.net` を Atlassian MCP で読み書�
 
 1. **確かめる**
    - 今のブランチが `main` なら止める (ワークツリーのブランチで作業している前提)。
-   - 作業項目のキー (`HAKO-<番号>`) を、ブランチ名 (`claude/<キー>-…`) から読む。読めなければ、どの作業項目かを聞く。項目が無ければ作ってから進める。
+   - 作業項目のキー (`HAKO-<番号>`) を、ブランチ名 (`claude/<キー>-…`) から読む。読めなければ、どの作業項目かを聞く。項目が無ければ作る。そのうえで、ブランチを `git branch -m claude/<キー>-<短い英語>` でキー入りの名前に直し、作業項目が「進行中」になっていなければ「進行中」にする (`/start` を通らなかったとき)。
    - 作業項目を Atlassian MCP で読み、受け入れ条件を取り出す。
    - `extension/` の権限・ホスト権限・content scripts・外部への通信を変えたのに `CHROMEWEBSTORE.md` が直っていなければ、先に直す (CLAUDE.md の決まり)。
 2. **コミットする**
@@ -24,11 +24,11 @@ Jira はサイト `contee213-dev.atlassian.net` を Atlassian MCP で読み書�
    - pre-commit フック (`.githooks/pre-commit`) が、`extension/` を変えたコミットで `extension/build.js` の build 番号を上げるので、手で触らない。
    - コミットするものが無く、main より先のコミットも無ければ、何もせずに知らせて終わる。
 3. **reviewer で見直す**
-   - `.claude/agents/reviewer.md` (reviewer) を呼ぶ。渡すのは、main から変えたファイルの一覧 (`git diff --name-only main...HEAD`)、キー、受け入れ条件。
+   - `.claude/agents/reviewer.md` (reviewer) を呼ぶ。reviewer は git を使えないので、次を中身ごと渡す: main から変えたファイルの一覧 (`git diff --name-only main...HEAD`)、差分 (`git diff main...HEAD`。長ければファイルごとの要点と、消したもの・名前を変えたもの)、ブランチ名、コミットの見出し (`git log --format=%s main..HEAD`)、これから付ける PR のタイトル、キー、受け入れ条件。
    - 返ってきた抜けを直してコミットする。直さないものは、理由を PR の本文に書く。
 4. **push して PR を作る**
    - `git push -u origin HEAD`
-   - このブランチで開いている PR があれば、それを使う。無ければ `gh pr create --base main` で作る (下書きにはしない)。
+   - このブランチで開いている PR があれば、それを使い、タイトルと本文を `gh pr edit` で下の形に直す (前の /ship のあとに直した分も、受け入れ条件ごとの結果に入れる)。無ければ `gh pr create --base main` で作る (下書きにはしない)。
    - PR のタイトルは、コミットの見出しと同じ形でキーを入れる (例: 「feat: HAKO-12 ドラッグ中の影を小さくする」)。
    - 本文は日本語で、先頭に Jira の作業項目へのリンク (`https://contee213-dev.atlassian.net/browse/<キー>`) を書く。続けて、受け入れ条件ごとに確かめた結果 (どう確かめたか、満たしたか)、変更内容・理由・確かめたこと (実際の Chrome で試したかどうかも) を書く。
 5. **CI を待つ**
@@ -39,7 +39,7 @@ Jira はサイト `contee213-dev.atlassian.net` を Atlassian MCP で読み書�
    - 衝突などでマージできなければ止めて知らせる。作業項目は「進行中」のままにする。
 7. **作業項目を「完了」にする**
    - main にマージできたら、Atlassian MCP で作業項目を「完了」に遷移し、PR の URL をコメントで残す。
-   - 遷移の名前が違って見つからない・遷移できないときは、無理に進めず、そのことを報告に書く。
+   - 遷移の名前が違って見つからない・遷移できない・Atlassian MCP につながらないときは、マージは済んでいるので止めずに手順 8 へ進み、Jira に書けなかったことを報告に書く。
 8. **元のフォルダの main を pull する**
    - `C:\Users\ktets\project\hakomado` で `git pull --ff-only` する。
    - そのフォルダに変更中のファイルがある、`main` 以外のブランチになっている、fast-forward できない、のどれかなら、何もせずに知らせる。
@@ -54,5 +54,5 @@ Jira はサイト `contee213-dev.atlassian.net` を Atlassian MCP で読み書�
 - テスト・CI が落ちた
 - マージで衝突した、またはマージできない状態になっている
 - 元のフォルダが pull できない状態になっている
-- Atlassian MCP につながらない
+- マージの前に Atlassian MCP につながらない (マージのあとは手順 7 のとおり止めない)
 - 消す・上書きするなど、上の手順に無い操作が必要になった
