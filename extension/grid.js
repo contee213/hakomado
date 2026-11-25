@@ -10805,7 +10805,7 @@ const AUTO_BATCH_MS = 5000; // ON にした最初の 1 回で、見つかった�
 /**
  * 自動再生を ON にしたときの最初の 1 回。流れている枠 (自分で入れた枠も) は残し、流れていない枠 (終わった・見られない) は空け、
  * 一時停止中の枠は再生に戻す。チャンネルの配信状況を順に確かめ、配信中のものが見つかったら枠に入れる:
- * 1 本目はすぐ、その後は AUTO_BATCH_MS ごとにまとめて入れる (何も無い画面で待たせないため。docs/decisions.md)。
+ * 確かめ始めてから AUTO_BATCH_MS ごとに、それまでに見つかったものをまとめて入れる (何も無い画面で長く待たせないため。docs/decisions.md)。
  * 最大枠数に届いたら、残りのチャンネルは確かめない (次の 1 分ごとの確認に任せる)
  */
 async function startAllLiveInner() {
@@ -10863,9 +10863,9 @@ async function startAllLiveInner() {
     const { layout } = placeAutoLives(started, { keep: keepNow(), audibleBefore, isPickKept, audioIfSilent: true, pickLayout: autoLayoutFor });
     layoutName = layout.name;
   };
+  const searchStart = Date.now();
   const queueFlush = () => {
-    if (lastFlush === 0) flush(); // 1 本目はすぐ
-    else if (!timer) timer = setTimeout(flush, Math.max(0, lastFlush + AUTO_BATCH_MS - Date.now()));
+    if (!timer) timer = setTimeout(flush, Math.max(0, (lastFlush || searchStart) + AUTO_BATCH_MS - Date.now()));
   };
   const full = () => placed + pending.length >= room;
 
