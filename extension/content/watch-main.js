@@ -93,11 +93,20 @@
   });
 
   // ---- まとめて一時停止 / 再開 (親の上部バーのボタン・Space キー)
-  //   watch.js → ここ : 'hakomado:playback' detail 'pause' | 'play'
+  //   watch.js → ここ : 'hakomado:playback' detail 'pause' | 'play' | 'resume' (一時停止しているときだけ再生する。自動再生を ON にしたとき)
   // 再開するとき、ライブ配信は止めていた位置ではなく最新の位置に戻す (遅れたまま見ないように)
   let pausedByParent = false;
   document.addEventListener('hakomado:playback', (e) => {
     const p = player();
+    if (e.detail === 'resume') {
+      let ps = -1;
+      try {
+        ps = Number(p?.getPlayerState?.());
+      } catch {
+        return;
+      }
+      if (ps !== 2) return;
+    }
     pausedByParent = e.detail === 'pause';
     if (!p) return;
     if (pausedByParent) {

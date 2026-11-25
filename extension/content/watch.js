@@ -224,7 +224,7 @@
     } else if (e.data?.hakomado === 'loop') {
       document.dispatchEvent(new CustomEvent('hakomado:loop', { detail: e.data.on ? '1' : '0' }));
     } else if (e.data?.hakomado === 'playback') {
-      document.dispatchEvent(new CustomEvent('hakomado:playback', { detail: e.data.play ? 'play' : 'pause' }));
+      document.dispatchEvent(new CustomEvent('hakomado:playback', { detail: e.data.play ? (e.data.onlyPaused ? 'resume' : 'play') : 'pause' }));
     } else if (e.data?.hakomado === 'sync' && ['seek', 'play', 'pause', 'rate'].includes(e.data.op)) {
       const detail = JSON.stringify({ op: e.data.op, t: Number(e.data.t), r: Number(e.data.r) });
       document.dispatchEvent(new CustomEvent('hakomado:sync', { detail }));
