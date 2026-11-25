@@ -55,6 +55,9 @@ const DEFAULT_SETTINGS = {
   layoutFavs: '', // レイアウト画面の「お気に入り」タブに出すもの (レイアウトの id = 形 + 配置順 をカンマでつないだもの)
 };
 
+// このページを開いてから、一度でも枠に出した配信 (見逃したピックアップの配信を、あとで見るに入れるときの判定用)
+const shownThisSession = new Set();
+
 const state = {
   layoutId: DEFAULT_LAYOUT_ID,
   get layout() {
@@ -1405,6 +1408,7 @@ function applyChatLook() {
 }
 
 function renderTile(i, { reloadPlayer = false, reloadChat = false } = {}) {
+  if (state.tiles[i].videoId) shownThisSession.add(state.tiles[i].videoId);
   const t = state.tiles[i];
   const v = views[i];
   const el = v.el;
@@ -2439,6 +2443,9 @@ function onBarAction(i, act, e) {
       return;
     case 'save':
       toggleSaveTile(i);
+      return;
+    case 'surf':
+      if (t.videoId) pickAnything(i, { replace: true });
       return;
     case 'playlist':
       if (t.videoId) openPlaylistPicker({ ...vodInfo(t.videoId), ...views[i].meta, label: t.label, input: t.input, videoId: t.videoId });
@@ -8006,6 +8013,11 @@ function setupToolbar() {
       TileInfo.open();
     } else if (e.key === 'h' || e.key === 'H') {
       setTileBars(!state.tileBars, { notice: true });
+    } else if (e.key === 'n' || e.key === 'N') {
+      // 今見ている枠 (音の出ている枠。無ければ 1 番の枠) を、別の配信に変える
+      const filled = visibleIndexes().filter((j) => state.tiles[j].videoId);
+      const i = audibleTiles().find((j) => filled.includes(j)) ?? filled[0];
+      if (i != null) pickAnything(i, { replace: true });
     } else if (/^[1-9]$/.test(e.key)) {
       const i = visibleIndexes()[parseInt(e.key, 10) - 1];
       if (i != null) setAudio(i, { solo: true });
@@ -11241,18 +11253,23 @@ async function queueNextNow(i) {
 // 「今のライブはもういいかな、ほかの番組も見るか」用。まだどの枠にも出ていない配信を、次の順で探して 1 本入れる:
 //   ① ピックアップ (📌) のライブ配信中 → ② それ以外のライブ配信中 → ③ ピックアップの最近の配信 → ④ それ以外の最近の配信
 // 同じ段の中からはランダムに選ぶ (押すたびに違うものが出るように)。最近の配信は一度見たものを除く。
+// 中身のある枠の 🎲 (と N キー) は、その枠を別の配信に変える (replace。テレビのチャンネルを変えるように)。
 // 押してから再生が始まるまでの速さを一番にする (docs/decisions.md):
 //   チャンネルをランダムな順に確かめ、使えるものが見つかった時点で入れる (全部を確かめ終わるのを待たない)。
 //   配信状況は自動再生を ON にした最初の 1 回と同じ速いやり方 (quick) で取る
 let pickBusy = false;
-async function pickAnything(i) {
+async function pickAnything(i, { replace = false } = {}) {
   if (pickBusy) return;
   pickBusy = true;
-  const btn = views[i].el.querySelector('.pick-any');
+  const btn = views[i].el.querySelector(replace ? '[data-act="surf"]' : '.pick-any');
   btn.disabled = true;
+  const before = state.tiles[i].videoId;
+  // 探している間に枠の中身が変わった (閉じた・ほかのものを入れた) ら入れない
+  const stillSame = () => state.tiles[i].videoId === before;
   // 進み具合: ① ピックアップのライブ 0〜35% → ② ほかのライブ 35〜70% → ③④ 最近の配信 70〜100%
   // (見つかった時点で終わるので、途中で終わることが多い)
-  const progress = pickProgress(i);
+  // 進み具合は空き枠の中に出す (中身のある枠では出さない。配信状況は 1 分ごとの確認で分かっていることが多く、すぐ終わる)
+  const progress = replace ? { show() {}, hide() {} } : pickProgress(i);
   progress.show(tr('pickSearching'), 0);
   const step = (key, from, to) => (done, total) => progress.show(tr(key, done, total), from + (total ? (done / total) * (to - from) : to - from));
   try {
@@ -11286,7 +11303,7 @@ async function pickAnything(i) {
     for (const [chs, from, to] of [[starChs, 0, 0.35], [otherChs, 0.35, 0.7]]) {
       const hit = await findFirst(shuffle(chs), liveOf, { onProgress: step('progressStatus', from, to) });
       if (hit) {
-        loadPicked(i, hit.st.videoId, autoInputOf(hit.f), hit.f.name, true);
+        if (stillSame()) loadPicked(i, hit.st.videoId, autoInputOf(hit.f), hit.f.name, true);
         return;
       }
     }
@@ -11297,7 +11314,7 @@ async function pickAnything(i) {
       const picks = (await archiveCandidates(shuffle(chs), { onProgress: step('progressArchive', from, to), until: (out) => out.some(usable) })).filter(usable);
       if (picks.length) {
         const { v, f } = picks[Math.floor(Math.random() * picks.length)];
-        loadPicked(i, v.videoId, videoInput(v), f.name, false);
+        if (stillSame()) loadPicked(i, v.videoId, videoInput(v), f.name, false);
         return;
       }
     }
@@ -11366,6 +11383,9 @@ function pickProgress(i) {
 }
 
 function loadPicked(i, videoId, input, label, live) {
+  // 自動再生 ON の間に変えた配信は、自分で閉じたときと同じく入れ直さない
+  const before = state.tiles[i].videoId;
+  if (before) autoDismissed.add(before);
   setTileVideo(i, videoId, input);
   state.tiles[i].label = label;
   updateTileName(i);
@@ -11888,11 +11908,46 @@ async function noticeTick() {
     const target = state.settings.noticeTarget;
     if (target === 'off') knownLive = null;
     else detectStarts(target === 'fav' ? { ...collected, lives: collected.lives.filter((l) => l.f.star) } : collected);
+    await saveMissedPickups();
   } catch (e) {
     console.warn('hakomado: 通知の確認に失敗', e);
   } finally {
     noticeBusy = false;
   }
+}
+
+// ---- 見逃したピックアップ (📌) の配信を、あとで見るに入れる (テレビの自動録画のように)
+// このページを開いている間に配信していて、終わるまで一度もどの枠にも出さなかった (ほかのタブでも出ていない) 配信。
+// 見たことのある配信 (視聴履歴にある)・メンバー限定で見られない配信・Twitch のライブ (VOD ではない) は入れない
+const pickLiveSeen = new Map(); // videoId -> {f, st}
+async function saveMissedPickups() {
+  for (const f of await Favorites.list()) {
+    const st = f.star ? favStatus.get(f.channelId) : null;
+    if (st?.state === 'live' && VideoEntry.validId(st.videoId) && !pickLiveSeen.has(st.videoId)) pickLiveSeen.set(st.videoId, { f, st });
+  }
+  const ended = [];
+  for (const [id, { f, st }] of pickLiveSeen) {
+    if (shownThisSession.has(id) || shownInOtherTab(id)) {
+      pickLiveSeen.delete(id); // 見た (枠に出した)
+      continue;
+    }
+    const now = favStatus.get(f.channelId);
+    if (!now || typeof now !== 'object') continue; // 取り直している・取れなかった → 次の確認で
+    if (now.state === 'live' && now.videoId === id) continue; // まだ配信中
+    pickLiveSeen.delete(id);
+    if (!membersBlocked.has(id)) ended.push({ f, st });
+  }
+  if (!ended.length) return;
+  const watched = await watchedIds();
+  const added = [];
+  for (const { f, st } of ended) {
+    if (watched.has(st.videoId)) continue;
+    const info = { title: st.title || '', channel: f.name, label: f.name, channelId: f.channelId, handle: f.handle || '', kind: 'live' };
+    if ((await SavedVideos.add(st.videoId, info)) === 'saved') added.push(f.name);
+  }
+  if (!added.length) return;
+  await refreshSavedIds();
+  notify(tr('missedSaved', added.join(tr('sep'))));
 }
 
 function startNoticeWatch() {
