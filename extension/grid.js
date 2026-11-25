@@ -11246,32 +11246,41 @@ async function startAllLiveInner() {
     const budget = { watch: 8 }; // 動画のページ (重い) を確かめる件数の上限。残りは次の確認に回す
     let next = 0;
     let done = 0;
+    const checkOne = async (f) => {
+      let st = null;
+      try {
+        st = await Favorites.fetchStatus(f, { force: true, quick: true, budget, kinds: premiereKinds() });
+        favStatus.set(f.channelId, st);
+        results.push({ f, st });
+      } catch (e) {
+        ErrLog.warnFetch('hakomado: 配信状況の取得に失敗', f.name, e);
+        favStatus.set(f.channelId, 'error');
+      }
+      showAutoProgress(tr('progressStatus', ++done, favs.length), (done / favs.length) * 0.95);
+      // 配信中と、「配信予定の枠を用意する」の時間内に始まる配信予定 (終わったと分かっているもの・表示中のものは除く)
+      if (!st || !(st.state === 'live' || (st.state === 'upcoming' && isSoonUpcoming({ f, st })))) return;
+      if (finishedIds.has(st.videoId) || seen.has(st.videoId)) return;
+      seen.add(st.videoId); // コラボなど、同じ配信は 1 つだけ
+      if (shownInOtherTab(st.videoId)) {
+        inOtherTabs++;
+        return;
+      }
+      const { ok, blocked: b } = await filterAccessible([{ f, st }]);
+      blocked.push(...b);
+      if (!ok.length || full() || !state.autoMode) return;
+      pending.push({ f, st });
+      queueFlush();
+    };
     const worker = async () => {
       while (next < favs.length && !full() && state.autoMode) {
         const f = favs[next++];
-        let st = null;
+        // 1 つのチャンネルで失敗しても、ほかのチャンネルの確認は続ける
+        // (投げたままにすると、ほかの確かめ手が動いたまま最初の確認が終わり、進み具合が消えずに残る)
         try {
-          st = await Favorites.fetchStatus(f, { force: true, quick: true, budget, kinds: premiereKinds() });
-          favStatus.set(f.channelId, st);
-          results.push({ f, st });
+          await checkOne(f);
         } catch (e) {
-          ErrLog.warnFetch('hakomado: 配信状況の取得に失敗', f.name, e);
-          favStatus.set(f.channelId, 'error');
+          ErrLog.warnFetch('hakomado: 自動再生の確認に失敗', f.name, e);
         }
-        showAutoProgress(tr('progressStatus', ++done, favs.length), (done / favs.length) * 0.95);
-        // 配信中と、「配信予定の枠を用意する」の時間内に始まる配信予定 (終わったと分かっているもの・表示中のものは除く)
-        if (!st || !(st.state === 'live' || (st.state === 'upcoming' && isSoonUpcoming(st)))) continue;
-        if (finishedIds.has(st.videoId) || seen.has(st.videoId)) continue;
-        seen.add(st.videoId); // コラボなど、同じ配信は 1 つだけ
-        if (shownInOtherTab(st.videoId)) {
-          inOtherTabs++;
-          continue;
-        }
-        const { ok, blocked: b } = await filterAccessible([{ f, st }]);
-        blocked.push(...b);
-        if (!ok.length || full() || !state.autoMode) continue;
-        pending.push({ f, st });
-        queueFlush();
       }
     };
     await Promise.all(Array.from({ length: 6 }, worker));
@@ -12112,18 +12121,34 @@ function rotateCruise() {
   save();
 }
 
-// ---- 自動再生を始めるときの進み具合 (画面中央。大きさは固定で、文字や数が変わっても動かない)
+// ---- 自動再生を始めるときの進み具合
+// 動画の上には出さない。「自動再生」ボタンの下端に線を伸ばし、マウスを乗せたときの説明に今していることを出す。
+// 読み上げは見えない #autoProgress (role=status) で行う
 function showAutoProgress(text, frac) {
-  const box = document.getElementById('autoProgress');
-  box.hidden = false;
-  document.getElementById('autoProgressText').textContent = text;
+  const btn = document.getElementById('autoMode');
+  const bar = document.getElementById('autoProgressBar');
   const pct = Math.round(Math.min(1, Math.max(0, frac)) * 100);
-  document.getElementById('autoProgressBar').style.width = `${pct}%`;
-  document.getElementById('autoProgressPct').textContent = `${pct}%`;
+  if (bar.hidden) {
+    btn.dataset.idleTitle = btn.title;
+    bar.hidden = false;
+    document.getElementById('autoProgressTitle').hidden = false;
+  }
+  bar.style.width = `${pct}%`;
+  btn.title = `${tr('progressHead')} (${pct}%)
+${text}`;
+  document.getElementById('autoProgressText').textContent = text;
 }
 
 function hideAutoProgress() {
-  document.getElementById('autoProgress').hidden = true;
+  const btn = document.getElementById('autoMode');
+  const bar = document.getElementById('autoProgressBar');
+  if (bar.hidden) return;
+  bar.hidden = true;
+  bar.style.width = '0';
+  if (btn.dataset.idleTitle != null) btn.title = btn.dataset.idleTitle;
+  delete btn.dataset.idleTitle;
+  document.getElementById('autoProgressTitle').hidden = true;
+  document.getElementById('autoProgressText').textContent = '';
 }
 
 // ---------------------------------------------------------------- 通知 (チャンネルの配信開始)

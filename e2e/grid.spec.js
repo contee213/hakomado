@@ -829,3 +829,42 @@ test.describe('デザインガイドの決まり', () => {
     await expect(start).toBeHidden();
   });
 });
+
+test.describe('自動再生の進み具合', () => {
+  test('動画の上には出さず、ボタンの下端の線で見せる。配信予定のチャンネルがあっても、確認が終わったら消える', async ({ openGrid }) => {
+    const page = await openGrid();
+    await skipTour(page);
+    const btn = page.locator('#autoMode');
+    const idleTitle = await btn.getAttribute('title');
+    // 外へは通信しないので、チャンネルと配信状況を差し替える。
+    // 「配信予定の枠を用意する」の時間内に始まる配信予定を混ぜる (以前はここで例外になり、進み具合が残り続けた)
+    const checked = await page.evaluate(async () => {
+      state.settings.prestartMin = 10;
+      const chs = Array.from({ length: 20 }, (_, n) => ({ channelId: `UC${String(n).padStart(22, '0')}`, name: `ch${n}`, star: false }));
+      Favorites.list = async () => chs;
+      Favorites.checkAccess = async () => 'ok';
+      let calls = 0;
+      // 自動再生の最初の確認 (force) の分だけ数える (通知の確認なども取りに来るので)
+      Favorites.fetchStatus = async (f, opts = {}) => {
+        if (opts.force) calls++;
+        await new Promise((r) => setTimeout(r, 30));
+        return f.name === 'ch0' ? { state: 'upcoming', videoId: 'aaaaaaaaaaa', startAt: Date.now() + 60 * 1000 } : { state: 'none' };
+      };
+      const seen = [];
+      const bar = document.getElementById('autoProgressBar');
+      new MutationObserver(() => seen.push(!bar.hidden)).observe(bar, { attributes: true, attributeFilter: ['hidden'] });
+      await setAutoMode(true);
+      await new Promise((r) => setTimeout(r, 300));
+      return { calls, shown: seen.includes(true), upcomingPlaced: state.tiles.some((t) => t.videoId === 'aaaaaaaaaaa') };
+    });
+    expect(checked.calls).toBe(20);
+    expect(checked.shown).toBe(true);
+    // 時間内に始まる配信予定は、最初の確認で枠に入る
+    expect(checked.upcomingPlaced).toBe(true);
+    await expect(page.locator('#autoProgressBar')).toBeHidden();
+    await expect(btn).toHaveAttribute('title', idleTitle);
+    await expect(page.locator('#autoProgressText')).toHaveText('');
+    // 画面の中央に箱を出さない
+    await expect(page.locator('.auto-progress')).toHaveCount(0);
+  });
+});
