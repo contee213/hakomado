@@ -929,8 +929,13 @@ test.describe('枠の入れ替え', () => {
     expect(Math.abs(g.width - t.width * k)).toBeLessThan(2);
     expect(Math.abs(g.height - t.height * k)).toBeLessThan(2);
     // 影の中でのカーソルの位置 = つかんだときの枠の中での位置 × 縮めた比
-    expect(Math.abs(to.x - g.x - (grab.x - t.x) * k)).toBeLessThan(3);
-    expect(Math.abs(to.y - g.y - (grab.y - t.y) * k)).toBeLessThan(3);
+    // (dragover はマウスの動きより遅れて届くことがある (Linux) ので、追いつくまで待つ)
+    await expect
+      .poll(async () => {
+        const p = await ghost.boundingBox();
+        return Math.max(Math.abs(to.x - p.x - (grab.x - t.x) * k), Math.abs(to.y - p.y - (grab.y - t.y) * k));
+      })
+      .toBeLessThan(3);
     // 落とし先の枠に、塗る板が重なる
     const fill = page.locator('.drop-fill');
     await expect(fill).toBeVisible();
