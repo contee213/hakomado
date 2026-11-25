@@ -73,6 +73,11 @@ const MESSAGES = {
   webSyncFail: ['このサイトを枠に入れる準備ができませんでした', 'Could not get this site ready for the tile'],
   webNeedPermission: ['{0} を枠に入れるには、このサイトへのアクセスの許可が要ります', 'To show {0} in this tile, allow access to this site'],
   webAllow: ['許可して読み込む', 'Allow and load'],
+  fileNeedPermission: ['{0} を再生するには、ファイルを開く許可が要ります', 'To play {0}, allow access to the file'],
+  fileAllow: ['許可して再生', 'Allow and play'],
+  fileMissing: ['{0} が見つかりません。動かしたか消したときは、ファイルを枠にドロップし直してください', '{0} was not found. If you moved or deleted it, drop the file onto the tile again'],
+  fileNotVideo: ['動画ファイルを枠にドロップすると、その枠で再生します', 'Drop a video file onto a tile to play it there'],
+  fileCantPlay: ['{0} はこのブラウザで再生できない形式です', '{0} is in a format this browser cannot play'],
 
   // 枠
   slotMain: ['メイン {0}', 'Main {0}'],
@@ -281,6 +286,7 @@ const MESSAGES = {
   infoKind_loading: ['確認中', 'Checking'],
   infoKind_empty: ['空き', 'Empty'],
   infoKind_web: ['サイト', 'Site'],
+  infoKind_file: ['ファイル', 'File'],
   infoReload: ['読み込み直す (映像の調子が悪いとき)', 'Reload (if the video misbehaves)'],
   infoOpenChannel: ['YouTube でチャンネルを開く: {0}', 'Open the channel on YouTube: {0}'],
   infoOpenTwitchChannel: ['Twitch でチャンネルを開く: {0}', 'Open the channel on Twitch: {0}'],

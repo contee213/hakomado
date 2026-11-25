@@ -190,6 +190,53 @@ test.describe('空き枠', () => {
     await expect.poll(() => icon('.pick-fav')).toBe('"📚"');
     await expect.poll(() => icon('.pick-ch')).toBe('"📺"');
   });
+
+  test('ファイルの枠: 動画ファイルを枠にドロップすると、その枠で再生する。動画でないファイルは入れない', async ({ openGrid }) => {
+    const page = await openGrid();
+    await skipTour(page);
+    // この画面で 2 秒の動画 (webm) を作り、1 番目の枠にドロップする (本物のドラッグではないので、ファイルの持ち手は無い)
+    const drop = (k, kind) =>
+      page.evaluate(
+        async ({ k, kind }) => {
+          let file;
+          if (kind === 'video') {
+            const c = Object.assign(document.createElement('canvas'), { width: 160, height: 90 });
+            const g = c.getContext('2d');
+            const rec = new MediaRecorder(c.captureStream(15), { mimeType: 'video/webm' });
+            const chunks = [];
+            rec.ondataavailable = (e) => chunks.push(e.data);
+            rec.start(200);
+            for (let n = 0; n < 20; n++) {
+              g.fillStyle = `hsl(${n * 18},80%,50%)`;
+              g.fillRect(0, 0, 160, 90);
+              await new Promise((r) => setTimeout(r, 100));
+            }
+            rec.stop();
+            await new Promise((r) => (rec.onstop = r));
+            file = new File(chunks, 'clip.webm', { type: 'video/webm' });
+          } else {
+            file = new File(['memo'], 'memo.txt', { type: 'text/plain' });
+          }
+          const dt = new DataTransfer();
+          dt.items.add(file);
+          const tile = document.querySelectorAll('#grid .tile:not([hidden])')[k];
+          for (const type of ['dragenter', 'dragover', 'drop']) tile.dispatchEvent(new DragEvent(type, { dataTransfer: dt, bubbles: true, cancelable: true }));
+        },
+        { k, kind },
+      );
+    const first = visibleTiles(page).first();
+    await drop(0, 'video');
+    await expect(first).toHaveClass(/is-web/);
+    await expect(first.locator('video.file-video')).toBeAttached();
+    await expect(first.locator('.tile-name')).toHaveText('clip.webm');
+    await expect.poll(() => first.locator('video.file-video').evaluate((v) => v.readyState)).toBeGreaterThan(0);
+
+    await page.locator('#addTile').click();
+    const second = visibleTiles(page).nth(1);
+    await drop(1, 'text');
+    await expect(second).toHaveClass(/is-empty/);
+    await expect(second.locator('.toast')).toHaveText('動画ファイルを枠にドロップすると、その枠で再生します');
+  });
 });
 
 test.describe('視聴セッション', () => {
