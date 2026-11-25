@@ -37,6 +37,7 @@
 | `webOrigins` | URL の枠のために使う人が許可したサイト (`https://*.<ドメイン>/*`。ホスト名の登録されたドメインごと。`web-site.js`) | URL の枠で許可したとき | 許可が外れたサイトは、読むときに除く | × | 一時 (許可し直せる) |
 | `packCatalogImported` | 「パックを探す」から読み込んだパックの記録 | パックの読み込み | − | × | 一時 |
 | `updateCheck` `updateNotified` | 新しい版の確認結果、お知らせを出した版 | 1 日 1 回の確認 (ストア版はしない) | − | × | 一時 |
+| `ui:<名前>` | 画面の小さな覚え: `ui:libScope` (チャンネル・ライブラリの すべて / ピックアップ)、`ui:libKinds` (種類の絞り込み)、`ui:libPlaylist` (最後に開いていた再生リスト)、`ui:shareImgLabels` `ui:shareAuthor` (共有画像に枠の名前を入れるか・作者名)、`ui:syncDock` (同期の調整パネルの置き方と小窓の位置)。`ui-prefs.js` | それぞれの操作をしたとき。画面を開いたときにまとめて読み、ほかのタブで変わったら覚え直す | 以前の版で localStorage (`hakomado.<名前>`) に覚えていたものは、初めて開いたときに引き継いで localStorage から消す | × | 一時 |
 | `tourPending` | 初めて入れたとき、使い方ツアーを出す印 | インストール時 (`background.js`) | 画面を開いてツアーを始めたら消す | × | 一時 |
 | `feed:<チャンネル ID>` `feed:UULF:<チャンネル ID>` `feed:UUSH:<チャンネル ID>` | チャンネルの「ライブ配信」「動画」「ショート」の再生リストの RSS から読んだもの (新しい順 15 件の ID・題名・日時・再生数) と取った時刻 | 配信状況の確認・最近の動画 (`favorites.js`)。タブ間で共有し、ブラウザを開き直しても間隔のうちなら取りに行かない | 画面を開いたとき、一覧に無いチャンネルの分と 3 日より前の分を消す。`twpage:` と合わせて 3MB ほどを超えたら古く取ったものから消す (`pruneCache`) | × | 一時 (取り直せる) |
 | `twpage:<名前>` | Twitch のチャンネルのページから読んだもの (名前・アイコン・配信中か・最近の VOD) と取った時刻 | 同上 (Twitch のチャンネル。読めなかったときは覚えない) | 同上 | × | 一時 (取り直せる) |
@@ -53,18 +54,13 @@
 | `statusShared` | 配信状況の取得結果のうち、開き直したら使わないもの (配信予定のアドオンの予定、YouTube・RSS・Twitch に最後に取りに行った時刻) | タブが複数あっても、YouTube などへの取得を 1 回で済ませる (`favorites.js`) |
 | `twvod:<番号>` | Twitch の VOD の配信の開始時刻 (VOD のページから。アーカイブ同期用) | 同上 |
 
-### localStorage (この画面のブラウザだけ、消えても既定に戻るだけ)
+### localStorage (この画面のブラウザだけ)
 
-すべて **一時**。バックアップには入らない (表示言語だけはバックアップの `lang` に入る)。
+表示言語だけを置く。画面を描く前に同期して読むため (ほかの画面の覚えは 1 章の `ui:<名前>` と下の sessionStorage)。消さない限り残るが、キーはこの 1 つだけ。
 
 | キー | 中身 |
 | --- | --- |
-| `hakomado.lang` | 表示言語 (auto / ja / en)。バックアップに入る |
-| `hakomado.settingsTab` | 設定で最後に開いたタブ |
-| `hakomado.helpPage` | 使い方で最後に開いたページ |
-| `hakomado.libTab` `hakomado.libScope` `hakomado.libKinds` `hakomado.libPlaylist` | ライブラリ・チャンネルの最後のタブ、すべて / ピックアップ、種類の絞り込み、開いていた再生リスト |
-| `hakomado.shareTab` `hakomado.shareImgLabels` `hakomado.shareAuthor` | 受け渡しの最後のタブ、共有画像に枠の名前を入れるか、画像に描く作者名 |
-| `hakomado.syncDock` | 同期の調整パネルの置き方と小窓の位置 |
+| `hakomado.lang` | 表示言語 (auto / ja / en。自動のときはキーを消す)。バックアップの `lang` に入る |
 
 ### IndexedDB `hakomado-files` (この画面のブラウザだけ)
 
@@ -78,6 +74,8 @@
 | --- | --- |
 | `hakomado.sessionId` | このタブで使っている視聴セッションの id (再読み込みで同じセッションに戻るため) |
 | `hakomado.startChoice` | 開き直したときに始める内容 (ロゴから選んだもの) |
+| `hakomado.helpPage` | 使い方で最後に開いたページ |
+| `hakomado.settingsTab` `hakomado.libTab` `hakomado.shareTab` | 設定・ライブラリ・受け渡しで最後に開いたタブ (`grid.js` の `TabMemory`)。新しいタブ・ブラウザを開き直したら最初のタブから。以前の版で localStorage に覚えていたものは引き継がずに消す |
 
 ## 3. ファイル・コード・リンクでの出し入れ
 

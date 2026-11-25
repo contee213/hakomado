@@ -15,7 +15,7 @@
 | 3 | ⟳ 更新 | ボタン | `#favRefresh` | 全チャンネルの配信状況を取り直す | | | `refreshFavorites(true)`。同時に 4 件まで取りに行く |
 | 3a | ⚙ 管理 | ボタン | `#favManage` | 「⚙ チャンネルの管理」をこの画面の上に重ねて開く。絞り込み欄 (No 7) の文字を引き継ぐ。閉じるとこの画面に戻る | | | `openChannelManage({ filter })`。ライブラリでは出さない |
 | 4 | ✕ 閉じる | ボタン | `#favClose` | 画面を閉じる。閉じると選択も外れる | | Esc | 背景のクリックでも閉じる (`closeOnBackdrop`) |
-| 5 | 📺 すべて | ラジオ | `#libScope [data-scope="all"]` | 登録チャンネルを全部出す | 保存先: localStorage `hakomado.libScope` | | ライブラリと共通の絞り込み (`setLibScope`) |
+| 5 | 📺 すべて | ラジオ | `#libScope [data-scope="all"]` | 登録チャンネルを全部出す | 保存先: chrome.storage.local `ui:libScope` | | ライブラリと共通の絞り込み (`setLibScope`) |
 | 6 | 📌 ピックアップ | ラジオ | `#libScope [data-scope="star"]` | ピックアップ (📌) に入れたチャンネルだけ出す | 初期値: 保存した値。保存が無くピックアップがあれば「ピックアップ」、ピックアップが 1 つも無ければ開いた最初は「すべて」 | | `libScopeNow` |
 | 7 | 名前・@チャンネル名で絞り込み | 入力 (1 行) | `#favFilter` | 名前・日本語名・@ハンドル・グループに含む文字で一覧を絞る | 保存しない (ページを開いている間はタブを替えても残る) | | type=search。ライブラリと共通の欄 |
 | 8 | 配信中 N | 表示 | `#favLiveCount` | 配信中のチャンネルの数 | 0 のときは空 (CSS で隠れる) | | |
@@ -156,15 +156,15 @@
 | No | 項目名 | 種類 | 要素 | 内容・動作 | 値・初期値 | キー | 備考 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | 1 | 📚 ライブラリ | 表示 | `#favTitle` | 画面の見出し | 「📚 ライブラリ」 | | |
-| 2 | 🎞 最近の動画 | タブ | `[data-favtab="archive"]` | 最近の動画のタブに切り替える | 保存先: localStorage `hakomado.libTab`。初期値: `archive` | | `setFavMode`。タブを替えると選択は外れる |
+| 2 | 🎞 最近の動画 | タブ | `[data-favtab="archive"]` | 最近の動画のタブに切り替える | 保存先: sessionStorage `hakomado.libTab` (このタブの間だけ)。初期値: `archive` | | `setFavMode`。タブを替えると選択は外れる |
 | 3 | 🕘 視聴履歴 | タブ | `[data-favtab="history"]` | 視聴履歴のタブに切り替える | | | |
 | 4 | 🔖 あとで見る | タブ | `[data-favtab="saved"]` | あとで見るのタブに切り替える | | | |
 | 5 | 📃 再生リスト | タブ | `[data-favtab="playlists"]` | 再生リストのタブに切り替える | | | |
 | 6 | ▶ 今の枠で順に再生 | ボタン | `#queuePlay` | あとで見る / 選んでいる再生リストを今の枠で順に再生する (自動再生は止める) | 文言はタブ・再生リストで変わる | | `startQueue`。あとで見る・再生リストのタブだけ |
 | 7 | ⟳ 更新 | ボタン | `#favRefresh` | 最近の動画を取り直す | | | `renderArchiveTab({ force: true })`。最近の動画のタブだけ |
 | 8 | ✕ 閉じる | ボタン | `#favClose` | 画面を閉じる。閉じると選択も外れる | | Esc | 背景のクリックでも閉じる |
-| 9 | 📺 すべて / 📌 ピックアップ | ラジオ | `#libScope [data-scope]` | 対象のチャンネルを全部 / ピックアップだけにする | 保存先: localStorage `hakomado.libScope` | | チャンネルと共通。視聴履歴・あとで見るはチャンネル ID・@ハンドル・入力で照らし合わせる (`isPickedEntry`) |
-| 10 | 🔴 配信 | トグル | `#libKind [data-kind="live"]` | ライブ (配信中・配信予定・アーカイブ) を出す / 出さない | 保存先: localStorage `hakomado.libKinds`。初期値: 3 つとも ON | | 最後の 1 つは外せない (`toggleLibKind`)。種類の分からないものは全部 ON のときだけ出す |
+| 9 | 📺 すべて / 📌 ピックアップ | ラジオ | `#libScope [data-scope]` | 対象のチャンネルを全部 / ピックアップだけにする | 保存先: chrome.storage.local `ui:libScope` | | チャンネルと共通。視聴履歴・あとで見るはチャンネル ID・@ハンドル・入力で照らし合わせる (`isPickedEntry`) |
+| 10 | 🔴 配信 | トグル | `#libKind [data-kind="live"]` | ライブ (配信中・配信予定・アーカイブ) を出す / 出さない | 保存先: chrome.storage.local `ui:libKinds`。初期値: 3 つとも ON | | 最後の 1 つは外せない (`toggleLibKind`)。種類の分からないものは全部 ON のときだけ出す |
 | 11 | 🎬 動画 | トグル | `#libKind [data-kind="video"]` | 動画を出す / 出さない | | | |
 | 12 | 📱 ショート | トグル | `#libKind [data-kind="short"]` | ショートを出す / 出さない | | | |
 | 13 | 名前・@チャンネル名で絞り込み | 入力 (1 行) | `#favFilter` | 表示中のタブの一覧を文字で絞る | 保存しない | | 何に当てるかはタブの節を見る |
@@ -279,7 +279,7 @@
 
 | No | 項目名 | 種類 | 要素 | 内容・動作 | 値・初期値 | キー | 備考 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | 表示する再生リスト | 選択 (select) | `#plSelect` | 編集・再生する再生リストを選ぶ。項目は「(⏱ )名前 (本数)」 | 保存先: localStorage `hakomado.libPlaylist`。初期値: 前回の再生リスト、無ければ先頭 | | 再生リストが無ければ押せない |
+| 1 | 表示する再生リスト | 選択 (select) | `#plSelect` | 編集・再生する再生リストを選ぶ。項目は「(⏱ )名前 (本数)」 | 保存先: chrome.storage.local `ui:libPlaylist`。初期値: 前回の再生リスト、無ければ先頭 | | 再生リストが無ければ押せない |
 | 2 | ＋ 新規 | ボタン | `#plNew` | 空の再生リスト「再生リスト M/D HH:MM」を作って開き、名前の欄を選ぶ | 30 個まで | | `newPlaylist`。いっぱいなら知らせ欄 |
 | 3 | ▦ 今の枠から作る | ボタン | `#plFromTiles` | 表示中の枠の配信を、並び順・枠の名前・レイアウト・同期の補正ごと新しい再生リストにする | | | `playlistFromTiles`。枠が空なら「表示中の枠に配信がありません」 |
 | 4 | 📥 読み込む | ボタン | `#plImport` | 共有の画像・コード・テキスト・リンク・URL のリストを読み込む画面を開く (保存が主ボタン) | | | `openReadDialog({ primary: 'save' })`。03-dialogs.md の「読み込む」 |
