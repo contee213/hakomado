@@ -148,7 +148,7 @@
 | 6 | プレミア公開の動画も配信として扱う | チェック | `#autoPremiereVideos` | 時間指定で公開される動画も、配信と同じく自動再生・通知の対象にするか | 初期値 ON。`settings.autoPremiereVideos` | | 変えたら通知の次の確認は今の状態を覚えるだけ |
 | 7 | プレミア公開のショートも配信として扱う | チェック | `#autoPremiereShorts` | 同上 (ショート) | 初期値 ON。`settings.autoPremiereShorts` | | 同上 |
 | 8 | メンバーになっていないメンバー限定配信は再生しない | チェック | `#skipMembersOnly` | ログイン中のアカウントで見られない配信を入れないか | 初期値 ON。`settings.skipMembersOnly` | | |
-| 9 | 自動再生の最大枠数 | スライダー | `#autoMaxTiles` / `#autoMaxTilesOut` | 自動再生で同時に再生する枠の上限を変える | 1〜16 枠、1 刻み。初期値 8 枠。`settings.autoMaxTiles` | | 表示は「{0} 枠」 |
+| 9 | 自動再生の最大枠数 | スライダー | `#autoMaxTiles` / `#autoMaxTilesOut` | 自動再生で同時に再生する枠の上限を変える。自動再生 ON の間に変えて空きができたら (表示中の枠 < 最大枠数。最近の配信で埋めた枠は空きとして数える)、手を離したとき (change) に 1 分ごとの確認を待たずに 1 回確かめ、空いた分を足す (確認の途中なら終わってから)。減らしたときは表示中の枠を消さない (終わったものから減る) | 1〜16 枠、1 刻み。初期値 8 枠。`settings.autoMaxTiles` | | 表示は「{0} 枠」。`autoTickSoon` |
 | 10 | ピックアップ (📌) の配信をメイン枠に優先して置く | チェック | `#autoPickupMain` | ピックアップのライブ配信を大きいメイン枠に入れるか | 初期値 ON。`settings.autoPickupMain` | | |
 | 11 | 配信予定の枠を用意する | スライダー | `#prestartMin` / `#prestartMinOut` | 配信予定の枠を開始の何分前から作っておくかを選ぶ | 0 / 5 / 10 / 15 / 30 / 60 分の 6 段 (スライダーの位置 0〜5)。初期値 10 分 (「10 分前から」)。0 は「しない」。`settings.prestartMin` (分) | | `SETTING_STEPS`。保存されている半端な値は近い段に寄せる (`stepIndex`) |
 | 12 | 配信中が無いときは、最近の動画を流す | チェック | `#autoArchive` | ライブが無いときに最近の動画を 4 枠流すか | 初期値 OFF。`settings.autoArchive` | | |

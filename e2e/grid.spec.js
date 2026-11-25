@@ -901,3 +901,30 @@ test.describe('自動再生の進み具合', () => {
     await expect(box).toBeHidden();
   });
 });
+
+test.describe('自動再生の最大枠数', () => {
+  test('増やしたら、1 分ごとの確認を待たずに空いた分を足す', async ({ openGrid }) => {
+    const page = await openGrid();
+    await skipTour(page);
+    const filled = () => page.evaluate(() => visibleIndexes().filter((i) => state.tiles[i].videoId).length);
+    // 外へは通信しないので、配信中のチャンネルを 4 つに差し替える
+    await page.evaluate(async () => {
+      state.settings.autoMaxTiles = 2;
+      syncSettingsInputs();
+      const chs = Array.from({ length: 4 }, (_, n) => ({ channelId: `UC${String(n).padStart(22, '0')}`, name: `ch${n}`, star: false }));
+      Favorites.list = async () => chs;
+      Favorites.checkAccess = async () => 'ok';
+      Favorites.fetchStatus = async (f) => ({ state: 'live', videoId: `live${f.name.slice(2)}`.padEnd(11, 'x') });
+      await setAutoMode(true);
+    });
+    expect(await filled()).toBe(2);
+
+    await page.locator('#openSettings').click();
+    await page.locator('#settings [data-tab="auto"]').click();
+    const slider = page.locator('#autoMaxTiles');
+    await slider.fill('4');
+    await slider.dispatchEvent('change');
+    // 1 分ごとの確認 (60 秒) より、ずっと早く足される
+    await expect.poll(filled, { timeout: 10000 }).toBe(4);
+  });
+});
