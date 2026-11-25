@@ -6190,6 +6190,7 @@ function setupDragSwap() {
   let dragFrom = null;
   // ドラッグ中の影 (自分で描く)。ブラウザの影は透明な 1px の画像にして出さない
   let ghost = null;
+  let dropFill = null; // 落とし先の枠を塗る板
   let ghostOff = { x: 0, y: 0 };
   const blankImg = new Image();
   blankImg.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
@@ -6285,33 +6286,52 @@ function setupDragSwap() {
     }
   }
 
+  // 影の大きさの上限。大きな枠をつかんでも、落とし先の小さな枠を覆わないように縮める
+  const GHOST_MAX = 240;
   function showGhost(e, v) {
     const r = v.el.getBoundingClientRect();
+    const k = Math.min(1, GHOST_MAX / r.width, GHOST_MAX / r.height);
+    // つかんだ場所は比で合わせる (枠の右上をつかんだら、影の右上がカーソルの下)
     ghostOff = {
-      x: Math.min(Math.max(0, e.clientX - r.left), r.width),
-      y: Math.min(Math.max(0, e.clientY - r.top), r.height),
+      x: Math.min(Math.max(0, e.clientX - r.left), r.width) * k,
+      y: Math.min(Math.max(0, e.clientY - r.top), r.height) * k,
     };
     ghost = document.createElement('div');
     ghost.className = 'drag-ghost';
-    ghost.style.width = `${r.width}px`;
-    ghost.style.height = `${r.height}px`;
+    ghost.style.width = `${r.width * k}px`;
+    ghost.style.height = `${r.height * k}px`;
     const label = document.createElement('span');
     label.textContent = [v.el.querySelector('.index')?.textContent, v.el.querySelector('.tile-name')?.textContent].filter(Boolean).join('  ');
     ghost.append(label);
-    document.body.append(ghost);
+    dropFill = document.createElement('div');
+    dropFill.className = 'drop-fill';
+    dropFill.hidden = true;
+    document.body.append(dropFill, ghost);
     moveGhost(e.clientX, e.clientY);
   }
   function moveGhost(x, y) {
     if (ghost) ghost.style.transform = `translate(${Math.round(x - ghostOff.x)}px, ${Math.round(y - ghostOff.y)}px)`;
   }
+  /** 落とし先の枠を青く塗る (枠の中は iframe なので、枠の上に重ねた板で塗る) */
+  function markDrop(tile) {
+    if (!dropFill) return;
+    dropFill.hidden = !tile;
+    if (!tile) return;
+    const r = tile.getBoundingClientRect();
+    Object.assign(dropFill.style, { left: `${r.left}px`, top: `${r.top}px`, width: `${r.width}px`, height: `${r.height}px` });
+  }
   // ドラッグ中はこの画面の上のどこでも dragover が届く (iframe は body.dragging で無視させている)
   window.addEventListener('dragover', (e) => {
-    if (ghost && (e.clientX || e.clientY)) moveGhost(e.clientX, e.clientY);
+    if (!ghost) return;
+    if (e.clientX || e.clientY) moveGhost(e.clientX, e.clientY);
+    const tile = e.target.closest?.('.tile');
+    markDrop(tile && tile !== views[dragFrom]?.el && !tile.hidden ? tile : null);
   }, true);
 
   function onDragEnd() {
     ghost?.remove();
-    ghost = null;
+    dropFill?.remove();
+    ghost = dropFill = null;
     dragFrom = null;
     document.body.classList.remove('dragging');
     views.forEach((x) => x.el.classList.remove('drag-source', 'drag-over'));
