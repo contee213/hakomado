@@ -140,7 +140,7 @@
 | No | 項目名 | 種類 | 要素 | 内容・動作 | 値・初期値 | キー | 備考 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | 1 | 自動再生のチャンネル | 選択 (select) | `#autoTarget` | 自動再生で入れるチャンネルを選ぶ | チャンネル全部 / ピックアップ (📌) だけ。初期値 チャンネル全部。`settings.autoTarget` | | |
-| 2 | 通知のチャンネル | 選択 (select) | `#noticeTarget` | 配信開始を知らせるチャンネルを選ぶ。変えたら、次の確認は今の状態を覚えるだけにする | チャンネル全部 / ピックアップ (📌) だけ / 知らせない。初期値 チャンネル全部。`settings.noticeTarget` | | `knownLive = null` |
+| 2 | 通知のチャンネル | 選択 (select) | `#noticeTarget` | 配信開始を知らせるチャンネルを選ぶ。変えたら、次の確認は今の状態を覚えるだけにする。「知らせない」でも 1 分ごとの確認は続ける (自動再生ボタンの配信中の件数のため) | チャンネル全部 / ピックアップ (📌) だけ / 知らせない。初期値 チャンネル全部。`settings.noticeTarget` | | `knownLive = null` |
 | 3 | 自動再生対象 配信 | チェック | `#autoLive` | 配信中のものを並べるかを切り替える | 初期値 ON。`settings.autoLive` | | 3 つのうち最後の 1 つは外せない (外すとチェックを戻す。`AUTO_TARGET_KEYS`) |
 | 4 | 自動再生対象 動画 | チェック | `#autoVideos` | チャンネルの最近の動画を新しい順に流すかを切り替える | 初期値 OFF。`settings.autoVideos` | | 同上 |
 | 5 | 自動再生対象 ショート | チェック | `#autoShorts` | チャンネルの最近のショートを新しい順に流すかを切り替える | 初期値 OFF。`settings.autoShorts` | | 同上 |
@@ -154,6 +154,8 @@
 | 13 | 動画 (プレミア公開・MV など) も流す | チェック | `#autoArchiveVideos` | No.12 で動画も流すか | 初期値 ON。`settings.autoArchiveVideos` | | |
 | 14 | ショートも流す | チェック | `#autoArchiveShorts` | No.12 でショートも流すか | 初期値 OFF。`settings.autoArchiveShorts` | | |
 | 15 | クルーズの間隔 | スライダー | `#cruiseSec` / `#cruiseSecOut` | クルーズでメイン枠と音声を次の配信へ回す間隔を選ぶ。変えるとクルーズを組み直す | 10 秒、15 秒、20 秒、30 秒、45 秒、1 分、1 分 30 秒、2 分、3 分、5 分、10 分、15 分、20 分、30 分の 14 段 (スライダーの位置 0〜13)。初期値 2 分。`settings.cruiseSec` (秒) | | `SETTING_STEPS`・`formatCruise`・`restartCruise` |
+| 16 | ピックアップ (📌) の新着を見る間隔 | スライダー | `#feedPickMin` / `#feedPickMinOut` | 配信状況の確認で、ピックアップのチャンネルの新着 (RSS) を見に行く間隔を選ぶ。No.11 の下に置く | 1 / 2 / 3 / 5 / 10 / 15 分の 6 段。初期値 3 分 (「3 分ごと」)。`settings.feedPickMin` (分) | | `SETTING_STEPS`・`Favorites.setFeedIntervals`。Twitch のチャンネルは 2 分より短くしない |
+| 17 | ほかのチャンネルの新着を見る間隔 | スライダー | `#feedOtherMin` / `#feedOtherMinOut` | 同上 (ピックアップ以外)。下に注意書き「配信予定が出ている配信は、開始の前後にいつも確かめます。長くすると、予定を出さずに始めた配信に気づくのが遅れます」 | 3 / 5 / 10 / 15 / 30 / 60 分の 6 段。初期値 15 分。`settings.feedOtherMin` (分) | | 同上。配信予定のアドオンで予定が全部分かるチャンネルは 15 分より短くしない |
 
 ### 画面項目状態表
 

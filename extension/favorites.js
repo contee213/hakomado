@@ -23,7 +23,12 @@ const Favorites = (() => {
   // - YouTube に制限 (429) をかけられたら、しばらく取りに行かない (5 分 → 10 分 → … 最大 60 分)
   const shared = chrome.storage.session;
   const SHARED_KEY = 'statusShared'; // {sched3: {アドオンの id: {at, byKey}}, yt: {channelId: {at, status}}, backoff: {until, step}, lastYtFetch}
-  const FEED_AUTO_MS = 3 * 60 * 1000; // チャンネルの RSS を見に行く間隔 (ふつう)
+  // チャンネルの RSS を見に行く間隔 (設定。setFeedIntervals)。ピックアップ (📌) は短く、それ以外は長く。
+  // 配信予定が見えている配信は、RSS を取り直さなくても覚えている分から開始の前後に動画のページで確かめるので、
+  // 長くして遅れるのは、新しく出た配信予定と、予定を出さずに始めた配信 (ゲリラ配信) に気づくまで
+  const FEED_PICK_MS_DEFAULT = 3 * 60 * 1000;
+  const FEED_OTHER_MS_DEFAULT = 15 * 60 * 1000;
+  const feedIntervals = { pick: FEED_PICK_MS_DEFAULT, other: FEED_OTHER_MS_DEFAULT };
   const FEED_SCHED_MS = 15 * 60 * 1000; // 配信予定のアドオンで予定が全部分かるチャンネル
   const FEED_MANUAL_MS = 30 * 1000; // 「⟳ 更新」
   const FEED_GAP_MS = 200; // RSS (軽い) を取る間隔
@@ -1195,8 +1200,11 @@ const Favorites = (() => {
     const kk = `${!!kinds.video}${!!kinds.short}`;
     const cached = statusCache.get(fav.channelId);
     if (!force && !auto && cached && cached.kk === kk && Date.now() - cached.at < STATUS_TTL_MS) return cached.status;
+    // 「⟳ 更新」(force) だけ取り直す。すぐ結果がほしいとき (quick) は、いつもの間隔で覚えている分を使う
+    const manual = force && !auto && !quick;
+    const interval = fav.star ? feedIntervals.pick : feedIntervals.other;
     if (isTwitchChannel(fav.channelId)) {
-      const status = await twitchStatus(fav, { maxAge: force && !auto ? FEED_MANUAL_MS : TW_AUTO_MS });
+      const status = await twitchStatus(fav, { maxAge: manual ? FEED_MANUAL_MS : Math.max(TW_AUTO_MS, interval) });
       statusCache.set(fav.channelId, { at: Date.now(), status, kk });
       return status;
     }
@@ -1212,10 +1220,17 @@ const Favorites = (() => {
       if (mine || all) sched = [...(sched || []), ...(mine || [])];
       covered ||= all;
     }
-    const maxFeedAge = force && !auto ? FEED_MANUAL_MS : covered ? FEED_SCHED_MS : FEED_AUTO_MS;
+    const maxFeedAge = manual ? FEED_MANUAL_MS : covered ? Math.max(FEED_SCHED_MS, interval) : interval;
     const status = await channelStatus(fav, { maxFeedAge, budget, sched, kinds, feedCacheOnly: quick && !!sched });
     statusCache.set(fav.channelId, { at: Date.now(), status, kk });
     return status;
+  }
+
+  /** RSS を見に行く間隔 (分) を設定から決める (ピックアップ / それ以外)。おかしな値は既定に戻す */
+  function setFeedIntervals({ pickMin, otherMin }) {
+    const ms = (v, def) => (Number.isFinite(Number(v)) && Number(v) > 0 ? Number(v) * 60 * 1000 : def);
+    feedIntervals.pick = ms(pickMin, FEED_PICK_MS_DEFAULT);
+    feedIntervals.other = ms(otherMin, FEED_OTHER_MS_DEFAULT);
   }
 
   // ------------------------------------------------------------ メンバー限定
@@ -1269,7 +1284,7 @@ const Favorites = (() => {
   return {
     list, add, removeMany, isTwitchChannel, twitchVodStart, twitchVodInfo, twitchLiveInfo, setStar, seedPresets, restorePresets, removeAllPresets, presetCount, removedPresetCount, fetchStatus, fetchArchives,
     previewPack, importPack, packs, removePack, fillIcons,
-    checkAccess, rememberMembersOnly, isMembersBlock,
+    checkAccess, rememberMembersOnly, isMembersBlock, setFeedIntervals,
     videoStates, inspectVideos, fetchYouTubePlaylist, fetchSubscriptions,
   };
 })();
