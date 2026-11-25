@@ -132,6 +132,8 @@ const MESSAGES = {
   // 設定の値
   sec: ['{0} 秒', '{0} s'],
   min: ['{0} 分', '{0} min'],
+  everyMin: ['{0} 分ごと', 'every {0} min'],
+  liveCountTitle: ['登録チャンネルで配信中: {0} 件', 'Live now on your channels: {0}'],
   minSec: ['{0} 分 {1} 秒', '{0} min {1} s'],
   items: ['{0} 件', '{0}'],
   tilesCount: ['{0} 枠', '{0} tiles'],
@@ -1069,6 +1071,9 @@ const HTML_EN = {
   'auto.maxTilesNote': 'Lower it if things get slow',
   'auto.prestart': 'Prepare tiles for upcoming streams',
   'auto.prestartNote': 'Makes tiles for upcoming streams before they start',
+  'auto.feedPick': 'How often to check pickup (📌) channels for new streams',
+  'auto.feedOther': 'How often to check other channels for new streams',
+  'auto.feedNote': 'Scheduled streams are always checked around their start time. Longer intervals mean streams started without a schedule are noticed later',
   'auto.cruise': 'Cruise interval',
   'auto.cruiseNote': 'How often cruise moves on to the next stream',
 

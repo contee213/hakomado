@@ -48,6 +48,10 @@ const DEFAULT_SETTINGS = {
   autoShorts: false,
   autoTarget: 'all', // 自動再生のチャンネル: 'all' = チャンネル全部 / 'fav' = ピックアップ (📌) だけ
   noticeTarget: 'all', // 通知のチャンネル: 'all' = チャンネル全部 / 'fav' = ピックアップだけ / 'off' = 知らせない
+  // 配信状況の確認で、チャンネルの新着 (RSS) を見に行く間隔 (分)。ピックアップ (📌) は短く、それ以外は長く
+  // (配信予定が見えている配信は、開始の前後にいつも確かめる。長くして遅れるのは、予定を出さずに始めた配信に気づくまで)
+  feedPickMin: 3,
+  feedOtherMin: 15,
   layoutFavs: '', // レイアウト画面の「お気に入り」タブに出すもの (レイアウトの id = 形 + 配置順 をカンマでつないだもの)
 };
 
@@ -159,6 +163,12 @@ async function loadSettings() {
   // 以前の版の「投稿者名を表示」(ON / OFF) を引き継ぐ
   if (settings && !('authorName' in settings) && settings.showAuthor === true) state.settings.authorName = 'all';
   Addons.setStates(state.settings.addons);
+  applyFeedIntervals();
+}
+
+/** 設定の「新着を見に行く間隔」を、配信状況の確認に伝える */
+function applyFeedIntervals() {
+  Favorites.setFeedIntervals({ pickMin: state.settings.feedPickMin, otherMin: state.settings.feedOtherMin });
 }
 
 /** 保存されている視聴セッションを state に読み込む (無ければ初期状態) */
@@ -324,6 +334,7 @@ function replaceSettings(next) {
   const targetsBefore = autoTargetsKey();
   state.settings = { ...DEFAULT_SETTINGS, ...next };
   Addons.setStates(state.settings.addons);
+  applyFeedIntervals();
   syncAddonInputs();
   applyHighlight();
   applyChatLook();
@@ -7592,6 +7603,8 @@ const SETTING_FORMATS = {
   hlGlow: (v) => (v === 0 ? tr('off') : `${Math.round(v * 100)}%`),
   cruiseSec: (v) => formatCruise(v),
   prestartMin: (v) => (v ? tr('minBefore', v) : tr('never')),
+  feedPickMin: (v) => tr('everyMin', v),
+  feedOtherMin: (v) => tr('everyMin', v),
   autoMaxTiles: (v) => tr('tilesCount', v),
 };
 // 決まった値から選ぶスライダー (スライダーの位置 = 配列の番号)。クルーズの間隔は細かく選ぶ必要がないので、
@@ -7599,6 +7612,8 @@ const SETTING_FORMATS = {
 const SETTING_STEPS = {
   cruiseSec: [10, 15, 20, 30, 45, 60, 90, 120, 180, 300, 600, 900, 1200, 1800],
   prestartMin: [0, 5, 10, 15, 30, 60],
+  feedPickMin: [1, 2, 3, 5, 10, 15],
+  feedOtherMin: [3, 5, 10, 15, 30, 60],
 };
 
 /** 保存されている値にいちばん近い段階の番号 (以前の版の半端な値も近いものに寄せる) */
@@ -7862,6 +7877,7 @@ function setupToolbar() {
       flashDanmakuArea();
     }
     if (key === 'cruiseSec') restartCruise();
+    if (key === 'feedPickMin' || key === 'feedOtherMin') applyFeedIntervals();
     if (key === 'verticalLiveFit') relayoutIfVerticalChanged();
     if (dmLookKeys.has(key)) applyDanmakuLook();
     // Twitch の枠の弾幕 (プレイヤーの中で描く) にも、変えた設定を送る
@@ -8016,7 +8032,46 @@ const favDialog = document.getElementById('favorites');
 const favListEl = document.getElementById('favList');
 const favErrorEl = document.getElementById('favError');
 let favTarget = null; // 読み込み先の枠 (null = 空いている枠)
-const favStatus = new Map(); // channelId -> 'loading' | 'error' | {state, videoId, title, startAt}
+// ---- 自動再生ボタンの中の、登録チャンネルで配信中の件数
+// 配信状況が分かるたびに (1 分ごとの確認・📺 チャンネル・🎲 おまかせ・自動再生) 数え直す。コラボなど同じ配信は 1 件。
+// 取り直している間 ('loading')・取れなかったとき ('error') は、最後に分かった状態で数える (数がちらつかないように)
+const lastKnownStatus = new Map(); // channelId -> {state, videoId, ...}
+let liveCountTimer = 0;
+function scheduleLiveCount() {
+  clearTimeout(liveCountTimer);
+  liveCountTimer = setTimeout(updateLiveCount, 300);
+}
+async function updateLiveCount() {
+  const ids = new Set();
+  let known = 0;
+  for (const f of await Favorites.list()) {
+    const st = lastKnownStatus.get(f.channelId);
+    if (!st) continue;
+    known++;
+    if (st.state === 'live') ids.add(st.videoId);
+  }
+  const el = document.getElementById('liveCount');
+  el.hidden = known === 0; // まだ 1 つも分かっていなければ出さない
+  el.textContent = String(ids.size);
+  el.classList.toggle('zero', ids.size === 0);
+  el.title = tr('liveCountTitle', ids.size);
+}
+
+// channelId -> 'loading' | 'error' | {state, videoId, title, startAt}。変わるたびに配信中の件数を数え直す
+const favStatus = new (class extends Map {
+  set(k, v) {
+    super.set(k, v);
+    if (v && typeof v === 'object') lastKnownStatus.set(k, v);
+    scheduleLiveCount();
+    return this;
+  }
+  delete(k) {
+    const had = super.delete(k);
+    lastKnownStatus.delete(k);
+    if (had) scheduleLiveCount();
+    return had;
+  }
+})();
 
 function displayNumber(i) {
   return visibleIndexes().indexOf(i) + 1;
@@ -11820,16 +11875,19 @@ function detectStarts(collected, { quiet = false, baselineOnly = false } = {}) {
   if (!quiet && announce.length) notify(tr('noticeStarted', announce.map((l) => l.f.name).join(tr('sep'))));
 }
 
-/** 通知のための確認 (取得結果はタブ間・自動再生の確認と共有されるので、取りに行く回数はほとんど増えない) */
+/**
+ * 1 分ごとの確認: 全部のチャンネルの配信状況を取り (自動再生ボタンの配信中の件数用。通知が「知らせない」でも)、
+ * 通知の対象のチャンネルで始まった配信を通知に残す。
+ * 取得結果はタブ間・自動再生の確認と共有され、RSS を見に行く間隔もチャンネルごとに決まっているので、取りに行く回数はほとんど増えない
+ */
 async function noticeTick() {
   if (noticeBusy) return;
-  if (state.settings.noticeTarget === 'off') {
-    knownLive = null;
-    return;
-  }
   noticeBusy = true;
   try {
-    detectStarts(await collectLiveFavorites({ auto: true, target: state.settings.noticeTarget }));
+    const collected = await collectLiveFavorites({ auto: true, target: 'all' });
+    const target = state.settings.noticeTarget;
+    if (target === 'off') knownLive = null;
+    else detectStarts(target === 'fav' ? { ...collected, lives: collected.lives.filter((l) => l.f.star) } : collected);
   } catch (e) {
     console.warn('hakomado: 通知の確認に失敗', e);
   } finally {

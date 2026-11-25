@@ -853,6 +853,13 @@ dialog.cm-confirm { width: min(440px, calc(100% - 32px)); }
 .auto-progress-bar { height: 100%; width: 0; background: var(--accent); transition: width .25s; }
 .auto-progress-pct { color: var(--muted); font-size: 11px; text-align: right; }
 
+/* 自動再生ボタンの中の、登録チャンネルで配信中の件数 (赤い点 + 数。0 件は灰色) */
+.live-count { display: inline-flex; align-items: center; gap: 3px; margin-left: 5px; font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.live-count::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+.live-count.zero { color: var(--muted); }
+.live-count.zero::before { background: var(--muted); }
+.live-count[hidden] { display: none; }
+
 /* ---------- 通知 (上部バーのボタンと一覧)。一覧は右上に固定 (中身の数で位置が動かない) ---------- */
 #openNotices { position: relative; }
 .notice-badge {
