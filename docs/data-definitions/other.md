@@ -29,20 +29,13 @@
 
 ## localStorage
 
-この画面 (拡張機能のページ) のブラウザだけ。消えても既定に戻るだけ。値はすべて文字列。
+この画面 (拡張機能のページ) のブラウザだけ。値は文字列。表示言語だけを置く (画面を描く前に同期して読むため)。ほかの画面の覚えは chrome.storage.local の [`ui:<名前>`](local.md#ui) と下の sessionStorage。
 
 | キー | 値 | 意味 |
 | --- | --- | --- |
 | `hakomado.lang` | `ja` / `en` (無ければ自動) | 表示言語。バックアップの `lang` にも入る (`i18n.js`) |
-| `hakomado.settingsTab` | 設定のタブの名前 | 設定で最後に開いたタブ |
-| `hakomado.libTab` | `archive` / `history` / `saved` / `playlists` (無い・知らない値なら `archive`) | ライブラリで最後に開いたタブ (チャンネルは覚えない) |
-| `hakomado.libScope` | `star` / `all` | すべて / ピックアップの絞り込み |
-| `hakomado.libKinds` | JSON の `array` (`live` `video` `short` のうち選んだもの) | 種類の絞り込み |
-| `hakomado.libPlaylist` | 再生リストの id | 開いていた再生リスト |
-| `hakomado.shareTab` | 受け渡しのタブの名前 | 受け渡しで最後に開いたタブ |
-| `hakomado.shareImgLabels` | `1` / `0` | 共有画像の各枠に枠の名前を入れるか |
-| `hakomado.shareAuthor` | 文字 | 共有画像に描く作者名 |
-| `hakomado.syncDock` | JSON の `object` `{floating: boolean, x?, y?}` | 同期の調整パネルの置き方と小窓の位置 |
+
+**前の版から (HAKO-8):** ほかの `hakomado.*` は [local.md#ui](local.md#ui) のとおり移すか消す。
 
 YouTube の視聴ページの中 (`content/watch-main.js`) は、YouTube 自身の `yt-player-volume` を読み書きする (YouTube のサイトの localStorage。Hakomado のデータではない)。
 
@@ -55,6 +48,9 @@ YouTube の視聴ページの中 (`content/watch-main.js`) は、YouTube 自身�
 | `hakomado.sessionId` | 視聴セッションの id | このタブで使っている視聴セッション (再読み込みで同じセッションに戻る) |
 | `hakomado.startChoice` | `new` / `read` / `auto` / `resume:<id>` | ロゴから選んで開き直したときに始める内容。読んだら消す |
 | `hakomado.helpPage` | 使い方のページの名前 | 使い方で最後に開いたページ |
+| `hakomado.settingsTab` | 設定のタブの名前 | 設定で最後に開いたタブ (`grid.js` の `TabMemory`) |
+| `hakomado.libTab` | `archive` / `history` / `saved` / `playlists` (無い・知らない値なら `archive`) | ライブラリで最後に開いたタブ (チャンネルは覚えない) |
+| `hakomado.shareTab` | 受け渡しのタブの名前 | 受け渡しで最後に開いたタブ |
 
 ## IndexedDB
 

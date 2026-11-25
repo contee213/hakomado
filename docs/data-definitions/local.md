@@ -234,6 +234,21 @@ URL の枠で許可したサイト。`array` of string。各要素は `https://*
 
 新しい版の確認 (ストア版はしない)。`updateCheck` = `{at: 確かめた日時, latest: 最新の版, url: 入手先, none?: true}`。リリースがまだ無いときは `latest`・`url` が `''` で `none: true` (次は 1 日後に確かめる)。取りに行けなかったときは前の `latest`・`url` (無ければ `''`) を残し、1 時間後に確かめ直す。`updateNotified` = string (お知らせを出した版)。
 
+## ui
+
+画面の小さな覚え (`ui-prefs.js`)。キーは `ui:<名前>`。画面を開いたときにまとめて読み、ほかのタブで変わったら覚え直す。チャンネル・ライブラリ・受け渡しを開くとき、同期の調整パネルを出すときに読み直す。
+
+| キー | 型 | 取りうる値 | 意味 |
+| --- | --- | --- | --- |
+| `ui:libScope` | string | `star` / `all` | すべて / ピックアップの絞り込み |
+| `ui:libKinds` | array | `live` `video` `short` のうち選んだもの (空・知らない値だけなら 3 つとも) | 種類の絞り込み |
+| `ui:libPlaylist` | string | 再生リストの id | 開いていた再生リスト |
+| `ui:shareImgLabels` | boolean | | 共有画像の各枠に枠の名前を入れるか |
+| `ui:shareAuthor` | string | | 共有画像に描く作者名 |
+| `ui:syncDock` | object | `{floating: boolean, x?: number, y?: number}` | 同期の調整パネルの置き方と小窓の位置 |
+
+**前の版から (HAKO-8):** localStorage の `hakomado.<名前>` (`libScope` `libKinds` `libPlaylist` `shareImgLabels` `shareAuthor` `syncDock`) は、初めて開いたときに `ui:<名前>` へ移して localStorage から消す。`ui:<名前>` がもうあればそちらを使う。`libKinds` `syncDock` は JSON の文字列から、`shareImgLabels` は `1` / `0` から直す。読めない値は移さずに消す。`hakomado.settingsTab` `hakomado.libTab` `hakomado.shareTab` は移さずに消す (今は sessionStorage)。
+
 ## tourPending
 
 boolean。インストールしたときに true。画面を開いてツアーを始めたら消す。

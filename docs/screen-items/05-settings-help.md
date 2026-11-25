@@ -11,7 +11,7 @@
 | 1 | ⚙ 設定 | 表示 | `.settings-title h2` | 画面の見出し | | | |
 | 2 | 表示する言語 | 選択 (select) | `#langSelect` | 表示言語を変え、視聴セッションを保存してからページを読み込み直す | 自動 (ブラウザの言語) / 日本語 / English。初期値 = 自動。localStorage `hakomado.lang` (自動のときはキーを消す) | | `setLangPref`。自動は、ブラウザの言語が日本語なら日本語、それ以外は英語 |
 | 3 | ✕ 閉じる | ボタン | `#settings .dialog-close` | 設定を閉じる | | Esc | `<form method="dialog">` の value="close" |
-| 4 | 弾幕 | タブ | `.settings-tabs [data-tab="danmaku"]` | 「弾幕」のパネルに切り替える | 初期値 = 弾幕。最後に開いたタブを localStorage `hakomado.settingsTab` に覚え、次に開いたときもそのタブ | | 覚えたタブが無いときは弾幕 |
+| 4 | 弾幕 | タブ | `.settings-tabs [data-tab="danmaku"]` | 「弾幕」のパネルに切り替える | 初期値 = 弾幕。最後に開いたタブを sessionStorage `hakomado.settingsTab` に覚え、このタブで次に開いたときもそのタブ (新しいタブ・ブラウザを開き直したら弾幕) | | 覚えたタブが無いときは弾幕 |
 | 5 | 枠の線 | タブ | `[data-tab="audio"]` | 「枠の線」のパネルに切り替える | 同上 | | |
 | 6 | チャット欄 | タブ | `[data-tab="chat"]` | 「チャット欄」のパネルに切り替える | 同上 | | |
 | 7 | 表示 | タブ | `[data-tab="view"]` | 「表示」のパネルに切り替える | 同上 | | |

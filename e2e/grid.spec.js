@@ -975,3 +975,62 @@ test.describe('自動再生の最大枠数', () => {
     await expect.poll(filled, { timeout: 10000 }).toBe(4);
   });
 });
+
+test.describe('画面の覚え (HAKO-8)', () => {
+  test('以前の版の localStorage の覚えを chrome.storage.local に引き継ぐ。タブの位置はこのタブの間だけ覚える', async ({ openGrid }) => {
+    const page = await openGrid();
+    await skipTour(page);
+    // 以前の版が localStorage に残した覚え (この版で開いて書いた ui:* は消し、更新した直後の状態にする)
+    await page.evaluate(async () => {
+      await chrome.storage.local.remove(Object.keys(await chrome.storage.local.get(null)).filter((k) => k.startsWith('ui:')));
+      localStorage.setItem('hakomado.lang', 'ja');
+      localStorage.setItem('hakomado.settingsTab', 'backup');
+      localStorage.setItem('hakomado.libKinds', '["video"]');
+      localStorage.setItem('hakomado.shareAuthor', 'TK');
+      localStorage.setItem('hakomado.syncDock', '{"floating":false}');
+    });
+    await page.reload();
+    await expect(page.locator('#grid .tile').first()).toBeAttached();
+    await expect
+      .poll(() => page.evaluate(() => chrome.storage.local.get(['ui:libKinds', 'ui:shareAuthor', 'ui:syncDock', 'ui:settingsTab'])))
+      .toEqual({ 'ui:libKinds': ['video'], 'ui:shareAuthor': 'TK', 'ui:syncDock': { floating: false } });
+    const left = await page.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith('hakomado.')));
+    expect(left).toEqual(['hakomado.lang']);
+    // 引き継いだ覚えが画面に戻る
+    await page.locator('#openFavorites').click();
+    await expect(page.locator('#libKind [data-kind="video"]')).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('#libKind [data-kind="live"]')).toHaveAttribute('aria-pressed', 'false');
+    await page.keyboard.press('Escape');
+    await page.locator('#openShare').click();
+    await expect(page.locator('#shareAuthor')).toHaveValue('TK');
+    await page.keyboard.press('Escape');
+    // タブの位置は引き継がないので、設定は最初のタブ (弾幕) から
+    await page.locator('#openSettings').click();
+    await expect(page.locator('#settings [data-tab="danmaku"]')).toHaveAttribute('aria-selected', 'true');
+    await page.locator('#settings [data-tab="view"]').click();
+    expect(await page.evaluate(() => sessionStorage.getItem('hakomado.settingsTab'))).toBe('view');
+    // 再読み込みではそのタブに戻る
+    await page.reload();
+    await expect(page.locator('#grid .tile').first()).toBeAttached();
+    await page.locator('#openSettings').click();
+    await expect(page.locator('#settings [data-tab="view"]')).toHaveAttribute('aria-selected', 'true');
+    // 新しいタブでは最初のタブから
+    const other = await openGrid();
+    await other.locator('#openSettings').click();
+    await expect(other.locator('#settings [data-tab="danmaku"]')).toHaveAttribute('aria-selected', 'true');
+    await other.keyboard.press('Escape');
+    // ほかのタブで変えた覚えは、開いたままのタブでも次に開いたときに使う
+    await other.locator('#openFavorites').click();
+    await other.locator('#libKind [data-kind="short"]').click();
+    await other.keyboard.press('Escape');
+    await other.locator('#openShare').click();
+    await other.locator('#shareAuthor').fill('Hako');
+    await expect.poll(() => page.evaluate(() => UiPrefs.get('shareAuthor'))).toBe('Hako');
+    await page.keyboard.press('Escape');
+    await page.locator('#openFavorites').click();
+    await expect(page.locator('#libKind [data-kind="short"]')).toHaveAttribute('aria-pressed', 'true');
+    await page.keyboard.press('Escape');
+    await page.locator('#openShare').click();
+    await expect(page.locator('#shareAuthor')).toHaveValue('Hako');
+  });
+});

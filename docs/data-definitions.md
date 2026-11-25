@@ -32,6 +32,7 @@
 | `packCatalogImported` | 「パックを探す」から読み込んだパック | 一時 | `packs.js` | [local.md#packcatalogimported](data-definitions/local.md#packcatalogimported) |
 | `updateCheck` | 新しい版の確認結果 | 取得 | `update-check.js` | [local.md#updatecheck](data-definitions/local.md#updatecheck) |
 | `updateNotified` | お知らせを出した版 | 一時 | `update-check.js` | [local.md#updatecheck](data-definitions/local.md#updatecheck) |
+| `ui:<名前>` | 画面の小さな覚え (絞り込み・最後の再生リスト・共有画像の設定・同期パネルの置き方) | 設定 | `ui-prefs.js` | [local.md#ui](data-definitions/local.md#ui) |
 | `tourPending` | 使い方ツアーを出す印 | 一時 | `background.js` | [local.md#tourpending](data-definitions/local.md#tourpending) |
 | `feed:<チャンネル ID>` (`feed:UULF:…` `feed:UUSH:…`) | チャンネルの再生リストの RSS | 取得 | `favorites.js` | [local.md#feed](data-definitions/local.md#feed) |
 | `twpage:<名前>` | Twitch のチャンネルのページ | 取得 | `favorites.js` | [local.md#twpage](data-definitions/local.md#twpage) |
@@ -51,8 +52,8 @@
 | 保存先 | キー | 中身 | 種類 | 詳細 |
 | --- | --- | --- | --- | --- |
 | localStorage | `hakomado.lang` | 表示言語 | 設定 | [other.md#localstorage](data-definitions/other.md#localstorage) |
-| localStorage | `hakomado.settingsTab` `hakomado.libTab` `hakomado.libScope` `hakomado.libKinds` `hakomado.libPlaylist` `hakomado.shareTab` `hakomado.shareImgLabels` `hakomado.shareAuthor` `hakomado.syncDock` | 最後に開いたタブ・絞り込みなど | 一時 | [other.md#localstorage](data-definitions/other.md#localstorage) |
 | sessionStorage | `hakomado.sessionId` `hakomado.startChoice` `hakomado.helpPage` | このタブの視聴セッション・始める内容・使い方で最後に開いたページ | 一時 | [other.md#sessionstorage](data-definitions/other.md#sessionstorage) |
+| sessionStorage | `hakomado.settingsTab` `hakomado.libTab` `hakomado.shareTab` | 設定・ライブラリ・受け渡しで最後に開いたタブ | 一時 | [other.md#sessionstorage](data-definitions/other.md#sessionstorage) |
 
 ## IndexedDB
 

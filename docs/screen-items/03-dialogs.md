@@ -51,12 +51,12 @@
 | 3 | ✕ 閉じる (Esc) | ボタン | `.dialog-close` (value="close") | 画面を閉じる | | Esc | 背景を押しても閉じる (`closeOnBackdrop`) |
 | 4 | 共有するもの | 選択 (select) | `#shareSource` | 共有するものを選ぶ。変えると名前欄を入れ直して各形式を作り直す | 「今の枠 (N 本)」/「今の枠 (配信なし)」+ 再生リストのグループ「名前 (N 本)」。初期値は今の枠 (再生リストの「共有」から開いたときはその再生リスト) | | 開いている間に再生リストが編集・削除されたら選択肢を作り直す。選んでいた再生リストが消えたら今の枠に戻す |
 | 5 | 名前 | 入力 (1 行) | `#shareName` | 画像・リンク・テキストに入れる名前。打つと 0.3 秒後に作り直す | maxlength 40。今の枠はこのタブで最後に付けた名前 (読み込んで並べたときはその名前)、再生リストはその名前 | Enter は無効 (画面を閉じない) | 今の枠の名前はページを開いている間だけ覚える (`shareTilesName`) |
-| 6 | 🖼 画像 | タブ | `[data-stab="image"]` | 画像の形式を出す。古ければ画像を作り直す | 最後に開いていた形式を localStorage `hakomado.shareTab` に覚える (既定は画像) | | 中身は同じ場所に重ねてあり、切り替えても画面の大きさは変わらない |
+| 6 | 🖼 画像 | タブ | `[data-stab="image"]` | 画像の形式を出す。古ければ画像を作り直す | 最後に開いていた形式を sessionStorage `hakomado.shareTab` に覚える (このタブの間だけ。既定は画像) | | 中身は同じ場所に重ねてあり、切り替えても画面の大きさは変わらない |
 | 7 | 🌐 リンク | タブ | `[data-stab="link"]` | リンクの形式を出す | | | |
 | 8 | 📝 テキスト | タブ | `[data-stab="text"]` | テキストの形式を出す | | | |
 | 9 | 画像の見本 | 表示 | `#shareImg` | 作った共有画像 (QR 入り) を出す | | | `renderShareImage` |
-| 10 | 作者名 | 入力 (1 行) | `#shareAuthor` | 画像の本数の後ろに「作: …」と描く。打つと 0.3 秒後に画像を作り直す | maxlength 30。localStorage `hakomado.shareAuthor` | Enter は無効 | |
-| 11 | 各枠にチャンネル名・タイトルを描く | チェック | `#shareImgLabels` | 画像の各枠に名前を描くか。変えると画像を作り直す | 既定 OFF。localStorage `hakomado.shareImgLabels` (`1` / `0`) | | |
+| 10 | 作者名 | 入力 (1 行) | `#shareAuthor` | 画像の本数の後ろに「作: …」と描く。打つと 0.3 秒後に画像を作り直す | maxlength 30。chrome.storage.local `ui:shareAuthor` | Enter は無効 | |
+| 11 | 各枠にチャンネル名・タイトルを描く | チェック | `#shareImgLabels` | 画像の各枠に名前を描くか。変えると画像を作り直す | 既定 OFF。chrome.storage.local `ui:shareImgLabels` (true / false) | | |
 | 12 | 画像の説明 | 表示 | `#shareNoteImage` | 入るもの (先頭 16 本まで・レイアウト・同期の補正・名前) と入らないもの (枠の名前) | | | 17 本以上なら「全 N 本のうち先頭 16 本」 |
 | 13 | 𝕏 に投稿 | ボタン | `#shareToX` | x.com の権限を求め、画像をクリップボードに入れてから X の投稿画面 (`https://x.com/intent/post`、本文に名前・#Hakomado・リンク) を新しいタブで開き、許可があれば画像を添付する | | | 投稿ボタンは利用者が押す。添付できなければ「Ctrl+V で貼り付けて」か「画像を保存してから添付して」と出す (`attachImageToX`) |
 | 14 | 🖼 画像をコピー | ボタン | `#shareImgCopy` | 画像 (PNG) をクリップボードへ | | | |

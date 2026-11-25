@@ -3804,25 +3804,17 @@ const Sync = (() => {
     let shown = false;
     let wanted = true; // ✕ で閉じたら、自動で同期を始めたとき (再開など) は出さない。上部バーのボタンで ON にしたときと ☰ では出す
     let mini = false;
-    const PREF_KEY = 'hakomado.syncDock'; // 置き方と小窓の位置 (この画面のブラウザだけで覚える。消えても既定に戻るだけ)
+    // 置き方と小窓の位置は UiPrefs の syncDock に覚える (消えても既定に戻るだけ)。読むのは setup() で (UiPrefs.load() のあと)
     let floating = true;
     let pos = null; // 小窓の左上 {x, y} (null = 右上の既定の位置)
-    try {
-      const p = JSON.parse(localStorage.getItem(PREF_KEY) || 'null');
+    const loadPref = () => {
+      const p = UiPrefs.get('syncDock');
       if (p && typeof p === 'object') {
         floating = p.floating !== false;
         if (Number.isFinite(p.x) && Number.isFinite(p.y)) pos = { x: p.x, y: p.y };
       }
-    } catch {
-      /* 読めなければ既定のまま */
-    }
-    const savePref = () => {
-      try {
-        localStorage.setItem(PREF_KEY, JSON.stringify({ floating, ...(pos || {}) }));
-      } catch {
-        /* 覚えられなくても動く */
-      }
     };
+    const savePref = () => UiPrefs.set('syncDock', { floating, ...(pos || {}) });
     let sel = null; // 選んでいる枠
     let hl = null; // 枠の並びで光らせている枠 (行にマウスを乗せた・行を選んだ)
     let structKey = '';
@@ -3832,6 +3824,11 @@ const Sync = (() => {
 
     function show(i = null) {
       if (!on) return;
+      if (!shown) {
+        // ほかのタブで変えた置き方・位置も使う
+        loadPref();
+        applyFloating();
+      }
       shown = true;
       el().hidden = false;
       document.body.classList.add('sync-dock-open');
@@ -3866,13 +3863,16 @@ const Sync = (() => {
     /** 浮かぶ小窓 / 右の列を切り替える */
     function setFloating(v) {
       floating = v;
+      applyFloating();
+      savePref();
+    }
+    function applyFloating() {
       document.body.classList.toggle('sync-dock-float', floating);
       el().classList.toggle('floating', floating);
       const b = document.getElementById('syncDockFloat');
       b.textContent = floating ? '⇲' : '⧉';
       b.title = tr(floating ? 'syncDockToSide' : 'syncDockToFloat');
       place();
-      savePref();
     }
     /** 小窓の位置を画面の中に収めて置く (右の列のときは位置を外す) */
     function place() {
@@ -4551,6 +4551,7 @@ const Sync = (() => {
       document.getElementById('syncDockFloat').addEventListener('click', () => setFloating(!floating));
       setupDrag();
       setMini(false);
+      loadPref();
       setFloating(floating);
     }
 
@@ -7193,10 +7194,8 @@ function setupShare() {
   const imgBtns = ['shareToX', 'shareImgCopy', 'shareImgSave'].map((id) => document.getElementById(id));
   const feedBtn = document.getElementById('shareToFeed');
   const outBtns = [...imgBtns, feedBtn, ...['shareAltCopy', 'shareCopyText', 'shareCopyLink'].map((id) => document.getElementById(id))];
-  const TAB_KEY = 'hakomado.shareTab';
-  const LABELS_KEY = 'hakomado.shareImgLabels'; // 画像の各枠に枠の名前を入れるか (既定は入れない)
+  // 最後のタブは TabMemory (このタブの間だけ)、画像の各枠に枠の名前を入れるか (既定は入れない)・画像に描く作者名は UiPrefs に覚える (次に開いたときも同じ)
   const labelsEl = document.getElementById('shareImgLabels');
-  const AUTHOR_KEY = 'hakomado.shareAuthor'; // 画像に描く作者名 (次に開いたときも同じ)
   const authorEl = document.getElementById('shareAuthor');
   let authorTimer = 0;
   let source = 'tiles';
@@ -7302,45 +7301,34 @@ function setupShare() {
       t.setAttribute('aria-selected', String(t.dataset.stab === tab));
     }
     for (const p of pane.querySelectorAll('.share-panel')) p.hidden = p.dataset.spanel !== tab;
-    try {
-      localStorage.setItem(TAB_KEY, tab);
-    } catch {
-      /* ignore */
-    }
+    TabMemory.set('shareTab', tab);
     if (tab === 'image' && imageStale) makeImage();
   };
   for (const t of tabs) t.addEventListener('click', () => showTab(t.dataset.stab));
-  try {
-    tab = localStorage.getItem(TAB_KEY) || tab;
-    labelsEl.checked = localStorage.getItem(LABELS_KEY) === '1';
-    authorEl.value = localStorage.getItem(AUTHOR_KEY) || '';
-  } catch {
-    /* ignore */
-  }
+  tab = TabMemory.get('shareTab') || tab;
+  // ほかのタブで変えたものも使うので、開くたびに読み直す (restorePrefs)
+  const restorePrefs = () => {
+    labelsEl.checked = UiPrefs.get('shareImgLabels') === true;
+    authorEl.value = UiPrefs.get('shareAuthor') || '';
+  };
+  restorePrefs();
   showTab(tab);
   labelsEl.addEventListener('change', () => {
-    try {
-      localStorage.setItem(LABELS_KEY, labelsEl.checked ? '1' : '0');
-    } catch {
-      /* ignore */
-    }
+    UiPrefs.set('shareImgLabels', labelsEl.checked);
     if (set) makeImage();
   });
   authorEl.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') e.preventDefault();
   });
   authorEl.addEventListener('input', () => {
-    try {
-      localStorage.setItem(AUTHOR_KEY, shareAuthor(authorEl.value));
-    } catch {
-      /* ignore */
-    }
+    UiPrefs.set('shareAuthor', shareAuthor(authorEl.value));
     clearTimeout(authorTimer);
     authorTimer = setTimeout(() => set && makeImage(), 300);
   });
 
   openShareDialog = async ({ source: src = 'tiles' } = {}) => {
     source = src;
+    restorePrefs();
     await fillSources();
     await fillName();
     clearImage();
@@ -8198,11 +8186,7 @@ function setupToolbar() {
       t.setAttribute('aria-selected', String(t.dataset.tab === name));
     }
     for (const p of dialog.querySelectorAll('.settings-panel')) p.hidden = p.dataset.panel !== name;
-    try {
-      localStorage.setItem('hakomado.settingsTab', name);
-    } catch {
-      /* ignore */
-    }
+    TabMemory.set('settingsTab', name);
   };
   for (const t of tabs) t.addEventListener('click', () => showTab(t.dataset.tab));
   // 「? 詳しい説明」: 今のタブの設定の説明を、使い方の画面で開く
@@ -8220,12 +8204,7 @@ function setupToolbar() {
     await saveNow();
     location.reload();
   });
-  let initialTab = 'danmaku';
-  try {
-    initialTab = localStorage.getItem('hakomado.settingsTab') || initialTab;
-  } catch {
-    /* ignore */
-  }
+  const initialTab = TabMemory.get('settingsTab') || 'danmaku';
   showTab([...tabs].some((t) => t.dataset.tab === initialTab) ? initialTab : 'danmaku');
 
   const chatKeys = new Set(['chatZoom', 'chatWidth', 'chatHideAvatars']);
@@ -8481,6 +8460,7 @@ function openFavorites(target, view, { modal = true } = {}) {
   favErrorEl.textContent = '';
   document.getElementById('favTitle').textContent = tr(favView === 'channels' ? 'chTitle' : 'libTitle');
   document.querySelector('.fav-tabs').hidden = favView === 'channels';
+  if (!favDialog.open) restoreLibPrefs(); // ほかのタブで変えた絞り込み・再生リストも使う
   setFavMode(favView === 'channels' ? 'all' : savedLibraryTab(), { render: false });
   if (!favDialog.open) {
     if (modal) favDialog.showModal();
@@ -8496,15 +8476,31 @@ function openFavorites(target, view, { modal = true } = {}) {
   }
 }
 
+/**
+ * 設定・ライブラリ・受け渡しで最後に開いたタブの位置。sessionStorage に覚える (再読み込みでは戻り、新しいタブ・ブラウザを開き直したら最初のタブから。
+ * 使い方の画面の最後のページと同じ)。名前は 'settingsTab' / 'libTab' / 'shareTab' で、キーは 'hakomado.<名前>'
+ */
+const TabMemory = {
+  get(name) {
+    try {
+      return sessionStorage.getItem('hakomado.' + name);
+    } catch {
+      return null;
+    }
+  },
+  set(name, value) {
+    try {
+      sessionStorage.setItem('hakomado.' + name, value);
+    } catch {
+      /* 覚えられなくても動く */
+    }
+  },
+};
+
 /** ライブラリで前回見ていたタブ */
 function savedLibraryTab() {
-  try {
-    const t = localStorage.getItem('hakomado.libTab');
-    if (['archive', 'history', 'saved', 'playlists'].includes(t)) return t;
-  } catch {
-    /* ignore */
-  }
-  return 'archive';
+  const t = TabMemory.get('libTab');
+  return ['archive', 'history', 'saved', 'playlists'].includes(t) ? t : 'archive';
 }
 
 // 配信状況の取得待ち行列。同時に取りに行くのは 4 件まで
@@ -8800,25 +8796,14 @@ let libScope = null;
 function libScopeNow(favs) {
   if (libScope) return libScope;
   if (!favs.some((f) => f.star)) return (libScope = 'all'); // 開いた最初だけ。自分でピックアップを選んだときは、空でも説明を出す
-  const get = (k) => {
-    try {
-      return localStorage.getItem(k);
-    } catch {
-      return null;
-    }
-  };
-  const saved = get('hakomado.libScope');
+  const saved = UiPrefs.get('libScope');
   libScope = saved === 'star' || saved === 'all' ? saved : 'star'; // ここに来るのはピックアップがあるときだけ
   return libScope;
 }
 
 function setLibScope(scope) {
   libScope = scope;
-  try {
-    localStorage.setItem('hakomado.libScope', scope);
-  } catch {
-    /* ignore */
-  }
+  UiPrefs.set('libScope', scope);
   updateLibScopeButtons();
   renderFavPane();
 }
@@ -8836,16 +8821,19 @@ function updateLibScopeButtons() {
  * 種類の分からないもの (種類を書く前の版で残した履歴など) は、全部出すときだけ出す
  */
 const LIB_KINDS = ['live', 'video', 'short'];
-let libKinds = (() => {
-  try {
-    const saved = JSON.parse(localStorage.getItem('hakomado.libKinds') || 'null');
-    const ok = Array.isArray(saved) ? LIB_KINDS.filter((k) => saved.includes(k)) : [];
-    if (ok.length) return new Set(ok);
-  } catch {
-    /* ignore */
-  }
-  return new Set(LIB_KINDS);
-})();
+let libKinds = new Set(LIB_KINDS);
+/**
+ * 覚えた絞り込み・すべて / ピックアップ・再生リストに戻す (UiPrefs.load() のあとに main から、チャンネル・ライブラリを開くたびに openFavorites から)。
+ * ほかのタブで変えたものも使うため。すべて / ピックアップは、このタブで一度決めたあとだけ読み直す (最初はピックアップの有無で決める。libScopeNow)
+ */
+function restoreLibPrefs() {
+  const saved = UiPrefs.get('libKinds');
+  const ok = Array.isArray(saved) ? LIB_KINDS.filter((k) => saved.includes(k)) : [];
+  libKinds = new Set(ok.length ? ok : LIB_KINDS);
+  plSelected = UiPrefs.get('libPlaylist') ?? plSelected;
+  const scope = UiPrefs.get('libScope');
+  if (libScope && (scope === 'star' || scope === 'all')) libScope = scope;
+}
 const libKindFiltered = () => libKinds.size < LIB_KINDS.length;
 const libKindShown = (kind) => !libKindFiltered() || libKinds.has(kind);
 
@@ -8857,11 +8845,7 @@ function toggleLibKind(kind) {
   } else {
     libKinds.add(kind);
   }
-  try {
-    localStorage.setItem('hakomado.libKinds', JSON.stringify([...libKinds]));
-  } catch {
-    /* ignore */
-  }
+  UiPrefs.set('libKinds', [...libKinds]);
   updateLibKindButtons();
   renderFavPane();
 }
@@ -9017,11 +9001,7 @@ const isVideoMode = () => favMode === 'archive' || favMode === 'saved' || favMod
 
 /** ライブラリのタブを、次に開いたときのために覚えておく */
 function rememberLibraryTab(tab) {
-  try {
-    localStorage.setItem('hakomado.libTab', tab);
-  } catch {
-    /* ignore */
-  }
+  TabMemory.set('libTab', tab);
 }
 
 /** チャンネル / 最近の配信 / 視聴履歴 / あとで見る を切り替える。配信・動画の一覧ではチャンネルの追加欄を隠す */
@@ -9557,21 +9537,11 @@ chrome.storage.onChanged.addListener((changes, area) => {
 
 // ---------------------------------------------------------------- 📃 再生リスト (ライブラリの「📃 再生リスト」タブ)
 
-/** 表示中の再生リストの id (次に開いたときのために覚えておく) */
-let plSelected = (() => {
-  try {
-    return localStorage.getItem('hakomado.libPlaylist');
-  } catch {
-    return null;
-  }
-})();
+/** 表示中の再生リストの id (次に開いたときのために覚えておく。覚えたものは UiPrefs.load() のあとに main で戻す) */
+let plSelected = null;
 function selectPlaylist(id) {
   plSelected = id;
-  try {
-    if (id) localStorage.setItem('hakomado.libPlaylist', id);
-  } catch {
-    /* ignore */
-  }
+  if (id) UiPrefs.set('libPlaylist', id);
 }
 
 // ---- 📃 再生リストの編集 (ライブラリの「📃 再生リスト」タブ)
@@ -13058,7 +13028,9 @@ async function chooseSession() {
 
 (async function main() {
   // 再生リスト: 以前の版の形 (全部で 1 つの項目) なら 1 つずつに分けて移す。1 つも無ければ既定の「新規マイリスト」を作る
-  await Promise.all([loadSettings(), Favorites.seedPresets(), SyncOffsets.load(), MovieAnchors.load(), Playlists.setup(tr('plSeedName'))]);
+  await Promise.all([loadSettings(), Favorites.seedPresets(), SyncOffsets.load(), MovieAnchors.load(), Playlists.setup(tr('plSeedName')), UiPrefs.load()]);
+  // 画面の覚え (UiPrefs) のうち、最初から使うものを戻す
+  restoreLibPrefs();
   twitchAllowed = await chrome.permissions.contains({ origins: TWITCH_ORIGINS }).catch(() => false);
   buildTiles();
   refreshFavKeys().catch(() => {});
