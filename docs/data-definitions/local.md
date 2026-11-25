@@ -98,7 +98,7 @@
 | 項目 | 型 | 必須 | 意味 |
 | --- | --- | --- | --- |
 | `videoId` | string | ○ | YouTube の動画 ID・Twitch の VOD・Twitch のチャンネル (ライブ。視聴履歴だけ) |
-| `at` | number | ○ | 枠で読み込んだ日時 |
+| `at` | number | ○ | 枠で読み込んだ日時 (バックアップから戻したものには無いことがある) |
 | `title` | string | − | 題名 (300 文字まで) |
 | `channel` | string | − | チャンネル名 |
 | `handle` | string | − | `@ハンドル` |
@@ -112,7 +112,7 @@
 
 ## saved
 
-あとで見る。`array` of 動画、新しい順。最大 100 件 (いっぱいなら足せない)。書き込みはロック `hakomado-saved`。項目は `history` と同じで、`reason`・`removedAt` は無い。Twitch のチャンネル (ライブ) は入らない (その配信の VOD にして入れる)。
+あとで見る。`array` of 動画、新しい順。最大 100 件 (いっぱいなら足せない)。書き込みはロック `hakomado-saved`。項目は `history` と同じで、`at` は保存した日時。`reason`・`removedAt` はふつう無いが、バックアップから戻したときは残ることがある (`backup.js` の `cleanVideo`)。Twitch のチャンネル (ライブ) は入らない (その配信の VOD にして入れる)。
 
 ## playlists
 
@@ -120,7 +120,7 @@
 
 | キー | 型 | 意味 |
 | --- | --- | --- |
-| `playlistIndex` | array of string | 再生リストの id の並び順 (最大 30 個) |
+| `playlistIndex` | array of string | 再生リストの id の並び順。新しく作る・バックアップから戻すときは 30 個まで (前の版で 30 個を超えて作ったものは残す) |
 | `playlist:<id>` | object | 再生リスト 1 件 (下の表) |
 | `playlistSeeded` | boolean | 既定の再生リスト (「新規マイリスト」) を作った。一度作ったら、全部消しても作り直さない |
 
@@ -139,11 +139,11 @@
 
 `items` の 1 本: `videoId` (YouTube の動画 ID か Twitch の VOD)、`history` と同じ `title` `channel` `handle` `channelId` `label` (80 文字まで) `input` `kind` `thumb`、`offset` (number。同期のずれ、秒)、`watched` (boolean)。
 
-**前の版から:** 以前は全部を `playlists` (1 つの `array`) に置いていた。`playlistIndex` が無く `playlists` があれば、それを読み、次に書くときに `playlist:<id>` と `playlistIndex` に分けて `playlists` を消す (`readAll`・`writeDiff`)。
+**前の版から:** 以前は全部を `playlists` (1 つの `array`) に置いていた。画面を開いたとき (`Playlists.setup`)、`playlistIndex` が無く `playlists` があれば、それを読んで `playlist:<id>` と `playlistIndex` に分け、`playlists` を消す。`playlistIndex` と `playlists` が両方あるときは、`playlists` を読まずに消す (`readAll`・`writeDiff`)。
 
 ## session
 
-視聴セッション。`session:<id>` → `object`。id は `Date.now().toString(36)` + ランダム 5 文字。最大 8 つ (古い `updatedAt` から消す)。
+視聴セッション。`session:<id>` → `object`。id は `Date.now().toString(36)` + ランダム 5 文字。最大 8 つ (古い `updatedAt` から消す)。枠が 1 つも入っていないものは数によらず消す。開いているタブが使っているものは消さない (`pruneSessions`)。
 
 | 項目 | 型 | 必須 | 意味 |
 | --- | --- | --- | --- |
@@ -155,7 +155,7 @@
 | `tileBars` | boolean | ○ | 枠のバーを出す |
 | `dmAuto` | boolean | ○ | true。枠の `danmaku: null` (自動) を使う版で保存した印 |
 | `tiles` | array of 枠 | ○ | 全部の枠 (枠数を減らしても全枠分)。項目は下 |
-| `audible` | array of number | ○ | 音が出ている枠の番号 (`[]` = 全部ミュート) |
+| `audible` | array of number | − | 音が出ている枠の番号 (`[]` = 全部ミュート)。前の版には無い |
 | `updatedAt` | number | ○ | 保存した日時 |
 
 枠 1 つ (`grid.js` の `newTileState`。読むときは知っている項目で、型が同じものだけ取り込む `applySession`):
@@ -172,14 +172,14 @@
 | `queue` | boolean | false | あとで見るを順に再生中 (保存しても読むときに false) |
 | `fill` | boolean | false | 自動再生で、ライブの代わりに最近の動画を入れた枠 |
 | `label` | string | `''` | 枠の名前 (ファイルの枠はファイル名) |
-| `pan` | number | 0 | 音の左右 (-1〜1) |
-| `gain` | number | 1 | 音量 (0〜2) |
+| `pan` | number | 0 | 音の左右 (-1〜1、0.01 刻み) |
+| `gain` | number | 1 | 音量 (0〜2、0.01 刻み) |
 | `delay` | number | 0 | 音を遅らせる秒数 (0〜60、0.01 秒単位) |
-| `speed` | number | 1 | 再生速度 |
+| `speed` | number | 1 | 再生速度 (0.25〜4、0.05 刻み) |
 | `short` | boolean | false | ショートとして縦長で見せる |
 | `corner` | string | `'br'` | ストレッチで残す角 |
 
-`muted` は保存しない (`audible` で戻す)。**前の版から:** 視聴セッションに分ける前の版は、`layoutId` `order` `fit` `autoMode` `danmakuAll` `tiles` を `chrome.storage.local` の最上位のキーに置いていた。あれば視聴セッション 1 つに移して消す (`migrateLegacyStorage`)。枠に `syncOffset` があれば動画のずれ (`syncOffsets`) に移す。`dmAuto` が無い版の `danmaku: true` は null (自動) として読む。
+`muted` は保存しない (`audible` で戻す)。**前の版から:** 今は無いメイン + サブのレイアウト (`m<メイン数>s<サブ数>`。例 `m2s4r`) が `layoutId` に入っていれば、メインの数と枠数の近いレイアウトに置き換えて読む (`savedLayoutId`)。`audible` が無い版のセッションは、1 番の枠だけ音を出す。視聴セッションに分ける前の版は、`layoutId` `order` `fit` `autoMode` `danmakuAll` `tiles` を `chrome.storage.local` の最上位のキーに置いていた。あれば視聴セッション 1 つに移して消す (`migrateLegacyStorage`)。枠に `syncOffset` があれば動画のずれ (`syncOffsets`) に移す。`dmAuto` が無い版の `danmaku: true` は null (自動) として読む。
 
 ## syncOffsets
 
@@ -204,7 +204,7 @@
 
 | 項目 | 型 | 必須 | 意味 |
 | --- | --- | --- | --- |
-| `videoId` | string | ○ | 始まった配信の動画 ID (Twitch はチャンネル) |
+| `videoId` | string | ○ | 始まった配信の YouTube の動画 ID。Twitch のチャンネル (`tw:<名前>`) も書かれるが、読むとき (`readNotices`) に YouTube の形だけ残すので、次に読んだときに消える (不具合。HAKO-6) |
 | `channelId` | string | ○ | チャンネル ID |
 | `handle` `name` `title` | string | ○ | ハンドル・チャンネル名・題名 (無ければ `''`) |
 | `at` | number | ○ | 知らせた日時 |
@@ -232,7 +232,7 @@ URL の枠で許可したサイト。`array` of string。各要素は `https://*
 
 ## updateCheck
 
-新しい版の確認 (ストア版はしない)。`updateCheck` = `{at: 確かめた日時, latest: 最新の版, url: 入手先}`。`updateNotified` = string (お知らせを出した版)。
+新しい版の確認 (ストア版はしない)。`updateCheck` = `{at: 確かめた日時, latest: 最新の版, url: 入手先, none?: true}`。リリースがまだ無いときは `latest`・`url` が `''` で `none: true` (次は 1 日後に確かめる)。取りに行けなかったときは前の `latest`・`url` (無ければ `''`) を残し、1 時間後に確かめ直す。`updateNotified` = string (お知らせを出した版)。
 
 ## tourPending
 
@@ -247,7 +247,7 @@ boolean。インストールしたときに true。画面を開いてツアー�
 | `videoId` | string | 動画 ID |
 | `title` | string | 題名 (300 文字まで) |
 | `at` | number | 枠・動画を作った日時 |
-| `views` | number | 再生数 (配信予定・公開予定は 0) |
+| `views` | number \| null | 再生数 (配信予定・公開予定は 0)。RSS に無ければ null |
 
 ## twpage
 
@@ -273,6 +273,8 @@ Twitch のチャンネルのページから読んだもの (取得)。`twpage:<�
 | `title` | string | − | 題名 |
 | `channel` `channelId` | string | − | チャンネル名・ID (分かれば) |
 | `avail` | string | − | `ok` / `gone` (削除・非公開) / `members` / `blocked` |
+
+**前の版から:** `state` が `live` か `upcoming` で `kind` が無いもの (種類を書く前の版で覚えたもの) は、確かめ直す (`needsCheck`)。
 
 ## fetchBackoff
 

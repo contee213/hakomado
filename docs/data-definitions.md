@@ -28,7 +28,7 @@
 | `movieAnchors` | 動画ごとの本編の位置 | 作った | `movie-anchors.js` | [local.md#movieanchors](data-definitions/local.md#movieanchors) |
 | `notices` | 🔔 通知 | 一時 | `grid.js` | [local.md#notices](data-definitions/local.md#notices) |
 | `errorLog` | エラーの記録 | 一時 | `errlog.js` (service worker) | [local.md#errorlog](data-definitions/local.md#errorlog) |
-| `webOrigins` | URL の枠で許可したサイト | 設定 | `background.js`・`web-site.js` | [local.md#weborigins](data-definitions/local.md#weborigins) |
+| `webOrigins` | URL の枠で許可したサイト | 設定 | `grid.js` (足す)・`background.js` (外れたものを除く) | [local.md#weborigins](data-definitions/local.md#weborigins) |
 | `packCatalogImported` | 「パックを探す」から読み込んだパック | 一時 | `packs.js` | [local.md#packcatalogimported](data-definitions/local.md#packcatalogimported) |
 | `updateCheck` | 新しい版の確認結果 | 取得 | `update-check.js` | [local.md#updatecheck](data-definitions/local.md#updatecheck) |
 | `updateNotified` | お知らせを出した版 | 一時 | `update-check.js` | [local.md#updatecheck](data-definitions/local.md#updatecheck) |

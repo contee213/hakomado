@@ -7,7 +7,7 @@
 | 項目 | 型 | 必須 | 意味 |
 | --- | --- | --- | --- |
 | `app` | string | ○ | `hakomado` (違えば読まない) |
-| `format` | number | ○ | ファイルの形の版。今は 1。読む側より新しければ断る (`tooNew`) |
+| `format` | number | ○ | ファイルの形の版。今は 1。読む側より新しいとき・整数でないとき・無いときは断る (`tooNew`) |
 | `version` | string | − | 書き出した拡張機能の版 (読むときは使わない) |
 | `exportedAt` | string | − | 書き出した日時 (ISO 8601) |
 | `lang` | string | − | 表示言語 `auto` / `ja` / `en` |

@@ -8,7 +8,7 @@
 
 ### gridTabs
 
-開いているマルチビュー画面のタブ。`array` of number (タブの id、最後に使った順)。閉じたタブは書くときに除く。右クリックの追加の送り先と、X-Frame-Options を外すルールの対象のタブ (`background.js`)。
+開いているマルチビュー画面のタブ。`array` of number (タブの id、登録した順)。最後に使った順に並べるのは読むとき (`gridTabsByRecent`)。閉じたタブは書くときに除く。右クリックの追加の送り先と、X-Frame-Options を外すルールの対象のタブ (`background.js`)。
 
 ### statusShared
 
@@ -25,7 +25,7 @@
 
 ### twvod
 
-`twvod:<VOD の番号>` → `{at: 取った日時, start: 配信が始まった日時, title: string, channel: string}`。Twitch の VOD のページから読む (アーカイブの同期再生・枠の情報用)。変わらない値なので、取れたら取り直さない。
+`twvod:<VOD の番号>` → `{at: 取った日時, start: 配信が始まった日時, title: string, channel: string}`。Twitch の VOD のページから読む (アーカイブの同期再生・枠の情報用)。変わらない値なので、取れたら取り直さない。`title` が無いもの (前の版の形) は取り直す。
 
 ## localStorage
 
@@ -35,7 +35,7 @@
 | --- | --- | --- |
 | `hakomado.lang` | `ja` / `en` (無ければ自動) | 表示言語。バックアップの `lang` にも入る (`i18n.js`) |
 | `hakomado.settingsTab` | 設定のタブの名前 | 設定で最後に開いたタブ |
-| `hakomado.libTab` | `archive` / `history` / `saved` / `playlists` (無ければチャンネル) | ライブラリ・チャンネルで最後に開いたタブ |
+| `hakomado.libTab` | `archive` / `history` / `saved` / `playlists` (無い・知らない値なら `archive`) | ライブラリで最後に開いたタブ (チャンネルは覚えない) |
 | `hakomado.libScope` | `star` / `all` | すべて / ピックアップの絞り込み |
 | `hakomado.libKinds` | JSON の `array` (`live` `video` `short` のうち選んだもの) | 種類の絞り込み |
 | `hakomado.libPlaylist` | 再生リストの id | 開いていた再生リスト |
@@ -68,4 +68,4 @@ YouTube の視聴ページの中 (`content/watch-main.js`) は、YouTube 自身�
 | 値 `handle` | FileSystemFileHandle | ファイルの持ち手 (ファイルの中身は入れない) |
 | 値 `at` | number | 覚えた日時 |
 
-どの視聴セッションの枠にも入っていない持ち手は、画面を開いたときに消す (`pruneLocalFiles`)。
+どの視聴セッションの枠にも入っていない持ち手は、画面を開いたときに消す。覚えてから 10 分以内のものは消さない (`pruneLocalFiles`)。
