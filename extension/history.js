@@ -159,6 +159,19 @@ const SavedVideos = (() => {
     });
   }
 
+  /**
+   * 入っていなければ保存する (見逃したピックアップの配信を自動で入れるとき)。入っていれば何もしない。
+   * @returns {Promise<'saved'|'exists'|'full'|undefined>}
+   */
+  function add(videoId, info) {
+    if (!VideoEntry.validId(videoId)) return Promise.resolve();
+    return mutate((list) => {
+      if (list.some((h) => h.videoId === videoId)) return { result: 'exists' };
+      if (list.length >= MAX) return { result: 'full' };
+      return { next: [{ ...pick(info), videoId, at: Date.now() }, ...list], result: 'saved' };
+    });
+  }
+
   /** タイトルやチャンネル名が分かった (保存しているものだけ。並び順は変えない) */
   function update(videoId, info) {
     const add = pick(info);
@@ -178,5 +191,5 @@ const SavedVideos = (() => {
     return mutate((list) => ({ next: list.filter((h) => h.videoId !== videoId) }));
   }
 
-  return { KEY, MAX, list, toggle, update, remove };
+  return { KEY, MAX, list, toggle, add, update, remove };
 })();
