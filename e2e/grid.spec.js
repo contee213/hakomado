@@ -902,6 +902,34 @@ test.describe('自動再生の進み具合', () => {
   });
 });
 
+test.describe('枠の入れ替え', () => {
+  test('ドラッグ中の影は、つかんだ場所がカーソルの下に来るようについてくる。離すと消える', async ({ openGrid }) => {
+    const page = await openGrid();
+    await skipTour(page);
+    await page.evaluate(() => setTileWeb(state.order[0], 'https://video.example.com/watch/1'));
+    const tile = visibleTiles(page).first();
+    const bar = tile.locator('.bar');
+    await tile.hover();
+    const t = await tile.boundingBox();
+    const b = await bar.boundingBox();
+    // バーの右寄り (ボタンの無いところ) をつかむ
+    const grab = { x: b.x + b.width * 0.45, y: b.y + b.height / 2 };
+    await page.mouse.move(grab.x, grab.y);
+    await page.mouse.down();
+    await page.mouse.move(grab.x + 30, grab.y + 20, { steps: 5 });
+    await page.mouse.move(grab.x + 150, grab.y + 120, { steps: 10 });
+    const ghost = page.locator('.drag-ghost');
+    await expect(ghost).toHaveCount(1);
+    const g = await ghost.boundingBox();
+    expect(Math.abs(g.width - t.width)).toBeLessThan(2);
+    // 影の中でのカーソルの位置 = つかんだときの枠の中での位置
+    expect(Math.abs(grab.x + 150 - g.x - (grab.x - t.x))).toBeLessThan(3);
+    expect(Math.abs(grab.y + 120 - g.y - (grab.y - t.y))).toBeLessThan(3);
+    await page.mouse.up();
+    await expect(ghost).toHaveCount(0);
+  });
+});
+
 test.describe('自動再生の最大枠数', () => {
   test('増やしたら、1 分ごとの確認を待たずに空いた分を足す', async ({ openGrid }) => {
     const page = await openGrid();

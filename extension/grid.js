@@ -6188,6 +6188,11 @@ function closeOnBackdrop(dialog) {
 
 function setupDragSwap() {
   let dragFrom = null;
+  // ドラッグ中の影 (自分で描く)。ブラウザの影は透明な 1px の画像にして出さない
+  let ghost = null;
+  let ghostOff = { x: 0, y: 0 };
+  const blankImg = new Image();
+  blankImg.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
   // ボタンを押したまま少し動かしたときは、ドラッグではなくボタンの操作として扱う
   let pressedControl = false;
   document.addEventListener('pointerdown', (e) => (pressedControl = !!e.target.closest?.('button, input, select')), true);
@@ -6270,18 +6275,43 @@ function setupDragSwap() {
       dragFrom = i;
       e.dataTransfer.effectAllowed = 'move';
       e.dataTransfer.setData('text/plain', String(i));
-      // ドラッグ中の影は、つかんだ場所がカーソルの下に来るように出す (枠の左上に固定すると、右の方をつかんだときに影がずれる)
-      const r = v.el.getBoundingClientRect();
-      const x = Math.min(Math.max(0, e.clientX - r.left), r.width);
-      const y = Math.min(Math.max(0, e.clientY - r.top), r.height);
-      e.dataTransfer.setDragImage(v.el, Math.round(x), Math.round(y));
+      // ドラッグ中の影は自分で描く (つかんだ場所がカーソルの下に来るように)。
+      // ブラウザに枠を描かせると、大きな枠では影が縮められたり切られたりして、つかんだ場所とずれる
+      e.dataTransfer.setDragImage(blankImg, 0, 0);
+      showGhost(e, v);
       // iframe の上ではドラッグのイベントが取れないので、ドラッグ中は iframe を無視させる
       document.body.classList.add('dragging');
       v.el.classList.add('drag-source');
     }
   }
 
+  function showGhost(e, v) {
+    const r = v.el.getBoundingClientRect();
+    ghostOff = {
+      x: Math.min(Math.max(0, e.clientX - r.left), r.width),
+      y: Math.min(Math.max(0, e.clientY - r.top), r.height),
+    };
+    ghost = document.createElement('div');
+    ghost.className = 'drag-ghost';
+    ghost.style.width = `${r.width}px`;
+    ghost.style.height = `${r.height}px`;
+    const label = document.createElement('span');
+    label.textContent = [v.el.querySelector('.index')?.textContent, v.el.querySelector('.tile-name')?.textContent].filter(Boolean).join('  ');
+    ghost.append(label);
+    document.body.append(ghost);
+    moveGhost(e.clientX, e.clientY);
+  }
+  function moveGhost(x, y) {
+    if (ghost) ghost.style.transform = `translate(${Math.round(x - ghostOff.x)}px, ${Math.round(y - ghostOff.y)}px)`;
+  }
+  // ドラッグ中はこの画面の上のどこでも dragover が届く (iframe は body.dragging で無視させている)
+  window.addEventListener('dragover', (e) => {
+    if (ghost && (e.clientX || e.clientY)) moveGhost(e.clientX, e.clientY);
+  }, true);
+
   function onDragEnd() {
+    ghost?.remove();
+    ghost = null;
     dragFrom = null;
     document.body.classList.remove('dragging');
     views.forEach((x) => x.el.classList.remove('drag-source', 'drag-over'));

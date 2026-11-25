@@ -1025,6 +1025,26 @@ dialog.layout-dialog { width: min(760px, calc(100% - 32px)); }
 body.dragging iframe { pointer-events: none; }
 .tile.drag-source { opacity: .5; }
 .tile.drag-over { outline: 3px dashed #8ab4ff; outline-offset: -3px; }
+/* ドラッグ中の影 (つかんだ枠と同じ大きさで、カーソルについてくる) */
+.drag-ghost {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 1000;
+  pointer-events: none;
+  box-sizing: border-box;
+  border: 2px solid #8ab4ff;
+  border-radius: 4px;
+  background: rgba(138, 180, 255, .15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  color: #fff;
+  font-size: 14px;
+  text-shadow: 0 1px 2px #000;
+  white-space: nowrap;
+}
 
 /* ---------- settings ---------- */
 dialog {
