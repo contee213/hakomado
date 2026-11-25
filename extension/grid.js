@@ -8425,7 +8425,7 @@ async function updateLiveCount() {
 }
 
 // 確かめている間 ('loading') に薄く見せる前回の結果 (channelId -> {state, videoId, title, startAt})。
-// このタブで前に分かったもの (lastKnownStatus) が無いとき、ブラウザを閉じても残している取得結果から作る (Favorites.peekStatus)。
+// このタブで前に分かったもの (lastKnownStatus) が無いとき、ブラウザを閉じても残している取得結果から作る (Favorites.peekStatuses)。
 // 配信中の件数には数えない
 const favPeek = new Map();
 /** 確かめている間に見せる前回の結果 (無ければ undefined) */
@@ -8539,6 +8539,7 @@ function startTour() {
  * quick = ホロジュールで分かるチャンネルは RSS を取り直さない (Favorites.fetchStatus の quick)
  */
 function queueFavStatuses(favs, force, { quick = false } = {}) {
+  const peekFor = []; // 前回の結果をまだ持っていないチャンネル (まとめて 1 回で作る)
   for (const f of favs) {
     const st = favStatus.get(f.channelId);
     if (!force && st && st !== 'error' && st !== 'loading') continue;
@@ -8546,15 +8547,15 @@ function queueFavStatuses(favs, force, { quick = false } = {}) {
     if (st === 'loading' && !force) continue; // 取得中
     favStatus.set(f.channelId, 'loading');
     favQueue.push({ f, force, quick });
-    if (!favPrevStatus(f.channelId)) {
-      Favorites.peekStatus(f, { kinds: premiereKinds() })
-        .then((prev) => {
-          if (!prev || favStatus.get(f.channelId) !== 'loading') return;
-          favPeek.set(f.channelId, prev);
-          if (favDialog.open) scheduleFavRender();
-        })
-        .catch(() => {});
-    }
+    if (!favPrevStatus(f.channelId)) peekFor.push(f);
+  }
+  if (peekFor.length) {
+    Favorites.peekStatuses(peekFor, { kinds: premiereKinds() })
+      .then((prevs) => {
+        for (const [id, prev] of prevs) if (favStatus.get(id) === 'loading') favPeek.set(id, prev);
+        if (prevs.size && favDialog.open) scheduleFavRender();
+      })
+      .catch(() => {});
   }
   while (favWorkers < 4 && favQueue.length) {
     favWorkers++;
@@ -8669,7 +8670,7 @@ function favItem({ f, st, prev }) {
   const thumb = li.querySelector('.fav-thumb');
   if (st === 'loading' && prev) {
     // 前回の結果を薄く見せる (確かめ終わるまで押せない。終わった配信を枠に入れないように)
-    li.classList.add('loading', 'stale', prev.state);
+    li.classList.add('loading', 'stale');
     badge.textContent = tr('checking');
     li.title = `${li.title}\n${tr('favStaleTitle')}`;
     if (prev.state !== 'offline') {
