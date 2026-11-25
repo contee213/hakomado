@@ -1047,8 +1047,11 @@ test.describe('ライブラリの最近の動画 (HAKO-9)', () => {
       { channelId: ROBO, name: 'ロボ子さん' },
     ],
     ['feed:' + SORA]: { at: old, items: [item('sora0000001', 1), item('sora0000003', 3)] },
+    ['feed:UULF:' + SORA]: { at: old, items: [] },
+    ['feed:UUSH:' + SORA]: { at: old, items: [] },
     ['feed:' + ROBO]: { at: old, items: [item('robo0000002', 2)] },
     ['feed:UULF:' + ROBO]: { at: old, items: [item('robo0000004', 4)] },
+    ['feed:UUSH:' + ROBO]: { at: old, items: [] },
   };
   const ORDER = ['sora0000001', 'robo0000002', 'sora0000003', 'robo0000004'];
   const shownIds = (page) => page.locator('#favList [data-key]').evaluateAll((els) => els.map((e) => e.dataset.key));
@@ -1071,10 +1074,11 @@ test.describe('ライブラリの最近の動画 (HAKO-9)', () => {
     await page.locator('#openFavorites').click();
     await page.locator('[data-favtab="archive"]').click();
     await expect.poll(() => shownIds(page)).toEqual(ORDER);
-    await expect(page.locator('#savedCount')).toHaveText('4 件'); // 取りに行った分 (失敗) が終わった
+    // 取りに行った分は (通信を止めているので) 失敗し、前回の結果のままであることを件数の横に出す
+    await expect(page.locator('#savedCount')).toHaveText('4 件 (2 チャンネルは取り直せず、前回の結果)');
     expect(await page.evaluate(() => window.__counts.filter((n) => n > 0))).toEqual([4]);
     await page.locator('#favRefresh').click();
-    await expect(page.locator('#savedCount')).toHaveText('4 件');
+    await expect(page.locator('#savedCount')).toHaveText('4 件 (2 チャンネルは取り直せず、前回の結果)');
     expect(await shownIds(page)).toEqual(ORDER);
     expect(await page.evaluate(() => window.__counts.filter((n) => n > 0))).toEqual([4]);
   });

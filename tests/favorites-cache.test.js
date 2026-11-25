@@ -169,6 +169,15 @@ test('前回の最近の動画 (peekArchives): ショートを見ないときは
     ['feed:' + CH]: feed(Date.now(), [item(VID)]),
     ['feed:UUSH:' + CH]: feed(Date.now(), [item(VID2)]),
   });
+  local._seed({ ['feed:UULF:' + CH]: feed(Date.now(), []) });
   const got = await F.peekArchives([CH]);
   assert.deepEqual(plain(got.get(CH)).map((v) => v.videoId), [VID]);
+});
+
+test('前回の最近の動画 (peekArchives): 「動画」の再生リストが残っていない (配信だけ残っている) チャンネルは入れない', async () => {
+  const { F, local } = setup();
+  // 「ライブ配信」は配信状況の確認でいつも残るが、「動画」「ショート」は最近の動画でしか取らず、3 日で消える
+  local._seed({ ['feed:' + CH]: feed(Date.now(), [item(VID)]), ['feed:UULF:' + CH]: feed(Date.now(), []) });
+  const got = await F.peekArchives([CH], { shorts: true });
+  assert.equal(got.has(CH), false);
 });

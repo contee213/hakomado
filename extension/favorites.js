@@ -222,7 +222,7 @@ const Favorites = (() => {
   /**
    * 最近の配信・動画 (fetchArchives と同じ形) を、取りに行かずに覚えている結果だけで作る (古くても使う)。
    * ライブラリの最近の動画を開いたときに、全チャンネル分を 1 回で先に出すため (届くたびに並びが変わらないように)。
-   * 覚えていないチャンネルは入れない。@returns {Promise<Map<string, Array>>} channelId -> 一覧
+   * 覚えていない (再生リストのどれかが残っていない) チャンネルは入れない。@returns {Promise<Map<string, Array>>} channelId -> 一覧
    */
   async function peekArchives(channelIds, { shorts = false } = {}) {
     const yt = channelIds.filter((id) => CHANNEL_ID_RE.test(id));
@@ -233,9 +233,11 @@ const Favorites = (() => {
     const out = new Map();
     for (const id of yt) {
       const items = (list) => got[feedKey(id, list)]?.items;
-      if (!Array.isArray(items('UULV'))) continue;
+      // 1 つでも残っていなければ入れない (「ライブ配信」は配信状況の確認でいつも残るが、「動画」「ショート」は最近の動画でしか
+      // 取らず、3 日で消える。配信だけを先に出すと、あとから動画が入って並びが 2 回変わるため)
+      if (!lists.every((list) => Array.isArray(items(list)))) continue;
       const kinds = { UULV: 'live', UULF: 'video', UUSH: 'short' };
-      out.set(id, mergeArchiveLists(lists.map((list) => [Array.isArray(items(list)) ? items(list) : [], list, kinds[list]])));
+      out.set(id, mergeArchiveLists(lists.map((list) => [items(list), list, kinds[list]])));
     }
     for (const id of tw) {
       const page = got[TW_PAGE_PREFIX + id.slice(3)]?.page;

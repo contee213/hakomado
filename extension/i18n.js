@@ -685,6 +685,7 @@ const MESSAGES = {
   archiveError: ['最近の動画を取得できませんでした', 'Could not get recent videos'],
   archiveNone: ['終わった配信はありません。', 'No past streams.'],
   archiveProgress: ['取得中 {0} / {1}', 'Loading {0} / {1}'],
+  archiveStale: ['{0} 件 ({1} チャンネルは取り直せず、前回の結果)', '{0} ({1} channels could not be updated; showing earlier results)'],
   archiveEmpty: ['最近 {0} 日に終わった配信・公開された動画はありません。', 'No streams or videos in the last {0} days.'],
   archiveNoMatch: ['「{0}」に一致する配信はありません。', 'No streams match "{0}".'],
   archiveNoPick: ['ピックアップ (📌) のチャンネルがありません。「すべて」に切り替えるか、チャンネルを 📌 でピックアップに入れてください。', 'No channels in pickup (📌). Switch to "All", or pick up channels with 📌.'],

@@ -8733,6 +8733,12 @@ function favItem({ f, st, prev }) {
     p.textContent = tr(!data || data === 'loading' ? 'archiveLoading' : data === 'error' ? 'archiveError' : 'archiveNone');
     sub.append(p);
   } else {
+    if (archiveStale.has(f.channelId)) {
+      const p = document.createElement('p');
+      p.className = 'fav-arch-msg';
+      p.textContent = tr('archiveError');
+      sub.append(p);
+    }
     const ul = document.createElement('ul');
     ul.className = 'fav-sub video-grid compact';
     ul.append(...data.filter((v) => isFinishedArchive(v, f)).map((v) => archiveItem(v, f)));
@@ -8748,6 +8754,8 @@ const archiveData = new Map(); // channelId -> 'loading' | 'error' | [{videoId, 
 const archiveFetched = new Set();
 // 取りに行っている最中のチャンネル。取り直している間も、前回の結果 (archiveData) は消さずに出しておく (HAKO-9)
 const archiveBusy = new Set();
+// 取り直せず、前回の結果を出したままのチャンネル (件数の横に数を出して、古いことに気づけるように)
+const archiveStale = new Set();
 const archiveOpen = new Set(); // 「最近 ⌄」で開いているチャンネル
 const ARCHIVE_DAYS = 7; // 「最近の配信」に出す範囲 (日)
 const archiveQueue = [];
@@ -8771,10 +8779,12 @@ function loadArchives(favs, { force = false } = {}) {
           const d = await Favorites.fetchArchives(id, { force: q.force, shorts: true });
           rememberThumbs(d);
           archiveData.set(id, d);
+          archiveStale.delete(id);
         } catch (e) {
           ErrLog.warnFetch('hakomado: アーカイブの取得に失敗', q.f.name, e);
-          // 前回の結果があれば、それを出したままにする
-          if (!Array.isArray(archiveData.get(id))) archiveData.set(id, 'error');
+          // 前回の結果があれば、それを出したままにする (古いことは件数の横に出す)
+          if (Array.isArray(archiveData.get(id))) archiveStale.add(id);
+          else archiveData.set(id, 'error');
         }
         archiveFetched.add(id);
         archiveBusy.delete(id);
@@ -8788,11 +8798,17 @@ function loadArchives(favs, { force = false } = {}) {
  * まだ何も持っていないチャンネルの、ブラウザに残っている前回の結果 (古くても) を、全チャンネル分まとめて読んでおく。
  * 最近の動画を開いたときに一覧を 1 回で揃えて出し、1 チャンネル届くたびに並びが変わらないようにするため (HAKO-9)
  */
-const archivePeeked = new Set(); // 前回の結果を読みに行ったチャンネル (残っていなかったものを、描き直すたびに読み直さないように)
+const archivePeeking = new Map(); // channelId -> 前回の結果を読んでいる Promise (読み終えたものも残す。描き直しが重なっても、同じものを待つ)
 async function peekArchiveData(favs) {
-  const ids = favs.map((f) => f.channelId).filter((id) => !archivePeeked.has(id) && !Array.isArray(archiveData.get(id)));
-  if (!ids.length) return;
-  for (const id of ids) archivePeeked.add(id);
+  const ids = favs.map((f) => f.channelId).filter((id) => !archivePeeking.has(id) && !Array.isArray(archiveData.get(id)));
+  if (ids.length) {
+    const reading = readArchivePeek(ids);
+    for (const id of ids) archivePeeking.set(id, reading);
+  }
+  await Promise.all(favs.map((f) => archivePeeking.get(f.channelId)).filter(Boolean));
+}
+
+async function readArchivePeek(ids) {
   try {
     const got = await Favorites.peekArchives(ids, { shorts: true });
     for (const [id, d] of got) {
@@ -8927,10 +8943,12 @@ async function renderArchiveTab({ force = false } = {}) {
   buildCollabGroups(items.map(({ v, f }) => videoSelEntry({ videoId: v.videoId, title: v.title, at: v.at, channelId: f.channelId }, f, COLLAB_WIN.archive)));
   const ul = document.createElement('ul');
   ul.className = 'fav-sub video-grid';
+  ul.dataset.list = 'archive'; // 滑らせるのは、この一覧どうしの描き直しだけ (replaceKeepingPlaces)
   ul.append(...items.map(({ v, f }) => archiveItem(v, f)));
-  replaceKeepingPlaces(favListEl, items.length ? [ul] : []);
+  replaceKeepingPlaces(favListEl, items.length ? [ul] : [], 'archive');
+  const stale = targets.filter((f) => archiveStale.has(f.channelId)).length;
   document.getElementById('savedCount').textContent =
-    done < targets.length ? tr('archiveProgress', done, targets.length) : tr('items', items.length);
+    done < targets.length ? tr('archiveProgress', done, targets.length) : stale ? tr('archiveStale', items.length, stale) : tr('items', items.length);
   document.getElementById('favEmpty').textContent = q
     ? tr('archiveNoMatch', favFilter)
     : libKindFiltered() && done >= targets.length && targets.length
@@ -9024,23 +9042,24 @@ function archiveItem(v, f) {
 }
 
 /**
- * 一覧 (scroller の中) を描き直す。描き直す前後で同じ data-key の行は、元の位置から新しい位置へ滑らせて動かし、
+ * 一覧 (scroller の中) を描き直す。描き直す前後で同じ data-key の行 (data-list = list の一覧の中のもの。ほかのタブの行は使わない) は、元の位置から新しい位置へ滑らせて動かし、
  * 新しく入った行はふわっと出す (パッと入れ替わって、見ていた動画を見失わないように。HAKO-9)。
  * スクロールしているときは、画面のいちばん上に見えていた行が同じ高さに残るようにスクロール位置を合わせる
  * (上に入った分で、見ているところが押し下げられないように)。動きを減らす設定のときは滑らせない
  */
-function replaceKeepingPlaces(scroller, nodes) {
+function replaceKeepingPlaces(scroller, nodes, list) {
+  const rows = (root) => root.querySelectorAll(`:scope > [data-list="${list}"] [data-key]`);
   const before = new Map();
   let anchor = null;
   const top = scroller.getBoundingClientRect().top;
-  for (const el of scroller.querySelectorAll('[data-key]')) {
+  for (const el of rows(scroller)) {
     const r = el.getBoundingClientRect();
     before.set(el.dataset.key, r);
     if (!anchor && scroller.scrollTop > 0 && r.bottom > top) anchor = { key: el.dataset.key, top: r.top };
   }
   scroller.replaceChildren(...nodes);
   if (!before.size) return; // 初めて描くとき・空だったときは、そのまま出す
-  const after = new Map([...scroller.querySelectorAll('[data-key]')].map((el) => [el.dataset.key, el]));
+  const after = new Map([...rows(scroller)].map((el) => [el.dataset.key, el]));
   const anchorEl = anchor && after.get(anchor.key);
   if (anchorEl) scroller.scrollTop += anchorEl.getBoundingClientRect().top - anchor.top;
   if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
@@ -12072,6 +12091,7 @@ async function archiveCandidates(channels, { onProgress = null, until = null } =
         rememberThumbs(d);
         archiveData.set(f.channelId, d);
         archiveFetched.add(f.channelId);
+        archiveStale.delete(f.channelId);
         archiveFailedAt.delete(f.channelId);
       } catch {
         archiveFailedAt.set(f.channelId, Date.now());
