@@ -1160,6 +1160,37 @@ test.describe('ライブラリの最近の動画 (HAKO-9)', () => {
     expect(await page.evaluate(() => window.__counts.filter((n) => n > 0))).toEqual([4]);
   });
 
+  // HAKO-24: 取っている間は「⟳ 更新」で進み具合を見せる (デザインガイド 1 章)。前回の動画は薄くせず押せるまま (6 章の例外)
+  test('取っている間は「⟳ 更新」のアイコンが回り、下端の線と乗せたときの説明で進み具合を見せる', async ({ openGrid }) => {
+    const page = await openGrid();
+    await skipTour(page);
+    await page.evaluate((seed) => chrome.storage.local.set(seed), SEED);
+    await page.reload();
+    await expect(page.locator('#grid .tile').first()).toBeAttached();
+    let release;
+    const gate = new Promise((r) => (release = r));
+    // ロボ子さんの分だけ返事を止めておく (先に取るそらの分はすぐ失敗して済む。RSS は 1 件ずつ順に取る)
+    await page.route(/\/feeds\/videos\.xml/, async (route) => {
+      if (route.request().url().includes(ROBO.slice(2))) await gate;
+      await route.abort();
+    });
+    const btn = page.locator('#favRefresh');
+    const idleTitle = await btn.getAttribute('title');
+    await page.locator('#openFavorites').click();
+    await page.locator('[data-favtab="archive"]').click();
+    await expect.poll(() => shownIds(page)).toEqual(ORDER);
+    await expect(btn).toHaveClass(/\bbusy\b/);
+    await expect(btn).toHaveAttribute('title', '取得中 1 / 2');
+    await expect(page.locator('#favRefreshBar')).toBeVisible();
+    expect(await page.locator('#favRefreshBar').evaluate((el) => el.style.width)).toBe('50%');
+    // 前回の動画は薄くしない
+    expect(await page.locator('#favList [data-key]').first().evaluate((el) => getComputedStyle(el).opacity)).toBe('1');
+    release();
+    await expect(btn).not.toHaveClass(/\bbusy\b/);
+    await expect(page.locator('#favRefreshBar')).toBeHidden();
+    await expect(btn).toHaveAttribute('title', idleTitle);
+  });
+
   // 取り直して新しい動画が届いたら、元からある動画は元の位置から滑って動く (パッと飛ばない)。動きを減らす設定では滑らせない
   for (const reduced of [false, true]) {
     test(`新しく届いた動画が入るとき、ほかの動画を${reduced ? '滑らせない (動きを減らす設定)' : '滑らせて動かす'}`, async ({ openGrid }) => {

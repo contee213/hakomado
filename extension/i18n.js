@@ -1358,7 +1358,7 @@ const HTML_EN = {
   'sel.clear': 'Clear selection',
   'sel.load': '▦ Load into tiles',
   'sel.loadTitle': 'Load the selected streams into empty tiles in the order you picked them (adds tiles up to 16 if needed; skips ones already in tiles)',
-  'fav.refresh': '⟳ Refresh',
+  'fav.refresh': 'Refresh',
   'fav.refreshTitle': 'Check live status again',
   'fav.filter': 'Filter by name or @handle',
   'fav.empty': 'No channels yet. Add some from “⚙ Manage” in “📺 Channels”.',

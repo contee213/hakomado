@@ -832,6 +832,12 @@ dialog.cm-confirm { width: min(440px, calc(100% - 32px)); }
 .cm-confirm-star[hidden] { display: none; }
 .cm-confirm-buttons { justify-content: flex-end; }
 
+/* ライブラリの「⟳ 更新」: 最近の動画を取っている間はアイコンを回し、下端の線で進み具合を出す (デザインガイド 1 章。HAKO-24) */
+#favRefresh { position: relative; overflow: hidden; }
+#favRefresh .refresh-icon { display: inline-block; }
+#favRefresh.busy .refresh-icon { animation: spin 1s linear infinite; }
+@media (prefers-reduced-motion: reduce) { #favRefresh.busy .refresh-icon { animation: none; } }
+
 /* ---------- 自動再生を始めるときの進み具合 (「自動再生」ボタンの下端の線と、✕ で隠せる画面中央の箱) ---------- */
 #autoMode { position: relative; overflow: hidden; }
 .auto-progress-bar {
