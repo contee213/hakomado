@@ -11293,8 +11293,22 @@ async function startVideoAutoInner() {
   }
   if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
   if (favDialog.open) favDialog.close();
-  const n = await refillArchives({ lock: false });
+  // まず、ブラウザに残っている前回の結果 (古くても) ですぐ埋める。全チャンネルを取り直し終わるまで空の枠で待たせないため (HAKO-13)
+  let n = await refillArchives({ lock: false, cached: true });
   if (!state.autoMode) return;
+  const fromCache = n > 0;
+  // 埋まりきらなければ取りに行く (進み具合はチャンネルごとに進める。📌 → すべての順に 2 回数えるので、戻らないようにする)
+  let frac = 0.3;
+  n = await refillArchives({
+    lock: false,
+    onProgress: (done, total) => {
+      frac = Math.max(frac, 0.3 + 0.65 * (done / Math.max(1, total)));
+      showAutoProgress(tr('progressArchive', done, total), frac);
+    },
+  });
+  if (!state.autoMode) return;
+  // 前回の結果で流し始めたときは、裏で取り直しておく (次に枠が空いたとき・✕ で閉じたときに新しい動画が入るように)
+  if (fromCache) warmArchives();
   if (!n) compactToContent();
   renderAll();
   save();
@@ -12081,12 +12095,23 @@ const ARCHIVE_RETRY_MS = 5 * 60 * 1000;
  * 最近の配信の候補 (新しい順)。毎回 Favorites.fetchArchives に聞く (30 分は覚えた結果を返すので、取りに行くのは古くなったときだけ)。
  * 自動再生を一晩つけっぱなしにしても、新しく終わった配信が候補に入る
  */
-async function archiveCandidates(channels, { onProgress = null, until = null } = {}) {
+async function archiveCandidates(channels, { onProgress = null, until = null, cached = false } = {}) {
   const kinds = autoVideoKinds();
   const since = Date.now() - (kinds.size ? VIDEO_AUTO_DAYS : ARCHIVE_DAYS) * 24 * 60 * 60 * 1000;
   // 自動再生対象に動画・ショートがあればその種類だけ。配信だけのときは、ライブが無い間の「最近の動画」の設定に従う
   const kindOk = (v) => (kinds.size ? kinds.has(v.kind) : autoKindAllowed(v));
   const shorts = kinds.size ? kinds.has('short') : state.settings.autoArchiveShorts;
+  if (cached) {
+    // 取りに行かず、ブラウザに残っている前回の結果 (古くても) だけで探す。残っていないチャンネルは入らない
+    const out = [];
+    try {
+      const got = await Favorites.peekArchives(channels.map((f) => f.channelId), { shorts });
+      for (const f of channels) for (const v of got.get(f.channelId) || []) if (v.at >= since && kindOk(v) && isFinishedArchive(v, f)) out.push({ v, f });
+    } catch (e) {
+      console.warn('hakomado: 前回の最近の動画を読めませんでした', e);
+    }
+    return out.sort((a, b) => b.v.at - a.v.at);
+  }
   const queue = channels.filter((f) => Date.now() - (archiveFailedAt.get(f.channelId) || 0) > ARCHIVE_RETRY_MS);
   const total = queue.length;
   let done = 0;
@@ -12117,6 +12142,22 @@ async function archiveCandidates(channels, { onProgress = null, until = null } =
   return out.sort((a, b) => b.v.at - a.v.at);
 }
 
+/** 自動再生の対象のチャンネルの最近の動画を、裏で取り直しておく (枠には入れない)。前回の結果で流し始めたあとに使う */
+let archiveWarming = false;
+async function warmArchives() {
+  if (archiveWarming) return;
+  archiveWarming = true;
+  try {
+    const favs = await Favorites.list();
+    const favOnly = autoVideoKinds().size > 0 && state.settings.autoTarget === 'fav';
+    await archiveCandidates(favOnly ? favs.filter((f) => f.star) : favs);
+  } catch (e) {
+    ErrLog.warnFetch('hakomado: 最近の動画の取り直しに失敗', e);
+  } finally {
+    archiveWarming = false;
+  }
+}
+
 /** 視聴履歴にある動画 ID (一度見たもの) */
 async function watchedIds() {
   return new Set((await WatchHistory.list()).map((h) => h.videoId));
@@ -12135,7 +12176,7 @@ function splitArchiveTiles() {
  * 候補を探す間 (フィードを取りに行くので時間がかかる) に枠の中身が変わることがあるので、入れる直前に今の状態を見直す
  * @returns {Promise<number>} 最近の配信の枠の数
  */
-async function refillArchives({ lock = true } = {}) {
+async function refillArchives({ lock = true, cached = false, onProgress = null } = {}) {
   if (!state.autoMode) return 0;
   const run = async () => {
     if (!state.autoMode) return 0; // 順番待ちの間に OFF にされた
@@ -12165,12 +12206,13 @@ async function refillArchives({ lock = true } = {}) {
       const watched = await watchedIds();
       const need = want - fills.length;
       const usable = ({ v }) => !watched.has(v.videoId) && !autoDismissed.has(v.videoId) && !shownInOtherTab(v.videoId);
-      let picks = (await archiveCandidates(favs.filter((f) => f.star))).filter(usable);
+      const opts = { cached, onProgress };
+      let picks = (await archiveCandidates(favs.filter((f) => f.star), opts)).filter(usable);
       // 1 チャンネル 1 枠なので、ピックアップのチャンネル数で足りなければ、すべてのチャンネルからも探す
       // (動画・ショートだけを流すときは、設定の「自動再生のチャンネル」がピックアップだけなら探さない)
       const favOnly = autoVideoKinds().size > 0 && state.settings.autoTarget === 'fav';
       if (!favOnly && new Set(picks.map((p) => p.f.channelId)).size < need) {
-        picks = [...picks, ...(await archiveCandidates(favs.filter((f) => !f.star))).filter(usable)];
+        picks = [...picks, ...(await archiveCandidates(favs.filter((f) => !f.star), opts)).filter(usable)];
       }
       // 探している間に変わったかもしれないので、今の状態で数え直す
       if (!state.autoMode) return 0;
