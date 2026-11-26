@@ -626,6 +626,9 @@ const MESSAGES = {
   ],
   selCount: ['{0} 本を選択中', '{0} selected'],
   selCountOver: ['{0} 本を選択中 (枠に入るのは {1} 本まで)', '{0} selected (only {1} fit in the tiles)'],
+  aiDownloading: ['AI のモデルをダウンロードしています… {0}%', 'Downloading the AI model… {0}%'],
+  aiNotReady: ['AI のモデルがまだ用意できていません。いったん OFF にして、もう一度 ON にしてください', 'The AI model isn’t ready yet. Turn this off and on again'],
+  aiFailed: ['AI を用意できませんでした。🤝 は AI を使わずに判定します', 'Couldn’t set up the AI. 🤝 will be judged without it'],
   selSyncNone: [
     '枠に入れましたが、⏱ アーカイブ同期できる組になりませんでした (時間帯の重なるアーカイブが 2 本以上要ります)',
     'Loaded, but they can’t be synced with ⏱ archive sync (needs 2 or more archives that overlap in time)',
@@ -1386,6 +1389,8 @@ const HTML_EN = {
   'fav.filter': 'Filter by name or @handle',
   'fav.empty': 'No channels yet. Add some from “⚙ Manage” in “📺 Channels”.',
   'cm.settingsH': 'Manage channels',
+  'ai.collab': 'Use AI to tell collabs apart',
+  'ai.collabNote': 'Checks the 🤝 (collab groups) in the Library with Chrome’s built-in AI. The AI runs on this PC and sends nothing out. The first time you turn it on, the AI model (about 4GB) starts downloading',
   'cm.settingsNote': 'Add channels, remove many at once, channel packs and importing your YouTube subscriptions are in the “Manage channels” screen',
   'cm.open': '⚙ Manage channels',
   'cm.openPlain': 'Manage channels',

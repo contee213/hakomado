@@ -563,6 +563,136 @@ test.describe('ライブラリの複数選択', () => {
   });
 });
 
+test.describe('🤝 コラボの判定 (概要欄の @)', () => {
+  // 2026-11-26 の実際の配信 (タイトル・概要欄の @・公開時刻)。正解: 森林脱出の 3 人がコラボ、AZKi・いろはがコラボ、ヴィヴィ・らでんは単独
+  const CH = {
+    vivi: ['UCGzTVXqMQHa4AgJVJIVvtDQ', '綺々羅々ヴィヴィ', '@KikiraraVivi'],
+    raden: ['UCdXAk5MpyLD8594lm_OvtGQ', '儒烏風亭らでん', '@JuufuuteiRaden'],
+    botan: ['UCUKD-uaobj9jiqB-VXt71mA', '獅白ぼたん', '@ShishiroBotan'],
+    azki: ['UC0TXe_LYZ4scaW2XMyi5_kw', 'AZKi', '@AZKi'],
+    iroha: ['UC_vMYWcDjmfdpH6r4TTn1MQ', '風真いろは', '@kazamairoha'],
+    chihaya: ['UCKMWFR6lAstLa7Vbf5dH7ig', '輪堂千速', '@RindoChihaya'],
+    anya: ['UC727SQYUvx5pDDGQpTICNWg', 'Anya Melfissa', '@AnyaMelfissa'],
+  };
+  const V = [
+    ['vivi1111111', 'vivi', '【#ホロじゃん】初めての麻雀🔰ランクいける…？【#綺々羅々ヴィヴィ #hololive  #FLOWGLOW】', '2026-11-26T15:26:53Z', ['hololive_mahjong', 'kikirara_vivi', 'dev_is_flowglow', 'kikiraravivi']],
+    ['raden111111', 'raden', '【ホロライブ麻雀 -ホロじゃん-】リスナー参加型です！！【儒烏風亭らでん #ReGLOSS 】', '2026-11-26T15:22:22Z', ['hololive_mahjong']],
+    ['botan111111', 'botan', '列車を修理しながら狂気の森を脱出しよう！－森林脱出：終電 (Forest Escape: Last Train)【獅白ぼたん/ホロライブ】', '2026-11-26T14:32:49Z', ['shishirobotan', 'rindochihaya', 'anyamelfissa']],
+    ['azki1111111', 'azki', '【#ホロじゃん】あずいろと一緒に麻雀しよ！！！！！【ホロライブ / AZKi】', '2026-11-26T14:30:21Z', ['kazamairoha', 'hololive_mahjong', 'azki_hololive']],
+    ['iroha111111', 'iroha', '【#ホロじゃん】#あずいろ でホロじゃんするぞ！！対ヨロ✋【風真いろは/ホロライブ】', '2026-11-26T14:29:54Z', ['azki', 'hololive_mahjong']],
+    ['chihaya1111', 'chihaya', '【森林脱出：終電 (Forest Escape: Last Train)】3人でこの森から脱出するぜい～～～！！！！【#輪堂千速 / #hololive #FLOWGLOW 】', '2026-11-26T14:28:49Z', ['shishirobotan', 'anyamelfissa', 'rindochihaya', 'uckmwfr6lastla7vbf5dh7ig']],
+    ['anya1111111', 'anya', '【Forest Escape: Last Train】こわ〜い森からみんなと脱出したい！！！ This Forest Is Scary【hololive holoro | Anya Melfissa】', '2026-11-26T14:27:36Z', ['shishirobotan', 'rindochihaya']],
+  ];
+
+  test('概要欄の @ で、森林脱出の 3 人・あずいろを組にし、あずいろとほかのホロじゃんは分ける', async ({ openGrid }) => {
+    const page = await openGrid();
+    await skipTour(page);
+    const groups = await page.evaluate(
+      ({ CH, V }) => {
+        const favs = Object.values(CH).map(([channelId, name, handle]) => ({ channelId, name, handle }));
+        setCollabKnown(favs);
+        const fav = (k) => favs.find((f) => f.channelId === CH[k][0]);
+        buildCollabGroups(V.map(([videoId, k, title, at, ats]) => videoSelEntry({ videoId, title, at: Date.parse(at), channelId: CH[k][0], ats }, fav(k), COLLAB_WIN.archive)));
+        return [...new Set(collabOf.values())].map((g) => [...g].sort().join(','));
+      },
+      { CH, V },
+    );
+    // ヴィヴィ・らでんは、どちらの概要欄にも登録チャンネルの @ が無く、#ホロじゃん だけでつながる。AI を使わないときは今までどおり組になる
+    // (AI を使うときは AI に聞く。2026-11-26 の試しでは AI は「別」と答えた)
+    expect(groups.sort()).toEqual(['anya1111111,botan111111,chihaya1111', 'azki1111111,iroha111111', 'raden111111,vivi1111111']);
+  });
+
+  test('概要欄が分からない (前の版で覚えた) ときは、今までどおりタイトルで判定する', async ({ openGrid }) => {
+    const page = await openGrid();
+    await skipTour(page);
+    const groups = await page.evaluate(
+      ({ CH, V }) => {
+        const favs = Object.values(CH).map(([channelId, name, handle]) => ({ channelId, name, handle }));
+        setCollabKnown(favs);
+        const fav = (k) => favs.find((f) => f.channelId === CH[k][0]);
+        buildCollabGroups(V.map(([videoId, k, title, at]) => videoSelEntry({ videoId, title, at: Date.parse(at), channelId: CH[k][0] }, fav(k), COLLAB_WIN.archive)));
+        return [...new Set(collabOf.values())].map((g) => [...g].sort().join(','));
+      },
+      { CH, V },
+    );
+    // 今までのルール: #ホロじゃん の 4 本 (と #FLOWGLOW の千速) が 1 組になり、森林脱出の 3 人は組にならない
+    expect(groups).toEqual(['azki1111111,chihaya1111,iroha111111,raden111111,vivi1111111']);
+  });
+
+  test('AI を使う設定なら、# タグだけでつながる組を AI に聞き、「別」なら組にしない (@ でつながる組は聞かない)', async ({ openGrid }) => {
+    const page = await openGrid();
+    await skipTour(page);
+    const r = await page.evaluate(
+      async ({ CH, V }) => {
+        const asked = [];
+        // 組み込み AI の代わり (いつも「別」と答える)
+        self.LanguageModel = {
+          availability: async () => 'available',
+          create: async () => ({
+            clone: async () => ({ prompt: async (q) => (asked.push(q), 'separate'), destroy() {} }),
+          }),
+        };
+        await CollabAI.init();
+        state.settings.aiCollab = true;
+        const favs = Object.values(CH).map(([channelId, name, handle]) => ({ channelId, name, handle }));
+        setCollabKnown(favs);
+        const fav = (k) => favs.find((f) => f.channelId === CH[k][0]);
+        const run = () => buildCollabGroups(V.map(([videoId, k, title, at, ats]) => videoSelEntry({ videoId, title, at: Date.parse(at), channelId: CH[k][0], ats }, fav(k), COLLAB_WIN.archive)));
+        run();
+        await new Promise((res) => setTimeout(res, 300));
+        run();
+        return { asked: asked.length, groups: [...new Set(collabOf.values())].map((g) => [...g].sort().join(',')).sort(), visible: !document.getElementById('aiCollabRow').hidden };
+      },
+      { CH, V },
+    );
+    expect(r.asked).toBe(1); // ヴィヴィ・らでん の 1 組だけ
+    expect(r.groups).toEqual(['anya1111111,botan111111,chihaya1111', 'azki1111111,iroha111111']);
+    expect(r.visible).toBe(true); // 使える PC では設定を出す
+  });
+
+  test('RSS の概要欄から @ハンドルだけを取り出して覚える (概要欄の文は覚えない)', async ({ openGrid, context }) => {
+    const ID = 'UCUKD-uaobj9jiqB-VXt71mA';
+    const xml = (desc) =>
+      `<feed xmlns:yt="http://www.youtube.com/xml/schemas/2015" xmlns:media="http://search.yahoo.com/mrss/" xmlns="http://www.w3.org/2005/Atom"><entry><yt:videoId>pz3vq2XOmwg</yt:videoId><title>森林脱出</title><published>2026-11-26T14:32:49+00:00</published><media:group><media:description>${desc}</media:description><media:community><media:statistics views="10"/></media:community></media:group></entry></feed>`;
+    await context.route(/\/feeds\/videos\.xml/, (route) =>
+      route.fulfill({
+        contentType: 'application/xml',
+        body: route.request().url().includes('UULV') ? xml('無事3人で脱出 @ShishiroBotan @RindoChihaya @AnyaMelfissa a@b.com https://www.youtube.com/@KeiMorimoto_music.') : xml(''),
+      }),
+    );
+    const page = await openGrid();
+    await skipTour(page);
+    const r = await page.evaluate(async (id) => {
+      const items = await Favorites.fetchArchives(id, { force: true });
+      const saved = (await chrome.storage.local.get('feed:' + id))['feed:' + id];
+      return { ats: items[0]?.ats, savedKeys: Object.keys(saved.items[0]).sort() };
+    }, ID);
+    expect(r.ats).toEqual(['shishirobotan', 'rindochihaya', 'anyamelfissa', 'keimorimoto_music']);
+    expect(r.savedKeys).toEqual(['at', 'ats', 'title', 'videoId', 'views']);
+  });
+
+  test('組み込み AI の無い PC では、設定「AI でコラボを見分ける」を出さない', async ({ openGrid }) => {
+    const page = await openGrid();
+    await skipTour(page);
+    await page.evaluate(() => {
+      delete self.LanguageModel;
+      return CollabAI.init();
+    });
+    await expect(page.locator('#aiCollabRow')).toBeHidden();
+  });
+
+  test('デバッグの窓: ライブラリで Ctrl+Shift+D で出し、もう一度で隠す', async ({ openGrid }) => {
+    const page = await openGrid();
+    await skipTour(page);
+    await page.locator('#openFavorites').click();
+    await page.keyboard.press('Control+Shift+KeyD');
+    await expect(page.locator('#collabDebug')).toBeVisible();
+    await expect(page.locator('#collabDebug .cd-head')).toContainText('コラボの判定');
+    await page.keyboard.press('Control+Shift+KeyD');
+    await expect(page.locator('#collabDebug')).toBeHidden();
+  });
+});
+
 test.describe('ライブラリの種類の絞り込み', () => {
   const now = Date.now();
   const HISTORY = [

@@ -53,6 +53,7 @@ const DEFAULT_SETTINGS = {
   // (配信予定が見えている配信は、開始の前後にいつも確かめる。長くして遅れるのは、予定を出さずに始めた配信に気づくまで)
   feedPickMin: 3,
   feedOtherMin: 15,
+  aiCollab: false, // ライブラリの 🤝 コラボの判定に、Chrome の組み込み AI を使う (使える PC だけ。HAKO-25)
   layoutFavs: '', // レイアウト画面の「お気に入り」タブに出すもの (レイアウトの id = 形 + 配置順 をカンマでつないだもの)
 };
 
@@ -8068,6 +8069,7 @@ function syncSettingsInputs() {
   }
   applyDanmakuArea();
   applyDanmakuLook();
+  CollabAI.paint();
 }
 
 // 弾幕の文字の見た目。フォントは PC に入っているものを使い、無ければ次の候補 → 標準のゴシックになる
@@ -8353,6 +8355,9 @@ function setupToolbar() {
     document.getElementById('liveSwatches').appendChild(swatch(id, p.name, hlGradient(p), 'liveStyle'));
   }
   document.getElementById('liveSwatches').appendChild(swatch('none', tr('off'), '', 'liveStyle'));
+  // 🤝 AI でコラボを見分ける (使える PC だけ出す。ON にしたときに、要ればモデルのダウンロードを始める)
+  document.getElementById('aiCollab').addEventListener('change', (e) => CollabAI.setOn(e.target.checked));
+  CollabAI.init();
   syncSettingsInputs();
   applyChatLook();
   applyHighlight();
@@ -8999,7 +9004,8 @@ async function renderArchiveTab({ force = false } = {}) {
   if (favMode !== 'archive') return;
   items.sort((a, b) => b.v.at - a.v.at);
   selShown.clear();
-  buildCollabGroups(items.map(({ v, f }) => videoSelEntry({ videoId: v.videoId, title: v.title, at: v.at, channelId: f.channelId }, f, COLLAB_WIN.archive)));
+  setCollabKnown(favs);
+  buildCollabGroups(items.map(({ v, f }) => videoSelEntry({ videoId: v.videoId, title: v.title, at: v.at, channelId: f.channelId, ats: v.ats }, f, COLLAB_WIN.archive)));
   const ul = document.createElement('ul');
   ul.className = 'fav-sub video-grid';
   ul.dataset.list = 'archive'; // 滑らせるのは、この一覧どうしの描き直しだけ (replaceKeepingPlaces)
@@ -9482,10 +9488,205 @@ function mentions(title, name, starts) {
  * - つながりの強いもの・時刻の近いものから順に組にまとめる。1 つの組には 1 チャンネル 1 本で、組の中の時刻の幅も上の範囲に収める
  *   (同じゲームの別のコラボまで次々につながらないように)
  */
+/** @type {Map<string, string>} 登録チャンネルの @ハンドル・チャンネル ID (小文字) → チャンネル ID (概要欄の @ を照らすため) */
+let collabKnown = new Map();
+function setCollabKnown(favs) {
+  collabKnown = new Map();
+  for (const f of favs) {
+    if (!f.channelId) continue;
+    collabKnown.set(f.channelId.toLowerCase(), f.channelId);
+    const h = String(f.handle || '').replace(/^@/, '').toLowerCase();
+    if (h) collabKnown.set(h, f.channelId);
+  }
+}
+
+// ---------------------------------------------------------------- 🤝 AI でコラボを見分ける (Chrome の組み込み AI。HAKO-25)
+// - 設定「AI でコラボを見分ける」(既定 OFF) が ON で、この PC で組み込み AI (Prompt API) が使えるときだけ使う
+// - 聞くのは、タイトルの # タグ・【】だけでつながった組 (相手の名前にも概要欄の @ にも触れていない組) だけ。「一緒 / 別」で答えさせ、
+//   別と答えたらつながりを切る。AI は同じゲーム・同じ企画の別の配信を「一緒」と答えやすい (2026-11-26 の試し) ので、AI だけでは組にしない
+// - 答えはこの画面を開いている間だけ覚える。聞き終わったら、一覧を 1 回だけ描き直す (1 件ずつ描き直さない)
+// - 使えない PC (unavailable) では、設定ごと出さない。まだモデルが無い PC では、ON にしたときにダウンロードが始まる (約 4GB。押したときだけ)
+const CollabAI = (() => {
+  const LANGS = { expectedInputs: [{ type: 'text', languages: ['ja', 'en'] }], expectedOutputs: [{ type: 'text', languages: ['en'] }] };
+  const SYSTEM =
+    'You judge whether two YouTube live streams by different VTubers were ONE joint session where these streamers played together (a collab), ' +
+    'or SEPARATE streams. Streams of the same game, the same tournament or the same event are SEPARATE unless the titles show the two streamers are together ' +
+    '(one names the other streamer, a unit name of both, "with", "コラボ", the same group of players). Use only the given text. Answer with one word.';
+  const MAX_ASK = 60; // 1 回に聞く組の数まで (1 組 0.3 秒ほど)
+  let avail = 'unavailable'; // availability() の答え
+  let base = null; // 作ったセッション (組ごとに clone する)
+  const answers = new Map(); // 組 → 'together' | 'separate'
+  const queue = new Map(); // 組 → {a, b}
+  let busy = false;
+  let progress = null; // ダウンロードの進み具合 (0〜1)。ダウンロード中でなければ null
+
+  const keyOf = (a, b) => [a.id, b.id].sort().join('|');
+  const has = () => typeof self.LanguageModel !== 'undefined';
+  const on = () => !!state.settings.aiCollab && avail === 'available';
+
+  /** 使えるかを確かめ、設定の欄を出す / 隠す */
+  async function init() {
+    if (has()) {
+      try {
+        avail = await LanguageModel.availability(LANGS);
+      } catch {
+        avail = 'unavailable';
+      }
+    }
+    paint();
+  }
+
+  /** 設定の欄 (この PC で使えなければ隠す) と、状態の文 */
+  function paint() {
+    const row = document.getElementById('aiCollabRow');
+    if (!row) return;
+    row.hidden = avail === 'unavailable';
+    document.getElementById('aiCollab').checked = !!state.settings.aiCollab;
+    const st = document.getElementById('aiCollabStatus');
+    st.textContent =
+      progress != null
+        ? tr('aiDownloading', Math.round(progress * 100))
+        : state.settings.aiCollab && avail !== 'available'
+          ? tr('aiNotReady')
+          : '';
+  }
+
+  /** 設定を ON / OFF にした (押したときに呼ぶ。モデルが無ければ、ここでダウンロードを始める) */
+  async function setOn(v) {
+    state.settings.aiCollab = v;
+    onSettingChanged('aiCollab');
+    paint();
+    if (!v || !has()) return;
+    if (avail !== 'available') {
+      try {
+        base = await LanguageModel.create({
+          ...LANGS,
+          initialPrompts: [{ role: 'system', content: SYSTEM }],
+          monitor(m) {
+            m.addEventListener('downloadprogress', (e) => {
+              progress = e.loaded;
+              paint();
+            });
+          },
+        });
+        avail = 'available';
+      } catch (e) {
+        console.warn('hakomado: 組み込み AI を用意できませんでした', e);
+        notify(tr('aiFailed'));
+      }
+      progress = null;
+      paint();
+      renderFavPane();
+    }
+  }
+
+  /** 組 (a, b) の答え。まだなら、AI を使う設定のときは聞く列に入れる (flush で聞く) */
+  function answer(a, b) {
+    const k = keyOf(a, b);
+    if (answers.has(k)) return answers.get(k);
+    if (on() && queue.size < MAX_ASK) queue.set(k, { a, b });
+    return on() ? 'pending' : null;
+  }
+
+  async function session() {
+    if (!base) base = await LanguageModel.create({ ...LANGS, initialPrompts: [{ role: 'system', content: SYSTEM }] });
+    return base;
+  }
+
+  /** 列に入っている組を順に聞き、終わったら一覧を 1 回描き直す */
+  async function flush() {
+    if (busy || !queue.size || !on()) return;
+    busy = true;
+    try {
+      const s0 = await session();
+      for (const [k, { a, b }] of queue) {
+        queue.delete(k);
+        if (answers.has(k)) continue;
+        const s = await s0.clone();
+        try {
+          const gap = Math.round(Math.abs((a.t || 0) - (b.t || 0)) / 60e3);
+          const ans = await s.prompt(
+            `Stream A by ${a.label}: ${a.title}\nStream B by ${b.label}: ${b.title}\nStarted ${gap} minutes apart. together or separate?`,
+            { responseConstraint: { type: 'string', enum: ['together', 'separate'] } },
+          );
+          answers.set(k, String(ans).includes('together') ? 'together' : 'separate');
+        } finally {
+          s.destroy();
+        }
+      }
+    } catch (e) {
+      console.warn('hakomado: 組み込み AI に聞けませんでした', e);
+      queue.clear();
+    } finally {
+      busy = false;
+    }
+    renderFavPane();
+  }
+
+  return { init, setOn, answer, flush, paint, state: () => (avail === 'unavailable' ? 'unavailable' : !state.settings.aiCollab ? 'off' : avail === 'available' ? (busy ? 'asking' : 'on') : 'notReady') };
+})();
+
+// ---------------------------------------------------------------- 🤝 コラボの判定のデバッグの窓 (一時的なもの。HAKO-25)
+// ライブラリを開いているときに Ctrl+Shift+D で出す / 隠す。時刻の近い組ごとに、時刻の差・見つけた印・AI の答え・結果を 1 行で出す
+const CollabDebug = (() => {
+  let el = null;
+  let shown = false;
+  function toggle() {
+    shown = !shown;
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'collabDebug';
+      el.className = 'collab-debug';
+      favDialog.append(el);
+    }
+    el.hidden = !shown;
+    update();
+  }
+  function update() {
+    if (!shown || !el) return;
+    const aiText = { unavailable: 'AI: この PC では使えない', off: 'AI: 設定 OFF', on: 'AI: ON', asking: 'AI: 聞いています…', notReady: 'AI: 用意できていない' }[CollabAI.state()];
+    const rows = [...collabLog].sort((x, y) => y.s - x.s || x.gap - y.gap);
+    const groups = [...new Set(collabOf.values())].length;
+    const name = (e) => e.label || e.ch;
+    el.replaceChildren(
+      mk('div', { class: 'cd-head' }, `🤝 コラボの判定 (Ctrl+Shift+D で閉じる) · ${aiText} · 組 ${groups} · 印のあった組 ${rows.length}`),
+      ...rows.map((r) =>
+        mk(
+          'div',
+          { class: 'cd-row' + (r.s ? ' is-on' : '') },
+          `${r.s ? '組' : '別'}  ${name(r.a)} × ${name(r.b)}  ${r.gap}分  ${r.why.join(' ')}${r.ai ? '  AI:' + (r.ai === 'pending' ? '待ち' : r.ai) : ''}`,
+        ),
+      ),
+    );
+  }
+  document.addEventListener(
+    'keydown',
+    (e) => {
+      if (!(e.ctrlKey || e.metaKey) || !e.shiftKey || e.code !== 'KeyD' || !favDialog.open) return;
+      e.preventDefault();
+      e.stopPropagation();
+      toggle();
+    },
+    true,
+  );
+  return { update };
+})();
+
+/**
+ * コラボの判定の記録 (デバッグの窓に出す。一時的なもの。HAKO-25)。
+ * 時刻の近い組ごとに {a, b, gap: 分, why: 見つけた印, ai: AI の答え, s: つながりの強さ (0 = つながりなし)}
+ */
+let collabLog = [];
+
 function buildCollabGroups(entries) {
   collabOf = new Map();
+  collabLog = [];
   const list = entries.filter((e) => e.id && e.ch);
-  if (list.length < 2) return;
+  if (list.length < 2) return void CollabDebug.update();
+  // 概要欄の @ が指している登録チャンネル (自分を除く)。概要欄が分からなければ null
+  const atChs = new Map(
+    list.map((e) => [e, e.ats ? new Set(e.ats.map((h) => collabKnown.get(h)).filter((ch) => ch && ch !== e.ch)) : null]),
+  );
   // 2 つ以上のチャンネルに共通する呼び名 (@ハンドルの所属の部分など) は、だれのことか決まらないので使わない
   const nameChs = new Map(); // 呼び名 → チャンネル
   for (const e of list) for (const n of e.names) (nameChs.get(n) || nameChs.set(n, new Set()).get(n)).add(e.ch);
@@ -9512,24 +9713,53 @@ function buildCollabGroups(entries) {
     return said.get(key) < 3;
   };
   const windowOf = (a, b) => Math.max(a.win, b.win);
-  /** つながりの強さ (s = 0 はつながりなし。名前で触れている・同じハッシュタグ > 同じ企画名) と、名前で触れているか */
+  /**
+   * つながりの強さ (s = 0 はつながりなし) と、名前で触れているか。順に見る:
+   * 1. どちらかの概要欄に相手の @ がある → つながりあり (一番強い)
+   * 2. 片方の概要欄に登録チャンネルの @ があり、相手がその中にいない → 別 (相手は別のコラボか単独)
+   * 3. タイトルで相手の名前に触れている・同じハッシュタグ > 同じ企画名 (今までのルール)
+   * 4. 3 で、名前に触れずに # タグ・【】だけでつながる組は、AI を使うなら AI の答えで決める (別と答えたらつながりなし。
+   *    答えが届くまでは 3 のまま)
+   * why = 見つけた印 (デバッグの窓に出す)
+   */
   const strength = (A, B) => {
     if (A.e.ch === B.e.ch || A.e.id === B.e.id) return { s: 0 };
     if (A.e.t && B.e.t && Math.abs(A.e.t - B.e.t) > windowOf(A.e, B.e)) return { s: 0 };
+    const why = [];
+    const atA = atChs.get(A.e);
+    const atB = atChs.get(B.e);
+    if (atA?.has(B.e.ch) || atB?.has(A.e.ch)) return { s: 5, named: true, why: ['@'] };
+    if (atA?.size || atB?.size) return { s: 0, why: ['@ に無い'] };
     let s = 0;
     if (A.names.some((n) => says(B, n))) s += 2;
     if (B.names.some((n) => says(A, n))) s += 2;
     const named = s > 0;
-    if (A.tags.some((k) => B.tags.includes(k) && special(A, k) && special(B, k))) s += 2;
+    if (named) why.push('名前');
+    const tag = A.tags.find((k) => B.tags.includes(k) && special(A, k) && special(B, k));
+    if (tag) {
+      s += 2;
+      why.push('#' + tag);
+    }
     const tight = A.e.tight && B.e.tight;
-    if (A.marks.some((k) => B.marks.includes(k) && special(A, k) && special(B, k) && (tight || A.tags.includes(k) || B.tags.includes(k)))) s += 1;
-    return { s, named };
+    const mark = A.marks.find((k) => B.marks.includes(k) && special(A, k) && special(B, k) && (tight || A.tags.includes(k) || B.tags.includes(k)));
+    if (mark) {
+      s += 1;
+      why.push('【' + mark + '】');
+    }
+    if (s && !named) {
+      const ai = CollabAI.answer(A.e, B.e);
+      if (ai === 'separate') return { s: 0, named, why, ai };
+      return { s, named, why, ai };
+    }
+    return { s, named, why };
   };
   const links = [];
   for (let i = 0; i < info.length; i++) {
     for (let j = i + 1; j < info.length; j++) {
-      const { s, named } = strength(info[i], info[j]);
-      if (s) links.push({ a: info[i], b: info[j], s, named, gap: Math.abs((info[i].e.t || 0) - (info[j].e.t || 0)) });
+      const { s, named, why, ai } = strength(info[i], info[j]);
+      const gap = Math.abs((info[i].e.t || 0) - (info[j].e.t || 0));
+      if (why?.length) collabLog.push({ a: info[i].e, b: info[j].e, gap: Math.round(gap / 60e3), why, ai, s });
+      if (s) links.push({ a: info[i], b: info[j], s, named, gap });
     }
   }
   links.sort((x, y) => y.s - x.s || x.gap - y.gap);
@@ -9555,17 +9785,21 @@ function buildCollabGroups(entries) {
     const ids = g.sort((x, y) => (y.e.t || 0) - (x.e.t || 0)).map((x) => x.e.id);
     for (const id of ids) collabOf.set(id, ids);
   }
+  CollabAI.flush();
+  CollabDebug.update();
 }
 
 /** チャンネルの配信中・配信予定の 1 件 */
 function favSelEntry(f, st) {
-  return { id: st.videoId, ch: f.channelId, names: callNames(f), title: st.title || '', t: st.startAt || 0, tight: true, win: COLLAB_WIN.live, load: { f, st } };
+  return { id: st.videoId, ch: f.channelId, label: f.name || '', names: callNames(f), title: st.title || '', t: st.startAt || 0, tight: true, win: COLLAB_WIN.live, load: { f, st } };
 }
 
 /** 最近の配信・視聴履歴・あとで見るの 1 件。f = そのチャンネル (分かれば) / win = コラボの相手とみなす時刻の幅 */
 function videoSelEntry(h, f, win = COLLAB_WIN.other) {
   const names = callNames(f || { name: h.label || h.channel, handle: h.handle });
-  return { id: h.videoId, ch: h.channelId || f?.channelId || h.handle || h.label || '', names, title: h.title || '', t: h.at || 0, tight: false, win, load: { h } };
+  // ats = 概要欄の @ハンドル (最近の動画だけ。RSS から取る。無ければ null = 分からない)
+  const ats = Array.isArray(h.ats) ? h.ats : null;
+  return { id: h.videoId, ch: h.channelId || f?.channelId || h.handle || h.label || '', label: f?.name || h.label || h.channel || '', names, title: h.title || '', t: h.at || 0, tight: false, win, ats, load: { h } };
 }
 
 /**

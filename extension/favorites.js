@@ -144,7 +144,7 @@ const Favorites = (() => {
   // 再生リスト UULV + チャンネル ID の 3 文字目以降。ログイン不要の軽い XML で、新しい順 15 件 (配信予定・配信中・アーカイブ)。
   // 配信予定 (待機所) は再生数が 0。配信中とアーカイブは再生数では見分けられない。日時は「枠を作った日時」
   // 取った結果はタブ間で共有し、ブラウザを閉じても残す (persist。配信状況と最近の配信の両方で使う)
-  const FEED_PREFIX = 'feed:'; // 'feed:<チャンネル ID>' → {at, items: [{videoId, title, at, views}]} (チャンネルごとに別の項目にして、書き込みを軽く)
+  const FEED_PREFIX = 'feed:'; // 'feed:<チャンネル ID>' → {at, items: [{videoId, title, at, views, ats}]} (チャンネルごとに別の項目にして、書き込みを軽く)
   // 「動画」(UULF)・「ショート」(UUSH) の再生リストは 'feed:UULF:<チャンネル ID>' など (最近の動画でだけ使う)
   const feedKey = (channelId, list = 'UULV') => FEED_PREFIX + (list === 'UULV' ? '' : `${list}:`) + channelId;
   const readFeed = async (channelId, list) => (await persist.get(feedKey(channelId, list)))[feedKey(channelId, list)];
@@ -246,6 +246,19 @@ const Favorites = (() => {
     return out;
   }
 
+  /**
+   * 概要欄に書いてある @ハンドル (小文字・@ を外したもの。最大 20 個)。コラボの相手を見分けるのに使う (grid.js buildCollabGroups)。
+   * 概要欄の文そのものは覚えない
+   */
+  function atHandles(desc) {
+    const out = new Set();
+    for (const m of String(desc || '').matchAll(/(?:^|[^A-Za-z0-9_.\-@])@([A-Za-z0-9_.\-]{3,30})/g)) {
+      out.add(m[1].replace(/[.\-]+$/, '').toLowerCase());
+      if (out.size >= 20) break;
+    }
+    return [...out];
+  }
+
   function parseFeed(xml) {
     const doc = new DOMParser().parseFromString(xml, 'application/xml');
     const text = (el, name) => el.getElementsByTagNameNS('*', name)[0]?.textContent?.trim() || '';
@@ -255,6 +268,7 @@ const Favorites = (() => {
         title: text(e, 'title').slice(0, 300),
         at: Date.parse(text(e, 'published')) || 0,
         views: Number(e.getElementsByTagNameNS('*', 'statistics')[0]?.getAttribute('views') ?? NaN),
+        ats: atHandles(text(e, 'description')),
       }))
       .filter((v) => VIDEO_RE.test(v.videoId));
   }

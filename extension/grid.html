@@ -254,6 +254,12 @@
             <button type="button" id="settingsChManage" data-i18n="cm.openPlain">チャンネルの管理を開く</button>
           </div>
         </div>
+        <!-- 🤝 コラボの判定に組み込み AI を使う (この PC で使えるときだけ出す。grid.js CollabAI) -->
+        <div class="settings-col" id="aiCollabRow" hidden>
+          <label class="check"><input type="checkbox" id="aiCollab"> <span data-i18n="ai.collab">AI でコラボを見分ける</span></label>
+          <p class="settings-note" data-i18n="ai.collabNote">ライブラリの 🤝 (コラボの組) を、Chrome の組み込み AI で確かめます。AI はこの PC の中で動き、外へは何も送りません。最初に ON にしたとき、AI のモデル (約 4GB) のダウンロードが始まります</p>
+          <p class="settings-note" id="aiCollabStatus" aria-live="polite"></p>
+        </div>
       </section>
       <!-- アドオン: 特定のサイトに頼る機能 (addons/ のファイル)。一覧は grid.js が Addons.list() から作る -->
       <section class="settings-panel" data-panel="addons" role="tabpanel" hidden>
