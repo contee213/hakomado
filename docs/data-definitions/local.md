@@ -254,29 +254,6 @@ URL の枠で許可したサイト。`array` of string。各要素は `https://*
 
 boolean。インストールしたときに true。画面を開いてツアーを始めたら消す。
 
-## feed
-
-チャンネルの再生リストの RSS から読んだもの (取得)。`feed:<チャンネル ID>` (ライブ配信 UULV)・`feed:UULF:<チャンネル ID>` (動画)・`feed:UUSH:<チャンネル ID>` (ショート) → `{at: 取った日時, items: array}`。`items` は新しい順に最大 15 件で、配信をしたことがないチャンネルは `[]`。
-
-| `items` の項目 | 型 | 意味 |
-| --- | --- | --- |
-| `videoId` | string | 動画 ID |
-| `title` | string | 題名 (300 文字まで) |
-| `at` | number | 枠・動画を作った日時 |
-| `views` | number \| null | 再生数 (配信予定・公開予定は 0)。RSS に無ければ null |
-| `ats` | string[] | 概要欄に書いてある @ハンドル (小文字・@ を外したもの、最大 20 個)。ライブラリの 🤝 (コラボの判定) で、相手の配信者を見分けるのに使う。概要欄の文そのものは覚えない。前の版で覚えたものには無い (取り直すまでは今までのタイトルの判定だけ。HAKO-25) |
-
-## twpage
-
-Twitch のチャンネルのページから読んだもの (取得)。`twpage:<ログイン名>` → `{at: 取った日時, page}`。
-
-| `page` の項目 | 型 | 意味 |
-| --- | --- | --- |
-| `name` | string | 表示名 |
-| `icon` | string | アイコンの URL |
-| `live` | object \| null | 配信中なら `{title, startAt?}` |
-| `vods` | array | 最近の VOD `{videoId: 'tw:v:…', title, at, views, thumb?}` |
-
 ## videoStates
 
 動画ごとの状態 (取得)。`object`: 動画 ID → 下の `object`。最大 3000 本。終わったもの 3 日・過ぎた予定 1 日・確かめ直されないもの 7 日で消える。書き込みはロック `hakomado-video-states`。
@@ -286,7 +263,8 @@ Twitch のチャンネルのページから読んだもの (取得)。`twpage:<�
 | `state` | string | ○ | `live` / `upcoming` / `ended` (配信のアーカイブ) / `none` (配信ではない・見られない) |
 | `at` | number | ○ | 確かめた日時 |
 | `kind` | string | − | 配信中・配信予定の種類: `live` / `video` (プレミア公開の動画) / `short` |
-| `startAt` | number | − | 開始 (予定) の日時 |
+| `startAt` | number | − | 開始 (予定) の日時。終わった配信 (`ended`) は実際の開始 (HAKO-30) |
+| `endAt` | number | − | 終わった配信 (`ended`) の実際の終了 (HAKO-30) |
 | `title` | string | − | 題名 |
 | `channel` `channelId` | string | − | チャンネル名・ID (分かれば) |
 | `avail` | string | − | `ok` / `gone` (削除・非公開) / `members` / `blocked` |

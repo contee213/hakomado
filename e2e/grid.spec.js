@@ -721,7 +721,7 @@ test.describe('🤝 コラボの判定 (概要欄の @)', () => {
     await skipTour(page);
     const r = await page.evaluate(async (id) => {
       const items = await Favorites.fetchArchives(id, { force: true });
-      const saved = (await chrome.storage.local.get('feed:' + id))['feed:' + id];
+      const saved = (await IdbCache.kv.get('feed:' + id))['feed:' + id];
       return { ats: items[0]?.ats, savedKeys: Object.keys(saved.items[0]).sort() };
     }, ID);
     expect(r.ats).toEqual(['shishirobotan', 'rindochihaya', 'anyamelfissa', 'keimorimoto_music']);
@@ -829,6 +829,73 @@ test.describe('🤝 コラボの判定 (概要欄の @)', () => {
     });
     // 片方だけ呼んでいる組が 60 分を超えると、相手のそのコラボではない配信 (前後の別の配信) のことがある
     expect(r).toEqual({ oneWay55: true, oneWay65: false, mutual110: true, mutual125: false });
+  });
+});
+
+test.describe('取り直せるものの置き場所 (IndexedDB) と 🤝 の成績 (HAKO-30)', () => {
+  test('前の版で chrome.storage.local に置いた最近の動画・Twitch のページは、開いたときに IndexedDB へ移して消す', async ({ openGrid }) => {
+    const page = await openGrid();
+    await skipTour(page);
+    const SORA = 'UCp6993wxpyDPHUpavwDFqgg';
+    const feed = { at: Date.now(), items: [{ videoId: 'sora0000001', title: 't', at: Date.now(), views: 1 }] };
+    await page.evaluate(({ SORA, feed }) => chrome.storage.local.set({ ['feed:' + SORA]: feed, 'twpage:abc': { at: 1, page: { name: 'abc' } } }), { SORA, feed });
+    await page.reload();
+    await expect(page.locator('#grid .tile').first()).toBeAttached();
+    const r = await page.evaluate(async (SORA) => {
+      const idb = await IdbCache.kv.get(['feed:' + SORA]);
+      const local = await chrome.storage.local.get(['feed:' + SORA, 'twpage:abc']);
+      return { idb: Object.keys(idb), local: Object.keys(local), items: idb['feed:' + SORA]?.items.length };
+    }, SORA);
+    // twpage:abc は移したあと、一覧に無いチャンネルの分として片付けで消える (IndexedDB にも残らない)
+    expect(r).toEqual({ idb: ['feed:' + SORA], local: [], items: 1 });
+  });
+
+  test('配信状況の確認で読んだ動画のページから、終わった配信の実際の開始・終了を覚える', async ({ openGrid, context }) => {
+    const VID = 'pz3vq2XOmwg';
+    const html =
+      `<html><head><meta property="og:title" content="森林脱出"></head><body><script>var ytInitialPlayerResponse = {"playabilityStatus":{"status":"OK"},` +
+      `"videoDetails":{"videoId":"${VID}","author":"Botan","channelId":"UCUKD-uaobj9jiqB-VXt71mA","isLiveContent":true},` +
+      `"microformat":{"liveBroadcastDetails":{"isLiveNow":false,"startTimestamp":"2026-11-26T12:00:32+00:00","endTimestamp":"2026-11-26T14:21:45+00:00"}}};</script></body></html>`;
+    await context.route(/youtube\.com\/watch\?v=/, (route) => route.fulfill({ contentType: 'text/html', body: html }));
+    const page = await openGrid();
+    await skipTour(page);
+    const r = await page.evaluate(async (vid) => {
+      await Favorites.inspectVideos([vid], { max: 1 });
+      const st = (await Favorites.videoStates([vid]))[vid];
+      for (let k = 0; k < 20 && !(await IdbCache.streams()).has(vid); k++) await new Promise((res) => setTimeout(res, 50));
+      const s = (await IdbCache.streams()).get(vid);
+      return { state: st?.state, start: s && new Date(s.start).toISOString(), end: s && new Date(s.end).toISOString() };
+    }, VID);
+    expect(r).toEqual({ state: 'ended', start: '2026-11-26T12:00:32.000Z', end: '2026-11-26T14:21:45.000Z' });
+  });
+
+  test('🤝 の判定を記録し、CollabStats.report() で実際の時刻と答え合わせする', async ({ openGrid }) => {
+    const page = await openGrid();
+    await skipTour(page);
+    const r = await page.evaluate(async () => {
+      const favs = [
+        { channelId: 'UCaaaaaaaaaaaaaaaaaaaaaa', name: 'A', handle: '@a_ch', preset: true },
+        { channelId: 'UCbbbbbbbbbbbbbbbbbbbbbb', name: 'B', handle: '@b_ch', preset: true },
+        { channelId: 'UCcccccccccccccccccccccc', name: 'C', handle: '@c_ch', preset: true },
+      ];
+      setCollabKnown(favs);
+      const t0 = Date.parse('2026-11-26T14:30:00Z');
+      const h = 3600e3;
+      // 実際の時刻: A と B は同じ時間のコラボ。C は A を呼んでいるが (片方だけ)、RSS の時刻が 70 分離れていて別と判定する。実際は同じ時間だった (外れ)
+      await IdbCache.putStream('aaaaaaaaaaa', { start: t0 - 2 * h, end: t0 });
+      await IdbCache.putStream('bbbbbbbbbbb', { start: t0 - 2 * h, end: t0 + 5 * 60e3 });
+      await IdbCache.putStream('ccccccccccc', { start: t0 - 2 * h + 10 * 60e3, end: t0 + 70 * 60e3 });
+      buildCollabGroups([
+        videoSelEntry({ videoId: 'aaaaaaaaaaa', title: 'A', at: t0, channelId: favs[0].channelId, ats: ['b_ch'], kind: 'live' }, favs[0], COLLAB_WIN.archive),
+        videoSelEntry({ videoId: 'bbbbbbbbbbb', title: 'B', at: t0 + 5 * 60e3, channelId: favs[1].channelId, ats: ['a_ch'], kind: 'live' }, favs[1], COLLAB_WIN.archive),
+        videoSelEntry({ videoId: 'ccccccccccc', title: 'C', at: t0 + 70 * 60e3, channelId: favs[2].channelId, ats: ['a_ch'], kind: 'live' }, favs[2], COLLAB_WIN.archive),
+      ]);
+      for (let k = 0; k < 20 && (await IdbCache.collab()).size < 2; k++) await new Promise((res) => setTimeout(res, 50));
+      const rep = await CollabStats.report();
+      return { pairs: rep.pairs, known: rep.known, together: rep.together, apart: rep.apart, wrong: rep.wrong.map((w) => `${w.la}-${w.lb}:${w.judged}:${w.rule}`) };
+    });
+    // A-B (お互い・一緒) は当たり。A-C (片方・別) は外れ。B-C は @ の関わりが無いので記録しない
+    expect(r).toEqual({ pairs: 2, known: 2, together: { right: 1, wrong: 0 }, apart: { right: 0, wrong: 1 }, wrong: ['A-C:apart:one-way'] });
   });
 });
 
