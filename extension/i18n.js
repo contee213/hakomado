@@ -469,6 +469,10 @@ const MESSAGES = {
     '{0} didn’t match the others by sound. It may not be the same collab',
   ],
   syncAudioSuspectTitle: ['✨ ほかの枠とは音が合いませんでした。同じコラボではないかもしれません', '✨ Didn’t match the other tiles by sound. It may not be the same collab'],
+  syncAudioRefSuspect: [
+    '基準の枠が、ほかと別の配信なのかもしれません。行で基準を選び直して、もう一度測ってください',
+    'The reference tile may be a different stream from the others. Pick another reference on its row and measure again',
+  ],
   syncAudioSuspectShort: ['別の配信かも', 'maybe not this collab'],
   syncAudioExclude: ['同期から外す', 'Remove from sync'],
   syncAudioExcludeTitle: ['この枠を同期しないにする (同期の調整パネルの行で、あとから戻せます)', 'Stop syncing this tile (you can put it back from its row in the sync panel)'],

@@ -3670,22 +3670,30 @@ const Sync = (() => {
    * at (同期の時計。実際の時刻のミリ秒) を渡すと、始めたあとにその時刻へ動かす (再生リストの続きから)。
    * mode = 'movie' なら、tiles を 1 つの本編モードのグループにまとめる
    */
-  /** then: 始めたあとに、基準の枠のグループの番号 (同期できなければ null) を渡して呼ぶ */
-  function startWhenReady(tiles, ref, { at = null, mode: m = 'time', then = null } = {}) {
-    pending = { tiles, ref, until: now() + 30000, at, mode: m, then };
+  /**
+   * then: 始めたあとに、基準の枠のグループの番号 (同期できなければ null) を渡して呼ぶ。
+   * timeOnly: 時間帯の重なるアーカイブの組 (🕒) になるときだけ始める (⏱ 開いて同期。重ならなければ本編モードで始めず null)
+   */
+  function startWhenReady(tiles, ref, { at = null, mode: m = 'time', then = null, timeOnly = false } = {}) {
+    pending = { tiles, ref, until: now() + 30000, at, mode: m, then, timeOnly };
     clearTimeout(pendingTimer);
     pendingTimer = setTimeout(refresh, 30500);
     setTimeout(refresh, 0); // もう読み込んである動画だけなら、すぐ始める
   }
   function checkPending() {
-    const { tiles, ref, until, at, mode: m, then } = pending;
+    const { tiles, ref, until, at, mode: m, then, timeOnly } = pending;
     const ready = tiles.every((i) => movable(i) || (m === 'movie' && liveTile(i)) || !state.tiles[i].videoId);
     if (!ready && now() < until) return;
     pending = null;
     clearTimeout(pendingTimer);
     setTimeout(() => {
-      if (!on && canStart()) start();
+      if (!on && (timeOnly ? canStart() === 'time' : canStart())) start();
       if (!on) return void then?.(null);
+      if (timeOnly) {
+        // 入れた枠が 2 本以上、同じ 🕒 のグループに入ったときだけ (本編モードのグループは切り替えない)
+        const G0 = groupOfTile(ref);
+        if (!G0 || isMovie(G0) || membersOf(G0.g).filter((i) => tiles.includes(i)).length < 2) return void then?.(null);
+      }
       if (m === 'movie') {
         // 視聴セットの枠を 1 つの本編モードのグループに (基準の枠のグループの番号を使う)
         const g = groupOfTile(ref)?.g ?? [1, 2, 3, 4].find((x) => !groups.has(x)) ?? 1;
@@ -4661,6 +4669,7 @@ const AudioSync = (() => {
   let result = null; // 結果の候補: {g, tiles, ref, offs, ids, pick: Map, two, choice, n}
   let failure = null; // 決められなかった: {g, ref, ids, reason, n}
   let seq = 0;
+  let starts = 0; // 測り始めた回数
 
   function toggle(g) {
     if (run) {
@@ -4682,6 +4691,7 @@ const AudioSync = (() => {
     }
     result = null;
     failure = null;
+    starts++;
     run = {
       g,
       tiles,
@@ -5024,6 +5034,8 @@ const AudioSync = (() => {
         'div',
         { class: 'dg-audio-result is-fail' },
         mk('div', { class: 'dga-title' }, tr(failure.reason === 'short' ? 'syncAudioShort' : 'syncAudioWeak')),
+        // 3 枠以上でどれも合わなかった: 基準の枠だけが別の配信かもしれない (ずれは基準との差で測るため)
+        failure.reason === 'weak' && failure.ids.size >= 3 ? mk('div', { class: 'dga-suspect' }, tr('syncAudioRefSuspect')) : null,
         mk('div', { class: 'dga-buttons' }, retryButton(g), mk('button', { type: 'button', textContent: tr('syncAudioClose'), onclick: dismiss })),
       );
       return { el, paint() {} };
@@ -5154,6 +5166,8 @@ const AudioSync = (() => {
     blocked,
     /** ほかのグループで測っている (このグループの ✨ は押せない) */
     busyOther: (g) => !!run && run.g !== g,
+    /** これまでに測り始めた回数 (⏱ 開いて同期で、使う人が自分で押したかを見る) */
+    runCount: () => starts,
     /** このグループの結果・途中の結果・知らせを出している */
     hasOutput: (g) => (!!run && run.g === g) || (resultValid() && result.g === g) || failureFor(g),
     progressText,
@@ -9637,8 +9651,11 @@ function updateSelMarks() {
     favSel.size > room ? tr('selCountOver', favSel.size, room) : tr('selCount', favSel.size);
 }
 
-/** 選んでいるアーカイブ (配信中・配信予定でないもの) の数。2 本以上で「⏱ 開いて同期」を出す */
-const selArchives = () => [...favSel.values()].filter((e) => e.load.h).length;
+/**
+ * 選んでいるアーカイブの数 (ライブラリの配信。動画・ショートは数えない。種類の分からない古い記録は数える)。
+ * チャンネルの配信中・配信予定 (load.st) も数えない。2 本以上で「⏱ 開いて同期」を出す
+ */
+const selArchives = () => [...favSel.values()].filter((e) => e.load.h && ['live', ''].includes(entryKind(e.load.h))).length;
 
 /**
  * ⏱ 開いて同期: 入れた枠 (tiles、選んだ順) が読み込めたら ⏱ アーカイブ同期を始め (最初の枠を基準にする)、
@@ -9646,17 +9663,21 @@ const selArchives = () => [...favSel.values()].filter((e) => e.load.h).length;
  */
 function openSync(tiles) {
   Sync.startWhenReady(tiles, tiles[0], {
+    timeOnly: true,
     then(g) {
       if (g == null) return void notify(tr('selSyncNone'));
       Sync.showDock();
       const until = performance.now() + 60e3;
+      const runs = AudioSync.runCount(); // 待っている間に使う人が ✨ を押した (やめた) ら、こちらからは始めない
       const tryStart = () => {
         const info = Sync.groupInfo(g);
         if (!info || !info.active || info.movie) return; // 同期をやめた・グループが変わった
+        if (AudioSync.runCount() !== runs || AudioSync.hasOutput(g)) return;
         if (AudioSync.busyOther(g)) return void notify(tr('selSyncBusy'));
-        if (AudioSync.hasOutput(g)) return; // もう測っている
-        const ss = views[info.ref]?.ss;
-        if (ss?.ps === 1 && !ss.ad && !pausedAll && !info.paused) return void AudioSync.toggle(g);
+        // 入れた枠 (グループに入ったもの) が全部、再生している (広告でない) ときに始める
+        const mine = info.tiles.filter((i) => tiles.includes(i));
+        const playing = (i) => views[i]?.ss?.ps === 1 && !views[i].ss.ad;
+        if (!pausedAll && !info.paused && playing(info.ref) && mine.every(playing)) return void AudioSync.toggle(g);
         if (performance.now() > until) return void notify(tr('selSyncNoAudio'));
         setTimeout(tryStart, 1000);
       };
