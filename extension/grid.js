@@ -8957,6 +8957,7 @@ async function renderArchiveTab({ force = false } = {}) {
   ul.dataset.list = 'archive'; // 滑らせるのは、この一覧どうしの描き直しだけ (replaceKeepingPlaces)
   ul.append(...items.map(({ v, f }) => archiveItem(v, f)));
   replaceKeepingPlaces(favListEl, items.length ? [ul] : [], 'archive');
+  showArchiveProgress(done < targets.length ? { done, total: targets.length } : null);
   const stale = targets.filter((f) => archiveStale.has(f.channelId)).length;
   document.getElementById('savedCount').textContent =
     done < targets.length ? tr('archiveProgress', done, targets.length) : stale ? tr('archiveStale', items.length, stale) : tr('items', items.length);
@@ -8970,6 +8971,26 @@ async function renderArchiveTab({ force = false } = {}) {
         ? tr('archiveLoading')
         : tr('archiveEmpty', ARCHIVE_DAYS);
   updateSelMarks();
+}
+
+
+/**
+ * 最近の動画を取っている間の進み具合を「⟳ 更新」ボタンで見せる (アイコンを回し、下端の線を伸ばし、乗せたときの説明に「取得中 N / M」)。
+ * null で元に戻す。デザインガイド 1 章「進み具合は始めたボタンで見せる」(HAKO-24)
+ */
+function showArchiveProgress(p) {
+  const btn = document.getElementById('favRefresh');
+  const bar = document.getElementById('favRefreshBar');
+  if (!btn.classList.contains('busy')) btn.dataset.idleTitle = btn.title; // 表示言語を変えたあとの説明も戻せるよう、始めるたびに覚える
+  btn.classList.toggle('busy', !!p);
+  bar.hidden = !p;
+  if (p) {
+    bar.style.width = `${(p.done / Math.max(p.total, 1)) * 100}%`;
+    btn.title = tr('archiveProgress', p.done, p.total);
+  } else {
+    bar.style.width = '0';
+    if (btn.dataset.idleTitle) btn.title = btn.dataset.idleTitle;
+  }
 }
 
 
@@ -9117,6 +9138,7 @@ function setFavMode(mode, { render = true } = {}) {
   }
   // 「⟳ 更新」はチャンネルとアーカイブで使う (アーカイブでは取り直し)
   document.getElementById('favRefresh').hidden = favMode === 'saved' || favMode === 'history' || favMode === 'playlists';
+  if (favMode !== 'archive') showArchiveProgress(null); // 進み具合を出すのは最近の動画のタブだけ
   document.getElementById('favLiveCount').hidden = isHistory;
   // ⚙ 管理 と、チャンネルが無いときの足し方は 📺 チャンネルだけ
   document.getElementById('favManage').hidden = favMode !== 'all';
