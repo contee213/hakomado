@@ -551,6 +551,49 @@ test.describe('ライブラリの複数選択', () => {
     expect(ids).toContain('bbbbbbbbbb2');
   });
 
+  test('⏱ 開いて同期: 時間帯がまだ始まっていない枠があれば、60 秒で打ち切らず、始まってから ✨ を始める', async ({ openGrid }) => {
+    const page = await openGrid();
+    await skipTour(page);
+    await page.clock.install();
+    const run = (later) =>
+      page.evaluate((later) => {
+        // 同期と ✨ の代わり (枠 2 は配信の時間帯がまだ始まっていない)
+        window.__t = { later, started: 0, notices: [] };
+        Sync.startWhenReady = (tiles, ref, { then }) => then(1);
+        Sync.showDock = () => {};
+        Sync.groupInfo = () => ({ ref: 0, tiles: [0, 1, 2], movie: false, active: true, paused: false, later: window.__t.later });
+        AudioSync.runCount = () => 0;
+        AudioSync.hasOutput = () => false;
+        AudioSync.busyOther = () => false;
+        AudioSync.toggle = () => window.__t.started++;
+        notify = (text) => window.__t.notices.push(text);
+        for (const i of [0, 1, 2]) views[i] = { ss: { ps: i === 2 ? 2 : 1, ad: false } };
+        openSync([0, 1, 2]);
+      }, later);
+    const result = () => page.evaluate(() => ({ started: window.__t.started, notices: window.__t.notices }));
+
+    await run([2]);
+    await page.clock.runFor(90_000);
+    let r = await result();
+    expect(r.started).toBe(0);
+    expect(r.notices).toEqual(['⏱ 同期を始めました。まだ始まっていない配信があるので、全部の枠が再生を始めてから ✨ 自動補正を始めます']); // 1 回だけ
+    // 枠 2 の配信の時間帯が始まって、再生を始めた
+    await page.evaluate(() => {
+      window.__t.later = [];
+      views[2].ss.ps = 1;
+    });
+    await page.clock.runFor(2_000);
+    r = await result();
+    expect(r.started).toBe(1);
+
+    // 始まっていない枠が無く、再生も始まらないときは、今までどおり 60 秒で知らせる
+    await run([]);
+    await page.clock.runFor(62_000);
+    r = await result();
+    expect(r.started).toBe(0);
+    expect(r.notices).toEqual(['⏱ 同期を始めましたが、再生が始まらないので ✨ 自動補正は始めていません。再生してから同期の調整パネルの ✨ を押してください']);
+  });
+
   test('🔖 を押しても一覧を描き直さない (カードが動かない)', async ({ openGrid }) => {
     const page = await openGrid();
     await skipTour(page);
