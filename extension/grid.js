@@ -4605,11 +4605,18 @@ const Sync = (() => {
     Dock.setup();
   }
 
-  /** グループの様子 (✨ 自動補正用): {ref, tiles, movie, active, paused}。無ければ null */
+  /**
+   * グループの様子 (✨ 自動補正用): {ref, tiles, movie, active, paused, later}。無ければ null。
+   * later = 配信の時間帯がまだ始まっていない枠 (始まるまで止めて待っている。🕒 コラボ配信のグループだけ)
+   */
   function groupInfo(g) {
     const G = on ? groups.get(g) : null;
     if (!G) return null;
-    return { ref: reference(G), tiles: membersOf(g), movie: isMovie(G), active: active(G), paused: G.paused };
+    const tiles = membersOf(g);
+    const movie = isMovie(G);
+    const R = G.init ? null : nowR(G); // 時計がまだ決まっていない (同期を始めた直後) ときは、分からないので空にする
+    const later = movie || R == null ? [] : tiles.filter((i) => views[i]?.archive && R < timeRange(i)[0]);
+    return { ref: reference(G), tiles, movie, active: active(G), paused: G.paused, later };
   }
 
   return {
@@ -9005,7 +9012,7 @@ async function renderArchiveTab({ force = false } = {}) {
   items.sort((a, b) => b.v.at - a.v.at);
   selShown.clear();
   setCollabKnown(favs);
-  buildCollabGroups(items.map(({ v, f }) => videoSelEntry({ videoId: v.videoId, title: v.title, at: v.at, channelId: f.channelId, ats: v.ats }, f, COLLAB_WIN.archive)));
+  buildCollabGroups(items.map(({ v, f }) => videoSelEntry({ videoId: v.videoId, title: v.title, at: v.at, channelId: f.channelId, ats: v.ats, kind: v.kind }, f, COLLAB_WIN.archive)));
   const ul = document.createElement('ul');
   ul.className = 'fav-sub video-grid';
   ul.dataset.list = 'archive'; // 滑らせるのは、この一覧どうしの描き直しだけ (replaceKeepingPlaces)
@@ -9479,26 +9486,34 @@ function mentions(title, name, starts) {
   return re.test(title);
 }
 
-/**
- * 一覧の中から、コラボと思われる配信の組を作る (collabOf を作り直す)。
- * 違うチャンネルの 2 本が、時刻が近く (配信中・配信予定は開始が 20 分以内、それ以外は公開・視聴が 12 時間以内)、
- * どちらかのタイトルが相手の呼び名に触れているか、同じハッシュタグが付いていればつながりがあるとみなす。
- * 【】の中身 (企画名・ゲーム名) が同じものは、どちらかが # で付けているか、配信中・配信予定どうしならつながりとみなす。
- * - 多くのチャンネルが付けているもの (#ホロライブ・【雑談】など) と、そのチャンネルがいつも付けているもの (#ReGLOSS など、3 本以上) は使わない
- * - つながりの強いもの・時刻の近いものから順に組にまとめる。1 つの組には 1 チャンネル 1 本で、組の中の時刻の幅も上の範囲に収める
- *   (同じゲームの別のコラボまで次々につながらないように)
- */
 /** @type {Map<string, string>} 登録チャンネルの @ハンドル・チャンネル ID (小文字) → チャンネル ID (概要欄の @ を照らすため) */
 let collabKnown = new Map();
+/** @type {Set<string>} 公式・ユニットのチャンネル (group が「公式」)。概要欄にメンバーを並べるだけなので、@ の相手に数えない */
+let collabOfficial = new Set();
 function setCollabKnown(favs) {
   collabKnown = new Map();
+  collabOfficial = new Set();
   for (const f of favs) {
     if (!f.channelId) continue;
     collabKnown.set(f.channelId.toLowerCase(), f.channelId);
     const h = String(f.handle || '').replace(/^@/, '').toLowerCase();
     if (h) collabKnown.set(h, f.channelId);
+    if (f.group === '公式') collabOfficial.add(f.channelId);
   }
 }
+
+/**
+ * ホロライブのチャンネルか (初期データ・ホロライブのチャンネルパックから足したもの。ホロジュールのアドオンが受け持つものと同じ)。
+ * ホロライブのタレントは、コラボの相手を概要欄に @ で書く (ホロジュールの参加者のアイコンも、概要欄の @ とほぼ同じ。2026-11-27 に確かめた)
+ */
+const isHololiveFav = (f) => !!f && (!!f.preset || /ホロライブ|hololive/i.test(f.pack || ''));
+
+// 概要欄の @ でつなぐときの、RSS の公開の時刻の差の上限。配信のアーカイブの RSS の公開の時刻は、実際の終了の数分後
+// (2026-11-27 の 61 本で、54 本が終了から ±15 分)。片方だけが相手を呼んでいる組は 60 分まで、お互いに呼んでいる組は 2 時間まで
+// (片方だけ長く続けたコラボ)。この 2 つで、2026-11-27 の @ のある 56 組が実際の時刻と全部合った。相手がそのコラボを配信しておらず、
+// 前後の別の配信を拾うのを防ぐ (ノエルの 3D コラボの概要欄にスバルがいて、2 時間 43 分前のスバルの別の配信とつながった)
+const COLLAB_AT_ONE_WAY = 60 * 60e3;
+const COLLAB_AT_MUTUAL = 2 * 3600e3;
 
 // ---------------------------------------------------------------- 🤝 AI でコラボを見分ける (Chrome の組み込み AI。HAKO-25)
 // - 設定「AI でコラボを見分ける」(既定 OFF) が ON で、この PC で組み込み AI (Prompt API) が使えるときだけ使う
@@ -9623,69 +9638,37 @@ const CollabAI = (() => {
     renderFavPane();
   }
 
-  return { init, setOn, answer, flush, paint, state: () => (avail === 'unavailable' ? 'unavailable' : !state.settings.aiCollab ? 'off' : avail === 'available' ? (busy ? 'asking' : 'on') : 'notReady') };
-})();
-
-// ---------------------------------------------------------------- 🤝 コラボの判定のデバッグの窓 (一時的なもの。HAKO-25)
-// ライブラリを開いているときに Ctrl+Shift+D で出す / 隠す。時刻の近い組ごとに、時刻の差・見つけた印・AI の答え・結果を 1 行で出す
-const CollabDebug = (() => {
-  let el = null;
-  let shown = false;
-  function toggle() {
-    shown = !shown;
-    if (!el) {
-      el = document.createElement('div');
-      el.id = 'collabDebug';
-      el.className = 'collab-debug';
-      favDialog.append(el);
-    }
-    el.hidden = !shown;
-    update();
-  }
-  function update() {
-    if (!shown || !el) return;
-    const aiText = { unavailable: 'AI: この PC では使えない', off: 'AI: 設定 OFF', on: 'AI: ON', asking: 'AI: 聞いています…', notReady: 'AI: 用意できていない' }[CollabAI.state()];
-    const rows = [...collabLog].sort((x, y) => y.s - x.s || x.gap - y.gap);
-    const groups = [...new Set(collabOf.values())].length;
-    const name = (e) => e.label || e.ch;
-    el.replaceChildren(
-      mk('div', { class: 'cd-head' }, `🤝 コラボの判定 (Ctrl+Shift+D で閉じる) · ${aiText} · 組 ${groups} · 印のあった組 ${rows.length}`),
-      ...rows.map((r) =>
-        mk(
-          'div',
-          { class: 'cd-row' + (r.s ? ' is-on' : '') },
-          `${r.s ? '組' : '別'}  ${name(r.a)} × ${name(r.b)}  ${r.gap}分  ${r.why.join(' ')}${r.ai ? '  AI:' + (r.ai === 'pending' ? '待ち' : r.ai) : ''}`,
-        ),
-      ),
-    );
-  }
-  document.addEventListener(
-    'keydown',
-    (e) => {
-      if (!(e.ctrlKey || e.metaKey) || !e.shiftKey || e.code !== 'KeyD' || !favDialog.open) return;
-      e.preventDefault();
-      e.stopPropagation();
-      toggle();
-    },
-    true,
-  );
-  return { update };
+  return { init, setOn, answer, flush, paint };
 })();
 
 /**
- * コラボの判定の記録 (デバッグの窓に出す。一時的なもの。HAKO-25)。
- * 時刻の近い組ごとに {a, b, gap: 分, why: 見つけた印, ai: AI の答え, s: つながりの強さ (0 = つながりなし)}
+ * 一覧の中から、コラボと思われる配信の組を作る (collabOf を作り直す)。動画・ショートは組にしない (配信のアーカイブ・配信中・配信予定だけ)。
+ * 概要欄の @ が分かるもの (最近の動画) は、まず @ で決める:
+ * - どちらかの概要欄が相手を @ で呼んでいて、RSS の公開の時刻の差が片方だけなら 60 分・お互いなら 2 時間まで (COLLAB_AT_*) なら一緒。超えたら別
+ * - どちらかの概要欄に登録チャンネルの @ があるのに相手を呼んでいなければ別
+ * - ホロライブのチャンネルで、概要欄にタレントの @ が無ければ単独 (ホロジュールと同じ。タイトルの # タグだけでは組にしない)
+ * - 公式・ユニットのチャンネルは、相手に数えない。公式チャンネルの配信は、概要欄が分かれば組にしない
+ * それ以外 (概要欄が分からない・ホロライブ以外で @ が無い) は、タイトルで決める:
+ * 違うチャンネルの 2 本が、時刻が近く (配信中・配信予定は開始が 20 分以内、それ以外は公開・視聴が 12 時間以内)、
+ * どちらかのタイトルが相手の呼び名に触れているか、同じハッシュタグが付いていればつながりがあるとみなす。
+ * 【】の中身 (企画名・ゲーム名) が同じものは、どちらかが # で付けているか、配信中・配信予定どうしならつながりとみなす。
+ * - 多くのチャンネルが付けているもの (#ホロライブ・【雑談】など) と、そのチャンネルがいつも付けているもの (#ReGLOSS など、3 本以上) は使わない
+ * - つながりの強いもの・時刻の近いものから順に組にまとめる。1 つの組には 1 チャンネル 1 本で、組の中の時刻の幅も上の範囲に収める
+ *   (同じゲームの別のコラボまで次々につながらないように)。上で「別」とした 2 本は、ほかの配信を挟んでも同じ組にしない
+ *   (公式チャンネルのように何人も呼んでいる配信を挟んで、別々の配信がつながらないように)
  */
-let collabLog = [];
-
 function buildCollabGroups(entries) {
   collabOf = new Map();
-  collabLog = [];
-  const list = entries.filter((e) => e.id && e.ch);
-  if (list.length < 2) return void CollabDebug.update();
-  // 概要欄の @ が指している登録チャンネル (自分を除く)。概要欄が分からなければ null
+  // 動画・ショートは組にしない (コラボを参加者みんなの視点で同時に見るためのもの。HAKO-25)
+  const list = entries.filter((e) => e.id && e.ch && e.kind !== 'video' && e.kind !== 'short');
+  if (list.length < 2) return;
+  // 概要欄の @ が指している登録チャンネル (自分と公式・ユニットのチャンネルを除く)。概要欄が分からなければ null。
+  // 公式・ユニットのチャンネルの配信は、概要欄にメンバーを並べるだけなので、だれも呼んでいないものとみなす
   const atChs = new Map(
-    list.map((e) => [e, e.ats ? new Set(e.ats.map((h) => collabKnown.get(h)).filter((ch) => ch && ch !== e.ch)) : null]),
+    list.map((e) => [
+      e,
+      !e.ats ? null : e.official ? new Set() : new Set(e.ats.map((h) => collabKnown.get(h)).filter((ch) => ch && ch !== e.ch && !collabOfficial.has(ch))),
+    ]),
   );
   // 2 つ以上のチャンネルに共通する呼び名 (@ハンドルの所属の部分など) は、だれのことか決まらないので使わない
   const nameChs = new Map(); // 呼び名 → チャンネル
@@ -9714,52 +9697,43 @@ function buildCollabGroups(entries) {
   };
   const windowOf = (a, b) => Math.max(a.win, b.win);
   /**
-   * つながりの強さ (s = 0 はつながりなし) と、名前で触れているか。順に見る:
-   * 1. どちらかの概要欄に相手の @ がある → つながりあり (一番強い)
-   * 2. 片方の概要欄に登録チャンネルの @ があり、相手がその中にいない → 別 (相手は別のコラボか単独)
-   * 3. タイトルで相手の名前に触れている・同じハッシュタグ > 同じ企画名 (今までのルール)
-   * 4. 3 で、名前に触れずに # タグ・【】だけでつながる組は、AI を使うなら AI の答えで決める (別と答えたらつながりなし。
-   *    答えが届くまでは 3 のまま)
-   * why = 見つけた印 (デバッグの窓に出す)
+   * つながりの強さ (s = 0 はつながりなし) と、名前で触れているか。apart = 概要欄の @ で「別」と決めた (組にまとめるときに、
+   * ほかの配信を挟んでも同じ組にしない)。順に見る:
+   * 1. どちらかの概要欄が相手を @ で呼んでいる → 公開の時刻の差が、片方だけなら 60 分・お互いなら 2 時間までなら一緒 (一番強い)、超えたら別
+   * 2. 片方の概要欄に登録チャンネルの @ があり、相手を呼んでいない → 別 (相手は別のコラボか単独)
+   * 3. ホロライブのチャンネルで、概要欄が分かり、タレントの @ が無い → 単独 (別)
+   * 4. タイトルで相手の名前に触れている・同じハッシュタグ > 同じ企画名 (今までのルール)
+   * 5. 4 で、名前に触れずに # タグ・【】だけでつながる組は、AI を使うなら AI の答えで決める (別と答えたらつながりなし。
+   *    答えが届くまでは 4 のまま)
    */
   const strength = (A, B) => {
     if (A.e.ch === B.e.ch || A.e.id === B.e.id) return { s: 0 };
-    if (A.e.t && B.e.t && Math.abs(A.e.t - B.e.t) > windowOf(A.e, B.e)) return { s: 0 };
-    const why = [];
+    const gap = A.e.t && B.e.t ? Math.abs(A.e.t - B.e.t) : 0;
+    if (gap > windowOf(A.e, B.e)) return { s: 0 };
     const atA = atChs.get(A.e);
     const atB = atChs.get(B.e);
-    if (atA?.has(B.e.ch) || atB?.has(A.e.ch)) return { s: 5, named: true, why: ['@'] };
-    if (atA?.size || atB?.size) return { s: 0, why: ['@ に無い'] };
+    const ab = !!atA?.has(B.e.ch);
+    const ba = !!atB?.has(A.e.ch);
+    if (ab || ba) return gap <= (ab && ba ? COLLAB_AT_MUTUAL : COLLAB_AT_ONE_WAY) ? { s: 5, named: true } : { s: 0, apart: true };
+    if (atA?.size || atB?.size) return { s: 0, apart: true };
+    if ((A.e.holo && atA) || (B.e.holo && atB)) return { s: 0, apart: true };
     let s = 0;
     if (A.names.some((n) => says(B, n))) s += 2;
     if (B.names.some((n) => says(A, n))) s += 2;
     const named = s > 0;
-    if (named) why.push('名前');
-    const tag = A.tags.find((k) => B.tags.includes(k) && special(A, k) && special(B, k));
-    if (tag) {
-      s += 2;
-      why.push('#' + tag);
-    }
+    if (A.tags.some((k) => B.tags.includes(k) && special(A, k) && special(B, k))) s += 2;
     const tight = A.e.tight && B.e.tight;
-    const mark = A.marks.find((k) => B.marks.includes(k) && special(A, k) && special(B, k) && (tight || A.tags.includes(k) || B.tags.includes(k)));
-    if (mark) {
-      s += 1;
-      why.push('【' + mark + '】');
-    }
-    if (s && !named) {
-      const ai = CollabAI.answer(A.e, B.e);
-      if (ai === 'separate') return { s: 0, named, why, ai };
-      return { s, named, why, ai };
-    }
-    return { s, named, why };
+    if (A.marks.some((k) => B.marks.includes(k) && special(A, k) && special(B, k) && (tight || A.tags.includes(k) || B.tags.includes(k)))) s += 1;
+    if (s && !named && CollabAI.answer(A.e, B.e) === 'separate') return { s: 0 };
+    return { s, named };
   };
   const links = [];
+  const apart = new Set(); // 「別」と決めた 2 本 (`id\nid`、両向き)
   for (let i = 0; i < info.length; i++) {
     for (let j = i + 1; j < info.length; j++) {
-      const { s, named, why, ai } = strength(info[i], info[j]);
-      const gap = Math.abs((info[i].e.t || 0) - (info[j].e.t || 0));
-      if (why?.length) collabLog.push({ a: info[i].e, b: info[j].e, gap: Math.round(gap / 60e3), why, ai, s });
-      if (s) links.push({ a: info[i], b: info[j], s, named, gap });
+      const r = strength(info[i], info[j]);
+      if (r.apart) apart.add(`${info[i].e.id}\n${info[j].e.id}`).add(`${info[j].e.id}\n${info[i].e.id}`);
+      if (r.s) links.push({ a: info[i], b: info[j], s: r.s, named: r.named, gap: Math.abs((info[i].e.t || 0) - (info[j].e.t || 0)) });
     }
   }
   links.sort((x, y) => y.s - x.s || x.gap - y.gap);
@@ -9773,6 +9747,7 @@ function buildCollabGroups(entries) {
     if (ga.length > 1 && gb.length > 1 && !named) continue;
     const chs = new Set(ga.map((x) => x.e.ch));
     if (gb.some((x) => chs.has(x.e.ch))) continue; // 1 チャンネル 1 本
+    if (ga.some((x) => gb.some((y) => apart.has(`${x.e.id}\n${y.e.id}`)))) continue; // 「別」と決めた 2 本を同じ組にしない
     const merged = [...ga, ...gb];
     const ts = merged.filter((x) => x.e.t).map((x) => x.e.t);
     const win = Math.max(...merged.map((x) => x.e.win));
@@ -9786,20 +9761,36 @@ function buildCollabGroups(entries) {
     for (const id of ids) collabOf.set(id, ids);
   }
   CollabAI.flush();
-  CollabDebug.update();
 }
 
 /** チャンネルの配信中・配信予定の 1 件 */
 function favSelEntry(f, st) {
-  return { id: st.videoId, ch: f.channelId, label: f.name || '', names: callNames(f), title: st.title || '', t: st.startAt || 0, tight: true, win: COLLAB_WIN.live, load: { f, st } };
+  return { id: st.videoId, ch: f.channelId, label: f.name || '', names: callNames(f), title: st.title || '', t: st.startAt || 0, tight: true, win: COLLAB_WIN.live, kind: 'live', load: { f, st } };
 }
 
-/** 最近の配信・視聴履歴・あとで見るの 1 件。f = そのチャンネル (分かれば) / win = コラボの相手とみなす時刻の幅 */
+/**
+ * 最近の配信・視聴履歴・あとで見るの 1 件。f = そのチャンネル (分かれば) / win = コラボの相手とみなす時刻の幅。
+ * kind = 種類 (live / video / short / '')、holo = ホロライブのチャンネル、official = 公式・ユニットのチャンネル
+ */
 function videoSelEntry(h, f, win = COLLAB_WIN.other) {
   const names = callNames(f || { name: h.label || h.channel, handle: h.handle });
   // ats = 概要欄の @ハンドル (最近の動画だけ。RSS から取る。無ければ null = 分からない)
   const ats = Array.isArray(h.ats) ? h.ats : null;
-  return { id: h.videoId, ch: h.channelId || f?.channelId || h.handle || h.label || '', label: f?.name || h.label || h.channel || '', names, title: h.title || '', t: h.at || 0, tight: false, win, ats, load: { h } };
+  return {
+    id: h.videoId,
+    ch: h.channelId || f?.channelId || h.handle || h.label || '',
+    label: f?.name || h.label || h.channel || '',
+    names,
+    title: h.title || '',
+    t: h.at || 0,
+    tight: false,
+    win,
+    ats,
+    kind: entryKind(h),
+    holo: isHololiveFav(f),
+    official: f?.group === '公式',
+    load: { h },
+  };
 }
 
 /**
@@ -9901,7 +9892,8 @@ function openSync(tiles) {
     then(g) {
       if (g == null) return void notify(tr('selSyncNone'));
       Sync.showDock();
-      const until = performance.now() + 60e3;
+      let until = performance.now() + 60e3;
+      let toldLater = false;
       const runs = AudioSync.runCount(); // 待っている間に使う人が ✨ を押した (やめた) ら、こちらからは始めない
       const tryStart = () => {
         const info = Sync.groupInfo(g);
@@ -9912,6 +9904,12 @@ function openSync(tiles) {
         const mine = info.tiles.filter((i) => tiles.includes(i));
         const playing = (i) => views[i]?.ss?.ps === 1 && !views[i].ss.ad;
         if (!pausedAll && !info.paused && playing(info.ref) && mine.every(playing)) return void AudioSync.toggle(g);
+        // 配信の時間帯がまだ始まっていない枠 (コラボに遅れて入った人など) は、始まるまで待つ (待つ間は「再生が始まらない」としない)
+        if (mine.some((i) => info.later.includes(i))) {
+          if (!toldLater) notify(tr('selSyncWaitLater'));
+          toldLater = true;
+          until = performance.now() + 60e3;
+        }
         if (performance.now() > until) return void notify(tr('selSyncNoAudio'));
         setTimeout(tryStart, 1000);
       };

@@ -584,12 +584,13 @@ test.describe('🤝 コラボの判定 (概要欄の @)', () => {
     ['anya1111111', 'anya', '【Forest Escape: Last Train】こわ〜い森からみんなと脱出したい！！！ This Forest Is Scary【hololive holoro | Anya Melfissa】', '2026-11-26T14:27:36Z', ['shishirobotan', 'rindochihaya']],
   ];
 
-  test('概要欄の @ で、森林脱出の 3 人・あずいろを組にし、あずいろとほかのホロじゃんは分ける', async ({ openGrid }) => {
+  test('概要欄の @ で、森林脱出の 3 人・あずいろを組にし、ほかのホロじゃん (タレントの @ が無い) は単独にする', async ({ openGrid }) => {
     const page = await openGrid();
     await skipTour(page);
     const groups = await page.evaluate(
       ({ CH, V }) => {
-        const favs = Object.values(CH).map(([channelId, name, handle]) => ({ channelId, name, handle }));
+        // ホロライブのチャンネル (初期データ) として持つ
+        const favs = Object.values(CH).map(([channelId, name, handle]) => ({ channelId, name, handle, preset: true }));
         setCollabKnown(favs);
         const fav = (k) => favs.find((f) => f.channelId === CH[k][0]);
         buildCollabGroups(V.map(([videoId, k, title, at, ats]) => videoSelEntry({ videoId, title, at: Date.parse(at), channelId: CH[k][0], ats }, fav(k), COLLAB_WIN.archive)));
@@ -597,9 +598,9 @@ test.describe('🤝 コラボの判定 (概要欄の @)', () => {
       },
       { CH, V },
     );
-    // ヴィヴィ・らでんは、どちらの概要欄にも登録チャンネルの @ が無く、#ホロじゃん だけでつながる。AI を使わないときは今までどおり組になる
-    // (AI を使うときは AI に聞く。2026-11-26 の試しでは AI は「別」と答えた)
-    expect(groups.sort()).toEqual(['anya1111111,botan111111,chihaya1111', 'azki1111111,iroha111111', 'raden111111,vivi1111111']);
+    // ヴィヴィ・らでんは、どちらの概要欄にもタレントの @ が無い。ホロライブのチャンネルなので、#ホロじゃん だけでは組にしない
+    // (ホロジュールでも 2 人とも単独。2026-11-27 に確かめた)
+    expect(groups.sort()).toEqual(['anya1111111,botan111111,chihaya1111', 'azki1111111,iroha111111']);
   });
 
   test('概要欄が分からない (前の版で覚えた) ときは、今までどおりタイトルで判定する', async ({ openGrid }) => {
@@ -681,15 +682,55 @@ test.describe('🤝 コラボの判定 (概要欄の @)', () => {
     await expect(page.locator('#aiCollabRow')).toBeHidden();
   });
 
-  test('デバッグの窓: ライブラリで Ctrl+Shift+D で出し、もう一度で隠す', async ({ openGrid }) => {
+  test('動画・ショートは組にしない。公式チャンネルが概要欄でメンバーを並べていても、それでメンバーどうしをつながない', async ({ openGrid }) => {
     const page = await openGrid();
     await skipTour(page);
-    await page.locator('#openFavorites').click();
-    await page.keyboard.press('Control+Shift+KeyD');
-    await expect(page.locator('#collabDebug')).toBeVisible();
-    await expect(page.locator('#collabDebug .cd-head')).toContainText('コラボの判定');
-    await page.keyboard.press('Control+Shift+KeyD');
-    await expect(page.locator('#collabDebug')).toBeHidden();
+    const r = await page.evaluate(() => {
+      // 2026-11-26 の実際の形: 公式の概要欄にはメンバー全員の @、メンバーの概要欄には公式の @ だけ
+      const favs = [
+        { channelId: 'UCu2n3qHuOuQIygREMnWeQWg', name: 'FLOW GLOW 公式', handle: '@dev_is_flowglow', preset: true, group: '公式' },
+        { channelId: 'UCjk2nKmHzgH5Xy-C5qYRd5A', name: '水宮枢', handle: '@MizumiyaSu', preset: true },
+        { channelId: 'UC9LSiN9hXI55svYEBrrK-tw', name: '響咲リオナ', handle: '@IsakiRiona', preset: true },
+        { channelId: 'UCGzTVXqMQHa4AgJVJIVvtDQ', name: '綺々羅々ヴィヴィ', handle: '@KikiraraVivi', preset: true },
+      ];
+      setCollabKnown(favs);
+      const t0 = Date.parse('2026-11-26T09:00:00Z');
+      const V = [
+        ['fgofficial1', 0, 'リオちはの寝起き❓を突撃❓【#FG2周年】', 0, ['isakiriona', 'mizumiyasu', 'kikiraravivi']],
+        ['su111111111', 1, 'にゃあ🐱／踊ってみた #vtuber #hololive #dance', -56, ['dev_is_flowglow']],
+        ['riona111111', 2, 'ツーステチャレンジしたよー！♡ #hololive #shorts', -60, ['dev_is_flowglow']],
+        ['vivi1111111', 3, 'ネットミームダンス💃 #vtuber #ホロライブ', -60, ['dev_is_flowglow']],
+      ];
+      const run = (kind) => {
+        buildCollabGroups(V.map(([videoId, k, title, min, ats]) => videoSelEntry({ videoId, title, at: t0 + min * 60e3, channelId: favs[k].channelId, ats, kind }, favs[k], COLLAB_WIN.archive)));
+        return [...new Set(collabOf.values())].length;
+      };
+      return { short: run('short'), video: run('video'), live: run('live') };
+    });
+    expect(r).toEqual({ short: 0, video: 0, live: 0 });
+  });
+
+  test('概要欄の @ でつなぐのは、片方だけ呼んでいれば公開の時刻の差 60 分まで、お互いに呼んでいれば 2 時間まで', async ({ openGrid }) => {
+    const page = await openGrid();
+    await skipTour(page);
+    const r = await page.evaluate(() => {
+      const favs = [
+        { channelId: 'UCdn5BQ06XqgXoAxIhbqw5Rg', name: '白上フブキ', handle: '@ShirakamiFubuki', preset: true },
+        { channelId: 'UC1suqwovbL1kzsoaZgFZLKg', name: '癒月ちょこ', handle: '@YuzukiChoco', preset: true },
+      ];
+      setCollabKnown(favs);
+      const t0 = Date.parse('2026-11-26T12:00:00Z');
+      const pair = (min, mutual) => {
+        buildCollabGroups([
+          videoSelEntry({ videoId: 'fubuki11111', title: '【コラボ】ゲーム', at: t0, channelId: favs[0].channelId, ats: ['yuzukichoco'], kind: 'live' }, favs[0], COLLAB_WIN.archive),
+          videoSelEntry({ videoId: 'choco111111', title: 'ゲーム', at: t0 + min * 60e3, channelId: favs[1].channelId, ats: mutual ? ['shirakamifubuki'] : [], kind: 'live' }, favs[1], COLLAB_WIN.archive),
+        ]);
+        return collabOf.size > 0;
+      };
+      return { oneWay55: pair(55, false), oneWay65: pair(65, false), mutual110: pair(110, true), mutual125: pair(125, true) };
+    });
+    // 片方だけ呼んでいる組が 60 分を超えると、相手のそのコラボではない配信 (前後の別の配信) のことがある
+    expect(r).toEqual({ oneWay55: true, oneWay65: false, mutual110: true, mutual125: false });
   });
 });
 

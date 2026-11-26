@@ -621,8 +621,8 @@ const MESSAGES = {
   historyPick: ['クリックで枠に入れる', 'Click to load into a tile'],
   selTitle: ['選ぶ (Ctrl / Shift + クリックでも選べる)。選んだものは下の「▦ まとめて枠に入れる」で一度に枠に入れる', 'Select (Ctrl / Shift + click also works). Load everything you selected at once with “▦ Load into tiles” below'],
   collabTitle: [
-    'コラボと思われる配信 {0} 本 (開始の時刻が近く、タイトルで相手の名前や同じハッシュタグ・企画名に触れているもの) をまとめて選ぶ。全部選んでいるときは、まとめて外す',
-    'Select the {0} streams that look like one collab (close start times and titles that name each other or share a hashtag or event name). If all are selected, unselect them',
+    'コラボと思われる配信 {0} 本 (時刻が近く、概要欄の @ で相手を呼んでいるもの。概要欄が分からないものは、タイトルで相手の名前や同じハッシュタグ・企画名に触れているもの) をまとめて選ぶ。全部選んでいるときは、まとめて外す',
+    'Select the {0} streams that look like one collab (close in time and naming each other with @ in the description; when the description is unknown, titles that name each other or share a hashtag or event name). If all are selected, unselect them',
   ],
   selCount: ['{0} 本を選択中', '{0} selected'],
   selCountOver: ['{0} 本を選択中 (枠に入るのは {1} 本まで)', '{0} selected (only {1} fit in the tiles)'],
@@ -636,6 +636,10 @@ const MESSAGES = {
   selSyncNoAudio: [
     '⏱ 同期を始めましたが、再生が始まらないので ✨ 自動補正は始めていません。再生してから同期の調整パネルの ✨ を押してください',
     'Sync is on, but playback didn’t start, so ✨ auto-correct wasn’t started. Play, then press ✨ in the sync panel',
+  ],
+  selSyncWaitLater: [
+    '⏱ 同期を始めました。まだ始まっていない配信があるので、全部の枠が再生を始めてから ✨ 自動補正を始めます',
+    'Sync is on. Some streams haven’t started yet, so ✨ auto-correct will start once every tile is playing',
   ],
   selSyncBusy: ['⏱ 同期を始めました。ほかのグループを ✨ で測っているので、このグループは測っていません', 'Sync is on. Another group is being measured with ✨, so this group wasn’t measured'],
   selNoRoom: ['{0} 本を枠に入れました。枠が足りないので {1} 本は入れていません (選んだまま残しています)。', 'Loaded {0}. {1} did not fit in the tiles (still selected).'],
