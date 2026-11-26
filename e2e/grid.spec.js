@@ -902,6 +902,39 @@ test.describe('自動再生の進み具合', () => {
   });
 });
 
+test.describe('動画・ショートの自動再生の始め方 (HAKO-13)', () => {
+  test('前回の結果があれば、取り直しを待たずにすぐ枠を埋め、裏で取り直す', async ({ openGrid }) => {
+    const page = await openGrid();
+    await skipTour(page);
+    const got = await page.evaluate(async () => {
+      state.settings.autoLive = false;
+      state.settings.autoVideos = false;
+      state.settings.autoShorts = true;
+      state.settings.autoMaxTiles = 4;
+      const chs = Array.from({ length: 4 }, (_, n) => ({ channelId: `UC${String(n).padStart(22, '0')}`, name: `ch${n}`, star: false }));
+      Favorites.list = async () => chs;
+      Favorites.checkAccess = async () => 'ok';
+      Favorites.fetchStatus = async () => ({ state: 'none' });
+      // 前回の結果: チャンネルごとにショートが 1 本ずつ残っている
+      const now = Date.now();
+      Favorites.peekArchives = async (ids) =>
+        new Map(ids.map((id, n) => [id, [{ videoId: `short${id.slice(-1)}`.padEnd(11, 'x'), title: `s${n}`, at: now - n * 60000, list: 'UUSH', kind: 'short' }]]));
+      // 取り直しは終わらない (遅い通信の代わり)。呼ばれた数を数える
+      window.__fetches = 0;
+      Favorites.fetchArchives = () => {
+        window.__fetches++;
+        return new Promise(() => {});
+      };
+      setAutoMode(true);
+      await new Promise((r) => setTimeout(r, 1500));
+      return { ids: state.tiles.map((t) => t.videoId).filter(Boolean).sort(), fetches: window.__fetches };
+    });
+    expect(got.ids).toEqual(['short0xxxxx', 'short1xxxxx', 'short2xxxxx', 'short3xxxxx']);
+    // 裏で取り直しに行っている
+    expect(got.fetches).toBeGreaterThan(0);
+  });
+});
+
 test.describe('枠の入れ替え', () => {
   test('ドラッグ中の影は 240px までに縮めて、つかんだ場所 (比) がカーソルの下に来る。落とし先の枠は塗る。離すと消える', async ({ openGrid }) => {
     const page = await openGrid();
