@@ -764,6 +764,50 @@ test.describe('デザインガイドの決まり', () => {
     // (ダイアログの外は inert になり当たり判定から外れるので、elementFromPoint では確かめられない。見た目はスクリーンショットで確かめた)
   });
 
+  test('繰り返し: 自動再生で入れた枠 (fill) も繰り返す。あとで見るの順の再生の枠 (queue) は繰り返さない (HAKO-12)', async ({ openGrid }) => {
+    const page = await openGrid();
+    await skipTour(page);
+    const sent = await page.evaluate(() => {
+      Object.assign(state.tiles[0], { fill: true, queue: false });
+      Object.assign(state.tiles[1], { fill: false, queue: true });
+      const log = [];
+      const orig = postToFrame;
+      // 枠のプレイヤーへ送った繰り返しの指示を、枠ごとに記録する
+      window.postToFrame = (frame, msg) => {
+        if (msg?.hakomado === 'loop') log.push({ i: views.findIndex((v) => v.player === frame), on: msg.on });
+        return orig(frame, msg);
+      };
+      for (const i of [0, 1]) views[i].player ??= document.createElement('iframe');
+      setRepeatAll(true);
+      window.postToFrame = orig;
+      return log;
+    });
+    expect(sent.find((m) => m.i === 0)?.on).toBe(true);
+    expect(sent.find((m) => m.i === 1)?.on).toBe(false);
+  });
+
+  test('自動再生の枠を ✕ で閉じたら、1 分ごとの確認を待たずに次の動画を入れにいく (繰り返し ON でも。HAKO-12)', async ({ openGrid }) => {
+    const page = await openGrid();
+    await skipTour(page);
+    await page.evaluate(() => {
+      window.refillCalls = 0;
+      // 次の動画を探す処理 (通信する) の代わりに、呼ばれた回数だけ数える
+      window.refillArchives = async () => {
+        window.refillCalls++;
+        return 0;
+      };
+      state.autoMode = true;
+      state.settings.autoArchive = true;
+      setRepeatAll(true);
+      Object.assign(state.tiles[0], { input: 'https://www.youtube.com/watch?v=aaaaaaaaaaa', videoId: 'aaaaaaaaaaa', fill: true, label: 'test' });
+      renderTile(0);
+    });
+    await page.locator('.tile').nth(0).hover();
+    await page.locator('.tile').nth(0).locator('[data-act="clear"]').click();
+    await expect.poll(() => page.evaluate(() => window.refillCalls)).toBe(1);
+    expect(await page.evaluate(() => state.tiles[0].videoId)).toBeFalsy();
+  });
+
   test('全体の切り替えは、キーのときだけ知らせる (A7)', async ({ openGrid }) => {
     const page = await openGrid();
     await skipTour(page);
