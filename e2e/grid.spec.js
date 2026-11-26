@@ -525,6 +525,7 @@ test.describe('ライブラリの複数選択', () => {
     await collab.first().click();
     await expect(page.locator('#favSelBar')).toBeVisible();
     await expect(page.locator('#favSelCount')).toHaveText('2 本を選択中');
+    await expect(page.locator('#favSelSync')).toBeVisible(); // アーカイブを 2 本以上選ぶと「⏱ 開いて同期」が出る
     // 選んでいる間は、行のクリックも選ぶ (枠には入れない)
     await page.locator('#favList .fav-item[data-sel="ccccccccccc"] .fav-title').click();
     await expect(page.locator('#favSelCount')).toHaveText('3 本を選択中');
@@ -532,6 +533,22 @@ test.describe('ライブラリの複数選択', () => {
     await expect(page.locator('#favorites')).toBeHidden();
     const ids = await visibleTiles(page).locator('.url-input').evaluateAll((els) => els.map((e) => e.value).join(' '));
     for (const h of HISTORY) expect(ids).toContain(h.videoId);
+  });
+
+  test('⏱ 開いて同期: 1 本だけのときは出さず、押すと選んだ配信を枠に入れる', async ({ openGrid }) => {
+    const page = await openGrid();
+    await skipTour(page);
+    await openHistory(page);
+    await page.locator('#favList .fav-item[data-sel="aaaaaaaaaa1"] .fav-title').click({ modifiers: ['Control'] });
+    await expect(page.locator('#favSelCount')).toHaveText('1 本を選択中');
+    await expect(page.locator('#favSelSync')).toBeHidden();
+    await page.locator('#favList .fav-item[data-sel="bbbbbbbbbb2"] .fav-title').click({ modifiers: ['Control'] });
+    await expect(page.locator('#favSelSync')).toBeVisible();
+    await page.locator('#favSelSync').click();
+    await expect(page.locator('#favorites')).toBeHidden();
+    const ids = await visibleTiles(page).locator('.url-input').evaluateAll((els) => els.map((e) => e.value).join(' '));
+    expect(ids).toContain('aaaaaaaaaa1');
+    expect(ids).toContain('bbbbbbbbbb2');
   });
 
   test('🔖 を押しても一覧を描き直さない (カードが動かない)', async ({ openGrid }) => {

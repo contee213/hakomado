@@ -3670,21 +3670,22 @@ const Sync = (() => {
    * at (同期の時計。実際の時刻のミリ秒) を渡すと、始めたあとにその時刻へ動かす (再生リストの続きから)。
    * mode = 'movie' なら、tiles を 1 つの本編モードのグループにまとめる
    */
-  function startWhenReady(tiles, ref, { at = null, mode: m = 'time' } = {}) {
-    pending = { tiles, ref, until: now() + 30000, at, mode: m };
+  /** then: 始めたあとに、基準の枠のグループの番号 (同期できなければ null) を渡して呼ぶ */
+  function startWhenReady(tiles, ref, { at = null, mode: m = 'time', then = null } = {}) {
+    pending = { tiles, ref, until: now() + 30000, at, mode: m, then };
     clearTimeout(pendingTimer);
     pendingTimer = setTimeout(refresh, 30500);
     setTimeout(refresh, 0); // もう読み込んである動画だけなら、すぐ始める
   }
   function checkPending() {
-    const { tiles, ref, until, at, mode: m } = pending;
+    const { tiles, ref, until, at, mode: m, then } = pending;
     const ready = tiles.every((i) => movable(i) || (m === 'movie' && liveTile(i)) || !state.tiles[i].videoId);
     if (!ready && now() < until) return;
     pending = null;
     clearTimeout(pendingTimer);
     setTimeout(() => {
       if (!on && canStart()) start();
-      if (!on) return;
+      if (!on) return void then?.(null);
       if (m === 'movie') {
         // 視聴セットの枠を 1 つの本編モードのグループに (基準の枠のグループの番号を使う)
         const g = groupOfTile(ref)?.g ?? [1, 2, 3, 4].find((x) => !groups.has(x)) ?? 1;
@@ -3692,11 +3693,12 @@ const Sync = (() => {
         tick();
       }
       const G = groupOfTile(ref);
-      if (!G) return;
+      if (!G) return void then?.(null);
       // 時刻で合わせた視聴セットは 🕒 に
       if (m === 'time' && isMovie(G)) setMode(G, 'time');
       setReference(ref);
       if (at && !isMovie(G)) seekGroup(G, at);
+      then?.(G.g);
     }, 0);
   }
   /** 今どこを見ているか ({at: 時計, pos: 基準の動画の再生位置 (秒)})。同期していなければ null (共有と同じく、番号の小さいグループ) */
@@ -4451,15 +4453,19 @@ const Sync = (() => {
       }
     }
 
-    /** 行の ✨ の候補: 「✨ −1.61 ◎」(途中の結果は薄く)。決められなかった枠は「✨ —」 */
-    function paintCand(el, c) {
-      const key = c == null ? '' : c === false ? '-' : [c.v, c.grade, c.prelim].join();
+    /**
+     * 行の ✨ の候補: 「✨ −1.61 ◎」(途中の結果は薄く)。決められなかった枠は「✨ —」。
+     * ほかの枠とは合ったのに音が合わなかった枠は「✨ — 別の配信かも」
+     */
+    function paintCand(el, c, i) {
+      const suspect = c === false && AudioSync.isSuspect(i);
+      const key = c == null ? '' : c === false ? (suspect ? '-?' : '-') : [c.v, c.grade, c.prelim].join();
       if (el.dataset.k === key) return;
       el.dataset.k = key;
       el.classList.toggle('is-prelim', !!c?.prelim);
-      el.title = c == null ? '' : c === false ? tr('syncAudioNoCandTitle') : tr(c.prelim ? 'syncAudioCandPrelimTitle' : 'syncAudioCandTitle', signedSec(c.v), tr(`syncAudioGrade_${c.grade}`));
+      el.title = c == null ? '' : c === false ? tr(suspect ? 'syncAudioSuspectTitle' : 'syncAudioNoCandTitle') : tr(c.prelim ? 'syncAudioCandPrelimTitle' : 'syncAudioCandTitle', signedSec(c.v), tr(`syncAudioGrade_${c.grade}`));
       el.replaceChildren(
-        ...(c == null ? [] : c === false ? ['✨ —'] : [`✨ ${signedSec(c.v)} `, mk('span', { class: 'dr-grade g' + c.grade }, GRADE_MARK[c.grade])]),
+        ...(c == null ? [] : c === false ? ['✨ —', ...(suspect ? [' ', mk('span', { class: 'dr-suspect' }, tr('syncAudioSuspectShort'))] : [])] : [`✨ ${signedSec(c.v)} `, mk('span', { class: 'dr-grade g' + c.grade }, GRADE_MARK[c.grade])]),
       );
     }
 
@@ -4533,7 +4539,7 @@ const Sync = (() => {
           r.wait.classList.toggle('is-waiting', !!wait);
         }
         if (r.steps && !r.locked) for (const b of r.steps) b.disabled = movie && anchor(i) == null;
-        if (r.cand) paintCand(r.cand, AudioSync.candidateFor(i));
+        if (r.cand) paintCand(r.cand, AudioSync.candidateFor(i), i);
         const st = wait ? 'wait' : drift.get(i) || 'none';
         r.dot.className = 'dr-dot is-' + st;
         r.dot.textContent = st === 'ok' ? '✓' : st === 'fix' ? '↻' : '';
@@ -4610,6 +4616,9 @@ const Sync = (() => {
     resumePoint,
     isWaiting: (i) => on && waiting.has(i),
     groupInfo,
+    /** 枠 i を同期しないにする (✨ 自動補正で、ほかの枠と音が合わなかった枠) */
+    excludeTile: (i) => moveTile(i, 0),
+    showDock: () => Dock.show(),
     speedGroupOf,
     setGroupSpeed,
     offOf: off,
@@ -4924,7 +4933,7 @@ const AudioSync = (() => {
       notify(tr(failure.reason === 'short' ? 'syncAudioShort' : 'syncAudioWeak'));
       return;
     }
-    result = { g: r.g, tiles: b.tiles, ref: r.ref, offs: r.offs, ids: r.ids, pick: b.pick, two: b.two, choice: 'mid', n: ++seq };
+    result = { g: r.g, tiles: b.tiles, ref: r.ref, offs: r.offs, ids: r.ids, pick: b.pick, two: b.two, choice: 'mid', blocked: new Set(r.blocked), n: ++seq };
     notify(tr('syncAudioDone'));
     Sync.dockChanged();
   }
@@ -4976,6 +4985,19 @@ const AudioSync = (() => {
     const d = two && choice !== 'mid' ? two[choice] : pick.get(i)?.d;
     return d == null ? null : Math.round((offs.get(i) + d) * 100) / 100;
   }
+  /**
+   * 同じコラボではないかもしれない枠 (結果が出ていて、3 枠以上で測り、ほかの枠は ○ 以上で合ったのに、音が合わなかった枠)。
+   * 音を処理できなかった枠と、同期から外した枠は入れない。2 枠のときは、どちらが違うのか分からないので出さない
+   */
+  function suspects() {
+    if (!resultValid() || result.tiles.length < 3) return [];
+    const info = Sync.groupInfo(result.g);
+    const others = result.tiles.filter((i) => i !== result.ref && info?.tiles.includes(i) && !result.blocked.has(i));
+    if (!others.some((i) => (result.pick.get(i)?.grade ?? 0) >= 2)) return [];
+    return others.filter((i) => !result.pick.has(i));
+  }
+  const isSuspect = (i) => suspects().includes(i);
+
   /** パネルの行と図に出す ✨ の候補: {v: 新しいずれ, grade: 1〜3, prelim} / false (決められなかった) / null (候補なし) */
   function candidateFor(i) {
     const s = shown();
@@ -5041,6 +5063,17 @@ const AudioSync = (() => {
   function doneEl() {
     const { tiles, ref, two } = result;
     const kids = [mk('div', { class: 'dga-title' }, tr('syncAudioResultTitle')), mk('div', { class: 'dga-legend' }, tr('syncAudioLegend'))];
+    // 音が合わなかった枠: 同じコラボではないかもしれない。外すかは使う人が決める (勝手に外さない)
+    for (const i of suspects()) {
+      kids.push(
+        mk(
+          'div',
+          { class: 'dga-suspect' },
+          tr('syncAudioSuspect', `${visibleIndexes().indexOf(i) + 1}: ${tileName(i) || state.tiles[i].videoId}`) + ' ',
+          mk('button', { type: 'button', class: 'fav-restore', textContent: tr('syncAudioExclude'), title: tr('syncAudioExcludeTitle'), onclick: () => Sync.excludeTile(i) }),
+        ),
+      );
+    }
     if (two) {
       const other = tiles.find((i) => i !== ref);
       const name = (i) => tileName(i) || String(visibleIndexes().indexOf(i) + 1);
@@ -5124,6 +5157,7 @@ const AudioSync = (() => {
     /** このグループの結果・途中の結果・知らせを出している */
     hasOutput: (g) => (!!run && run.g === g) || (resultValid() && result.g === g) || failureFor(g),
     progressText,
+    isSuspect,
     candidateFor,
     resultKey,
     resultEl,
@@ -9597,9 +9631,38 @@ function updateSelMarks() {
   favListEl.classList.toggle('selecting', favSel.size > 0);
   document.getElementById('favSelBar').hidden = !favSel.size;
   if (!favSel.size) return;
+  document.getElementById('favSelSync').hidden = selArchives() < 2;
   const room = selRoom();
   document.getElementById('favSelCount').textContent =
     favSel.size > room ? tr('selCountOver', favSel.size, room) : tr('selCount', favSel.size);
+}
+
+/** 選んでいるアーカイブ (配信中・配信予定でないもの) の数。2 本以上で「⏱ 開いて同期」を出す */
+const selArchives = () => [...favSel.values()].filter((e) => e.load.h).length;
+
+/**
+ * ⏱ 開いて同期: 入れた枠 (tiles、選んだ順) が読み込めたら ⏱ アーカイブ同期を始め (最初の枠を基準にする)、
+ * そのグループの基準の枠が再生を始めたら ✨ 自動補正を始める。再生が始まらなければ、そう知らせる (同期は ON のまま)
+ */
+function openSync(tiles) {
+  Sync.startWhenReady(tiles, tiles[0], {
+    then(g) {
+      if (g == null) return void notify(tr('selSyncNone'));
+      Sync.showDock();
+      const until = performance.now() + 60e3;
+      const tryStart = () => {
+        const info = Sync.groupInfo(g);
+        if (!info || !info.active || info.movie) return; // 同期をやめた・グループが変わった
+        if (AudioSync.busyOther(g)) return void notify(tr('selSyncBusy'));
+        if (AudioSync.hasOutput(g)) return; // もう測っている
+        const ss = views[info.ref]?.ss;
+        if (ss?.ps === 1 && !ss.ad && !pausedAll && !info.paused) return void AudioSync.toggle(g);
+        if (performance.now() > until) return void notify(tr('selSyncNoAudio'));
+        setTimeout(tryStart, 1000);
+      };
+      tryStart();
+    },
+  });
 }
 
 /** 選んだ配信を入れられる枠の数 (読み込み先の枠 + 空いている枠 + まだ足せる枠) */
@@ -9612,7 +9675,7 @@ function selRoom() {
  * 選んだ配信を枠に入れる。読み込み先の枠 (枠のバーから開いたとき) があれば最初の 1 本はそこに、残りは空いている枠に順に入れる。
  * 空き枠が足りなければ 16 枠まで一度に足す。もう表示中の枠にある配信は入れない。入りきらなかった分は選んだまま残す
  */
-function loadSelection() {
+function loadSelection({ sync = false } = {}) {
   const shown = new Set(visibleIndexes().map((i) => state.tiles[i].videoId).filter(Boolean));
   let skipped = 0;
   for (const id of [...favSel.keys()]) {
@@ -9627,9 +9690,11 @@ function loadSelection() {
   if (lack > 0) addTileSlot(lack);
   targets.push(...emptyNow());
   let n = 0;
+  const loaded = []; // 入れた枠 (選んだ順)
   for (const e of todo) {
     const target = targets[n];
     if (target == null) break;
+    loaded.push(target);
     if (e.load.st) {
       const { f, st } = e.load;
       forgetAutoMarks(st.videoId);
@@ -9642,6 +9707,7 @@ function loadSelection() {
     updateNowPlaying();
     save();
   }
+  if (sync && loaded.length) openSync(loaded);
   if (!favSel.size) {
     favDialog.close();
     return;
@@ -12701,7 +12767,8 @@ function setupFavorites() {
   document.getElementById('openFavorites').addEventListener('click', () => openFavorites(null, 'library'));
   document.getElementById('favClose').addEventListener('click', () => favDialog.close());
   favDialog.addEventListener('close', clearSel);
-  document.getElementById('favSelLoad').addEventListener('click', loadSelection);
+  document.getElementById('favSelLoad').addEventListener('click', () => loadSelection());
+  document.getElementById('favSelSync').addEventListener('click', () => loadSelection({ sync: true }));
   document.getElementById('favSelClear').addEventListener('click', clearSel);
   document.getElementById('favRefresh').addEventListener('click', () => {
     if (favMode === 'archive') renderArchiveTab({ force: true });
