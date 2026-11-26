@@ -1173,7 +1173,7 @@ const HTML_EN = {
 <li>Each row of “ℹ️ Tile info” (<kbd>I</kbd>): left/right audio (L / C / R) / 📌 pickup / 🔖 watch later / 📃 add to a playlist / subscribe / 👍 like. Click a title to open that video on YouTube in a new tab</li>
 <li>🎚 makes that tile heard from the left, center or right and changes its volume (0–200%). You can also change left/right with L / C / R in “ℹ️ Tile info”. On a live stream, “Audio delay” delays only that tile’s audio (the picture stays as it is; for a collab whose voices come earlier than the other tiles)</li>
 <li>“⛶” (<kbd>Shift</kbd> + <kbd>F</kbd>) goes fullscreen with all tiles. Move the mouse to the top edge to show the bar</li>
-<li>“🔁 Repeat” (<kbd>R</kbd>) makes every tile’s video or archive start over when it reaches the end (not live streams, or tiles that auto play / watch later refill)</li>
+<li>“🔁 Repeat” (<kbd>R</kbd>) makes every tile’s video or archive start over when it reaches the end (not live streams or watch later queue tiles; auto play tiles also repeat instead of moving on)</li>
 <li>“ℹ️” (<kbd>I</kbd>) lists each tile’s type (live, archive, video), stream times, current viewers, views and whether it can be archive-synced</li>
 </ul>`,
   'helpPage.auto': `<p>Turn on “Auto play” (<kbd>L</kbd>) to lay out every live channel. After that, every minute, tiles are added for streams that start and removed for streams that end.</p>
@@ -1273,7 +1273,7 @@ const HTML_EN = {
   'key.pause': 'Pause ⇄ resume all tiles (live streams resume from the latest point)',
   'pauseAll.title': 'Pause (Space): pause / resume all tiles. Live streams resume from the latest point',
   'pauseAll.label': 'Pause',
-  'repeat.title': 'Repeat (R): videos and archives start over when they reach the end (not live streams, or tiles that auto play / watch later refill)',
+  'repeat.title': 'Repeat (R): videos and archives start over when they reach the end (not live streams or watch later queue tiles; auto play tiles also repeat instead of moving on)',
   'repeat.label': 'Repeat',
   'key.repeat': 'Repeat all ON / OFF',
   'key.bars': 'Show ⇄ hide the control bar on each tile',

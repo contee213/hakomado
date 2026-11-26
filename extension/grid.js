@@ -78,7 +78,7 @@ const state = {
   autoMode: false,
   // クルーズ: 一定時間ごとにメイン枠と音声を次の配信へ回す (いろいろな配信を少しずつ見る)
   cruise: false,
-  // 全枠繰り返し再生: 動画・アーカイブが最後まで行ったら最初に戻す (ライブ配信と、自動再生・あとで見るで次を入れる枠は除く)
+  // 全枠繰り返し再生: 動画・アーカイブが最後まで行ったら最初に戻す (ライブ配信と、あとで見るの順の再生で次を入れる枠は除く。自動再生の枠も繰り返し、その間は次の動画に入れ替えない)
   repeatAll: false,
   // 枠のバー (各枠の操作バー) を出すか。OFF なら全部の枠で出さず、Twitch の枠の上の黒い帯も無くして映像を枠いっぱいにする
   tileBars: true,
@@ -2469,11 +2469,12 @@ function togglePauseAll() {
 
 /**
  * 枠 i のプレイヤーに、最後まで行ったら最初に戻すかを伝える。
- * 自動再生の「最近の動画」の枠 (fill)・あとで見るの順の再生の枠 (queue) は、終わったら次を入れるので繰り返さない
+ * あとで見るの順の再生の枠 (queue) は、終わったら次を入れるので繰り返さない。
+ * 自動再生の「最近の動画」の枠 (fill) は繰り返す (繰り返し ON の間は終わらないので、次の動画に入れ替わらない。HAKO-12)
  */
 function applyLoop(i) {
   const t = state.tiles[i];
-  postToFrame(views[i]?.player, { hakomado: 'loop', on: state.repeatAll && !t.fill && !t.queue });
+  postToFrame(views[i]?.player, { hakomado: 'loop', on: state.repeatAll && !t.queue });
 }
 
 /** 全枠繰り返し再生の ON / OFF (上部バーの 🔁・R キー) */
@@ -2652,8 +2653,18 @@ function onBarAction(i, act, e) {
       state.tiles[i] = newTileState();
       views[i].danmaku.clear();
       renderTile(i);
+      // 自動再生の「最近の動画」の枠を閉じた: 1 分ごとの確認を待たずに次の動画を入れる (最後まで再生したときと同じ。
+      // 繰り返し ON の間は終わらないので、閉じたときにしか入れ替わらない。HAKO-12)
+      // 次が見つからず空いたままなら、ほかの枠を閉じたときと同じく詰める
+      if (state.autoMode && t.fill && (state.settings.autoArchive || autoVideoKinds().size)) {
+        refillArchives()
+          .catch((e) => ErrLog.warnFetch('hakomado: 自動再生の確認に失敗', e))
+          .then(() => {
+            if (state.autoMode && visibleIndexes().some((j) => !tileFilled(state.tiles[j]))) compactToContent();
+          });
+      }
       // 自動再生中は空いた枠を残さず、残りの件数に合ったレイアウトに詰める
-      if (state.autoMode) compactToContent();
+      else if (state.autoMode) compactToContent();
       else layout();
       break;
   }
@@ -5888,7 +5899,7 @@ function onMoved(i, id, follow) {
   const from = t.videoId;
   if (!follow) {
     // 繰り返し再生中の動画・アーカイブなら、終わったことにせず最初から開き直す
-    if (state.repeatAll && !t.fill && !t.queue && !isLiveTile(i) && views[i].info?.kind !== 'live') {
+    if (state.repeatAll && !t.queue && !isLiveTile(i) && views[i].info?.kind !== 'live') {
       renderTile(i, { reloadPlayer: true });
       return;
     }
