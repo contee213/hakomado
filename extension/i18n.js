@@ -621,8 +621,8 @@ const MESSAGES = {
   historyPick: ['クリックで枠に入れる', 'Click to load into a tile'],
   selTitle: ['選ぶ (Ctrl / Shift + クリックでも選べる)。選んだものは下の「▦ まとめて枠に入れる」で一度に枠に入れる', 'Select (Ctrl / Shift + click also works). Load everything you selected at once with “▦ Load into tiles” below'],
   collabTitle: [
-    'コラボと思われる配信 {0} 本 (時刻が近く、概要欄の @ で相手を呼んでいるもの。概要欄が分からないものは、タイトルで相手の名前や同じハッシュタグ・企画名に触れているもの) をまとめて選ぶ。全部選んでいるときは、まとめて外す',
-    'Select the {0} streams that look like one collab (close in time and naming each other with @ in the description; when the description is unknown, titles that name each other or share a hashtag or event name). If all are selected, unselect them',
+    'コラボと思われる配信 {0} 本 (時刻が近く、どちらかの概要欄が @ で相手を呼んでいるもの。概要欄が分からないものや、ホロライブ以外で @ の無いものは、タイトルで相手の名前や同じハッシュタグ・企画名に触れているもの) をまとめて選ぶ。全部選んでいるときは、まとめて外す',
+    'Select the {0} streams that look like one collab (close in time, with either description mentioning the other with @; when the description is unknown, or outside hololive with no @, titles that name each other or share a hashtag or event name). If all are selected, unselect them',
   ],
   selCount: ['{0} 本を選択中', '{0} selected'],
   selCountOver: ['{0} 本を選択中 (枠に入るのは {1} 本まで)', '{0} selected (only {1} fit in the tiles)'],

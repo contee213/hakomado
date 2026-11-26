@@ -9701,7 +9701,7 @@ function buildCollabGroups(entries) {
    * ほかの配信を挟んでも同じ組にしない)。順に見る:
    * 1. どちらかの概要欄が相手を @ で呼んでいる → 公開の時刻の差が、片方だけなら 60 分・お互いなら 2 時間までなら一緒 (一番強い)、超えたら別
    * 2. 片方の概要欄に登録チャンネルの @ があり、相手を呼んでいない → 別 (相手は別のコラボか単独)
-   * 3. ホロライブのチャンネルで、概要欄が分かり、タレントの @ が無い → 単独 (別)
+   * 3. ホロライブのチャンネルで、概要欄が分かり、タレントの @ が無い → 単独 (別)。公式・ユニットのチャンネルの配信も、概要欄が分かれば単独
    * 4. タイトルで相手の名前に触れている・同じハッシュタグ > 同じ企画名 (今までのルール)
    * 5. 4 で、名前に触れずに # タグ・【】だけでつながる組は、AI を使うなら AI の答えで決める (別と答えたらつながりなし。
    *    答えが届くまでは 4 のまま)
@@ -9717,6 +9717,7 @@ function buildCollabGroups(entries) {
     if (ab || ba) return gap <= (ab && ba ? COLLAB_AT_MUTUAL : COLLAB_AT_ONE_WAY) ? { s: 5, named: true } : { s: 0, apart: true };
     if (atA?.size || atB?.size) return { s: 0, apart: true };
     if ((A.e.holo && atA) || (B.e.holo && atB)) return { s: 0, apart: true };
+    if ((A.e.official && atA) || (B.e.official && atB)) return { s: 0, apart: true }; // 公式チャンネルの配信 (ホロライブ以外も)
     let s = 0;
     if (A.names.some((n) => says(B, n))) s += 2;
     if (B.names.some((n) => says(A, n))) s += 2;
@@ -9894,6 +9895,7 @@ function openSync(tiles) {
       Sync.showDock();
       let until = performance.now() + 60e3;
       let toldLater = false;
+      const ids = new Map(tiles.map((i) => [i, state.tiles[i]?.videoId])); // 入れた枠の配信 (待つ間に入れ替えられたらやめる)
       const runs = AudioSync.runCount(); // 待っている間に使う人が ✨ を押した (やめた) ら、こちらからは始めない
       const tryStart = () => {
         const info = Sync.groupInfo(g);
@@ -9902,6 +9904,8 @@ function openSync(tiles) {
         if (AudioSync.busyOther(g)) return void notify(tr('selSyncBusy'));
         // 入れた枠 (グループに入ったもの) が全部、再生している (広告でない) ときに始める
         const mine = info.tiles.filter((i) => tiles.includes(i));
+        // 入れた枠をほかのグループへ移した・別の配信に入れ替えた → 頼まれていない ✨ を始めないように、待つのをやめる
+        if (mine.length < 2 || mine.some((i) => state.tiles[i]?.videoId !== ids.get(i))) return;
         const playing = (i) => views[i]?.ss?.ps === 1 && !views[i].ss.ad;
         if (!pausedAll && !info.paused && playing(info.ref) && mine.every(playing)) return void AudioSync.toggle(g);
         // 配信の時間帯がまだ始まっていない枠 (コラボに遅れて入った人など) は、始まるまで待つ (待つ間は「再生が始まらない」としない)

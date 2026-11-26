@@ -586,6 +586,19 @@ test.describe('ライブラリの複数選択', () => {
     r = await result();
     expect(r.started).toBe(1);
 
+    // 待っている間に、入れた枠を別の配信に入れ替えたら、待つのをやめる (頼まれていない ✨ を始めない)
+    await run([2]);
+    await page.clock.runFor(5_000);
+    await page.evaluate(() => {
+      state.tiles[1].videoId = 'otherVideo1';
+      window.__t.later = [];
+      views[2].ss.ps = 1;
+    });
+    await page.clock.runFor(5_000);
+    r = await result();
+    expect(r.started).toBe(0);
+    await page.evaluate(() => (state.tiles[1].videoId = ''));
+
     // 始まっていない枠が無く、再生も始まらないときは、今までどおり 60 秒で知らせる
     await run([]);
     await page.clock.runFor(62_000);
@@ -751,6 +764,48 @@ test.describe('🤝 コラボの判定 (概要欄の @)', () => {
       return { short: run('short'), video: run('video'), live: run('live') };
     });
     expect(r).toEqual({ short: 0, video: 0, live: 0 });
+  });
+
+  test('ホロライブ以外の公式チャンネルの配信も、概要欄が分かれば、タイトルのハッシュタグで組にしない', async ({ openGrid }) => {
+    const page = await openGrid();
+    await skipTour(page);
+    const n = await page.evaluate(() => {
+      // ぶいすぽっ!のように、パック・初期データ以外から入った公式 (group が「公式」) とメンバー
+      const favs = [
+        { channelId: 'UCofficial0000000000000a', name: '公式', handle: '@official_x', group: '公式' },
+        { channelId: 'UCmember00000000000000000', name: 'メンバー', handle: '@member_x' },
+      ];
+      setCollabKnown(favs);
+      const t0 = Date.parse('2026-11-26T12:00:00Z');
+      buildCollabGroups([
+        videoSelEntry({ videoId: 'official111', title: '【#大会】決勝', at: t0, channelId: favs[0].channelId, ats: ['member_x'], kind: 'live' }, favs[0], COLLAB_WIN.archive),
+        videoSelEntry({ videoId: 'member11111', title: '【#大会】がんばる', at: t0 + 5 * 60e3, channelId: favs[1].channelId, ats: [], kind: 'live' }, favs[1], COLLAB_WIN.archive),
+      ]);
+      return collabOf.size;
+    });
+    expect(n).toBe(0);
+  });
+
+  test('「別」と決めた 2 本は、両方を呼んでいる配信を挟んでも同じ組にしない', async ({ openGrid }) => {
+    const page = await openGrid();
+    await skipTour(page);
+    const groups = await page.evaluate(() => {
+      const favs = [
+        { channelId: 'UCaaaaaaaaaaaaaaaaaaaaaa', name: 'A', handle: '@a_ch', preset: true },
+        { channelId: 'UCbbbbbbbbbbbbbbbbbbbbbb', name: 'B', handle: '@b_ch', preset: true },
+        { channelId: 'UCcccccccccccccccccccccc', name: 'C', handle: '@c_ch', preset: true },
+      ];
+      setCollabKnown(favs);
+      const t0 = Date.parse('2026-11-26T12:00:00Z');
+      // A は B と C を呼んでいるが、B と C はお互いを呼ばず A だけを呼んでいる (A を挟んで別々のコラボ)
+      buildCollabGroups([
+        videoSelEntry({ videoId: 'aaaaaaaaaaa', title: '配信 A', at: t0, channelId: favs[0].channelId, ats: ['b_ch', 'c_ch'], kind: 'live' }, favs[0], COLLAB_WIN.archive),
+        videoSelEntry({ videoId: 'bbbbbbbbbbb', title: '配信 B', at: t0 + 2 * 60e3, channelId: favs[1].channelId, ats: ['a_ch'], kind: 'live' }, favs[1], COLLAB_WIN.archive),
+        videoSelEntry({ videoId: 'ccccccccccc', title: '配信 C', at: t0 + 5 * 60e3, channelId: favs[2].channelId, ats: ['a_ch'], kind: 'live' }, favs[2], COLLAB_WIN.archive),
+      ]);
+      return [...new Set(collabOf.values())].map((g) => [...g].sort().join(','));
+    });
+    expect(groups).toEqual(['aaaaaaaaaaa,bbbbbbbbbbb']);
   });
 
   test('概要欄の @ でつなぐのは、片方だけ呼んでいれば公開の時刻の差 60 分まで、お互いに呼んでいれば 2 時間まで', async ({ openGrid }) => {
