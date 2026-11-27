@@ -23,8 +23,9 @@ const WaveStrip = (() => {
   const LOAD_MS = 20000; // 開いてから知らせが来なければ開き直す
   const LAG_SEC = 40; // 16 倍速で、音の記録が届くまでに進む再生位置の幅 (1 秒ごとに送られるので 16 秒 + 余裕)
   const HEAD_H = 34;
+  const SEC_HEAD_H2 = 28; // 2 段目 (✨ の様子)
   const SEC_HEAD_H = 32;
-  const RULER_H = 24;
+  const RULER_H = 24 + 10; // 目盛り + その下のスクロールバー
   const ROW_H = 51;
   const MIN_H = 90;
   const DRAG_PX = 6;
@@ -401,6 +402,7 @@ const WaveStrip = (() => {
       [...folded].sort(),
       model.groups.map((G) => [G.g, G.mode, G.active, G.ref, G.tiles.map((t) => [t.i, t.vid, t.group, t.movable, t.youtube, t.live])]),
       model.rest.map((t) => [t.i, t.vid, t.group]),
+      model.audioKey,
     ]);
     // 補正の数字を入れている途中は作り直さない (入れている文字が消えないように)
     const typing = root().querySelector('.wv-off-input');
@@ -474,6 +476,7 @@ const WaveStrip = (() => {
     let rows = 0;
     let heads = 0;
     let rulers = 0;
+    let msgRows = 0;
     // グループ 1〜4 は空でもいつも出す (行をドラッグして移せるように)
     for (let g = 1; g <= SyncGroups.MAX; g++) {
       const G = groupOf(g);
@@ -482,6 +485,7 @@ const WaveStrip = (() => {
       secs.set(g, s);
       body.append(G ? sectionEl(G, s) : emptyEl(g, s));
       heads++;
+      if (G && drawable(G)) msgRows++; // ✨ の様子の段 (たたんでもある)
       if (G && !folded.has(g)) {
         rows += G.tiles.length;
         if (drawable(G)) rulers++;
@@ -497,7 +501,7 @@ const WaveStrip = (() => {
     el.replaceChildren(grip, head, body);
     for (const i of [...selected]) if (!model.groups.some((G) => G.ref !== i && G.tiles.some((t) => t.i === i && drawable(G)))) selected.delete(i);
     paintSelection();
-    const want = HEAD_H + heads * SEC_HEAD_H + rows * ROW_H + rulers * RULER_H + 8;
+    const want = HEAD_H + heads * SEC_HEAD_H + msgRows * SEC_HEAD_H2 + rows * ROW_H + rulers * RULER_H + 8;
     setHeight(UiPrefs.get('waveH') || Math.min(want, Math.round(innerHeight * 0.45)));
   }
 
@@ -554,23 +558,50 @@ const WaveStrip = (() => {
       });
       s.head.speed = sel;
     }
-    const head = mk(
+    // ✨ 自動補正 (パネルのグループの ✨ と同じ。測っている間にもう一度押すとやめる)。🕒 の同期できるグループだけ
+    s.head.audio = drawable(G)
+      ? mk('button', { type: 'button', class: 'wv-audio-sync sync-audio', title: tr('syncAudioTitle'), onclick: () => (Sync.toggleAudioSync(G.g), update()) })
+      : null;
+    // ✨ の箱 (測っている間の様子・結果・決められなかった)
+    s.head.box = drawable(G) ? Sync.audioResultEl(G.g) : null;
+    // グループの音 (🔊 / 🔇): グループの中に音の出ている枠があれば全部消す・全部消えていれば全部出す
+    s.head.mute = G.tiles.length ? mk('button', { type: 'button', class: 'wv-group-audio', onclick: () => (Sync.toggleGroupAudio(G.g), update()) }) : null;
+    // つまみ (上部バーのつまみと同じ。グループの時刻を動かす)。残りの幅を使い、狭ければ縮む (拡大のスライダーの幅までは保つ)
+    s.head.seek = null;
+    if (G.active) {
+      const input = mk('input', { type: 'range', class: 'wv-seek', min: 0, max: 1, step: 1, value: 0, title: tr('stripSeekTitle', G.g), 'aria-label': tr('stripSeekTitle', G.g) });
+      const now = mk('span', { class: 'wv-seek-time' });
+      const end = mk('span', { class: 'wv-seek-time is-end' });
+      Sync.bindGroupSeek(input, now);
+      s.head.seek = { input, now, end, el: mk('span', { class: 'wv-seek-box' }, now, input, end) };
+    }
+    // 2 段:
+    // 上の段 = どのグループか (たたむ・番号・そろえ方・n 枠)・✨ 自動補正 | ⏸・つまみ・速度・グループの音・取得率 (一番右)
+    // 下の段 = ✨ の様子の文 → ボタン (右寄せで、決まった置き場所)。様子が無くても段はいつもある (箱で高さ・行の位置を変えない)
+    const top = mk(
       'div',
       { class: 'wv-sec-head' },
-      foldBtn(G.g),
-      mk('span', { class: 'wv-num-dot', style: `--g: ${color}`, title: tr('syncGroupN', G.g) }, String(G.g)),
-      modeSel,
-      mk('span', { class: 'wv-count' }, tr('syncGroupCount', G.tiles.length)),
-      s.head.progress,
+      mk(
+        'span',
+        { class: 'wv-head-id' },
+        foldBtn(G.g),
+        mk('span', { class: 'wv-num-dot', style: `--g: ${color}`, title: tr('syncGroupN', G.g) }, String(G.g)),
+        modeSel,
+        mk('span', { class: 'wv-count' }, tr('syncGroupCount', G.tiles.length)),
+      ),
+      s.head.audio,
+      s.head.audio ? mk('span', { class: 'wv-head-sep' }) : null,
       s.head.play,
+      s.head.seek?.el,
       s.head.speed,
-      s.head.reset,
+      s.head.mute,
+      s.head.progress,
     );
+    const bottom = drawable(G) ? mk('div', { class: 'wv-sec-head wv-head-msg' }, mk('div', { class: 'wv-audio-box' }, s.head.box?.el)) : null;
     s.head.note = mk('div', { class: 'wv-sec-note' });
-    const kids = [head, s.head.note];
+    const kids = [top, bottom, s.head.note];
     if (!folded.has(G.g)) {
       if (drawable(G)) {
-        // 目盛りの行の左: 拡大率 (右寄せ)
         // 拡大率: 🔍 全体表示・− ・スライダー・+ (スライダーの左端は目盛りが 1 時間ごと、右端は 1 秒ごと)
         const fit = mk('button', {
           type: 'button',
@@ -593,6 +624,7 @@ const WaveStrip = (() => {
         const ruler = mk('canvas', { class: 'wv-ruler-canvas', title: tr('waveRulerTitle') });
         bindRuler(ruler, G.g);
         s.ruler = ruler;
+        // 目盛りの行の左: ↺ 実際の時刻に戻す・全体表示・拡大率 (右寄せ)
         kids.push(
           mk(
             'div',
@@ -600,15 +632,73 @@ const WaveStrip = (() => {
             mk(
               'div',
               { class: 'wv-label wv-ruler-label' },
+              s.head.reset,
               mk('span', { class: 'wv-zoombox' }, fit, zoomBtn(-ZOOM_STEP, '−', 'waveZoomOutTitle'), zoom, zoomBtn(ZOOM_STEP, '+', 'waveZoomInTitle')),
             ),
             ruler,
           ),
         );
+        kids.push(scrollEl(G.g, s));
       }
       for (const t of ordered(G.g, G.tiles)) kids.push(rowEl(G, t, s));
     }
     return mk('section', { class: 'wv-sec' + (folded.has(G.g) ? ' is-folded' : ''), dataset: { g: String(G.g) }, style: `--g: ${color}` }, kids);
+  }
+
+  /**
+   * 目盛りの下のスクロールバー: つまみが見ている範囲 (グループの配信のある範囲の中で)、白い線が今の再生位置。
+   * つまみをドラッグすると、今の再生位置を変えずに見る範囲だけ動く。地を押すと、そこを真ん中にする
+   */
+  function scrollEl(g, s) {
+    const thumb = mk('div', { class: 'wv-scroll-thumb', title: tr('waveScrollTitle') });
+    const now = mk('div', { class: 'wv-scroll-now' });
+    const track = mk('div', { class: 'wv-scroll-track', title: tr('waveScrollTitle') }, thumb, now);
+    s.scroll = { track, thumb, now };
+    let d = null;
+    track.addEventListener('pointerdown', (e) => {
+      const G = groupOf(g);
+      const full = G && scrollRange(G, s);
+      if (e.button !== 0 || !full || !s.view) return;
+      const rect = track.getBoundingClientRect();
+      const msPerPx = (full.to - full.from) / rect.width;
+      if (e.target !== thumb) {
+        // 地を押した: そこを真ん中にする
+        const c = full.from + (e.clientX - rect.left) * msPerPx;
+        const span = s.view.to - s.view.from;
+        s.view = { from: c - span / 2, to: c + span / 2 };
+      }
+      capture(track, e);
+      d = { x0: e.clientX, view0: s.view, msPerPx };
+      queueDraw();
+    });
+    track.addEventListener('pointermove', (e) => {
+      if (!d) return;
+      const dx = (e.clientX - d.x0) * d.msPerPx;
+      s.view = { from: d.view0.from + dx, to: d.view0.to + dx };
+      queueDraw();
+    });
+    const end = () => (d = null);
+    track.addEventListener('pointerup', end);
+    track.addEventListener('pointercancel', end);
+    return mk('div', { class: 'wv-scroll' }, mk('div', { class: 'wv-scroll-pad' }), track);
+  }
+  /** スクロールバーの全体の幅: グループの配信のある範囲と、今見ている範囲を合わせたもの */
+  function scrollRange(G, s) {
+    const f = fullRange(G);
+    if (!f || !s.view) return f;
+    return { from: Math.min(f.from, s.view.from), to: Math.max(f.to, s.view.to) };
+  }
+  function paintScroll(G, s) {
+    const sc = s.scroll;
+    if (!sc?.track.isConnected) return;
+    const full = scrollRange(G, s);
+    if (!full || !s.view) return;
+    const span = full.to - full.from;
+    const pct = (v) => `${(((v - full.from) / span) * 100).toFixed(3)}%`;
+    sc.thumb.style.left = pct(s.view.from);
+    sc.thumb.style.width = `${(((s.view.to - s.view.from) / span) * 100).toFixed(3)}%`;
+    sc.now.hidden = G.now == null;
+    if (G.now != null) sc.now.style.left = pct(G.now);
   }
 
   /** まだ枠の無いグループ (行をドラッグして入れられる) */
@@ -617,10 +707,15 @@ const WaveStrip = (() => {
     const head = mk(
       'div',
       { class: 'wv-sec-head' },
-      mk('span', { class: 'wv-fold' }),
-      mk('span', { class: 'wv-num-dot', style: `--g: ${color}`, title: tr('syncGroupN', g) }, String(g)),
-      mk('span', { class: 'wv-sec-title is-empty' }, tr('syncModeTime')),
-      mk('span', { class: 'wv-count' }, tr('syncGroupCount', 0)),
+      mk(
+        'span',
+        { class: 'wv-head-id' },
+        mk('span', { class: 'wv-fold' }),
+        mk('span', { class: 'wv-num-dot', style: `--g: ${color}`, title: tr('syncGroupN', g) }, String(g)),
+        // ほかのグループと文字の位置をそろえるため、同じ選ぶ欄で出す (枠が無いので選べない)
+        mk('select', { class: 'wv-mode', disabled: true, title: tr('stripEmptyGroupTitle') }, mk('option', { value: 'time' }, tr('syncModeTime'))),
+        mk('span', { class: 'wv-count' }, tr('syncGroupCount', 0)),
+      ),
     );
     return mk('section', { class: 'wv-sec is-empty', dataset: { g: String(g) }, title: tr('stripEmptyGroupTitle'), style: `--g: ${color}` }, head);
   }
@@ -903,6 +998,28 @@ const WaveStrip = (() => {
         s.head.play.title = tr(G.playing ? 'syncGroupPause' : 'syncGroupPlay');
       }
       if (s.head.reset) s.head.reset.disabled = !G.canReset;
+      if (s.head.seek) Sync.fillGroupSeek(G.g, s.head.seek.input, s.head.seek.now, s.head.seek.end);
+      if (s.head.mute) {
+        const on = G.tiles.some((t) => !t.muted);
+        const txt = tr(on ? 'stripGroupAudioOnLabel' : 'stripGroupAudioOffLabel');
+        if (s.head.mute.textContent !== txt) s.head.mute.textContent = txt;
+        s.head.mute.title = tr(on ? 'stripGroupAudioMuteTitle' : 'stripGroupAudioUnmuteTitle', G.g);
+        s.head.mute.classList.toggle('on', on);
+        s.head.mute.setAttribute('aria-pressed', String(on));
+      }
+      if (s.head.audio) {
+        const a = G.audio;
+        if (s.head.audio.textContent !== a.label) s.head.audio.textContent = a.label;
+        s.head.audio.classList.toggle('is-measuring', a.measuring);
+        // まだ補正していないグループでは目立たせる (見つけてもらえるように。パネルと同じ)
+        s.head.audio.classList.toggle('is-suggest', a.suggest);
+      }
+      if (s.head.box) {
+        s.head.box.paint();
+        // 1 行に収めるので、切れた文と確かさの説明は乗せたときの説明に出す
+        const tip = [...s.head.box.el.querySelectorAll('.dga-title, .dga-legend, .dga-suspect')].map((e) => e.textContent).filter(Boolean).join('\n');
+        if (s.head.box.el.title !== tip) s.head.box.el.title = tip;
+      }
       const note = G.movie ? tr('stripMovieInPanel') : G.note;
       if (s.head.note.textContent !== note) s.head.note.textContent = note;
       s.head.note.hidden = !note;
@@ -920,6 +1037,13 @@ const WaveStrip = (() => {
           r.dot.className = 'dr-dot is-' + st;
           r.dot.textContent = st === 'ok' ? '✓' : st === 'fix' ? '↻' : '';
           r.dot.title = tr('syncDot_' + st);
+        }
+        if (r.canvas) {
+          // 乗せたときの説明に、✨ の候補の説明も足す (パネルの行の ✨ と同じ文)
+          const c = t.cand;
+          const ct = c == null ? '' : c === false ? tr(t.suspect ? 'syncAudioSuspectTitle' : 'syncAudioNoCandTitle') : tr(c.prelim ? 'syncAudioCandPrelimTitle' : 'syncAudioCandTitle', signed(c.v), tr(`syncAudioGrade_${c.grade}`));
+          const title = r.canvas.classList.contains('is-ref') ? '' : tr('waveRowTitle') + (ct ? '\n' + ct : '');
+          if (r.canvas.title !== title) r.canvas.title = title;
         }
         if (r.audio) {
           const txt = t.muted ? '🔇' : '🔊';
@@ -1109,6 +1233,9 @@ const WaveStrip = (() => {
   }
 
   function drawSection(G, s, { band, nowColor, muted }) {
+    autoZoom(G, s);
+    followNow(G, s);
+    paintScroll(G, s);
     const view = s.view;
     const span = view.to - view.from;
     const color = Sync.groupColor(G.g);
@@ -1216,6 +1343,7 @@ const WaveStrip = (() => {
         }
         flushGap(Math.ceil(b));
       }
+      drawCandidate(ctx, t, { W, H, dpr, x, view, span });
       if (G.now != null) {
         const xn = x(G.now);
         if (xn >= 0 && xn <= W) {
@@ -1224,6 +1352,96 @@ const WaveStrip = (() => {
         }
       }
     }
+  }
+
+  /**
+   * 今の再生位置が見ている範囲の右端を越えたら、ページをめくるように範囲を動かす (今の位置が左から 1 割のところへ)。
+   * 直前まで今の位置が見えていたときだけ動かす (Shift+ホイールなどで、今の位置から離れたところを見ているときは動かさない)。
+   * 波をドラッグしている間も動かさない
+   */
+  /**
+   * ✨ の候補 (途中の結果か結果) が測るたびに初めて出たら、今の再生位置のまわり AUTO_ZOOM_MS へ拡大する
+   * (全体表示のままだと、数秒の差は点線と波がほとんど重なって見えないため)。測るたびに一度だけ
+   */
+  const AUTO_ZOOM_MS = 30000;
+  const autoZoomed = new Map(); // g -> 拡大した ✨ の目印
+  function autoZoom(G, s) {
+    const key = G.audio?.candidateKey;
+    if (!key || autoZoomed.get(G.g) === key || G.now == null) return;
+    autoZoomed.set(G.g, key);
+    zoomTo(G.g, (ZOOM_MAX * Math.log(AUTO_ZOOM_MS / spanFor(s, 0))) / Math.log(ZOOM_NEAR / ZOOM_WIDE));
+  }
+
+  const FOLLOW_LEFT = 0.1;
+  function followNow(G, s) {
+    const now = G.now;
+    if (now == null || !s.view) return;
+    const { from, to } = s.view;
+    const span = to - from;
+    if (s.nowWasIn && !drag && now > to) s.view = { from: now - span * FOLLOW_LEFT, to: now + span * (1 - FOLLOW_LEFT) };
+    s.nowWasIn = now >= s.view.from && now <= s.view.to;
+  }
+
+  // ---------------------------------------------------------------- ✨ 自動補正の候補 (HAKO-43)
+  const CAND_COLOR = '#8fd3ff'; // パネルの ✨ と同じ水色 (波のグループの色と見分けられるように)
+  /**
+   * 行の波の上に、✨ の候補 (反映したあとの補正) を重ねる: 反映したあとの位置の波の輪郭 (点線の枠と、上下の縁の線)、
+   * 左上に「✨ +3.42 ◎」(決められなかったら「✨ —」、同じコラボではないかもしれなければ「別の配信かも」)
+   */
+  function drawCandidate(ctx, t, { W, H, dpr, x, view, span }) {
+    const c = t.cand;
+    if (c == null) return;
+    if (c) {
+      const vals = Waves.get(t.vid) || new Uint8Array(0);
+      const shift = (offOf(t) - c.v) * 1000; // 補正を c.v にしたときに、実際の時刻の上で動く分
+      const pa = x(realStart(t) + shift);
+      const pb = x(realEnd(t) + shift);
+      ctx.save();
+      ctx.globalAlpha = c.prelim ? 0.6 : 0.9;
+      ctx.strokeStyle = CAND_COLOR;
+      ctx.fillStyle = CAND_COLOR;
+      ctx.lineWidth = Math.max(1, dpr);
+      ctx.setLineDash([4 * dpr, 3 * dpr]);
+      ctx.strokeRect(pa, 1.5 * dpr, pb - pa, H - 3 * dpr);
+      ctx.setLineDash([]);
+      // 反映したあとの波の上下の縁 (ほかの枠の波と山がそろうかを見られるように)
+      if (vals.length) {
+        const mid = H / 2;
+        const half = H / 2 - 3 * dpr;
+        const { lo, hi } = levels(t.vid, vals);
+        for (let px = Math.max(0, Math.floor(pa)); px < Math.min(W, Math.ceil(pb)); px++) {
+          const R0 = view.from + (px / W) * span;
+          const R1 = view.from + ((px + 1) / W) * span;
+          const k0 = Math.max(0, Math.floor(((R0 - t.start) / 1000 + c.v) / Waves.STEP));
+          const k1 = Math.floor(((R1 - t.start) / 1000 + c.v) / Waves.STEP);
+          let sum = 0;
+          let n = 0;
+          for (let k = k0; k <= k1 && k < vals.length; k++) {
+            if (!vals[k]) continue;
+            sum += vals[k];
+            n++;
+          }
+          if (!n) continue;
+          const f = Math.max(0, Math.min(1, (sum / n - lo) / (hi - lo)));
+          const h = Math.max(dpr / 2, f * half);
+          ctx.fillRect(px, mid - h, 1, Math.max(1, dpr));
+          ctx.fillRect(px, mid + h - Math.max(1, dpr), 1, Math.max(1, dpr));
+        }
+      }
+      ctx.restore();
+    }
+    // 左上の値
+    const label = c ? `✨ ${signed(c.v)} ${GRADE_MARK[c.grade] || ''}` : `✨ —${t.suspect ? ' ' + tr('syncAudioSuspectShort') : ''}`;
+    ctx.save();
+    ctx.font = `${11 * dpr}px system-ui, sans-serif`;
+    ctx.textBaseline = 'top';
+    const tw = ctx.measureText(label).width + 10 * dpr;
+    ctx.fillStyle = 'rgba(20,20,24,0.85)';
+    ctx.fillRect(3 * dpr, 3 * dpr, tw, 16 * dpr);
+    ctx.fillStyle = CAND_COLOR;
+    ctx.globalAlpha = c && c.prelim ? 0.75 : 1;
+    ctx.fillText(label, 8 * dpr, 5 * dpr);
+    ctx.restore();
   }
 
   // ---------------------------------------------------------------- 拡大率
@@ -1400,5 +1618,7 @@ const WaveStrip = (() => {
     close,
     /** グループ g の節を帯で開いているか */
     isOpen,
+    /** 出していれば、すぐに書き換える (✨ の様子が変わったときなど) */
+    update,
   };
 })();
