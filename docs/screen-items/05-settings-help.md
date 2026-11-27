@@ -182,6 +182,9 @@
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | 1 | チャンネルの管理 | 表示 | `.field-label`・`.settings-note` | 見出しと、管理の画面で何ができるかの説明 | | | |
 | 2 | ⚙ チャンネルの管理を開く | ボタン | `#settingsChManage` | 「⚙ チャンネルの管理」を設定の上に重ねて開く。閉じると設定に戻る | | | `openChannelManage` |
+| 3 | AI でコラボを見分ける | チェック | `#aiCollab` | ON なら、ライブラリの 🤝 で、# タグ・【】だけでつながる組 (名前にも概要欄の @ にも触れていない組。ホロライブのチャンネルで概要欄が分かるものは @ だけで決めるので聞かない) を Chrome の組み込み AI に聞き、「別」なら組にしない。下に注意書き (この PC の中で動くこと・最初に約 4GB のダウンロード) | 初期値 OFF。`settings.aiCollab` | | `CollabAI.setOn`。モデルが無ければ、押したときにダウンロードを始める |
+| 4 | AI の状態 | 表示 | `#aiCollabStatus` | 「AI のモデルをダウンロードしています… N%」/「まだ用意できていません…」 | 空 | | `CollabAI.paint` |
+| 5 | AI の欄 | 領域 | `#aiCollabRow` | No 3・4 を並べる | 初期値: 隠す | | 組み込み AI (Prompt API) が使える PC (unavailable でない) のときだけ出す (`CollabAI.init`) |
 
 ## 設定 › アドオン (`#settings [data-panel="addons"]`)
 

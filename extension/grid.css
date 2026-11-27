@@ -1809,6 +1809,9 @@ body.grid-fs .sync-dock { top: 0; }
 /* 切り上げの提案: どの枠も ◎ */
 .dg-audio-result.is-suggest { border-color: #8fd3ff; box-shadow: 0 0 6px #8fd3ff66; }
 .dg-audio-result.is-fail .dga-title { color: #f0c36d; }
+/* ✨ で音が合わなかった枠 (同じコラボではないかもしれない)。「同期から外す」は青い文字リンク (.fav-restore) */
+.dr-suspect { color: #f0c36d; }
+.dga-suspect { color: #f0c36d; font-size: 12px; }
 .dga-choice { display: flex; flex-direction: column; gap: 2px; }
 .dga-buttons { display: flex; gap: 6px; justify-content: flex-end; }
 .dock-row { display: flex; flex-direction: column; gap: 4px; padding: 5px; border-radius: 4px; outline: none; }
@@ -2030,3 +2033,4 @@ a.info-channel:hover, a.info-channel:focus-visible { text-decoration: underline;
 .info-add { display: block; margin: 8px 0 4px; height: 26px; padding: 0 12px; font-size: 12px; }
 .info-add:disabled { opacity: .35; cursor: default; }
 a.info-title:hover, a.info-title:focus-visible { color: var(--text); text-decoration: underline; }
+

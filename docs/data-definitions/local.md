@@ -57,6 +57,7 @@
 | `noticeTarget` | string | `'all'` | 通知のチャンネル: `all` / `fav` / `off` |
 | `feedPickMin` | number | 3 | 📌 のチャンネルの新着 (RSS) を見に行く間隔 (分) |
 | `feedOtherMin` | number | 15 | それ以外のチャンネルの間隔 (分) |
+| `aiCollab` | boolean | false | ライブラリの 🤝 (コラボの判定) に、Chrome の組み込み AI (Prompt API) を使う。使えない PC では設定を出さない (HAKO-25) |
 | `layoutFavs` | string | `''` | レイアウト画面の「お気に入り」に出すレイアウトの id (カンマ区切り) |
 
 **前の版から:** `showAuthor: true` (投稿者名の ON / OFF だった版) で `authorName` が無ければ、`authorName: 'all'` として読む (`loadSettings`)。
@@ -263,6 +264,7 @@ boolean。インストールしたときに true。画面を開いてツアー�
 | `title` | string | 題名 (300 文字まで) |
 | `at` | number | 枠・動画を作った日時 |
 | `views` | number \| null | 再生数 (配信予定・公開予定は 0)。RSS に無ければ null |
+| `ats` | string[] | 概要欄に書いてある @ハンドル (小文字・@ を外したもの、最大 20 個)。ライブラリの 🤝 (コラボの判定) で、相手の配信者を見分けるのに使う。概要欄の文そのものは覚えない。前の版で覚えたものには無い (取り直すまでは今までのタイトルの判定だけ。HAKO-25) |
 
 ## twpage
 
