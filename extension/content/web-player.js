@@ -201,6 +201,7 @@ html:has([${FILL}]), html:has([${FILL}]) body { overflow: hidden !important; bac
         rate: v.playbackRate,
         w: v.videoWidth,
         h: v.videoHeight,
+        bg: getComputedStyle(v).objectFit === 'cover', // 背景の飾りの動画 (作品のページの上の予告など)
       },
       EXT_ORIGIN,
     );

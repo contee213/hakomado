@@ -90,7 +90,7 @@ const Sync = (() => {
    * 🎬 本編の動画の枠 (URL の枠・パソコンの動画ファイルの枠。Prime Video などで本編そのものを流す。HAKO-49):
    * 長さの決まった動画の位置の知らせが届いている。本編の 0:00 = その動画の 0 秒。🎬 のグループの基準になり、配信がその位置を追いかける
    */
-  const featureTile = (i) => i != null && !!state.tiles[i] && isVisible(i) && isWebTile(state.tiles[i]) && !!views[i].web && views[i].web.d > 0;
+  const featureTile = (i) => i != null && !!state.tiles[i] && isVisible(i) && isWebTile(state.tiles[i]) && !!views[i].web && views[i].web.d > 0 && !views[i].web.bg;
   /** 同期に加われる枠 (グループに入れられる) */
   const candidate = (i) => movable(i) || liveTile(i) || featureTile(i);
   /** グループ G に加われる枠 (実際の時刻: アーカイブ / 本編: アーカイブ・ライブ・本編の動画の枠) */

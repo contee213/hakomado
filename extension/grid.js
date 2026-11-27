@@ -2332,7 +2332,8 @@ window.addEventListener('message', (e) => {
   const v = views[i];
   const first = !v.player.webTarget || v.player.webTarget.win !== e.source;
   v.player.webTarget = { win: e.source, origin: e.origin };
-  v.web = { t: Number(d.t) || 0, d: Number(d.d), paused: !!d.paused, muted: !!d.muted, w: Number(d.w) || 0, h: Number(d.h) || 0, rate: Number(d.rate) || 1, at: performance.now() };
+  // bg = 端を切って埋める背景の飾りの動画 (作品のページの上の予告など)。本編の動画の枠として同期に入れない (sync.js の featureTile)
+  v.web = { t: Number(d.t) || 0, d: Number(d.d), paused: !!d.paused, muted: !!d.muted, w: Number(d.w) || 0, h: Number(d.h) || 0, rate: Number(d.rate) || 1, bg: !!d.bg, at: performance.now() };
   // 動画が見つかった (入れ替わった) ら、音・速度・まとめて一時停止の状態を合わせる
   if (first) {
     applyAudio(i);
