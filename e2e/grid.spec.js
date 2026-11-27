@@ -1603,3 +1603,70 @@ test.describe('ライブラリの最近の動画 (HAKO-9)', () => {
     });
   }
 });
+
+test.describe('上部バー', () => {
+  // 開いた直後に、整える前の形 (レイアウト名の幅が決まる前・文字を消す前) が出て、ボタンが動いて見えないこと。
+  // 中身が見えてから (.settled) のボタンの位置と幅を毎フレーム記録し、一度も変わらないことを確かめる
+  const RECORD = () => {
+    const shapes = [];
+    window.__barShapes = shapes;
+    const tick = () => {
+      const bar = document.querySelector('.toolbar');
+      if (bar?.classList.contains('settled')) {
+        const shape = [...bar.children]
+          .filter((e) => e.getClientRects().length)
+          .map((e) => {
+            const r = e.getBoundingClientRect();
+            return `${e.id || e.className}:${Math.round(r.left)}+${Math.round(r.width)}`;
+          })
+          .join(' ');
+        if (shapes.at(-1) !== shape) shapes.push(shape);
+      }
+      requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  };
+
+  for (const width of [1920, 1280]) {
+    test(`開いたとき・新しく始めたときにボタンが動かない (幅 ${width}px)`, async ({ context, extensionId, pageErrors }) => {
+      void pageErrors;
+      await context.addInitScript(RECORD);
+      const page = await context.newPage();
+      await page.setViewportSize({ width, height: 800 });
+      await page.goto(`chrome-extension://${extensionId}/grid.html`);
+      await skipTour(page);
+      await page.waitForTimeout(500);
+      expect(await page.evaluate(() => window.__barShapes.length)).toBe(1);
+
+      // ロゴ → 新しく始める (ページを開き直す)
+      await page.click('#brandHome');
+      await page.locator('#startChoices button', { hasText: '新しく始める' }).click();
+      await expect(visibleTiles(page).first()).toBeVisible();
+      await page.waitForTimeout(500);
+      expect(await page.evaluate(() => window.__barShapes.length)).toBe(1);
+    });
+  }
+
+  // 同じタブを更新すると、保存した視聴セッションを確認なしで再開する。既定と違うレイアウト・ストレッチにしておき、
+  // 再開した内容に整えてから中身を出すこと (既定の内容で一度出て、あとから動かないこと)
+  for (const width of [1920, 1280]) {
+    test(`ブラウザを更新して続きを再開したときにボタンが動かない (幅 ${width}px)`, async ({ context, extensionId, pageErrors }) => {
+      void pageErrors;
+      await context.addInitScript(RECORD);
+      const page = await context.newPage();
+      await page.setViewportSize({ width, height: 800 });
+      await page.goto(`chrome-extension://${extensionId}/grid.html`);
+      await skipTour(page);
+      for (let n = 0; n < 4; n++) await page.locator('#addTile').click();
+      await page.locator('#fitFill').click();
+      await page.locator('#repeatAll').click();
+      const name = await page.locator('#layoutName').textContent();
+      await page.waitForTimeout(1000); // 保存されるのを待つ
+
+      await page.reload();
+      await expect(page.locator('#layoutName')).toHaveText(name);
+      await page.waitForTimeout(500);
+      expect(await page.evaluate(() => window.__barShapes.length)).toBe(1);
+    });
+  }
+});

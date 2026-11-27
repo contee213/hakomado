@@ -50,6 +50,10 @@ button:hover, select:hover { border-color: #444450; }
   overflow: hidden;
 }
 .toolbar > * { flex: none; }
+/* 開いた直後は、整え終わるまで (レイアウト名の幅・入りきらないときのアイコンだけの形を決めるまで) 中身を見せない。
+   整える前の形が一度出て、ボタンが右へずれたり縮んだりして動くのを見せないため。バーの高さ・背景は最初から出す。
+   付けるのは grid.js (fitToolbar の 1 回目。動かなかったときの保険で数秒後にも付ける) */
+.toolbar:not(.settled) > * { visibility: hidden; }
 .brand { display: inline-flex; align-items: center; gap: 6px; font-weight: 700; letter-spacing: .02em; margin-right: 6px; }
 /* ロゴは起動時の画面を出すボタン。ふだんはボタンの枠を見せず、乗せたときだけ枠を出す */
 .toolbar button.brand { background: none; border-color: transparent; padding: 0 6px 0 2px; }
