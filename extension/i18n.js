@@ -326,18 +326,12 @@ const MESSAGES = {
   syncRefBadgeTitle: ['同期の基準の枠 (同じグループのほかの枠がこの枠に合わせる)', 'The reference tile for sync (the other tiles in its group follow it)'],
   syncSetRefTitle: ['この枠を基準にする (同じグループのほかの枠がこの枠に合わせる)', 'Use this tile as the reference (the other tiles in its group follow it)'],
   syncGroupN: ['グループ {0}', 'Group {0}'],
-  syncGroupAuto: ['自動', 'Auto'],
   syncGroupNone: ['同期しない', "Don't sync"],
-  syncGroupTitle: [
-    'この枠を入れるグループ。自動 = 配信の時間帯が重なる枠どうしでまとめる。グループごとに別々にそろえます (4 組まで)',
-    'The group for this tile. Auto = grouped with tiles streamed at overlapping times. Each group is aligned on its own (up to 4)',
-  ],
   syncGroupNeedMore: ['ほかの枠をこのグループに入れると同期します', 'Put another tile in this group to sync it'],
   syncGroupNeedArchive: ['アーカイブが 1 本も無いので同期できません (ライブは動かせないため)', "Can't sync: there is no archive (live streams can't be moved)"],
   syncGroupNeedAnchor: ['🎬 基準の枠 (◉) の本編 0:00 を決めると、ほかの枠も合わせます', '🎬 Set where the movie starts in the reference tile (◉), and the others follow'],
   syncGroupPause: ['このグループを一時停止', 'Pause this group'],
   syncGroupPlay: ['このグループを再生', 'Play this group'],
-  syncSeekGroup: ['グループ {0} の全部の枠を、この時刻に動かす', 'Move all tiles in group {0} to this time'],
   syncModeTitle: [
     '何でそろえるか: 🕒 コラボ配信 (同じ時間に配信していた各視点を、配信していた時刻で) / 🎬 同時視聴 (同じ本編を見ていた配信を、本編の同じ場面で。時間のずれた配信も)',
     'What to align on: 🕒 Collab (viewpoints streamed at the same time, by when they were streamed) / 🎬 Watch-along (streams that watched the same movie, on the same scene of it, even from different times)',
@@ -349,7 +343,6 @@ const MESSAGES = {
     '✨ Auto-correct: listens to the tiles in this group (the shared call voices in a collab) for up to 180 seconds and works out each tile’s offset. It measures from the current position while playing and shows a provisional result after 35 seconds. Once every tile is certain, it suggests stopping early. You can check the result before applying it. Press again to stop',
   ],
   // 〰 波形 (同期のグループの配信全編の音の波形。HAKO-39)
-  waveBtn: ['〰 波形', '〰 Waveform'],
   stripTitle: ['⏱ 同期の調整', '⏱ Sync'],
   stripOffsetTitle: ['補正 (秒。+ = 先へ進める)。押すと数字で入れられます (Enter で決める・Esc でやめる)', 'Offset (seconds, + = ahead). Click to type a value (Enter to set, Esc to cancel)'],
   stripAnchorTitle: ['本編の位置: この動画で本編 0:00 に当たる再生位置。押すと入力欄になり、h:mm:ss・m:ss・秒で入れて Enter で決めます (Esc でやめる)。🎬 の列の「🚩 開始位置」「⏲ 画面タイマー」でも決められます', 'Movie start: where the movie is at 0:00 in this video. Click to type it (h:mm:ss, m:ss or seconds) and press Enter (Esc cancels). You can also set it with “🚩 Start point” or “⏲ On-screen timer” in the 🎬 column'],
@@ -367,10 +360,6 @@ const MESSAGES = {
   syncClockAt: ['実際の時刻 {0}', 'Actual time {0}'],
   syncElapsedTitle: ['この配信の始まりからの経過時間 (始まる前は −)', 'Time since this stream started (− before it starts)'],
   syncElapsedEnded: ['終了', 'Ended'],
-  waveBtnTitle: [
-    '〰 波形: このグループの枠ごとの配信全編の音の大きさを、画面の下に並べます。似ているところを見つけて行を横にずらすと、大まかに合わせられます (細かいところはそのあと ✨ 自動補正で)',
-    '〰 Waveform: shows the loudness of each tile’s whole stream in this group at the bottom of the screen. Find the parts that look alike and drag a row sideways to roughly line them up (then fine-tune with ✨ Auto-correct)',
-  ],
   waveScanTitle: [
     '帯を出している間は、波形がまだ無いところの音の大きさを自動で測ります (帯を閉じるとやめます)。見えない場所で測る用のプレイヤーを音を出さずに 16 倍速で流すので、枠はそのまま見られます (3 時間の配信で約 11 分。その間、読み込みが増えます)。全員の配信が始まっている時刻の頭から、全部の枠が一緒に進みます。斜線はまだ測っていないところです',
     'While the strip is open, the loudness is measured automatically where the waveform is missing (it stops when you close the strip). Hidden players run silently at 16× so you can keep watching the tiles (about 11 minutes for a 3-hour stream, with extra loading meanwhile). All tiles advance together from when everyone’s stream has started',
@@ -396,8 +385,6 @@ const MESSAGES = {
   waveScanDone: ['音の大きさを測り終えました。波形を見て大まかに合わせたら、✨ 自動補正で細かく合わせられます', 'Finished measuring loudness. Roughly line up the waveforms, then fine-tune with ✨ Auto-correct'],
   waveScanSomeFailed: ['音の大きさを測り終えました。開けなかった枠がありました', 'Finished measuring loudness, but some tiles couldn’t be opened'],
   syncInputTitle: ['補正の秒数 (+ = 先へ進める、− = 戻す)。入れて Enter で決定', 'The offset in seconds (+ = move ahead, − = move back). Type and press Enter'],
-  syncAnchorInputTitle: ['本編 0:00 に当たる、この動画の再生位置 (h:mm:ss・m:ss・秒)。入れて Enter で決定', 'Where the movie is at 0:00 in this video (h:mm:ss, m:ss or seconds). Type and press Enter'],
-  syncAnchorUnset: ['未設定', 'Not set'],
   syncWaitTitle: [
     '止めて待つ: この枠だけ止めて、ほかが追いつくのを待つ。合ったところで ▶ を押す (枠の中で再生してもよい) と、そこで補正が決まります',
     'Pause and wait: pause only this tile until the others catch up. Press ▶ (or play it in the tile) when they match, and the offset is set there',
@@ -408,7 +395,6 @@ const MESSAGES = {
     '開始位置: 今、この枠で本編 (映画・ライブなど) が始まったところ。押した瞬間の再生位置を、この動画の本編 0:00 にします',
     "Start point: the movie (or show) starts in this tile right now. Uses this moment's position as the movie's 0:00 in this video",
   ],
-  syncMovieNow: ['⏲ 画面タイマー', '⏲ On-screen timer'],
   syncMovieNowTitle: [
     '画面タイマー: 同時視聴の配信の画面に出ているタイマーなど、今、本編が何分何秒のところか (h:mm:ss / m:ss / 秒)。読んで入れ、Enter で決定。欄を押した瞬間の位置で決まるので、入力に時間がかかってもずれません。欄を押している間は、この枠を同期から外すので、タイマーが見えない所なら枠の中で動かしてから、もう一度欄を押して入れてください (Esc でやめる)',
     'On-screen timer: where the movie is now (h:mm:ss / m:ss / seconds), read from the timer shown in the watch-along or similar, then press Enter. It uses the position at the moment you clicked the box, so slow typing doesn’t shift it. While the box is in use the tile is taken out of sync: if no timer is visible, move the tile in its own player, then click the box again and type (Esc to cancel)',
@@ -425,43 +411,15 @@ const MESSAGES = {
   ],
   syncDot_fix: ['設定した補正の位置へ寄せている途中です (少し速くか遅く再生するか、その位置へ飛びます)', 'Moving to the position the offset says (playing a little faster or slower, or jumping there)'],
   syncRefLockTitle: ['基準の枠: 補正は 0 に固定 (ほかの枠をこの枠に合わせます)', 'Reference tile: its offset is fixed at 0 (the other tiles follow it)'],
-  syncStepTitle: ['補正を {0} 秒 (押し続けると続けて動きます。← → キーでも)', 'Offset {0}s (hold to keep going; ← → keys work too)'],
-  syncRefAnchor: ['本編 0:00 = {0}', 'Movie 0:00 = {0}'],
-  syncRefAnchorTitle: ['この動画で本編 0:00 に当たる位置。下の「🚩 開始位置」か「⏲ 画面タイマー」で決めます', 'Where the movie is at 0:00 in this video. Set it with “🚩 Start point” or “⏲ On-screen timer” below'],
   syncGroupFold: ['たたむ (調整しないグループを小さくする)', 'Collapse (keep the groups you are not adjusting small)'],
   syncGroupUnfold: ['開く', 'Expand'],
   syncGroupCount: ['{0} 枠', '{0} tiles'],
-  syncTlSec: ['{0}秒', '{0}s'],
-  syncTlMin: ['{0}分', '{0}m'],
-  syncTlMinSec: ['{0}分{1}秒', '{0}m {1}s'],
-  syncTlHour: ['{0}時間{1}分', '{0}h {1}m'],
-  syncTlBase: ['基準', 'Ref'],
-  syncTlSame: ['同時', 'Same'],
-  syncTlEarlier: ['{0}前', '{0} earlier'],
-  syncTlLater: ['{0}後', '{0} later'],
-  syncTlWait: ['⏸ 待機中', '⏸ Waiting'],
-  syncTlFix: ['↻ あと {0}秒', '↻ {0}s to go'],
-  syncTlRawTitle: [
-    '補正を入れる前の位置 (基準より前に始まった枠は基準の開始のところ、ほかは配信が実際に始まったところ)',
-    'Where it would be without the correction (at the reference’s start for tiles that started earlier, otherwise at the actual stream start)',
-  ],
-  syncTlGuideTitle: ['ほかの枠が流れ始める時刻 (その枠の補正を、ここと見比べます)', 'When another tile starts playing (compare its correction against this)'],
-  syncTlCorrEarlier: ['補正 {0} 秒: 配信の実際の開始より、この分だけ早めてそろえています', 'Correction {0}s: aligned this much earlier than the actual stream start'],
-  syncTlCorrLater: ['補正 {0} 秒: 配信の実際の開始より、この分だけ遅らせてそろえています', 'Correction {0}s: aligned this much later than the actual stream start'],
-  syncTlNowTitle: ['今の時刻', 'Now'],
   syncDot_ref: ['基準の枠です', 'Reference tile'],
   syncDot_wait: ['止めて待っています', 'Paused and waiting'],
   syncDot_none: ['同期していません', 'Not synced'],
-  syncDockEmpty: ['同期できる枠がありません', 'No tile can be synced'],
-  syncDockCollapse: ['たたむ (番号と補正だけにする)', 'Collapse (show only numbers and offsets)'],
-  syncDockExpand: ['広げる', 'Expand'],
-  syncDockToFloat: ['浮かぶ小窓にする (枠の上に半透明で重ねる。見出しをつかんで動かせる)', 'Float it over the tiles (semi-transparent; drag the header to move it)'],
-  syncDockToSide: ['画面の右の列にする (枠の並びを縮めて、重ねない)', 'Dock it on the right (the tiles shrink to make room)'],
   syncGroupPauseLabel: ['⏸ 一時停止', '⏸ Pause'],
   syncGroupPlayLabel: ['▶ 再生', '▶ Play'],
   syncAudioLabel: ['✨ 自動補正', '✨ Auto-correct'],
-  syncResetLabel: ['↺ 0 に戻す', '↺ Reset'],
-  syncResetTitle: ['実際の時刻に戻す (補正を 0 にする)。手で合わせてうまくいかなかったときに', 'Back to real time (set the offset to 0). For when adjusting by hand went wrong'],
   syncResetGroupTitle: [
     'グループ {0} の補正を全部 0 に戻す (配信していた実際の時刻だけでそろえ直す)',
     'Set every offset in group {0} back to 0 (align on the actual stream times only)',
@@ -484,20 +442,17 @@ const MESSAGES = {
     '✨ 補正を決められませんでした。声が少ない区間かもしれません。話している場面で、もう一度測ってください',
     "✨ Couldn't determine the offsets. There may be too little talking here. Try again where people are talking",
   ],
-  syncAudioResultTitle: ['✨ 自動補正の結果 (各行の ✨ の値・図の ◆)', '✨ Auto-correct result (the ✨ value on each row, the ◆ in the chart)'],
   syncAudioDone: ['✨ 測り終わりました。「試す」で入れて聞き比べ、「決める」で終えてください', '✨ Done. Press Try to put the values in and listen, then Decide'],
   syncAudioSuggest: ['✨ どの枠も ◎ になりました ({0} 秒分)。ここで決めますか？ (このまま聞き続けることもできます)', '✨ Every tile is ◎ ({0}s so far). Decide now? (You can also keep listening)'],
   syncAudioSuggestNote: [
-    '✨ {0} 秒でどの枠も確かになりました。調整パネルの「ここで決める」で終えられます',
-    '✨ Every tile is certain after {0}s. Press “Decide now” in the sync panel to finish',
+    '✨ {0} 秒でどの枠も確かになりました。同期の調整の帯の「ここで決める」で終えられます',
+    '✨ Every tile is certain after {0}s. Press “Decide now” in the sync strip to finish',
   ],
   syncAudioListening: ['✨ 聞いています…', '✨ Listening…'],
-  syncAudioListeningSub: ['{0} 秒を過ぎると、途中の結果が各行と図に出ます', 'A provisional result appears on each row and in the chart after {0}s'],
   syncAudioPrelimTitle: [
     '✨ 途中の結果 ({0} 秒分。ここまでで一番よかった値。聞き続けて確かめています)',
     '✨ Provisional result ({0}s so far; the best value yet. Still listening to confirm)',
   ],
-  syncAudioLegend: ['確かさ: ◎ 確か / ○ たぶん / △ 怪しい。図の ◆ が入れたあとの位置です', 'Confidence: ◎ sure / ○ likely / △ doubtful. The ◆ in the chart is where it goes once put in'],
   syncAudioFinishNow: ['ここで決める', 'Decide now'],
   syncAudioFinishNowTitle: [
     '180 秒を待たずに終えて、ここまでで一番よかった値を結果にする',
@@ -522,10 +477,8 @@ const MESSAGES = {
   ],
   syncAudioSuspectShort: ['別の配信かも', 'maybe not this collab'],
   syncAudioExclude: ['同期から外す', 'Remove from sync'],
-  syncAudioExcludeTitle: ['この枠を同期しないにする (同期の調整パネルの行で、あとから戻せます)', 'Stop syncing this tile (you can put it back from its row in the sync panel)'],
+  syncAudioExcludeTitle: ['この枠を同期しないにする (同期の調整の帯で行をグループへドラッグすると、あとから戻せます)', 'Stop syncing this tile (drag its row back to a group in the sync strip later)'],
   syncAudioNoCandTitle: ['✨ この枠の補正は決められませんでした', '✨ Couldn’t determine this tile’s offset'],
-  syncTlCandTitle: ['✨ 入れたあとの位置 (補正 {0} 秒、確かさ {1})', '✨ Where it goes once put in (offset {0}s, confidence {1})'],
-  syncTlCandPrelimTitle: ['✨ 途中の結果の位置 (補正 {0} 秒、確かさ {1})', '✨ Provisional position (offset {0}s, confidence {1})'],
   syncAudioMidBtn: ['中間', 'Middle'],
   syncAudioTry: ['試す', 'Try'],
   syncAudioTryTitle: ['この値をすぐ入れます。再生しながら聞き比べて、「決める」で終えます (「試す前に戻す」で ✨ の前の補正に戻せます)。2 枠のときは、真ん中が中間 (映像がそろう)、両側はそれぞれ片方の人の声がそろう値です', 'Puts this value in right away. Listen while it plays, then press Decide (Undo try goes back to the offsets before ✨). With 2 tiles, the middle is the midpoint (video lines up) and each side lines up one person’s voice'],
@@ -534,6 +487,8 @@ const MESSAGES = {
   syncAudioDecideTitle: ['試している値のまま終えます', 'Keep the value you are trying'],
   syncAudioUntry: ['試す前に戻す', 'Undo try'],
   syncAudioUntryTitle: ['✨ の前の補正に戻します (結果は残るので、もう一度試せます)', 'Go back to the offsets before ✨ (the result stays, so you can try again)'],
+  stripRegroupLabel: ['自動で分け直す', 'Regroup automatically'],
+  stripRegroupTitle: ['手で決めたグループ (行のドラッグで移した枠) を全部やめて、時間帯が重なる枠を自動でまとめ直します', 'Undo every group you set by hand (rows you dragged) and group tiles whose times overlap automatically again'],
   stripSeekTitle: ['グループ {0} の全部の枠を、この時刻に動かす (上部バーのつまみと同じ)', 'Move every tile in group {0} to this time (same as the slider in the top bar)'],
   syncAudioCloseTitle: ['結果・知らせを使わずに消します (波形の点線も消えます)', 'Dismiss the result or notice without using it (the dotted outlines go away too)'],
   waveScrollTitle: ['見ている範囲 (白い線が今の再生位置)。つまみをドラッグすると、再生位置を変えずに見る範囲だけ動きます。地を押すと、そこを真ん中にします', 'The part you are viewing (the white line is the playback position). Drag the handle to move the view without changing playback; click the track to center there'],
@@ -547,8 +502,8 @@ const MESSAGES = {
   syncAudioClose: ['閉じる', 'Close'],
   syncAudioApplied: ['✨ 自動補正の結果を {0} 枠に反映しました', '✨ Applied the auto-correct result to {0} tile(s)'],
   movieOn: [
-    '🎬 同時視聴でそろえます ({0} 枠)。同期の調整パネルで、各枠の本編 0:00 の位置を決めてください',
-    '🎬 Aligning on the movie ({0} tiles). Set where the movie starts for each tile in the sync panel',
+    '🎬 同時視聴でそろえます ({0} 枠)。同期の調整の帯で、各枠の本編 0:00 の位置を決めてください',
+    '🎬 Aligning on the movie ({0} tiles). Set where the movie starts for each tile in the sync strip',
   ],
   movieOnMain: [
     '🎬 同時視聴: 本編「{0}」でそろえます ({1} 枠)。各枠の本編の位置は、同時視聴の配信のタイマーなどを見て「⏲ 画面タイマー」で決めてください',
@@ -565,15 +520,15 @@ const MESSAGES = {
   ],
   movieMainUnsetTitle: ['本編をやめる (押すと、この枠を本編として扱わなくなります)', 'Stop treating this tile as the movie'],
   movieReadingOverlay: [
-    '🎬 同期から外しています。タイマーなどが見える所まで動かして止め、パネルの「⏲ 画面タイマー」に値を入れてください (Esc でやめる)',
-    '🎬 Out of sync for now. Move to where a timer is visible, pause, then type the value in “⏲ On-screen timer” in the panel (Esc to cancel)',
+    '🎬 同期から外しています。タイマーなどが見える所まで動かして止め、帯の「⏲ 画面タイマー」に値を入れてください (Esc でやめる)',
+    '🎬 Out of sync for now. Move to where a timer is visible, pause, then type the value in “⏲ On-screen timer” in the strip (Esc to cancel)',
   ],
   movieMainTagTitle: [
     '本編 (プレミア公開)。この動画の 0:00 が本編 0:00 です。ほかの枠をこの枠に合わせます',
     'The movie (premiere). Its 0:00 is the movie’s 0:00. The other tiles follow it',
   ],
   movieClock: ['本編 {0}', 'Movie {0}'],
-  movieNeedAnchor: ['🎬 本編の位置を決めてください (同期の調整パネル)', '🎬 Set where the movie starts (sync panel)'],
+  movieNeedAnchor: ['🎬 本編の位置を決めてください (同期の調整の帯)', '🎬 Set where the movie starts (sync strip)'],
   movieNeedRefAnchor: [
     '🎬 基準の枠の本編の位置を決めると、この枠も合わせます',
     "🎬 This tile follows once the reference tile's movie start is set",
@@ -696,8 +651,8 @@ const MESSAGES = {
     'Loaded, but they can’t be synced with ⏱ archive sync (needs 2 or more archives that overlap in time)',
   ],
   selSyncNoAudio: [
-    '⏱ 同期を始めましたが、再生が始まらないので ✨ 自動補正は始めていません。再生してから同期の調整パネルの ✨ を押してください',
-    'Sync is on, but playback didn’t start, so ✨ auto-correct wasn’t started. Play, then press ✨ in the sync panel',
+    '⏱ 同期を始めましたが、再生が始まらないので ✨ 自動補正は始めていません。再生してから同期の調整の帯の ✨ を押してください',
+    'Sync is on, but playback didn’t start, so ✨ auto-correct wasn’t started. Play, then press ✨ in the sync strip',
   ],
   selSyncWaitLater: [
     '⏱ 同期を始めました。まだ始まっていない配信があるので、全部の枠が再生を始めてから ✨ 自動補正を始めます',
@@ -1202,9 +1157,7 @@ const HTML_EN = {
   'info.colSync': 'Archive sync',
   'info.add': '＋ Add a tile',
   'info.note': 'Refreshes every few seconds while open. Watching counts are shown only for live streams; view counts are as of when the tile was opened.',
-  'sync.seekTitle': 'Move all synced archives to this time',
-  'sync.dockTitle': 'Show / hide the sync panel (groups, reference, offsets, ✨ auto-correct)',
-  'sync.dockHead': '⏱ Sync',
+  'sync.dockTitle': 'Show / hide the sync strip (groups, reference, offsets, ✨ auto-correct, waveforms)',
   'share.title': 'Share: turn the current tiles or a playlist into an image, a link or text to give to others',
   'share.h': '🔗 Share',
   'share.sourceLabel': 'What to share',
@@ -1327,12 +1280,11 @@ const HTML_EN = {
 </ul>`,
   'helpPage.sync': `<ul>
 <li>Press “⏱ Archive sync” on the top bar to play stream archives that overlap in time, aligned to when they were actually streamed. Until 2 such archives are shown it is dimmed, and pressing it tells you why (live now, a regular video, and so on)</li>
-<li>Archives streamed at overlapping times are grouped automatically, so A·B and C·D from different collabs sync separately (up to 4 groups, shown by color and number on the tiles). Change a tile’s group on its row in the sync panel</li>
-<li>The sync panel (☰ on the top bar) floats over the tiles, semi-transparent (drag its header to move it; ⇲ docks it on the right). Per group: what to align on (🕒 Collab / 🎬 Watch-along), ⏸, ✨ auto-correct and a slider. Per tile: the reference (🔒; ◉ in 🎬 Watch-along groups), the offset and ⏸ pause and wait. Each group’s chart zooms in on where the streams start (gaps of more than a minute between starts are cut short, with each tile’s start time shown above where it fits): each bar runs from the actual stream start, the offset shows as a light-blue stretch (which side of the thin line tells earlier or later) where it starts playing alongside the reference (at the reference’s start for tiles that started earlier), with a thin line at the uncorrected position (also drawn on the other tiles already playing then, to compare against), plus how much earlier or later it started than the reference and how far it still has to move. Collapse groups you are not adjusting with ▾</li>
-<li>✨ Auto-correct listens to the group’s tiles (the shared call voices in a collab) for up to 180 seconds and works out each tile’s offset. After 35 seconds a provisional result appears, showing the best value found so far for each tile. Once every tile is ◎ it suggests stopping (“Decide now”); otherwise it uses the best value found by 180 seconds. Check the result on each row (“✨ −1.61 ◎”) and the ◆ in the chart (where it goes once applied), then press Apply. ◎ sure / ○ likely / △ doubtful. If it can’t decide or shows many △, press “Measure again” where people are talking</li>
-<li>🕒 Collab aligns viewpoints streamed at the same time by when they were streamed. 🎬 Watch-along aligns streams that watched the same movie on the same scene of it, even from different times (switch it in the group header). In 🎬 Watch-along, the movie tile (a premiere) (marked “🎬 Movie” in its row) sets movie 0:00 at its own 0:00, and the other tiles’ movie starts are estimated from the stream times. Set each movie start (to 0.01 s) by reading the watch-along’s timer or similar into “⏲ On-screen timer” (✨ auto-correct is for 🕒 Collab only, since watch-alongs usually don’t carry the movie’s sound). Without a movie tile, set each one with “🚩 Start point” or “⏲ On-screen timer”. A movie that is not a premiere (e.g. a live archive) can be made the movie with 🎬 in its row while in 🎬 Watch-along. Streams from other days that join no group also join the 🎬 Watch-along group with the movie. Typing the watch-along’s timer into “⏲ On-screen timer” uses the position at the moment you clicked the box (while the box is in use, that tile is out of sync, so you can move it to where the timer is visible). For tiles streamed at the same time, setting one tile’s movie start also estimates the other’s (marked “≈” in its row)</li>
-<li>You adjust the tiles other than the reference. The reference (🔒 at the start of its row) always has offset 0; when you change the reference, the offsets move to the other tiles and the alignment stays the same. Move an offset with −0.1, −0.01, +0.01 and +0.1 (hold to keep going). ⏸ pauses just that tile to wait, ▶ matches it there. Select a row and ← → also move the offset by 0.1 s (Shift: 0.01 s). ✓ on a row means it plays at the position the offset says, ↻ that it is still moving there (whether voices line up is up to your ears). If adjusting by hand went wrong, ↺ on the row (↺ in the header for the whole group) goes back to real time. Offsets are remembered per video and go into playlists and share codes</li>
-<li>The slider on the top bar moves the group of the tile playing audio</li>
+<li>Archives streamed at overlapping times are grouped automatically, so A·B and C·D from different collabs sync separately (up to 4 groups, shown by color and number on the tiles). Drag a row up or down in the sync strip to move it to another group or to “Not synced”. “Regroup automatically” in the strip header undoes every group you set by hand</li>
+<li>Syncing is adjusted in the strip at the bottom of the screen (it appears when sync starts; ☰ on the top bar shows or hides it). Each group’s header has, on its top line, what to align on (🕒 Collab / 🎬 Watch-along), ✨ auto-correct, ⏸, a slider, playback speed, the group’s sound and how much of the waveform has been read; its second line shows ✨ progress. Each tile’s row has the reference (🔒; ◉ in 🎬 Watch-along groups), the time into its stream, the offset, ⏸ pause and wait, ↶ undo, and the loudness waveform of the whole stream. Compare the waveforms and line up their peaks. Collapse groups you are not adjusting with ▾</li>
+<li>✨ Auto-correct listens to the group’s tiles (the shared call voices in a collab) for up to 180 seconds and works out each tile’s offset. After 35 seconds a provisional result appears, showing the best value found so far for each tile. Once every tile is ◎ it suggests stopping (“Decide now”); otherwise it uses the best value found by 180 seconds. Check the result on each row’s waveform (“✨ −1.61 ◎” and the blue dotted outline where it goes), press Try to put it in and listen, then Decide (Undo try goes back; with 2 tiles you can try the midpoint or either person’s voice). Several groups can be measured at once. ◎ sure / ○ likely / △ doubtful. If it can’t decide or shows many △, press “Measure again” where people are talking</li>
+<li>🕒 Collab aligns viewpoints streamed at the same time by when they were streamed. 🎬 Watch-along aligns streams that watched the same movie on the same scene of it, even from different times (switch it in the group header). In 🎬 Watch-along, the strip’s scale becomes the movie time and the waveforms of tiles with a movie start line up on it. The movie tile (a premiere) (marked “🎬 Movie” in its row) sets movie 0:00 at its own 0:00, and the other tiles’ movie starts are estimated from the stream times. Set each movie start (to 0.01 s) by reading the watch-along’s timer or similar into “⏲ On-screen timer” (✨ auto-correct is for 🕒 Collab only, since watch-alongs usually don’t carry the movie’s sound). Without a movie tile, set each one with “🚩 Start point” or “⏲ On-screen timer”. A movie that is not a premiere (e.g. a live archive) can be made the movie with 🎬 in its row while in 🎬 Watch-along. Streams from other days that join no group also join the 🎬 Watch-along group with the movie. Typing the watch-along’s timer into “⏲ On-screen timer” uses the position at the moment you clicked the box (while the box is in use, that tile is out of sync, so you can move it to where the timer is visible). For tiles streamed at the same time, setting one tile’s movie start also estimates the other’s (marked “≈” in its row)</li>
+<li>You adjust the tiles other than the reference. The reference (🔒 at the start of its row) always has offset 0; when you change the reference, the offsets move to the other tiles and the alignment stays the same. Drag a row’s waveform sideways, or select the row and use ← → (0.1 s; Shift: 0.01 s, Ctrl: 1 s). Click the offset number to type it. ⏸ pauses just that tile to wait, ▶ matches it there. ✓ on a row means it plays at the position the offset says, ↻ that it is still moving there (whether voices line up is up to your ears). ↶ steps a tile’s offset back one change at a time, and “↺ Back to real time” left of the scale resets the whole group. Offsets are remembered per video and go into playlists and share codes</li>
 <li>Playback speed: tiles in a synced group can’t change speed on their own. Changing it on any tile in the group (its 1× button, the < > keys, or the player’s ⚙) changes the whole group, and the sync clock moves at that speed. A group with a live stream stays at normal speed</li>
 <li>Choosing the reference: make the tile you mainly listen to the reference, so its sound stays the most natural (the others change speed slightly or jump to keep up). If one tile needs a much larger offset than the rest, don’t make it the reference, so the other videos keep small offsets (offsets are remembered per video and reused in other sets)</li>
 </ul>`,

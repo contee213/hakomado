@@ -132,7 +132,6 @@ body.grid-fs .grid { height: 100%; }
 .toolbar.compact > .now-playing { flex-basis: 140px; width: 140px; }
 .toolbar.tiny > .now-playing { flex-basis: auto; width: auto; min-width: 0; }
 .toolbar.tiny .now-playing .np-name { display: none; }
-.toolbar.tiny .sync-time { display: none; }
 .toolbar.tiny { gap: 3px; padding: 0 6px; }
 .toolbar.tiny > .sync-bar { min-width: 140px; }
 /* 測るときは、縮むもの (今の音声・同期のつまみ) を縮めずに置いて、はみ出すかを見る */
@@ -1588,8 +1587,6 @@ code { font-size: 12px; background: #222228; padding: 0 4px; border-radius: 3px;
 .sync-bar { flex: 6 1 160px; min-width: 140px; max-width: 520px; display: flex; align-items: center; gap: 6px; }
 .sync-bar[hidden] { display: none; }
 .sync-bar input[type="range"] { flex: 1 1 auto; min-width: 60px; margin: 0; }
-.sync-time { color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; white-space: nowrap; }
-#syncNow { color: var(--text); }
 /* 枠の配信がまだ始まっていない / もう終わっている時刻 */
 .sync-overlay {
   position: absolute;
@@ -1684,124 +1681,26 @@ code { font-size: 12px; background: #222228; padding: 0 4px; border-radius: 3px;
 .sync-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
 .sync-row[hidden] { display: none; }
 .sync-input { width: 6.5em; padding: 1px 4px; background: #000; color: var(--text); border: 1px solid var(--line); border-radius: 6px; font-size: 12px; font-variant-numeric: tabular-nums; }
-.sync-wait.is-waiting { color: #8fd3ff; border-color: #8fd3ff; }
 /* 使えないとき (同期できるアーカイブが 2 本ない) も出しておき、薄くする。押すと理由が出る */
 #syncToggle.unavailable { opacity: .5; }
 /* 上部バー: グループが 2 つ以上のとき、つまみが動かすグループの番号と色 */
-.sync-group-dot {
-  flex: none;
-  min-width: 18px;
-  padding: 0 4px;
-  border-radius: 9px;
-  background: var(--g);
-  color: #111;
-  font-size: 11px;
-  font-weight: 700;
-  line-height: 18px;
-  text-align: center;
-}
-.sync-group-dot[hidden] { display: none; }
 .sync-dock-toggle { flex: none; }
 .sync-dock-toggle.on { color: #fff; border-color: var(--on); background: var(--on-bg); }
 
 /* ---------- 同期の調整パネル (画面の右の列。枠の並びはこの分だけ横に縮む) ---------- */
-:root { --dock-w: 340px; --dock-mini-w: 144px; }
-body.sync-dock-open:not(.sync-dock-float) .grid { margin-right: var(--dock-w); }
-body.sync-dock-open.sync-dock-mini:not(.sync-dock-float) .grid { margin-right: var(--dock-mini-w); }
-.sync-dock {
-  position: fixed;
-  top: 36px;
-  right: 0;
-  bottom: 0;
-  z-index: 20;
-  width: var(--dock-w);
-  display: flex;
-  flex-direction: column;
-  background: var(--panel);
-  border-left: 1px solid var(--line);
-  font-size: 13px;
-}
 /* パネルの中の入力欄・時刻も、パネルの文字に合わせて大きめに */
-.sync-dock .sync-input { font-size: 13px; padding: 2px 5px; }
-.sync-dock .sync-time { font-size: 12px; }
-.sync-dock select { font-size: 13px; }
-.sync-dock button { min-height: 24px; }
-.sync-dock[hidden] { display: none; }
-.sync-dock.mini { width: var(--dock-mini-w); }
-body.grid-fs .sync-dock { top: 0; }
 /* 浮かぶ小窓: 枠の上に半透明で重ねる。マウスを乗せている・中を操作している間は濃くする。左上は固定で、下へ伸びる */
-.sync-dock.floating {
-  right: auto;
-  bottom: auto;
-  border: 1px solid #ffffff22;
-  border-radius: 8px;
-  background: rgba(20, 20, 24, .62);
-  backdrop-filter: blur(6px);
-  box-shadow: 0 8px 28px rgba(0, 0, 0, .45);
-  transition: background .15s;
-  overflow: hidden;
-}
-.sync-dock.floating:hover, .sync-dock.floating:focus-within { background: rgba(20, 20, 24, .93); }
-.sync-dock.floating .dock-head { cursor: move; user-select: none; touch-action: none; }
-.sync-dock.floating .dock-group { border-color: #ffffff1f; }
-.dock-head { flex: none; display: flex; align-items: center; gap: 4px; padding: 6px 8px; border-bottom: 1px solid var(--line); }
-.dock-title { flex: 1; min-width: 0; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.dock-head button { padding: 0 8px; }
-.dock-body { flex: 1; min-height: 0; overflow-y: auto; padding: 8px; display: flex; flex-direction: column; gap: 10px; }
-.dock-empty { margin: 8px; color: var(--muted); }
 /* パネルの中でグループの色を使うのは、見出しの番号の丸だけ (ほかは同じ色にして、✓ などの色とまぎれないように) */
-.dock-group { border: 1px solid var(--line); border-radius: 6px; padding: 6px; display: flex; flex-direction: column; gap: 6px; }
-.dock-group.is-idle { opacity: .8; }
-.dock-rest { border-left-color: var(--line); }
-.dg-head { display: flex; align-items: center; gap: 4px; }
-.dg-head select { min-width: 0; flex: 1 1 auto; }
 /* 本編の枠があるときのそろえ方 (切り替えは出さず、文字だけ) */
-.dg-head button { flex: none; padding: 0 8px; font-variant-numeric: tabular-nums; }
-.dg-num { flex: none; min-width: 20px; border-radius: 10px; background: var(--g); color: #111; font-weight: 700; line-height: 20px; text-align: center; }
-.dg-title { color: var(--muted); }
-.dg-actions { display: flex; flex-wrap: wrap; gap: 6px; padding-left: 24px; }
-.dg-actions button { padding: 0 8px; font-size: 13px; white-space: nowrap; font-variant-numeric: tabular-nums; }
-.dg-seek { display: flex; align-items: center; gap: 4px; }
-.dg-range { flex: 1 1 auto; min-width: 40px; margin: 0; }
 /* 図: 各枠の開始のあたりを拡大。横棒 = 配信の実際の開始から右へ、補正の分は水色 (下の .tl-corr)、縦の白線 = 今。左に基準との開始の差、右に状態 */
-.dg-tl { display: flex; flex-direction: column; gap: 4px; padding: 2px 0 4px; font-size: 12px; font-variant-numeric: tabular-nums; }
 /* 目盛り: 棒と同じ横の範囲に、両端の開始の時刻と切れ目の ≈ を、その位置に置く */
-.tl-axis-row { display: flex; gap: 4px; }
-.tl-axis { position: relative; flex: 1 1 auto; height: 26px; margin: 0 84px 0 88px; color: var(--muted); font-size: 11px; }
-.tl-time { position: absolute; top: 0; white-space: nowrap; transform: translateX(-50%); line-height: 13px; }
-.tl-break { position: absolute; top: -1px; bottom: -1px; width: 4px; margin-left: -2px; background: var(--panel); transform: skewX(-20deg); z-index: 1; }
-.tl-row { display: flex; align-items: center; gap: 4px; }
-.tl-no { flex: none; width: 14px; color: var(--muted); text-align: right; }
-.tl-diff { flex: none; width: 66px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.tl-track { position: relative; flex: 1 1 auto; min-width: 60px; height: 10px; border-radius: 2px; background: #ffffff10; }
 /* 棒は青 (グループの色 = 黄・緑・紫・橙 に使わない色) */
-.tl-bar { position: absolute; top: 1px; bottom: 1px; right: 0; border-radius: 2px 0 0 2px; background: #4a86e8; }
 /* 補正の分: 早めても遅らせても同じ水色 (向きは細い線との位置で分かる)。小さな補正も見えるよう、少なくとも 2px */
-.tl-corr { position: absolute; top: 1px; bottom: 1px; min-width: 2px; background: #a9cbff; }
-.tl-corr[hidden] { display: none; }
 /* 配信が実際に始まった時刻の細い線 (補正を入れると、棒の左端がここから離れる) */
-.tl-raw { position: absolute; top: -3px; bottom: -3px; width: 1px; background: var(--text); opacity: .7; z-index: 1; }
-.tl-raw[hidden] { display: none; }
 /* 基準の行の目印: ほかの枠の補正を見比べる時刻 (基準より後に始まった枠の開始) */
-.tl-guide { position: absolute; top: -3px; bottom: -3px; width: 1px; background: var(--text); opacity: .7; z-index: 1; }
-.tl-now[hidden] { display: none; }
-.tl-bar[hidden] { display: none; }
-.tl-now { position: absolute; top: -2px; bottom: -2px; width: 2px; margin-left: -1px; background: var(--text); }
 /* ✨ 自動補正の候補: 反映したあとの位置の ◆ と、今の位置からの点線 (途中の結果は薄く) */
-.tl-cand-span { position: absolute; top: 3px; height: 0; border-top: 2px dotted #8fd3ff; z-index: 1; }
-.tl-cand { position: absolute; top: 50%; width: 9px; height: 9px; margin: -5px 0 0 -5px; background: #8fd3ff; transform: rotate(45deg); box-shadow: 0 0 0 1px #111; z-index: 2; }
-.tl-cand.is-prelim, .tl-cand-span.is-prelim { opacity: .5; }
-.tl-cand[hidden], .tl-cand-span[hidden] { display: none; }
-.tl-st { flex: none; width: 80px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.tl-st.is-fix { color: var(--text); }
 /* たためるグループ: たたんだら見出しだけ */
-.dg-fold { flex: none; padding: 0 4px !important; border: none; background: none; color: var(--muted); }
-.dg-count { flex: none; color: var(--muted); font-size: 12px; }
-.sync-dock:not(.mini) .dock-group.is-folded > :not(.dg-head) { display: none; }
 /* 状態は図に出すので、行の ✓ / ↻ はたたんだパネル (図が無い) のときだけ */
-.sync-dock:not(.mini) .dock-row .dr-dot { display: none; }
-.dg-note { color: #f0c36d; font-size: 12px; }
-.dg-note:empty { display: none; }
 .sync-audio.is-measuring { color: #8fd3ff; border-color: #8fd3ff; }
 /* まだ補正していないグループ: ✨ を目立たせる */
 .sync-audio.is-suggest:not(:disabled) { border-color: #8fd3ff; box-shadow: 0 0 6px #8fd3ff66; }
@@ -1814,61 +1713,23 @@ body.grid-fs .sync-dock { top: 0; }
 .dg-audio-result.is-suggest { border-color: #8fd3ff; box-shadow: 0 0 6px #8fd3ff66; }
 .dg-audio-result.is-fail .dga-title { color: #f0c36d; }
 /* ✨ で音が合わなかった枠 (同じコラボではないかもしれない)。「同期から外す」は青い文字リンク (.fav-restore) */
-.dr-suspect { color: #f0c36d; }
 .dga-suspect { color: #f0c36d; font-size: 12px; }
 .dga-choice { display: flex; flex-direction: column; gap: 2px; }
 .dga-buttons { display: flex; gap: 6px; justify-content: flex-end; }
-.dock-row { display: flex; flex-direction: column; gap: 4px; padding: 5px; border-radius: 4px; outline: none; }
-.dock-row:hover { background: #ffffff0a; }
-.dock-row.is-sel, .dock-row:focus-visible { background: #ffffff12; box-shadow: inset 0 0 0 1px var(--muted); }
-.dr-line { display: flex; align-items: center; gap: 5px; min-width: 0; }
-.dr-line button { padding: 0 6px; font-size: 13px; }
-.dr-ref { flex: none; padding: 0 3px !important; border: none; background: none; color: var(--muted); }
-.dr-ref.on { color: var(--text); font-size: 12px; }
-.dr-num { flex: none; min-width: 1.2em; color: var(--muted); font-variant-numeric: tabular-nums; }
-.dr-name { flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.dr-elapsed { flex: none; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
-.dr-ref-tag { flex: none; padding: 0 4px; border-radius: 3px; background: var(--g, #ffffff30); color: #111; font-size: 11px; font-weight: 700; line-height: 1.5; }
 /* 🎬 本編の枠 (プレミア公開) の印 */
-.dr-main-tag { background: #9ad4ff; }
-button.dr-main-tag { border: 0; cursor: pointer; }
 /* 本編にする (🎬) */
-.dr-make-main { flex: none; padding: 0 4px; opacity: .55; }
-.dr-make-main:hover, .dr-make-main:focus-visible { opacity: 1; }
-.dr-short { flex: none; color: var(--muted); font-variant-numeric: tabular-nums; display: none; }
 /* 設定したずれどおりの位置か (✓) / その位置へ寄せている途中か (↻)。グループの色と混ざらないよう、色ではなく記号で見せる */
 .dr-dot { flex: none; width: 1.1em; text-align: center; color: var(--muted); font-size: 12px; line-height: 1; }
+/* ↻ 寄せている途中 (同期の調整の帯の行。'dr-dot is-' + 状態 で付ける) */
 .dr-dot.is-fix { color: var(--text); display: inline-block; animation: dr-spin 1.2s linear infinite; }
 @keyframes dr-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .dr-dot.is-fix { animation: none; } }
-.dr-group { flex: none; max-width: 110px; font-size: 12px; }
-.dr-sub { padding-left: 4px; flex-wrap: wrap; }
+
 /* 補正の操作は 1 行に収める (間と幅を詰める) */
-.dr-sub:has(.dr-step) { gap: 3px; }
-.dr-val { width: 4.2em; text-align: right; }
-.dr-line .dr-step { padding: 0 5px; font-size: 12px; font-variant-numeric: tabular-nums; touch-action: none; user-select: none; }
 /* 基準の行: 補正は 0 に固定 (行の頭の 🔒)。操作は押せない形で薄く */
-.dr-line.is-locked > * { opacity: .4; }
-.dr-val::placeholder { color: var(--text); opacity: 1; }
-.dr-wait.is-waiting { color: #8fd3ff; border-color: #8fd3ff; }
-.dr-reset[hidden] { display: none; }
-.dr-ref-val { font-variant-numeric: tabular-nums; }
-.dr-cand { color: #8fd3ff; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.dr-cand.is-prelim { opacity: .6; font-style: italic; }
 /* 確かさ: ◎ / ○ はそのまま、△ は注意の色 */
-.dr-grade.g1 { color: #f0c36d; }
-.dr-note { color: var(--muted); }
 /* 🚩 開始位置・⏲ 画面タイマー・✕ も 1 行に収める (欄を縮める) */
-.dr-sub:has(.dr-movie-now) { flex-wrap: nowrap; gap: 3px; }
-.dr-movie-label { display: inline-flex; align-items: center; gap: 4px; flex: 0 1 auto; min-width: 0; white-space: nowrap; }
-.dr-movie-now { width: 6em; flex: 0 1 6em; min-width: 3.5em; }
-.dr-sub .dr-here, .dr-sub .dr-clear { flex: none; white-space: nowrap; }
 /* たたんだとき: 番号・ずれ・点だけ */
-.sync-dock.mini .dr-elapsed, .sync-dock.mini .dock-title, .sync-dock.mini .dg-actions, .sync-dock.mini .dr-ref-tag, .sync-dock.mini .dr-make-main, .sync-dock.mini .dr-sub, .sync-dock.mini .dr-name,
-.sync-dock.mini .dr-group, .sync-dock.mini .dr-ref, .sync-dock.mini .dg-seek, .sync-dock.mini .dg-head select,
-.sync-dock.mini .dg-head button, .sync-dock.mini .dg-note, .sync-dock.mini .dg-audio-result, .sync-dock.mini .dg-tl, .sync-dock.mini .dg-count { display: none; }
-.sync-dock.mini .dr-short { display: inline; flex: 1 1 auto; text-align: right; }
-.sync-dock.mini .dock-body { padding: 4px; }
 
 /* 📃 再生リストに入れる (枠のバーや一覧の 📃 で開く) */
 dialog.pl-pick-dialog { width: min(420px, calc(100% - 32px)); }
@@ -2043,7 +1904,6 @@ a.info-title:hover, a.info-title:focus-visible { color: var(--text); text-decora
 /* ---------- 〰 波形 (画面の下の帯。同期のグループの配信全編の音の波形。枠の並びはこの分だけ縦に縮む。HAKO-39) ---------- */
 body.wave-open .grid { height: calc(100% - 36px - var(--wave-h, 0px)); }
 body.grid-fs.wave-open .grid { height: calc(100% - var(--wave-h, 0px)); }
-body.wave-open .sync-dock:not(.floating) { bottom: var(--wave-h, 0px); }
 .wave-strip {
   --wv-band: rgba(255, 255, 255, 0.08);
   --wv-now: #ffffff;
@@ -2105,6 +1965,7 @@ body.wave-resizing { cursor: ns-resize; user-select: none; }
 .wave-strip { --wv-idw: 236px; }
 .wv-head-id { display: flex; align-items: center; gap: 6px; width: var(--wv-idw); flex: none; min-width: 0; }
 .wv-sec-head .wv-audio-sync { flex: none; width: 104px; padding: 0 4px; }
+.wv-regroup { font-size: 12px; min-height: 22px; }
 .wv-head-sep { flex: none; width: 1px; height: 18px; background: var(--line); }
 .wv-seek-box { flex: 1; min-width: calc(90px + 9em); display: flex; align-items: center; gap: 6px; }
 .wv-seek { flex: 1; min-width: 90px; }
@@ -2112,7 +1973,6 @@ body.wave-resizing { cursor: ns-resize; user-select: none; }
 .wv-seek-time.is-end { color: var(--muted); text-align: left; }
 .wv-head-msg { height: 28px; padding-left: calc(8px + var(--wv-idw) + 6px); background: rgba(255, 255, 255, 0.02); }
 /* 上部バーの小さいつまみは、帯を出している間は隠す (帯のグループごとのつまみで動かす) */
-body.wave-open #syncBar :is(#syncGroupDot, #syncNow, #syncSeek, #syncEnd) { display: none !important; }
 .wv-audio-box { flex: 1; min-width: 0; display: flex; }
 .wv-group-audio.on { color: #fff; border-color: var(--on); background: var(--on-bg); }
 .wv-sec-head .wv-progress { min-width: 5.5em; text-align: right; }
@@ -2192,4 +2052,3 @@ body.wave-open #syncBar :is(#syncGroupDot, #syncNow, #syncSeek, #syncEnd) { disp
 /* 下見用のプレイヤー (見えない場所に置く。操作も読み上げもしない) */
 .wave-scan-box { position: fixed; left: -4000px; top: 0; width: 320px; pointer-events: none; }
 .wave-scan-box iframe { display: block; width: 320px; height: 180px; border: 0; }
-.dg-wave.on { color: #fff; border-color: var(--on); background: var(--on-bg); }

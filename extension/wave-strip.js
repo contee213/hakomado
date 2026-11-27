@@ -1,8 +1,10 @@
-// hakomado: 同期の調整の帯 (画面の下。HAKO-39・HAKO-42)。同期しているグループごとの節を上から並べ (最後に「同期しない」)、
-// 節ごとに、枠ごとの配信全編の音の大きさの波を目盛り (実際の時刻か、基準の枠の配信の経過時間) の上に並べる。
-// - 節の見出し: ▸ / ▾ たたむ・番号の丸 (グループの色)・そろえ方・n 枠・⏸ / ⏯・↺ 0 に戻す・全体
-// - 行の左: グループの選択・○ / 🔒 基準・サムネイル・番号・名前・経過時間・補正の秒数 (押すと入力欄)・✓ / ↻・⏸ 止めて待つ・↺
-//   (同期の調整パネルの行と同じ操作。パネルは HAKO-41 の 4 回目で無くす)
+// hakomado: 同期の調整の帯 (画面の下。HAKO-39・HAKO-42・HAKO-43・HAKO-47)。同期の調整はこの帯だけで行う (HAKO-48 でパネルを無くした)。
+// グループ 1〜4 の節を上から並べ (最後に「同期しない」)、節ごとに、枠ごとの配信全編の音の大きさの波を目盛り
+// (🕒 は実際の時刻か基準の枠の配信の経過時間、🎬 は本編の時刻) の上に並べる。
+// - 帯の見出し: 題・経過時刻 | 配信時刻・自動で分け直す・案内・✕
+// - 節の見出し (2 段): たたむ・番号・そろえ方・n 枠・✨ | ⏸・つまみ・速度・グループの音・取得率 / ✨ の様子 (🎬 は本編の位置の案内)
+// - 行の左: サムネイル・番号・名前・基準 | 経過時間・補正 (🎬 は本編の位置)・✓ / ↻・🔊・⏸ 止めて待つ・↶ 元に戻す (| 🎬 の列)。
+//   行を上下にドラッグで並べ替え・ほかのグループへ
 // - 行の右 (波): 横にドラッグで補正、押して選び ← → (Shift / Ctrl で足す)。目盛りを押す・なぞるとグループの時刻を動かす。
 //   ホイールで拡大・縮小、Shift + ホイールで左右。目盛り・見ている範囲は節ごと (グループごとに別の配信のため)
 // - 帯を出している間は、開いている節の 🕒 グループの、波形がまだ無いところの音の大きさを自動で測る (閉じたらやめる):
@@ -10,7 +12,6 @@
 //   音の大きさを記録する (content/mix.js。✨ と同じ仕組み)。枠はそのまま見られる
 // - 測るのは、グループの全部の枠の配信が始まっている時刻の頭から、そのグループのプレイヤーが同じ時刻を一緒に進む (進みすぎたものは止めて待つ)。
 //   一緒の区間が終わったら、残り (先に始めた人の冒頭など) をそれぞれ取る。取ってある区間は飛ばし、通り過ぎた抜けも取り直す
-// - 🎬 同時視聴の節は、この版では見出しと案内だけ (調整は同期の調整パネルで。HAKO-41 の 3 回目で帯へ)
 // - 波形は Waves (waves.js) が動画ごとに持ち、IndexedDB に残す。grid.js の Sync・views・state・mk・tr などを使うのは
 //   操作されてから (読み込みの時点では使わない) なので、grid.js より前に読み込んでよい
 /* exported WaveStrip */
@@ -35,6 +36,7 @@ const WaveStrip = (() => {
   const secs = new Map(); // g -> {view, rows: Map(i -> row), ruler, hoverX}
   const folded = new Set(); // たたんだ節 (グループの番号)
   let structKey = '';
+  let regroupBtn = null; // 帯の見出しの「自動で分け直す」 (手で決めたグループが無ければ押せない)
   let drag = null; // {g, i, x0, off0, off, moved, view0}
   const selected = new Set(); // 選んだ行 (枠の番号)。← → で補正を動かす
   let timer = 0;
@@ -330,31 +332,6 @@ const WaveStrip = (() => {
   }
 
   // ---------------------------------------------------------------- 出す・しまう
-  /** 同期の調整パネルの「〰 波形」の点灯を、帯で開いている節に合わせる */
-  function markButtons() {
-    for (const sec of document.querySelectorAll('.dock-group')) {
-      const on = isOpen(Number(sec.dataset.g));
-      const btn = sec.querySelector('.dg-wave');
-      if (!btn) continue;
-      btn.classList.toggle('on', on);
-      btn.setAttribute('aria-pressed', String(on));
-    }
-  }
-  const isOpen = (g) => shown && !folded.has(g);
-
-  /** パネルの「〰 波形」: 帯でそのグループの節を開いていれば帯をしまう。そうでなければ帯を出して、その節を開く */
-  function toggle(g) {
-    if (isOpen(g)) close();
-    else {
-      folded.delete(g);
-      structKey = '';
-      open();
-      root()
-        .querySelector(`.wv-sec[data-g="${g}"]`)
-        ?.scrollIntoView({ block: 'nearest' });
-    }
-  }
-
   function open() {
     if (!shown) {
       shown = true;
@@ -367,7 +344,6 @@ const WaveStrip = (() => {
     }
     update();
     Sync.dockChanged();
-    markButtons();
   }
 
   function close() {
@@ -389,15 +365,14 @@ const WaveStrip = (() => {
     el.replaceChildren();
     Sync.highlight(null);
     Sync.dockChanged();
-    markButtons();
   }
 
   /** 同期の様子を読み直して、形が変わっていれば作り直し、数字を書き換えて描き直す */
   function update() {
     if (!shown) return;
     model = Sync.stripModel();
-    if (!model || (!model.groups.length && !model.rest.length)) {
-      close();
+    if (!model) {
+      close(); // 同期をやめた
       return;
     }
     const key = JSON.stringify([
@@ -469,8 +444,15 @@ const WaveStrip = (() => {
       { class: 'wv-head' },
       mk('span', { class: 'wv-title' }, tr('stripTitle')),
       mk('span', { class: 'wv-modes' }, rulerModeBtn('elapsed', 'waveRulerElapsed', 'waveRulerElapsedTitle'), rulerModeBtn('clock', 'waveRulerClock', 'waveRulerClockTitle')),
+      (regroupBtn = mk('button', {
+        type: 'button',
+        class: 'wv-regroup',
+        textContent: tr('stripRegroupLabel'),
+        title: tr('stripRegroupTitle'),
+        onclick: () => (Sync.autoRegroup(), update()),
+      })),
       mk('span', { class: 'wv-hint' }, tr('waveHint')),
-      mk('button', { type: 'button', class: 'wv-close', textContent: '✕', title: tr('waveClose'), 'aria-label': tr('waveClose'), onclick: close }),
+      mk('button', { type: 'button', class: 'wv-close', textContent: '✕', title: tr('waveClose'), 'aria-label': tr('waveClose'), onclick: () => (Sync.stripClosedByUser(), close()) }),
     );
     const grip = mk('div', { class: 'wv-resize', title: tr('waveResizeTitle') });
     bindResize(grip);
@@ -520,7 +502,6 @@ const WaveStrip = (() => {
         if (folded.has(g)) folded.delete(g);
         else folded.add(g);
         update();
-        markButtons();
       },
     });
   }
@@ -560,7 +541,7 @@ const WaveStrip = (() => {
       });
       s.head.speed = sel;
     }
-    // ✨ 自動補正 (パネルのグループの ✨ と同じ。測っている間にもう一度押すとやめる)。🕒 の同期できるグループだけ
+    // ✨ 自動補正 (測っている間にもう一度押すとやめる)。🕒 の同期できるグループだけ
     s.head.audio = timeMode(G)
       ? mk('button', { type: 'button', class: 'wv-audio-sync sync-audio', title: tr('syncAudioTitle'), onclick: () => (Sync.toggleAudioSync(G.g), update()) })
       : null;
@@ -1040,6 +1021,7 @@ const WaveStrip = (() => {
     const el = root();
     if (!shown || !el || !model) return;
     trackOffsets();
+    if (regroupBtn) regroupBtn.disabled = !Sync.hasManualGroups();
     for (const mb of el.querySelectorAll('.wv-ruler-mode')) {
       const on = mb.dataset.mode === modeOf();
       mb.classList.toggle('on', on);
@@ -1061,7 +1043,7 @@ const WaveStrip = (() => {
         s.head.progress.classList.toggle('is-measuring', !!scan && pct < 100 && !folded.has(G.g));
       }
       if (s.head.play) {
-        // 同期の調整パネルのグループの ⏸ と同じ (デザインガイド 4 章: 止めると「再開」に変わる)
+        // デザインガイド 4 章: 止めると「再開」に変わる
         const label = tr(G.playing ? 'syncGroupPauseLabel' : 'syncGroupPlayLabel');
         if (s.head.play.textContent !== label) s.head.play.textContent = label;
         s.head.play.title = tr(G.playing ? 'syncGroupPause' : 'syncGroupPlay');
@@ -1175,11 +1157,11 @@ const WaveStrip = (() => {
     return next;
   }
 
-  /** 帯の高さを h ドットにする (画面の 70% まで)。枠の並び・同期の調整パネルは、その上で終わる */
+  /** 帯の高さを h ドットにする (画面の 70% まで)。枠の並びは、その上で終わる */
   function setHeight(h) {
     const v = Math.round(Math.max(MIN_H, Math.min(innerHeight * 0.7, h)));
     document.documentElement.style.setProperty('--wave-h', `${v}px`);
-    dispatchEvent(new Event('resize')); // 同期の調整パネルの小窓を置き直す
+    dispatchEvent(new Event('resize')); // 枠の並びを置き直す
     return v;
   }
   /** 帯の上の端をつかんで、高さを変える (覚えておく) */
@@ -1703,11 +1685,10 @@ const WaveStrip = (() => {
   });
 
   return {
-    toggle,
     open,
     close,
-    /** グループ g の節を帯で開いているか */
-    isOpen,
+    /** 帯を出しているか */
+    isShown: () => shown,
     /** 出していれば、すぐに書き換える (✨ の様子が変わったときなど) */
     update,
   };
