@@ -7,7 +7,7 @@
 // 最初のようこそだけは画面の真ん中に大きく出し、スキップ・次へも吹き出しの中に置く。
 // 2 つめからは、進み具合と操作のボタン (戻る・次へ・スキップ) を右下の縦長のパネルに固定する。
 // マウスを動かさずに「次へ」を押し続けられるように。
-/* global tr, openFavorites */
+/* global tr, openFavorites, Sync */
 /* exported Tour */
 const Tour = (() => {
   'use strict';
@@ -21,7 +21,7 @@ const Tour = (() => {
       short: 'tourWelcomeS',
       uses: [
         ['tourUseLiveT', 'tourUseLive'],
-        ['tourUseSyncT', 'tourUseSync'],
+        ['tourUseSyncT', 'tourUseSync', 'sync'], // 3 つ目 = 同期のコードが入っているときだけ (リリース版では出さない。HAKO-51)
         ['tourUseLeaveT', 'tourUseLeave'],
       ],
     },
@@ -266,7 +266,8 @@ const Tour = (() => {
     if (step.uses) {
       const list = document.createElement('ul');
       list.className = 'tour-uses';
-      for (const [t, d] of step.uses) {
+      for (const [t, d, only] of step.uses) {
+        if (only === 'sync' && !Sync.built) continue;
         const li = document.createElement('li');
         const b = document.createElement('b');
         b.textContent = tr(t);

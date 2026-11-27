@@ -1,4 +1,5 @@
-# v0.1.0 のようなタグをプッシュすると、extension フォルダの中身を ZIP にして GitHub のリリースを作る。
+# v0.1.0 のようなタグをプッシュすると、リリース版のビルド (node tools/build.js。extension/ から ⏱ アーカイブ同期 (実験的な機能) の
+# コードを抜いたもの → dist/hakomado/。HAKO-51) を ZIP にして GitHub のリリースを作る。
 # タグと manifest.json の version が違うときは止める (付け間違いで違う版を配らないように)。
 name: Release
 
@@ -32,29 +33,37 @@ jobs:
           fi
           echo "VER=$VER" >> "$GITHUB_ENV"
 
+      # 同期のコードを抜いた写しを作る (抜いたファイルがどこからも読まれていないかも、ここで確かめる)
+      - name: Build (without the archive sync)
+        run: node tools/build.js
+
       # Chrome ウェブストアに上げる用の ZIP は "key" を入れる前に作る (ストアは "key" 入りのパッケージを受け付けず、自分の鍵で ID を決める)。
       # 開発者モードで読み込む人向けではないので、ファイル名で分ける (CHROMEWEBSTORE.md の「ストアに上げる手順」)
       - name: Make the zip for the Chrome Web Store
         run: |
-          cd extension
-          zip -r -X "../hakomado-$VER-chrome-web-store.zip" . -x '.*'
-          cd ..
+          cd dist/hakomado
+          zip -r -X "../../hakomado-$VER-chrome-web-store.zip" . -x '.*'
+          cd ../..
           if unzip -p "hakomado-$VER-chrome-web-store.zip" manifest.json | grep -q '"key"'; then
             echo "::error::ストア用の ZIP の manifest.json に key が入っています"
             exit 1
           fi
+          if unzip -l "hakomado-$VER-chrome-web-store.zip" | grep -qE ' (sync|sync-groups|audio-align|audio-align-worker|waves|wave-strip)\.js$'; then
+            echo "::error::ストア用の ZIP にアーカイブ同期のファイルが入っています"
+            exit 1
+          fi
 
       # ZIP の manifest.json にだけ "key" を入れて、拡張機能の ID を固定する (展開する場所を変えても同じ拡張機能のまま)。
-      # リポジトリの extension/ には入れない (開発用フォルダと配布版を同じプロファイルに並べて入れられるように)
+      # リポジトリの extension/ には入れず、dist/hakomado/ の写しにだけ入れる (開発用フォルダと配布版を同じプロファイルに並べて入れられるように)
       - name: Fix the extension ID
-        run: node tools/release-key.js inject extension/manifest.json
+        run: node tools/release-key.js inject dist/hakomado/manifest.json
 
       # ZIP の直下に manifest.json が来るようにする (展開したフォルダをそのまま読み込めるように)
       - name: Make the zip
         run: |
-          cd extension
-          zip -r -X "../hakomado-$VER.zip" . -x '.*'
-          cd ..
+          cd dist/hakomado
+          zip -r -X "../../hakomado-$VER.zip" . -x '.*'
+          cd ../..
           unzip -l "hakomado-$VER.zip"
 
       - name: Create the release
