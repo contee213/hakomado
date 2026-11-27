@@ -15,6 +15,30 @@
 'use strict';
 
 const MovieAnchors = (() => {
+  // ---- 区間での読み替え (secs = 1 つの作品の区間の並び [[動き出した再生位置, そのときのタイマーの値], ...]、再生位置の順)
+  // 区間 j は、動き出した位置から、次の区間の値 (= タイマーが止まった値) に届くまで進む。そこから次の区間が動き出すまでは
+  // タイマーが止まっている (配信者の離席など)
+
+  /** 本編の時刻 t (秒) に当たる配信の再生位置。値が t 以下で一番遅い区間から数える (最初の区間より前は最初の区間から) */
+  function toArchive(secs, t) {
+    let j = 0;
+    for (let x = 1; x < secs.length; x++) if (secs[x][1] <= t) j = x;
+    return secs[j][0] + (t - secs[j][1]);
+  }
+  /**
+   * 配信の再生位置 p (秒) に当たる本編の時刻 {t, stop}。stop = タイマーが止まっている所なら {until: 次に動き出す再生位置, v: 止まった値}。
+   * 止まっている間の本編の時刻は、止まった値のまま
+   */
+  function toMovie(secs, p) {
+    let j = 0;
+    for (let x = 1; x < secs.length; x++) if (secs[x][0] <= p) j = x;
+    let t = secs[j][1] + (p - secs[j][0]);
+    const nx = secs[j + 1];
+    if (nx && t >= nx[1]) return { t: nx[1], stop: { until: nx[0], v: nx[1] } };
+    if (nx) t = Math.min(t, nx[1]);
+    return { t, stop: null };
+  }
+
   const KEY = 'movieAnchors';
   const MAX = 1000; // 覚えておく動画の数 (古く決めたものから忘れる)
   const LIMIT = 7 * 86400; // 1 週間分まで (長い配信でも入るように)
@@ -84,6 +108,20 @@ const MovieAnchors = (() => {
   const works = (id) => (id && cache[id]?.w ? startsOf(cache[id].w).map((p, j) => ({ n: j + 1, at: p[0], zero: clean(p[0] - p[1]) })) : []);
   /** 今選んでいる作品の番号 (無ければ null) */
   const selected = (id) => (id && cache[id]?.k) || null;
+
+  /**
+   * 今選んでいる作品の区間 {secs: [[動き出した再生位置, そのときのタイマーの値], ...], next: 次の作品の始まりの再生位置 (無ければ null), k}。
+   * 区間を見つけていない・作品を選んでいない (手で本編の位置を決めた) なら null (本編の位置 s だけで読み替える)
+   */
+  function plan(id) {
+    const e = id && cache[id];
+    if (!e?.w || !e.k) return null;
+    const starts = e.w.map((p, i) => i).filter((i) => i === 0 || e.w[i][1] === 0);
+    const from = starts[e.k - 1];
+    if (from == null) return null;
+    const to = starts[e.k] ?? e.w.length;
+    return { secs: e.w.slice(from, to), next: e.w[to]?.[0] ?? null, k: e.k };
+  }
 
   /** 書き込み (fn で 1 件を書き換える)。タブ間でロックを取って、読んでから書く */
   function write(id, fn) {
@@ -159,5 +197,5 @@ const MovieAnchors = (() => {
     if (ids.length) for (const fn of listeners) fn(ids);
   });
 
-  return { KEY, load, get, isGuess, isMain, set, remove, setMain, works, selected, addSections, select, onChange };
+  return { KEY, load, get, isGuess, isMain, set, remove, setMain, works, selected, plan, addSections, select, onChange, toArchive, toMovie };
 })();

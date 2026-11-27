@@ -534,6 +534,7 @@ const MESSAGES = {
     "🎬 This tile follows once the reference tile's movie start is set",
   ],
   movieLiveRefOnly: ['🎬 ライブは基準にだけできます (動かせないため)', "🎬 A live stream can only be the reference (it can't be moved)"],
+  movieNextEpisode: ['🎬 本編の枠を次の話にしてください (配信は {0} 本目の始まりで待っています)', '🎬 Move the movie tile to the next episode (the stream is waiting at work {0})'],
   movieStartsLater: ['この配信は本編の {0} から始まります', 'This stream joins the movie at {0}'],
   movieAnchorSet: ['本編 0:00 をこの動画の {0} にしました', 'Movie 0:00 set to {0} in this video'],
   movieClear: ['本編の位置を消す', 'Clear movie start'],

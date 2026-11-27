@@ -181,8 +181,18 @@ const Sync = (() => {
     return ss.t + (moving ? ((now() - ss.at) / 1000) * (ss.r || 1) : 0);
   };
   // 時計の時刻 R (実際の時刻か本編の時刻。ミリ秒) と、枠の再生位置 t (秒) の読み替え
-  const realOf = (G, i, t) => (isMovie(G) ? (t - anchor(i)) * 1000 : views[i].archive.start + (t - off(i)) * 1000);
-  const targetOf = (G, i, R) => (isMovie(G) ? anchor(i) + R / 1000 : (R - views[i].archive.start) / 1000 + off(i));
+  // 🎬 で画面のタイマーから見つけた作品を選んでいる配信は、区間ごとに読み替える (途中でタイマーを止めた所を飛ばす。HAKO-49)
+  const planOf = (i) => (featureTile(i) || !state.tiles[i]?.videoId ? null : MovieAnchors.plan(vidOf(i)));
+  const realOf = (G, i, t) => {
+    if (!isMovie(G)) return views[i].archive.start + (t - off(i)) * 1000;
+    const pl = planOf(i);
+    return pl ? MovieAnchors.toMovie(pl.secs, t).t * 1000 : (t - anchor(i)) * 1000;
+  };
+  const targetOf = (G, i, R) => {
+    if (!isMovie(G)) return (R - views[i].archive.start) / 1000 + off(i);
+    const pl = planOf(i);
+    return pl ? MovieAnchors.toArchive(pl.secs, R / 1000) : anchor(i) + R / 1000;
+  };
 
   // ---- グループ分け
   /** 今の枠でのグループ分けを求める (中身が変わった枠の手の決めごとは捨てる) */
@@ -475,6 +485,7 @@ const Sync = (() => {
         if (rs.ps === 2) playing = false; // 基準の枠の中で一時停止した → グループ全部止める
       }
     }
+    ({ R, playing } = movieFlow(G, list, ref, R, playing));
     setClock(G, R, playing);
 
     // 本編モードで基準の枠の本編の位置がまだ無ければ、時計が決まらないので、ほかの枠も動かさない
@@ -501,6 +512,26 @@ const Sync = (() => {
         overlay(i, tr('movieNeedAnchor')); // 本編の位置を決めるまでは動かさない
         if (!liveTile(i)) rate(i, 1);
         drift.delete(i);
+        continue;
+      }
+      // 配信のタイマーが止まっている間 (本編の枠は止めて待つ) は、配信だけを流す。次の作品の始まりに着いたら、本編の枠を待つ
+      if (G.stop && i === G.stop.tile) {
+        overlay(i, '');
+        rate(i, 1);
+        const ss = views[i].ss;
+        if (!pausedAll && !G.paused) {
+          if (ss && ss.ps !== 1 && ss.ps !== 3) cmd(i, 'play');
+        } else if (ss && (ss.ps === 1 || ss.ps === 3)) cmd(i, 'pause');
+        drift.set(i, 'ok');
+        continue;
+      }
+      if (G.wait && i === G.wait.tile) {
+        overlay(i, tr('movieNextEpisode', G.wait.next));
+        rate(i, 1);
+        const ss = views[i].ss;
+        if (ss && (ss.ps === 1 || ss.ps === 3)) cmd(i, 'pause');
+        if (Math.abs((posOf(i) ?? G.wait.at) - G.wait.at) > 0.5) seek(i, G.wait.at);
+        drift.set(i, 'ok');
         continue;
       }
       if (movie && featureTile(i)) {
@@ -604,6 +635,89 @@ const Sync = (() => {
     groupRange(G, list);
   }
 
+  /**
+   * 本編の動画の枠が基準の 🎬 グループで、配信の画面のタイマーが止まっている間と作品の変わり目を扱う (HAKO-49 STEP3)。
+   * - 本編が、配信のタイマーが止まった値に着いた → 本編の枠を止めて、配信だけを流す (G.stop)。配信のタイマーが動き出す所に着いたら、本編を再生する
+   * - 本編の枠が終わり近くから頭に戻った (次の話に進んだ) → 頭で止めて待たせ、配信を次の作品の始まりまで流す。着いたら作品を進めて一緒に再生する
+   * - 本編の枠より先に、配信が次の作品の始まりに着いた → 配信をそこで止めて、本編の枠を次の話にしてもらう (G.wait)
+   * 使う人が本編の枠で自分で再生したら、待つのをやめて配信が追いかける。時計の時刻と動いているかを返す
+   */
+  function movieFlow(G, list, ref, R, playing) {
+    const arch = isMovie(G) && featureTile(ref) ? list.find((i) => i !== ref && planOf(i)) : undefined;
+    if (arch == null) {
+      G.stop = G.wait = G.fprev = null;
+      return { R, playing };
+    }
+    const pl = planOf(arch);
+    const w = views[ref].web;
+    const fp = posOf(ref);
+    const p = posOf(arch);
+    const go = !pausedAll && !G.paused;
+    const prev = G.fprev;
+    G.fprev = { t: fp, d: w.d };
+    if (G.stop?.tile !== arch) G.stop = null;
+    if (G.wait?.tile !== arch) G.wait = null;
+    // 本編の枠が終わり近くから頭に戻った (次の話に進んだ・使う人が次の話にした)。つまみで動かした直後は除く
+    const jumped = prev && now() > G.holdUntil && prev.t >= prev.d - 120 && fp <= 10 && prev.t - fp > Math.min(60, prev.d / 2);
+    if (jumped && pl.next != null) {
+      if (G.wait || (p != null && p >= pl.next - 0.5)) return advance(G, arch, pl.k + 1, go);
+      G.stop = { tile: arch, until: pl.next, v: 0, next: pl.k + 1, seen: false };
+      seek(ref, 0);
+    }
+    if (G.stop) {
+      const st = G.stop;
+      if (w.paused) st.seen = true;
+      if (p != null && p >= st.until - 0.05) {
+        // 配信のタイマーが動き出した
+        if (st.next) return advance(G, arch, st.next, go);
+        G.stop = null;
+        G.holdUntil = now() + 2000; // 本編の枠を再生させる (featureTile の枝)
+        setClock(G, st.v * 1000, go);
+        return { R: st.v * 1000, playing: go };
+      }
+      // 使う人が本編の枠で再生した → 待つのをやめる (配信が追いかける)
+      if (st.seen && !w.paused && now() - (sent.get(ref)?.cmdAt || 0) > 3000) {
+        G.stop = null;
+        return { R, playing };
+      }
+      return { R: st.v * 1000, playing: false };
+    }
+    if (G.wait) {
+      // 本編の枠を戻した (次の作品の始まりより前へ) → 待つのをやめる
+      if (MovieAnchors.toArchive(pl.secs, R / 1000) < G.wait.at - 1) G.wait = null;
+      return { R, playing };
+    }
+    if (!playing || now() < G.holdUntil || p == null) return { R, playing };
+    const t = R / 1000;
+    // 配信が次の作品の始まりに着く → そこで本編の枠を待つ
+    if (pl.next != null && MovieAnchors.toArchive(pl.secs, t) >= pl.next - 0.3) {
+      G.wait = { tile: arch, at: pl.next, next: pl.k + 1 };
+      return { R, playing };
+    }
+    // 本編が、配信のタイマーが止まった値に着いた (配信も止まる直前まで来ている) → 本編の枠を止めて、配信だけを流す
+    for (let x = 1; x < pl.secs.length; x++) {
+      const [at, v] = pl.secs[x];
+      const end = pl.secs[x - 1][0] + (v - pl.secs[x - 1][1]); // 1 つ前の区間でタイマーが止まった再生位置
+      if (t >= v - 0.3 && t < v + 3 && p >= end - 3 && p < at - 0.5) {
+        G.stop = { tile: arch, until: at, v, next: null, seen: false };
+        if (Math.abs(fp - v) > 0.5) seek(ref, v);
+        return { R: v * 1000, playing: false };
+      }
+    }
+    return { R, playing };
+  }
+  /** 作品 n に進めて、本編の枠を頭から一緒に再生する */
+  function advance(G, arch, n, go) {
+    MovieAnchors.select(vidOf(arch), n);
+    G.stop = G.wait = null;
+    G.fprev = null;
+    G.holdUntil = now() + 4000; // 本編の枠を 0:00 へ動かして再生させる (featureTile の枝)
+    for (const i of membersOf(G.g)) sent.delete(i);
+    forceSeek.add(arch);
+    setClock(G, 0, go);
+    return { R: 0, playing: go };
+  }
+
   /** つまみの範囲: グループの枠の時間帯を全部まとめた範囲 (本編モードは 0:00 から、一番長く続く枠の終わりまで) */
   function groupRange(G, list) {
     const ranges = list.map((i) => rangeOf(G, i)).filter(([a, b]) => Number.isFinite(a) && Number.isFinite(b));
@@ -654,6 +768,7 @@ const Sync = (() => {
   }
   /** グループ全部を、時計の時刻 R へ動かす (基準の枠が追いつくまで、時計は基準の枠に合わせない) */
   function seekGroup(G, R) {
+    G.stop = G.wait = G.fprev = null; // タイマーが止まっている間・次の話を待つのをやめる
     setClock(G, R, !pausedAll && !G.paused);
     G.holdUntil = now() + 4000;
     for (const i of membersOf(G.g)) sent.delete(i);

@@ -145,3 +145,38 @@ test('画面のタイマーの区間: 00:00:00 から始まらないタイマー
   await M.addSections('bad', [[1, 0]]);
   assert.deepEqual(plain(M.works('bad')), []);
 });
+
+test('区間での読み替え (HAKO-49 STEP3): 途中でタイマーを止めた作品・止まっている間は本編の時刻が止まる', () => {
+  const { M } = setup();
+  // 600 秒で 0:00 から動き出し、本編 300 秒 (配信 900 秒) で止め、配信 1000 秒で 300 から再開
+  const secs = [
+    [600, 0],
+    [1000, 300],
+  ];
+  assert.equal(M.toArchive(secs, 0), 600);
+  assert.equal(M.toArchive(secs, 299), 899);
+  assert.equal(M.toArchive(secs, 300), 1000, '止まった値からは、再開した所 (止まっている間は飛ばす)');
+  assert.equal(M.toArchive(secs, 400), 1100);
+  assert.equal(M.toArchive(secs, -10), 590, '始まる前');
+  assert.deepEqual(plain(M.toMovie(secs, 700)), { t: 100, stop: null });
+  assert.deepEqual(plain(M.toMovie(secs, 950)), { t: 300, stop: { until: 1000, v: 300 } }, '止まっている間');
+  assert.deepEqual(plain(M.toMovie(secs, 1050)), { t: 350, stop: null });
+  assert.deepEqual(plain(M.toMovie(secs, 500)), { t: -100, stop: null });
+});
+
+test('区間での読み替え: 選んでいる作品の区間と次の作品の始まり。作品を選んでいなければ null', async () => {
+  const { M } = setup();
+  await M.load();
+  await M.addSections(vid(1), [
+    [600, 0],
+    [1000, 300],
+    [2500, 0],
+    [4000, 0],
+  ]);
+  assert.deepEqual(plain(M.plan(vid(1))), { secs: [[600, 0], [1000, 300]], next: 2500, k: 1 });
+  M.select(vid(1), 3);
+  assert.deepEqual(plain(M.plan(vid(1))), { secs: [[4000, 0]], next: null, k: 3 });
+  await M.set(vid(1), 10);
+  assert.equal(M.plan(vid(1)), null, '手で決め直したら区間は使わない');
+  assert.equal(M.plan(vid(2)), null);
+});
