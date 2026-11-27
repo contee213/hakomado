@@ -2,6 +2,14 @@
 // YouTube の中で動く部分 (content/・プレイヤー・ライブチャット) は扱わない (tests/MANUAL.md の手順で手で確かめる)
 const { test, expect, visibleTiles, skipTour } = require('./fixtures');
 
+/** 実験的な機能のアーカイブ同期を ON にする (はじめは OFF。HAKO-50) */
+async function enableSync(page) {
+  await page.evaluate(() => {
+    state.settings.expSync = true;
+    Sync.refresh();
+  });
+}
+
 test.describe('インストール直後', () => {
   test('最初に開いたときだけ使い方ツアーが出る', async ({ openGrid }) => {
     const page = await openGrid();
@@ -174,6 +182,37 @@ test.describe('ツールバー', () => {
     await page.locator('#settingsReset').click();
     await expect.poll(() => page.evaluate(() => window.__removed)).toEqual(['https://www.nijisanji.jp/*']);
     expect(await page.evaluate(() => Addons.isOn('nijisanji'))).toBe(false);
+  });
+});
+
+test.describe('実験的な機能 (HAKO-50)', () => {
+  test('アーカイブ同期ははじめ OFF で、⏱ とヘルプの「同期」が出ない。設定で ON にすると出て、OFF に戻すとまた隠れる', async ({ openGrid }) => {
+    const page = await openGrid();
+    await skipTour(page);
+    await expect(page.locator('#syncToggle')).toBeHidden();
+    expect(await page.evaluate(() => state.settings.expSync)).toBe(false);
+    await page.locator('#openSettings').click();
+    await page.locator('#settings [data-tab="view"]').click();
+    const box = page.locator('#expSync');
+    await expect(box).not.toBeChecked();
+    await box.check();
+    await expect(page.locator('#syncToggle')).toBeVisible();
+    await expect(page.locator('[data-help="sync"]')).toBeAttached();
+    expect(await page.evaluate(() => document.querySelector('[data-help="sync"]').hidden)).toBe(false);
+    await expect.poll(() => page.evaluate(async () => (await chrome.storage.local.get('settings')).settings?.expSync)).toBe(true);
+    await box.uncheck();
+    await expect(page.locator('#syncToggle')).toBeHidden();
+    expect(await page.evaluate(() => document.querySelector('[data-help="sync"]').hidden)).toBe(true);
+  });
+
+  test('OFF のときは、再開・共有コード・⏱ 開いて同期で同期を始めない', async ({ openGrid }) => {
+    const page = await openGrid();
+    await skipTour(page);
+    const started = await page.evaluate(() => {
+      Sync.startWhenReady([0, 1], 0, {});
+      return new Promise((r) => setTimeout(() => r(Sync.isOn()), 200));
+    });
+    expect(started).toBe(false);
   });
 });
 
@@ -518,6 +557,7 @@ test.describe('ライブラリの複数選択', () => {
   test('🤝 でコラボをまとめて選び、☐ で足して、まとめて枠に入れる', async ({ openGrid }) => {
     const page = await openGrid();
     await skipTour(page);
+    await enableSync(page);
     await openHistory(page);
     const collab = page.locator('#favList .fav-collab');
     await expect(collab).toHaveCount(2);
@@ -538,6 +578,7 @@ test.describe('ライブラリの複数選択', () => {
   test('⏱ 開いて同期: 1 本だけのときは出さず、押すと選んだ配信を枠に入れる', async ({ openGrid }) => {
     const page = await openGrid();
     await skipTour(page);
+    await enableSync(page);
     await openHistory(page);
     await page.locator('#favList .fav-item[data-sel="aaaaaaaaaa1"] .fav-title').click({ modifiers: ['Control'] });
     await expect(page.locator('#favSelCount')).toHaveText('1 本を選択中');
@@ -554,6 +595,7 @@ test.describe('ライブラリの複数選択', () => {
   test('⏱ 開いて同期: 時間帯がまだ始まっていない枠があれば、全部が始まる位置まで進める。進められなければ 60 秒で打ち切らず、始まってから ✨ を始める', async ({ openGrid }) => {
     const page = await openGrid();
     await skipTour(page);
+    await enableSync(page);
     await page.clock.install();
     const run = (later, canSeek = false) =>
       page.evaluate(([later, canSeek]) => {

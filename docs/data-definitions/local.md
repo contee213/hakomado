@@ -35,6 +35,7 @@
 | `hlGlow` | number | 0.3 | 枠の線の光の強さ |
 | `hlAnimate` | boolean | false | 枠の線を動かす |
 | `verticalLiveFit` | boolean | true | 縦型の配信と分かったら、枠を縦長 (9:16) に寄せる |
+| `expSync` | boolean | false | 実験的な機能: ⏱ アーカイブ同期 (同期の調整の帯・✨ 自動補正・🎬 同時視聴・⏱ 開いて同期を含む) を使うか。OFF なら同期を始めず、入口も出さない (HAKO-50。前の版には無いので、前の版から上げた人も OFF から) |
 | `chatZoom` | number | 0.9 | チャット欄の拡大率 |
 | `chatWidth` | number | 0.3 | チャット欄の幅 (割合) |
 | `chatHideAvatars` | boolean | false | チャット欄のアイコンを隠す |

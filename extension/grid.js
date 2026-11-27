@@ -55,6 +55,8 @@ const DEFAULT_SETTINGS = {
   feedOtherMin: 15,
   aiCollab: false, // ライブラリの 🤝 コラボの判定に、Chrome の組み込み AI を使う (使える PC だけ。HAKO-25)
   layoutFavs: '', // レイアウト画面の「お気に入り」タブに出すもの (レイアウトの id = 形 + 配置順 をカンマでつないだもの)
+  // 実験的な機能: ⏱ アーカイブ同期 (同期の調整の帯・✨ 自動補正・🎬 同時視聴・⏱ 開いて同期を含む)。当分は試している機能なので、はじめは OFF (HAKO-50)
+  expSync: false,
 };
 
 // このページを開いてから、一度でも枠に出した配信 (見逃したピックアップの配信を、あとで見るに入れるときの判定用)
@@ -369,6 +371,7 @@ function replaceSettings(next) {
   applyChatLook();
   syncSettingsInputs();
   relayoutIfVerticalChanged();
+  Sync.refresh(); // 実験的な機能のアーカイブ同期 (ほかのタブで ON / OFF した)
   if (state.settings.cruiseSec !== cruiseBefore) restartCruise();
   // 自動再生で流すものが (他のタブで) 変わったら、このタブの自動再生もやり直す
   if (autoTargetsKey() !== targetsBefore && state.autoMode) setAutoMode(true);
@@ -3040,8 +3043,11 @@ const Sync = (() => {
   }
 
   /** 同期を始められるか: 'time' = 時間帯の重なるアーカイブがある / 'movie' = 無いが、本編モードならできる / null */
+  /** 実験的な機能のアーカイブ同期が ON か (設定。OFF なら同期を始めず、入口も出さない。HAKO-50) */
+  const enabled = () => !!state.settings.expSync;
+
   function canStart() {
-    if (on) return null;
+    if (on || !enabled()) return null;
     const a = computeAssign(new Map());
     for (const list of a.groups.values()) if (list.length >= 2) return 'time';
     const c = visibleIndexes().filter(candidate);
@@ -3512,6 +3518,17 @@ const Sync = (() => {
   /** ボタン・つまみ・枠の印の表示を今の状態に合わせる (枠の中身が変わったとき・アーカイブだと分かったとき) */
   function refresh() {
     if (views.length < MAX_TILES) return;
+    // 実験的な機能が OFF: 同期の入口 (上部バーの ⏱・☰、ヘルプの「同期」) を隠し、同期していればやめる
+    const ok = enabled();
+    document.getElementById('syncToggle').hidden = !ok;
+    for (const b of document.querySelectorAll('[data-help="sync"]')) b.hidden = !ok;
+    if (!ok) {
+      pending = null;
+      clearTimeout(pendingTimer);
+      if (on) stop();
+      document.getElementById('syncBar').hidden = true;
+      return;
+    }
     if (pending) checkPending();
     for (const i of [...waiting.keys()]) if (!candidate(i)) waiting.delete(i); // 閉じた・別の動画にした枠は待つのをやめる
     if (on) {
@@ -3680,6 +3697,7 @@ const Sync = (() => {
    * timeOnly: 時間帯の重なるアーカイブの組 (🕒) になるときだけ始める (⏱ 開いて同期。重ならなければ本編モードで始めず null)
    */
   function startWhenReady(tiles, ref, { at = null, mode: m = 'time', then = null, timeOnly = false } = {}) {
+    if (!enabled()) return; // 実験的な機能が OFF: 枠はふつうに入れ、同期は始めない (再開・共有コード・再生リスト・⏱ 開いて同期)
     pending = { tiles, ref, until: now() + 30000, at, mode: m, then, timeOnly };
     clearTimeout(pendingTimer);
     pendingTimer = setTimeout(refresh, 30500);
@@ -4105,6 +4123,8 @@ const Sync = (() => {
       const G = on ? groups.get(g) : null;
       if (G && active(G) && !G.init) fillSeek(input, nowEl, endEl, G);
     },
+    /** 実験的な機能のアーカイブ同期が ON か (HAKO-50) */
+    enabled: () => enabled(),
     seekTo(g, R) {
       const G = on ? groups.get(g) : null;
       // グループの時間帯 (つまみの範囲) の外へは動かさない (HAKO-40)
@@ -7572,7 +7592,7 @@ function stepIndex(key, v) {
   return best;
 }
 
-const SETTING_CHECKBOXES = ['showPaid', 'chatHideAvatars', 'hlAnimate', 'verticalLiveFit', 'skipMembersOnly', 'autoLive', 'autoVideos', 'autoShorts', 'autoArchive', 'autoArchiveVideos', 'autoArchiveShorts', 'autoPremiereVideos', 'autoPremiereShorts', 'autoPickupMain', 'openAuto'];
+const SETTING_CHECKBOXES = ['expSync', 'showPaid', 'chatHideAvatars', 'hlAnimate', 'verticalLiveFit', 'skipMembersOnly', 'autoLive', 'autoVideos', 'autoShorts', 'autoArchive', 'autoArchiveVideos', 'autoArchiveShorts', 'autoPremiereVideos', 'autoPremiereShorts', 'autoPickupMain', 'openAuto'];
 const SETTING_SELECTS = ['dmFont', 'dmWeight', 'authorName', 'autoTarget', 'noticeTarget'];
 
 /** 設定画面の入力欄を state.settings に合わせる (他のタブで設定が変わったときも呼ぶ) */
@@ -7817,6 +7837,7 @@ function setupToolbar() {
     if (key === 'cruiseSec') restartCruise();
     if (key === 'feedPickMin' || key === 'feedOtherMin') applyFeedIntervals();
     if (key === 'verticalLiveFit') relayoutIfVerticalChanged();
+    if (key === 'expSync') Sync.refresh(); // 実験的な機能のアーカイブ同期: 出す / 隠す (OFF にしたら同期をやめる)
     if (dmLookKeys.has(key)) applyDanmakuLook();
     // Twitch の枠の弾幕 (プレイヤーの中で描く) にも、変えた設定を送る
     for (let j = 0; j < MAX_TILES; j++) if (isTwitchTile(j)) applyTwitchDanmaku(j);
@@ -9455,7 +9476,7 @@ function updateSelMarks() {
   favListEl.classList.toggle('selecting', favSel.size > 0);
   document.getElementById('favSelBar').hidden = !favSel.size;
   if (!favSel.size) return;
-  document.getElementById('favSelSync').hidden = selArchives() < 2;
+  document.getElementById('favSelSync').hidden = !Sync.enabled() || selArchives() < 2; // 実験的な機能が OFF なら出さない
   const room = selRoom();
   document.getElementById('favSelCount').textContent =
     favSel.size > room ? tr('selCountOver', favSel.size, room) : tr('selCount', favSel.size);
@@ -9696,7 +9717,8 @@ function playlistEditor(pl) {
     'span',
     { class: 'seg pl-mode', role: 'radiogroup' },
     mk('button', { type: 'button', class: pl.sync ? '' : 'selected', textContent: tr('plModeQueue'), title: tr('plModeQueueTitle'), onclick: () => Playlists.setOptions(pl.id, { sync: false }) }),
-    mk('button', { type: 'button', class: pl.sync ? 'selected' : '', textContent: tr('plModeSync'), title: tr('plModeSyncTitle'), onclick: () => switchToSync(pl) }),
+    // 実験的な機能のアーカイブ同期が OFF なら「同期」は出さない (もう同期にしている再生リストは、戻せるように出す)
+    Sync.enabled() || pl.sync ? mk('button', { type: 'button', class: pl.sync ? 'selected' : '', textContent: tr('plModeSync'), title: tr('plModeSyncTitle'), onclick: () => switchToSync(pl) }) : null,
   );
   const opts = mk('div', { class: 'pl-opts' }, mk('span', { class: 'pl-opt-label', textContent: tr('plModeLabel') }), mode);
   if (pl.sync) {

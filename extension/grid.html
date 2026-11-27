@@ -180,6 +180,12 @@
         <label class="check"><input type="checkbox" id="verticalLiveFit"> <span data-i18n="tile.verticalFit">縦型の配信と分かったら、枠を縦長にする</span></label>
         <p class="settings-note" data-i18n="tile.verticalFitNote">読み込んでから枠の大きさが変わります (ショートの枠は、この設定に関係なく初めから縦長)</p>
         </div>
+        <!-- 実験的な機能 (まだ試している機能。はじめは OFF。HAKO-50) -->
+        <div class="settings-col">
+          <span class="field-label" data-i18n="exp.h">実験的な機能</span>
+          <label class="check"><input type="checkbox" id="expSync"> <span data-i18n="exp.sync">⏱ アーカイブ同期</span></label>
+          <p class="settings-note" data-i18n="exp.syncNote">コラボ配信の各視点のアーカイブを、配信していた時刻でそろえて見ます (同期の調整の帯・✨ 自動補正・🎬 同時視聴を含む)。まだ試している機能です。OFF にしても、動画ごとに覚えた補正は消えません</p>
+        </div>
       </section>
 
       <section class="settings-panel" data-panel="auto" role="tabpanel" hidden>
