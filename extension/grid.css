@@ -61,6 +61,8 @@ button:hover, select:hover { border-color: #444450; }
 .brand-logo { width: 22px; height: 22px; flex: none; }
 .spacer { flex: 1 1 0; min-width: 8px; }
 .toolbar button { display: inline-flex; align-items: center; gap: 5px; height: 26px; }
+/* 実験的な機能が OFF のときの ⏱ アーカイブ同期など (hidden を display より優先する) */
+.toolbar button[hidden] { display: none; }
 .toolbar .tb-icon { width: 1em; text-align: center; }
 /* クルーズの船 (SVG)。文字のアイコンと同じ大きさ・色 (ON / OFF の色に従う) */
 /* クルーズの船・自動再生の舵輪・速度のメーターは、同じ大きさの単色の絵 */
@@ -1492,6 +1494,7 @@ dialog.help-dialog { width: min(880px, calc(100% - 32px)); }
 .help-body { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 18px; height: min(540px, calc(100vh - 190px)); }
 .help-nav { display: flex; flex-direction: column; gap: 2px; overflow: auto; padding-right: 10px; border-right: 1px solid var(--line); }
 .help-nav button { border: 0; background: transparent; color: var(--muted); text-align: left; padding: 7px 10px; border-radius: 6px; }
+.help-nav button[hidden] { display: none; }
 .help-nav button:hover { color: var(--text); }
 /* 選んだものは太字にしない (幅が変わるので)。影で少し太く見せる */
 .help-nav button.selected { background: #2a2a31; color: var(--text); text-shadow: 0 0 .6px currentColor, 0 0 .6px currentColor; }
