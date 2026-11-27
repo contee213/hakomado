@@ -4705,6 +4705,30 @@ const Sync = (() => {
     showDock: () => Dock.show(),
     speedGroupOf,
     setGroupSpeed,
+    /** 🎬 🚩 開始位置: 今の再生位置を本編 0:00 にする (パネルの「🚩 開始位置」と同じ) */
+    movieHere(i) {
+      const p = posOf(i);
+      if (p != null) setOffset(i, Math.round(p * 100) / 100);
+    },
+    /** 🎬 ⏲ 画面タイマー: 欄を押した瞬間の位置で読み始める (読む間は同期から外す) */
+    movieTimerStart: (i) => startReading(i),
+    movieTimerCancel: (i) => stopReading(i),
+    /** 🎬 ⏲ 画面タイマー: 画面に出ている本編の時刻 text を入れて決める。読めなければ false */
+    movieTimerCommit(i, text) {
+      const c = parseClock(text);
+      const p = reading.get(i)?.p ?? posOf(i);
+      if (c == null || p == null) {
+        showToast(i, tr('movieBadClock'));
+        return false;
+      }
+      stopReading(i);
+      setOffset(i, Math.round((p - c) * 100) / 100);
+      return true;
+    },
+    /** 🎬 ✕: 本編の位置を消す */
+    movieClear: (i) => setOffset(i, null),
+    /** 🎬 本編の印: on = この枠を本編にする / false = 本編をやめる */
+    setMain: (i, on) => setMain(i, on),
     /** 同期の調整の帯のグループの ✨ 自動補正 (パネルのグループの ✨ と同じ) */
     toggleAudioSync: (g) => AudioSync.toggle(g),
     /** 同期の調整の帯に出す ✨ の箱 ({el, paint} / null) */
@@ -4758,11 +4782,17 @@ const Sync = (() => {
           cand: G && active(G) && !isMovie(G) ? AudioSync.candidateFor(i) : null,
           suspect: G && active(G) && !isMovie(G) ? AudioSync.isSuspect(i) : false,
           youtube: /^[\w-]{11}$/.test(vid),
-          start: arch ? arch.start : null,
+          // 🎬 同時視聴のグループでは、時計の時刻 = 本編の時刻 (0:00 が本編の始まり)。波は「動画の 0 秒 = 本編の −(本編の位置)」に置くので、
+          // 始まりを 0 にして、補正の代わりに本編の位置 (この動画で本編 0:00 に当たる再生位置。決まっていなければ null) を渡す (HAKO-47)
+          start: arch ? (G && isMovie(G) ? 0 : arch.start) : null,
           dur: arch ? arch.dur : null,
           movable: movable(i),
           live: liveTile(i),
           off: G && isMovie(G) ? anchor(i) : off(i),
+          // 🎬: 本編の枠か (main)・手で本編にしたか (mainMarked)・この動画の今の再生位置 (秒)
+          main: !!G && isMovie(G) && mainOf(membersOf(G.g)) === i,
+          mainMarked: MovieAnchors.isMain(vid),
+          pos: G && isMovie(G) ? posOf(i) : null,
           drift: waiting.has(i) ? 'wait' : drift.get(i) || 'none',
           waiting: waiting.has(i),
           paused: !!waiting.get(i)?.paused,
