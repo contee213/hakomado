@@ -1443,6 +1443,7 @@ dialog.settings-dialog { width: min(780px, calc(100% - 32px)); overflow: hidden;
 }
 .settings-panel[hidden] { display: grid; visibility: hidden; }
 .settings-col { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.settings-col[hidden] { display: none; }
 .preset-buttons { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
 /* チャンネルパック */
 .pack-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
@@ -1869,6 +1870,8 @@ dialog.info-dialog::backdrop { background: rgba(0, 0, 0, .15); }
 .info-n { text-align: right; }
 .info-sync { color: var(--muted); white-space: nowrap; }
 .info-sync.ok { color: var(--text); }
+/* アーカイブ同期が使えない (実験的な機能が OFF・リリース版で同期のコードが無い) ときは、列ごと隠す (HAKO-51) */
+body.sync-off .info-sync, body.sync-off .info-table th[data-i18n="info.colSync"] { display: none; }
 .info-note { margin: 0; padding: 8px 14px 12px; color: var(--muted); font-size: 11px; }
 
 /* ℹ 枠の情報の「操作」の列: 音の左右 (L / C / R)・📌・🔖・📃・チャンネル登録・高評価 */

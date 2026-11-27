@@ -22,6 +22,8 @@ Chrome ウェブストアのデベロッパー ダッシュボードに入れる
 - ストア版の ID: `bhmbchggpdficakjfllkmfkpbdpddomp` (ストアが決めたもの。掲載ページの URL もこの ID になる)
 - ストアに上げるパッケージには `"key"` を入れない (ストアが自分の鍵で ID を決める)。リリースの workflow が、`"key"` を差し込む前に
   `hakomado-x.y.z-chrome-web-store.zip` を作ってリリースに添える
+- ストア版・リリースの ZIP は、どちらもリリース版のビルド (`node tools/build.js`) から作る。⏱ アーカイブ同期 (実験的な機能) のコードは入れない
+  (HAKO-51。同期入りは `node tools/build.js --experimental` か `extension/` をそのまま読み込んだときだけ)
 - **ストア版と ZIP 版は別の ID のままにする**。ZIP 版の ID をストアの鍵に入れ替えると、ZIP 版を使っている人の ID がまた変わり、
   設定やチャンネルが引き継がれなくなるため。両方を同じプロファイルに入れると別の拡張機能として 2 つ動く
   (右クリックのメニューも 2 つ出る) ので、乗り換える人には「⚙ 設定 →『バックアップ』で書き出し → ストア版で読み込み → ZIP 版を削除」を案内する
@@ -51,7 +53,7 @@ Chrome ウェブストアのデベロッパー ダッシュボードに入れる
 GitHub のリリースが先に出て、ストアは同じ版を後から追いかける (ストア版は少し古いことがある) 前提で開発する。
 
 - **版の番号は 1 本**: ストア用に別の番号や別の中身を作らない。同じ番号なら GitHub 版もストア版も中身は同じ
-  (違いはリリースの workflow が入れる `"key"` の有無だけ)。ストアには必ずリリースの `-chrome-web-store.zip` をそのまま上げる
+  (違いはリリースの workflow が入れる `"key"` の有無だけ。どちらも `extension/` から同期のコードを抜いたもの)。ストアには必ずリリースの `-chrome-web-store.zip` をそのまま上げる
 - **ストアに出さない版があってよい**: 審査中に GitHub で次の版が出たら、審査が通るのを待つか、審査中の版を取り下げて新しい版を出し直す。
   間の版は飛ばしてかまわない。ただし YouTube 側の変更で動かなくなったのを直した版は、なるべく早くストアにも出す
 - **権限を変える版はまとめる**: 権限・ホスト権限を増やすと審査が長くなりやすく、ストア版の利用者には更新のときに拡張機能が止まって
@@ -90,13 +92,12 @@ YouTube・Twitch の配信・動画を 1 つの画面に最大 16 枠並べて�
 ・弾幕 / チャット欄: 各枠のライブチャットを画面に流したり、横に出して書き込んだりできます
 ・チャンネル: 追加したチャンネルの配信中・予定と、最近終わった配信を一覧で表示
 ・自動再生: 配信中のチャンネルを自動で並べ、始まった / 終わった配信に合わせて枠を増減
-・アーカイブ同期: コラボ配信の各視点のアーカイブを、配信していた実際の時刻でそろえて再生
 ・音の左右と音量: 枠ごとに音を左 / 右から聞こえるようにしたり、音量を変えたりできます (2 視点の聞き分けに)
 ・再生リスト / 視聴履歴 / あとで見る / 配信開始の通知
 ・共有: 今の枠や再生リストを、画像・リンク・テキストにして人に渡せます
 ・スクリーンショット: Alt+Shift+S で枠の並び全体を PNG で保存 (クリップボードにもコピー)
 ・右クリックで追加: YouTube・Twitch のリンクを右クリック →「Hakomado の空き枠に追加」
-・Twitch: チャンネル・VOD も枠に入れられます。チャンネルの登録・配信中の検知・自動再生・アーカイブ同期・速度・音の左右・弾幕・共有まで、YouTube の枠とほぼ同じように使えます (twitch.tv へのアクセスは、初めて使うときに許可を求めます)
+・Twitch: チャンネル・VOD も枠に入れられます。チャンネルの登録・配信中の検知・自動再生・速度・音の左右・弾幕・共有まで、YouTube の枠とほぼ同じように使えます (twitch.tv へのアクセスは、初めて使うときに許可を求めます)
 
 ■ 使い方
 1. ツールバーの Hakomado のアイコンを押すと、マルチビュー画面が開きます
@@ -109,7 +110,7 @@ YouTube・Twitch の配信・動画を 1 つの画面に最大 16 枠並べて�
 開発者は利用者の情報を一切集めません (アクセス解析・広告もありません)。設定・チャンネル・視聴履歴などは、すべてお使いのブラウザの中にだけ保存されます。
 
 ■ 権限について
-「www.youtube.com のデータの読み取りと変更」は、YouTube のプレイヤーとライブチャットをマルチビュー画面の枠の中に表示し、再生・音量・同期を操作するためと、配信の一覧を取得するために使います。マルチビュー画面を開いているタブの中でだけ働きます。
+「www.youtube.com のデータの読み取りと変更」は、YouTube のプレイヤーとライブチャットをマルチビュー画面の枠の中に表示し、再生・音量を操作するためと、配信の一覧を取得するために使います。マルチビュー画面を開いているタブの中でだけ働きます。
 「schedule.hololive.tv のデータの読み取りと変更」は、初期データのチャンネルの配信予定をまとめて取得するために使います (設定の「アドオン」で OFF にすると取得しません)。
 「www.nijisanji.jp のデータの読み取りと変更」は、設定の「アドオン」で「にじさんじ」を ON にしたときだけ求めます。にじさんじ公式サイトのライブスケジュールを取得するために使います (初期値は OFF)。
 「www.vspo-schedule.com のデータの読み取りと変更」は、設定の「アドオン」で「ぶいすぽっ!」を ON にしたときだけ求めます。ぶいすぽっ!の配信スケジュール (有志による非公式のサイト) を取得するために使います (初期値は OFF)。
@@ -137,13 +138,12 @@ FEATURES
 • Danmaku / chat panel: scroll each tile's live chat across the video, or open the chat beside it and post
 • Channels: see live, upcoming and recently finished streams from the channels you add
 • Auto play: automatically fills tiles with live channels and adds or removes tiles as streams start and end
-• Archive sync: play the archives of a collab's different points of view aligned to the real time they were streamed
 • Per-tile audio: pan each tile's sound left or right and change its volume (handy for telling two voices apart)
 • Playlists, watch history, Watch later and go-live notifications
 • Sharing: turn your current tiles or a playlist into an image, a link or text
 • Screenshots: press Alt+Shift+S to save all the tiles as a PNG (also copied to the clipboard)
 • Right-click to add: right-click a YouTube or Twitch link and choose "Add to an empty Hakomado tile"
-• Twitch: Twitch channels and VODs can go in tiles too. Adding channels, live detection, auto play, archive sync, speed, left/right audio, danmaku and sharing work much like YouTube tiles (access to twitch.tv is requested the first time you use it)
+• Twitch: Twitch channels and VODs can go in tiles too. Adding channels, live detection, auto play, speed, left/right audio, danmaku and sharing work much like YouTube tiles (access to twitch.tv is requested the first time you use it)
 
 HOW TO USE
 1. Click the Hakomado icon in the toolbar to open the multiview screen
@@ -156,7 +156,7 @@ PRIVACY
 The developer collects no information about you (no analytics, no ads). Your settings, channels, watch history and so on are stored only in your own browser.
 
 PERMISSIONS
-"Read and change your data on www.youtube.com" is used to show the YouTube player and live chat inside the tiles of the multiview screen, to control playback, volume and sync, and to load stream lists. It only takes effect in tabs where the multiview screen is open.
+"Read and change your data on www.youtube.com" is used to show the YouTube player and live chat inside the tiles of the multiview screen, to control playback and volume, and to load stream lists. It only takes effect in tabs where the multiview screen is open.
 "Read and change your data on schedule.hololive.tv" is used to load the stream schedule of the bundled channels in one request (not loaded when turned off under Settings > Add-ons).
 "Read and change your data on www.nijisanji.jp" is only requested when you turn on the NIJISANJI add-on under Settings > Add-ons. It is used to load the live schedule from the NIJISANJI website (off by default).
 "Read and change your data on www.vspo-schedule.com" is only requested when you turn on the VSPO! add-on under Settings > Add-ons. It is used to load the VSPO! stream schedule from that unofficial fan site (off by default).
@@ -241,10 +241,10 @@ YouTube の複数の配信・動画を 1 つの画面に並べて同時に視聴
 
 | 権限 | 理由 |
 | --- | --- |
-| `storage` | 枠の並び・レイアウト・チャンネル一覧・視聴履歴・再生リスト・設定を `chrome.storage.local` に保存する。マルチビュー画面を開いているタブの一覧を `chrome.storage.session` に一時保存する。登録チャンネルの配信状況を調べるために YouTube・Twitch から読んだもの (チャンネルごとの新しい配信・動画の ID と題名・日時、配信の実際の開始・終了は拡張機能の IndexedDB に、動画ごとの配信の状態と制限 (429) を受けたときの待ち時間は `chrome.storage.local` に) を覚え、ブラウザを開き直したときに同じものを取り直さないようにする (一覧から外したチャンネルの分・3 日より前の分は消す。配信の時刻は 8 日で消す)。ライブラリの 🤝 (コラボの判定) の判定の記録も、当たっているかを確かめるために IndexedDB に 8 日まで覚える。同期の調整の「〰 波形」のために、動画ごとの音の大きさ (0.1 秒ごとの数字だけ。音そのものは残さない) を IndexedDB に 100 本まで覚える。この拡張機能のエラーの記録 (新しい順に最大 100 件・7 日で消える。「? 使い方」→「不具合の報告」で見る) を `chrome.storage.local` に保存する。外部のサーバーには送らない |
+| `storage` | 枠の並び・レイアウト・チャンネル一覧・視聴履歴・再生リスト・設定を `chrome.storage.local` に保存する。マルチビュー画面を開いているタブの一覧を `chrome.storage.session` に一時保存する。登録チャンネルの配信状況を調べるために YouTube・Twitch から読んだもの (チャンネルごとの新しい配信・動画の ID と題名・日時、配信の実際の開始・終了は拡張機能の IndexedDB に、動画ごとの配信の状態と制限 (429) を受けたときの待ち時間は `chrome.storage.local` に) を覚え、ブラウザを開き直したときに同じものを取り直さないようにする (一覧から外したチャンネルの分・3 日より前の分は消す。配信の時刻は 8 日で消す)。ライブラリの 🤝 (コラボの判定) の判定の記録も、当たっているかを確かめるために IndexedDB に 8 日まで覚える。(同期入りの版だけ。ストア版・リリースの ZIP には無い。HAKO-51) 同期の調整の「〰 波形」のために、動画ごとの音の大きさ (0.1 秒ごとの数字だけ。音そのものは残さない) を IndexedDB に 100 本まで覚える。この拡張機能のエラーの記録 (新しい順に最大 100 件・7 日で消える。「? 使い方」→「不具合の報告」で見る) を `chrome.storage.local` に保存する。外部のサーバーには送らない |
 | `declarativeNetRequestWithHostAccess` | (1) マルチビュー画面のタブの中だけで、`www.youtube.com/watch` と `www.youtube.com/live_chat` の iframe 応答から `X-Frame-Options` ヘッダーを外し、拡張機能のページに YouTube のプレイヤーとチャットを埋め込めるようにする (セッションルール。`tabIds` で対象タブを限定し、CSP など他のヘッダーは触らない)。(2) `hakomado=` 付きの `https://www.youtube.com/watch_videos?…` (再生リストの共有リンク) だけを拡張機能内の取り込み画面へ転送する (動的ルール)。(3) URL の枠: 利用者が許可したサイト (下の任意のホスト権限) の iframe 応答から `X-Frame-Options` を外す。`Content-Security-Policy` は、中身が埋め込み先の指定 (`frame-ancestors`) と報告先などだけで、XSS 対策の指定 (`default-src`・`script-src` などの `*-src`、`base-uri`、`sandbox`、`trusted-types` など) を 1 つも含まないときに限って外す (Chrome がルールの条件 `responseHeaders` / `excludedResponseHeaders` で応答ごとに判定する。XSS 対策の入った CSP はそのままなので、そのようなサイトで埋め込みを禁じているものは入らない)。(1) と同じくマルチビュー画面のタブだけのセッションルール。(4) twitch.tv の任意の権限を許可したときだけ、同じくマルチビュー画面のタブの中だけで、Twitch の公式の埋め込みプレイヤー (`https://player.twitch.tv/`) とチャット (`https://www.twitch.tv/embed/`) の iframe 応答から `Content-Security-Policy` (中身は埋め込み先を https のサイトに限る `frame-ancestors` だけ) と `X-Frame-Options` を外す (セッションルール。拡張機能のページは https でないため) |
 | `contextMenus` | 右クリックのメニュー「Hakomado の空き枠に追加」を出す。YouTube の動画・配信へのリンク (`targetUrlPatterns` で watch / live / shorts / youtu.be に限定) と、YouTube の視聴ページ (`documentUrlPatterns`)、Twitch へのリンクと Twitch のページでだけ表示する (Twitch は URL の形だけではチャンネル・VOD とほかのページを見分けられないので、Twitch のページ全部に出し、チャンネル・VOD でなければ押しても何もしない)。押したときにリンクの URL から動画 ID (Twitch はチャンネル名・VOD の番号) を取り出し、開いているマルチビュー画面に渡す (画面が無ければ新しいタブで開く)。`tabs` 権限は使わず、タブの URL・タイトルは読まない |
-| ホスト権限 `https://www.youtube.com/*` | 上の declarativeNetRequest ルールの適用先。視聴ページ / ライブチャットに content script を入れて、プレイヤーの操作・弾幕用のチャット取得・同期再生を行う。ログイン中のアカウントで配信中 / 予定 / アーカイブの一覧、動画・再生リストの情報を取得する (メンバー限定配信も見られるようにするため Cookie 付き)。利用者がチャンネルの管理の画面の「登録チャンネルから選ぶ」を押したときだけ、登録チャンネルの管理ページ (`/feed/channels`) を Cookie 付きで読み、選んだチャンネルだけをチャンネル一覧 (`chrome.storage.local`) に足す。アドオン「YouTube の登録チャンネル」(`addons/youtube-subs.js`。初期値は ON) は、そうして足したチャンネルが一覧にあるときだけ、登録チャンネルのフィード (`/feed/subscriptions`) を Cookie 付きで 2 分に 1 回まで読み、配信中・配信予定をまとめて知ることで、チャンネルごとの RSS の取得回数を減らす (読んだフィードは配信の ID・チャンネル ID・開始予定だけを残し、外部へは送らない) |
+| ホスト権限 `https://www.youtube.com/*` | 上の declarativeNetRequest ルールの適用先。視聴ページ / ライブチャットに content script を入れて、プレイヤーの操作・弾幕用のチャット取得を行う。ログイン中のアカウントで配信中 / 予定 / アーカイブの一覧、動画・再生リストの情報を取得する (メンバー限定配信も見られるようにするため Cookie 付き)。利用者がチャンネルの管理の画面の「登録チャンネルから選ぶ」を押したときだけ、登録チャンネルの管理ページ (`/feed/channels`) を Cookie 付きで読み、選んだチャンネルだけをチャンネル一覧 (`chrome.storage.local`) に足す。アドオン「YouTube の登録チャンネル」(`addons/youtube-subs.js`。初期値は ON) は、そうして足したチャンネルが一覧にあるときだけ、登録チャンネルのフィード (`/feed/subscriptions`) を Cookie 付きで 2 分に 1 回まで読み、配信中・配信予定をまとめて知ることで、チャンネルごとの RSS の取得回数を減らす (読んだフィードは配信の ID・チャンネル ID・開始予定だけを残し、外部へは送らない) |
 | ホスト権限 `https://schedule.hololive.tv/*` | 初期データのホロライブのチャンネルについて、配信予定 (ホロジュール) をまとめて 1 回で取得し、YouTube への問い合わせ回数を減らす。アドオン `addons/holodule.js` が使う (設定 → アドオンで OFF にすると取得しない。初期値は ON なので、インストール時から使えるよう必須の権限のままにしている) |
 | `activeTab` | 利用者がマルチビュー画面のタブで、この拡張機能のショートカットキー (既定 Alt+Shift+S。`commands` で登録し、chrome://extensions/shortcuts で変えられる) を押したときだけ、そのタブの表示中の画面を `chrome.tabs.captureVisibleTab` で撮る (マルチビュー画面のスクリーンショット)。撮った画像は枠の並びに切り抜いて、利用者のパソコンに PNG で保存し、クリップボードに入れるだけで、外部へは送らない。ほかのタブ (YouTube など) では何もしない |
 | `scripting` | 共有画面の「𝕏 に投稿」を押したときだけ、そのボタンが開いた X の投稿画面のタブ 1 つにスクリプトを入れ、投稿欄の画像の入力欄に共有画像を入れる (人が画像を選んだのと同じ)。投稿ボタンは押さない。ほかのタブ・ページには入れない。また、URL の枠のために、利用者が許可したサイトにだけ `content/web-player.js` を `chrome.scripting.registerContentScripts` で登録する (下の content scripts の表) |
@@ -262,7 +262,7 @@ YouTube の複数の配信・動画を 1 つの画面に並べて同時に視聴
 | --- | --- | --- |
 | `https://www.youtube.com/live_chat*` (全フレーム) | `errlog.js`, `content/chat.js` | チャットのメッセージを読み取り、弾幕として親ページに渡す。マルチビュー画面の枠の中でだけ、この拡張機能のスクリプトで起きたエラーを記録する (`errlog.js`。YouTube 自身のエラーは記録しない) |
 | `https://www.youtube.com/watch*` (全フレーム) | `errlog.js`, `content/mix.js`, `content/watch.js`, `content/watch.css` | 枠の中のプレイヤーの見た目を整え、再生状態をマルチビュー画面とやり取りする。利用者が枠の音の左右・音量を変えたときだけ、その枠の中で Web Audio (StereoPanner・Gain) に通す (音声はブラウザの中で処理するだけで、録音・送信はしない)。✨ 自動補正と「〰 波形」では、音の大きさ (数字) だけを測ってマルチビュー画面に渡す。枠の中でだけ、この拡張機能のスクリプトで起きたエラーを記録する (`errlog.js`) |
-| `https://www.youtube.com/watch*` (全フレーム, MAIN world) | `content/watch-main.js` | ページ側のプレイヤー API (再生位置・音量など) を呼ぶ。「ℹ️ 枠の情報」・アーカイブ同期・ストレッチ表示で縦長の映像を切らずに収めるために、すでに読み込まれているページの情報 (配信か動画か・配信の時刻・公開日・視聴者数・再生数・映像が縦長か) を読み、マルチビュー画面に渡す (新しい通信はしない) |
+| `https://www.youtube.com/watch*` (全フレーム, MAIN world) | `content/watch-main.js` | ページ側のプレイヤー API (再生位置・音量など) を呼ぶ。「ℹ️ 枠の情報」・ストレッチ表示で縦長の映像を切らずに収めるために、すでに読み込まれているページの情報 (配信か動画か・配信の時刻・公開日・視聴者数・再生数・映像が縦長か) を読み、マルチビュー画面に渡す (新しい通信はしない) |
 | `https://www.youtube.com/hakomado_import*` | `content/import.js` | 取り込み用リンクから転送されたときに、マルチビュー画面の「📥 読み込む」へ切り替える |
 | `https://player.twitch.tv/*` (全フレーム。twitch.tv の任意の権限を許可している間だけ、manifest には書かず `chrome.scripting.registerContentScripts` で登録) | `errlog.js`, `content/mix.js`, `danmaku.js`, `content/twitch-player.js`, `danmaku.css` | Twitch の公式の埋め込みプレイヤーの動画要素の速度を変え、利用者が枠の音の左右・音量・遅延を変えたときだけ Web Audio に通し、VOD の再生位置・状態をマルチビュー画面に渡す。弾幕が ON のチャンネルのライブでは、チャット欄から届いたコメントをプレイヤーの中に流す (プレイヤーの上に重ねると Twitch が再生を止めるため) (音声はブラウザの中で処理するだけで、録音・送信はしない)。マルチビュー画面の枠に直接入ったとき (`location.ancestorOrigins`) だけ動き、twitch.tv を普通に開いたとき・ほかのサイトの埋め込みでは何もしない |
 | `https://www.twitch.tv/embed/*` (全フレーム。登録の条件は上と同じ) | `errlog.js`, `content/twitch-chat.js` | Twitch の公式の埋め込みチャット欄に新しく出たコメントの文字・絵文字 (画像の URL)・投稿者名を読み、弾幕にするためマルチビュー画面に渡す。チャット欄のページ (`/embed/<チャンネル>/chat`) で、マルチビュー画面の枠に直接入ったときだけ動く。読んだものは保存も送信もしない |
@@ -276,7 +276,7 @@ YouTube の複数の配信・動画を 1 つの画面に並べて同時に視聴
 
 | 宛先 | 内容 |
 | --- | --- |
-| `www.youtube.com` / `i.ytimg.com` / `yt3.googleusercontent.com` / `yt3.ggpht.com` | 配信・動画の情報とサムネイル (上記)、チャンネルのアイコン (画像の読み込みだけ)。「登録チャンネルから選ぶ」を押したときだけ、登録チャンネルの一覧 (`/feed/channels`。数 MB) を 1 回取得する。アドオン「YouTube の登録チャンネル」が ON で、登録チャンネルから足したチャンネルがあるときは、登録チャンネルのフィード (`/feed/subscriptions`。約 3 MB) を 2 分に 1 回まで取得する (タブが複数あっても 1 回)。同期の調整の「〰 波形」を出している間だけ、枠に入っている YouTube のアーカイブの視聴ページを、画面の外の iframe で音を出さずに 16 倍速・一番低い画質で再生し、音の大きさを測る (同時に 8 本まで。中の通信は YouTube のページが行う。閉じると止める。拡張機能からは何も送らない) |
+| `www.youtube.com` / `i.ytimg.com` / `yt3.googleusercontent.com` / `yt3.ggpht.com` | 配信・動画の情報とサムネイル (上記)、チャンネルのアイコン (画像の読み込みだけ)。「登録チャンネルから選ぶ」を押したときだけ、登録チャンネルの一覧 (`/feed/channels`。数 MB) を 1 回取得する。アドオン「YouTube の登録チャンネル」が ON で、登録チャンネルから足したチャンネルがあるときは、登録チャンネルのフィード (`/feed/subscriptions`。約 3 MB) を 2 分に 1 回まで取得する (タブが複数あっても 1 回)。(同期入りの版だけ。ストア版・リリースの ZIP には無い。HAKO-51) 同期の調整の「〰 波形」を出している間だけ、枠に入っている YouTube のアーカイブの視聴ページを、画面の外の iframe で音を出さずに 16 倍速・一番低い画質で再生し、音の大きさを測る (同時に 8 本まで。中の通信は YouTube のページが行う。閉じると止める。拡張機能からは何も送らない) |
 | `schedule.hololive.tv` | ホロライブの配信予定 (アドオン「ホロジュール」が ON のときだけ。初期値は ON)。Cookie は送らない |
 | `www.nijisanji.jp` | にじさんじのライブスケジュール (アドオン「にじさんじ」が ON のときだけ。初期値は OFF)。配信中・今日・明日の分を、マルチビュー画面を開いている間 1 分に 1 回まで取得する (タブが複数あっても 1 回)。Cookie は送らない |
 | `www.vspo-schedule.com` | ぶいすぽっ!の配信スケジュール (アドオン「ぶいすぽっ!」が ON のときだけ。初期値は OFF。有志による非公式のサイト)。配信中・これからの枠の 2 ページを、マルチビュー画面を開いている間 1 分に 1 回まで取得する (タブが複数あっても 1 回)。Cookie は送らない |
@@ -330,7 +330,7 @@ Lets the user watch several YouTube streams and videos side by side on one scree
 | `storage` | Saves the user's tile arrangement, layout, channel list, watch history, playlists and settings locally. Keeps the list of tabs showing the multiview screen for the current browser session. Caches what it read from YouTube and Twitch to check the user's channels' stream status (recent stream and video IDs, titles and dates per channel, each video's live/upcoming/ended state and actual start/end times, and the back-off time after a rate limit) locally (chrome.storage.local and the extension's IndexedDB), so reopening the browser does not fetch the same data again; entries for removed channels and older than 3 days are deleted (stream times after 8 days). Also keeps a local record of how the library's 🤝 (collab) grouping judged each pair for 8 days, to check its accuracy. Keeps a local record of errors raised by the extension's own scripts (up to 100 entries, deleted after 7 days), shown in "Report a problem". Nothing is sent to any server. |
 | `declarativeNetRequestWithHostAccess` | (1) YouTube watch and live chat pages send X-Frame-Options, which blocks them from appearing in the extension's multiview page. A session rule removes only that header, only from www.youtube.com/watch and www.youtube.com/live_chat sub-frame responses, and only in tabs where the multiview screen is open (limited by tabIds). No other headers are changed. (2) A dynamic rule redirects only shared playlist links (https://www.youtube.com/watch_videos?... with a "hakomado=" parameter) to the extension's import screen. (3) URL tiles: for sites the user has allowed (optional host permission below), the same kind of session rule removes X-Frame-Options from sub-frame responses, only in multiview tabs. Content-Security-Policy is removed only when it contains nothing but frame-ancestors (and reporting directives): a rule condition (responseHeaders / excludedResponseHeaders) skips any CSP containing protective directives such as *-src, base-uri, sandbox or trusted-types, so a site's XSS protection is never removed and such sites stay unembeddable. (4) Only after the user grants the optional twitch.tv permission: the official Twitch embedded player (https://player.twitch.tv/) and chat (https://www.twitch.tv/embed/) send a Content-Security-Policy containing only frame-ancestors, which limits embedding to https sites. The extension page is not https, so a session rule removes that header and X-Frame-Options from those sub-frame responses, only in tabs where the multiview screen is open (limited by tabIds). |
 | `contextMenus` | Adds "Add to an empty Hakomado tile" to the right-click menu, shown only on links to YouTube videos/streams, on YouTube watch pages, and on Twitch links and pages (URL patterns cannot tell Twitch channels and VODs from other Twitch pages, so it is shown on all of them and does nothing unless the target is a channel or VOD). It takes the video ID (or the Twitch channel name / VOD number) from the clicked link and passes it to the open multiview screen. The extension does not use the tabs permission and does not read tab URLs or titles. |
-| `https://www.youtube.com/*` | Target of the rules above. Content scripts in the embedded watch and live chat frames control playback, volume, audio panning and archive sync, and read chat messages to show them as scrolling comments. Loads live / upcoming / archived stream lists and video and playlist details with the user's signed-in session, so members-only streams the user can access also work. Only when the user presses "Choose from subscriptions" in the Manage channels screen, reads the user's subscriptions page (`/feed/channels`) with the signed-in session and adds just the channels the user picks to the local channel list. When such channels exist, the "YouTube subscriptions" add-on (on by default) reads the user's subscriptions feed (`/feed/subscriptions`) at most every 2 minutes to learn live and upcoming streams at once, so it fetches far fewer per-channel RSS feeds. Only video IDs, channel IDs and start times are kept locally; nothing is sent elsewhere. |
+| `https://www.youtube.com/*` | Target of the rules above. Content scripts in the embedded watch and live chat frames control playback, volume and audio panning, and read chat messages to show them as scrolling comments. Loads live / upcoming / archived stream lists and video and playlist details with the user's signed-in session, so members-only streams the user can access also work. Only when the user presses "Choose from subscriptions" in the Manage channels screen, reads the user's subscriptions page (`/feed/channels`) with the signed-in session and adds just the channels the user picks to the local channel list. When such channels exist, the "YouTube subscriptions" add-on (on by default) reads the user's subscriptions feed (`/feed/subscriptions`) at most every 2 minutes to learn live and upcoming streams at once, so it fetches far fewer per-channel RSS feeds. Only video IDs, channel IDs and start times are kept locally; nothing is sent elsewhere. |
 | `https://schedule.hololive.tv/*` | Loads the stream schedule for the bundled default channels in a single request, which reduces the number of requests made to YouTube. Used by the Holodule add-on, which is on by default and can be turned off under Settings > Add-ons (nothing is loaded from this site while it is off). |
 | `activeTab` | Only when the user presses the extension's keyboard shortcut (Alt+Shift+S by default, registered with `commands` and changeable at chrome://extensions/shortcuts) on the extension's own multiview tab: captures that tab with chrome.tabs.captureVisibleTab to take a screenshot of the tiles. The image is cropped to the tiles, saved as a PNG on the user's computer and copied to the clipboard; it is never sent anywhere. Nothing happens on other tabs (such as YouTube pages). |
 | `scripting` | Only when the user presses "𝕏 Post" on the share screen: injects a script into the single X post tab that button just opened, and puts the share image into the post box's image input (the same as choosing the image by hand). It never presses Post and is not injected into any other tab or page. Also, for URL tiles, registers `web-site.js` and `content/web-player.js` with chrome.scripting.registerContentScripts only for sites the user has allowed. That script controls the page's main video and, inside the multiview tile only, zooms the page with CSS (transform and clip-path) so that the video area fills the tile, keeping the site's own controls and subtitles over the video; it does not read or send page content. |

@@ -98,6 +98,7 @@
 | 視聴セット (コード・取り込み用リンク・QR 付きの画像) | 📥 受け渡しの「共有」 | 📥「読み込む」、取り込み用リンク (`watch_videos?…&hakomado=`) | 枠の動画・レイアウト・枠の名前・同期のずれ・本編の位置・Twitch の枠 (コードの最後の `~t <枠の番号>=<名前>`・`v:<数字>`、リンクの `hkt=`。以前の版は無視して YouTube の分だけ読む) | 枠に並べる (今の枠を置き換える。Twitch の枠があれば twitch.tv の許可を聞く)。保存を選ぶと再生リストになる (Twitch のライブは入らない) |
 | 再生リスト | 📚 再生リストの「🔗 共有」(画像・リンク・テキスト) | 📥 読み込む | 再生リストの動画 | 再生リストとして足す |
 | スクリーンショット (PNG) | Alt+Shift+S | − | 枠の並び全体の画像 | ダウンロードとクリップボード。外へは送らない |
+| 配る用のパッケージ (リリース版のビルド) | `node tools/build.js` (→ `dist/hakomado/`)。リリースの workflow がこれを ZIP にする (ストア用と ID 固定の 2 つ) | − | `extension/` から ⏱ アーカイブ同期 (実験的な機能) のコード (`sync.js`・`sync-groups.js`・`audio-align.js`・`audio-align-worker.js`・`waves.js`・`wave-strip.js`) を抜き、何もしない `sync-off.js` に差し替えたもの。補正を覚える `sync-offsets.js`・`movie-anchors.js` と、音の経路の `content/mix.js` は残す。`--experimental` なら同期入り (→ `dist/hakomado-experimental/`) | リリース版では保存の `expSync` が true でも同期は出ず、動かない。覚えた補正・本編の位置・波形 (IndexedDB) は消さない (HAKO-51) |
 | エラーの記録 | 不具合の報告の「コピー」「GitHub で報告」 | − | エラーの記録と環境 (版・ブラウザ・OS) | GitHub の Issue 作成画面を開くだけ。送るかは使う人が決める |
 
 ## 4. 外との通信 (要点)

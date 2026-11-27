@@ -190,6 +190,7 @@ test.describe('実験的な機能 (HAKO-50)', () => {
     const page = await openGrid();
     await skipTour(page);
     await expect(page.locator('#syncToggle')).toBeHidden();
+    await expect(page.locator('body')).toHaveClass(/sync-off/); // 枠の情報の「アーカイブ同期」の列も隠す (HAKO-51)
     expect(await page.evaluate(() => state.settings.expSync)).toBe(false);
     await page.locator('#openSettings').click();
     await page.locator('#settings [data-tab="view"]').click();
@@ -197,6 +198,7 @@ test.describe('実験的な機能 (HAKO-50)', () => {
     await expect(box).not.toBeChecked();
     await box.check();
     await expect(page.locator('#syncToggle')).toBeVisible();
+    await expect(page.locator('body')).not.toHaveClass(/sync-off/);
     await expect(page.locator('[data-help="sync"]')).toBeAttached();
     expect(await page.evaluate(() => document.querySelector('[data-help="sync"]').hidden)).toBe(false);
     await expect.poll(() => page.evaluate(async () => (await chrome.storage.local.get('settings')).settings?.expSync)).toBe(true);

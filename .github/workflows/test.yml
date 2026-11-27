@@ -1,7 +1,7 @@
 # push と PR のたびに自動テストを回す
 # - test: 単体テスト (tests/)。依存パッケージは無いので npm install は要らない
 # - e2e: extension/ を読み込んだ Chromium で、マルチビュー画面と service worker を動かして確かめる (e2e/)
-#   拡張機能まわり (extension/, e2e/, Playwright の設定, package*.json, このファイル) が変わったときだけ回す。
+#   拡張機能まわり (extension/, e2e/, リリース版のビルド tools/build.js, Playwright の設定, package*.json, このファイル) が変わったときだけ回す。
 #   web/ や README だけの変更ではジョブごと飛ばす (飛ばしたジョブは成功扱いなので、必須チェックにしても PR は止まらない)
 name: Test
 
@@ -38,6 +38,7 @@ jobs:
             extension:
               - 'extension/**'
               - 'e2e/**'
+              - 'tools/build.js'
               - 'playwright.config.*'
               - 'package.json'
               - 'package-lock.json'

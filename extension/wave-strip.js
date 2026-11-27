@@ -12,7 +12,7 @@
 //   音の大きさを記録する (content/mix.js。✨ と同じ仕組み)。枠はそのまま見られる
 // - 測るのは、グループの全部の枠の配信が始まっている時刻の頭から、そのグループのプレイヤーが同じ時刻を一緒に進む (進みすぎたものは止めて待つ)。
 //   一緒の区間が終わったら、残り (先に始めた人の冒頭など) をそれぞれ取る。取ってある区間は飛ばし、通り過ぎた抜けも取り直す
-// - 波形は Waves (waves.js) が動画ごとに持ち、IndexedDB に残す。grid.js の Sync・views・state・mk・tr などを使うのは
+// - 波形は Waves (waves.js) が動画ごとに持ち、IndexedDB に残す。sync.js の Sync と grid.js の views・state・mk・tr などを使うのは
 //   操作されてから (読み込みの時点では使わない) なので、grid.js より前に読み込んでよい
 /* exported WaveStrip */
 'use strict';
