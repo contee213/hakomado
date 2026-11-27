@@ -641,6 +641,10 @@ const MESSAGES = {
     '⏱ 同期を始めました。まだ始まっていない配信があるので、全部の枠が再生を始めてから ✨ 自動補正を始めます',
     'Sync is on. Some streams haven’t started yet, so ✨ auto-correct will start once every tile is playing',
   ],
+  selSyncSeekLater: [
+    '⏱ 同期を始めました。まだ始まっていない配信があったので、全部の配信が始まっているところまで進めました。全部の枠が再生を始めたら ✨ 自動補正を始めます',
+    'Sync is on. Some streams hadn’t started yet, so playback moved ahead to where every stream has started. ✨ auto-correct will start once every tile is playing',
+  ],
   selSyncBusy: ['⏱ 同期を始めました。ほかのグループを ✨ で測っているので、このグループは測っていません', 'Sync is on. Another group is being measured with ✨, so this group wasn’t measured'],
   selNoRoom: ['{0} 本を枠に入れました。枠が足りないので {1} 本は入れていません (選んだまま残しています)。', 'Loaded {0}. {1} did not fit in the tiles (still selected).'],
   selSkipped: ['もう枠にある {0} 本は飛ばしました。', 'Skipped {0} already in tiles.'],

@@ -4619,6 +4619,23 @@ const Sync = (() => {
     return { ref: reference(G), tiles, movie, active: active(G), paused: G.paused, later };
   }
 
+  /**
+   * 「⏱ 開いて同期」用: tiles (グループに入った枠) の配信が全部始まっている時刻 (一番遅い開始) より前にいれば、グループをそこへ進める (HAKO-34)。
+   * もう全部始まっている・全部がそろう時刻が無い (一番遅い開始より前に終わる配信がある) ・時計がまだ決まっていないときは動かさない。進めたら true
+   */
+  function seekToAllStarted(g, tiles) {
+    const G = on ? groups.get(g) : null;
+    if (!G || G.init || isMovie(G)) return false;
+    const members = membersOf(g);
+    const mine = tiles.filter((i) => members.includes(i) && views[i]?.archive);
+    if (mine.length < 2) return false;
+    const start = Math.max(...mine.map((i) => timeRange(i)[0]));
+    const end = Math.min(...mine.map((i) => timeRange(i)[1]));
+    if (!(nowR(G) < start && start < end)) return false;
+    seekGroup(G, start);
+    return true;
+  }
+
   return {
     setup,
     refresh,
@@ -4632,6 +4649,7 @@ const Sync = (() => {
     resumePoint,
     isWaiting: (i) => on && waiting.has(i),
     groupInfo,
+    seekToAllStarted,
     /** 枠 i を同期しないにする (✨ 自動補正で、ほかの枠と音が合わなかった枠) */
     excludeTile: (i) => moveTile(i, 0),
     showDock: () => Dock.show(),
@@ -9940,7 +9958,8 @@ const selArchives = () => [...favSel.values()].filter((e) => e.load.h && ['live'
 
 /**
  * ⏱ 開いて同期: 入れた枠 (tiles、選んだ順) が読み込めたら ⏱ アーカイブ同期を始め (最初の枠を基準にする)、
- * そのグループの基準の枠が再生を始めたら ✨ 自動補正を始める。再生が始まらなければ、そう知らせる (同期は ON のまま)
+ * そのグループの基準の枠が再生を始めたら ✨ 自動補正を始める。再生が始まらなければ、そう知らせる (同期は ON のまま)。
+ * 配信の時間帯がまだ始まっていない枠 (コラボに遅れて入った人など) があれば、全部の枠が始まっている位置まで進める。進められなければ始まるまで待つ (HAKO-34)
  */
 function openSync(tiles) {
   Sync.startWhenReady(tiles, tiles[0], {
@@ -9963,9 +9982,10 @@ function openSync(tiles) {
         if (mine.length < 2 || mine.some((i) => state.tiles[i]?.videoId !== ids.get(i))) return;
         const playing = (i) => views[i]?.ss?.ps === 1 && !views[i].ss.ad;
         if (!pausedAll && !info.paused && playing(info.ref) && mine.every(playing)) return void AudioSync.toggle(g);
-        // 配信の時間帯がまだ始まっていない枠 (コラボに遅れて入った人など) は、始まるまで待つ (待つ間は「再生が始まらない」としない)
+        // 配信の時間帯がまだ始まっていない枠 (コラボに遅れて入った人など) があれば、全部の枠が始まっている位置まで進める (1 回だけ)。
+        // 進められない (全部がそろう時刻が無い) ときは、始まるまで待つ (待つ間は「再生が始まらない」としない)
         if (mine.some((i) => info.later.includes(i))) {
-          if (!toldLater) notify(tr('selSyncWaitLater'));
+          if (!toldLater) notify(tr(Sync.seekToAllStarted(g, mine) ? 'selSyncSeekLater' : 'selSyncWaitLater'));
           toldLater = true;
           until = performance.now() + 60e3;
         }
