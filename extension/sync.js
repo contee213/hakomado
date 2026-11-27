@@ -80,27 +80,33 @@ const Sync = (() => {
   const nowR = (G) => (G.clock.playing ? G.clock.R0 + (now() - G.clock.at) * (G.speed ?? 1) : G.clock.R0);
   const setClock = (G, R, playing) => (G.clock = { R0: R, at: now(), playing });
   const off = (i) => SyncOffsets.get(state.tiles[i].videoId);
-  const anchor = (i) => MovieAnchors.get(state.tiles[i].videoId);
+  const anchor = (i) => (featureTile(i) ? 0 : MovieAnchors.get(state.tiles[i].videoId));
   const isMovie = (G) => G.mode === 'movie';
   /** 動かせる枠 (アーカイブ。再生位置と長さが分かる) */
   const movable = (i) => isVisible(i) && !!state.tiles[i].videoId && !!views[i].archive;
   /** 本編モードで基準にできるライブの枠 (位置の知らせが届いている) */
   const liveTile = (i) => isVisible(i) && !!state.tiles[i].videoId && !views[i].archive && !!views[i].lv;
+  /**
+   * 🎬 本編の動画の枠 (URL の枠・パソコンの動画ファイルの枠。Prime Video などで本編そのものを流す。HAKO-49):
+   * 長さの決まった動画の位置の知らせが届いている。本編の 0:00 = その動画の 0 秒。🎬 のグループの基準になり、配信がその位置を追いかける
+   */
+  const featureTile = (i) => i != null && !!state.tiles[i] && isVisible(i) && isWebTile(state.tiles[i]) && !!views[i].web && views[i].web.d > 0;
   /** 同期に加われる枠 (グループに入れられる) */
-  const candidate = (i) => movable(i) || liveTile(i);
-  /** グループ G に加われる枠 (実際の時刻: アーカイブ / 本編: アーカイブとライブ) */
-  const fits = (G, i) => movable(i) || (isMovie(G) && liveTile(i));
+  const candidate = (i) => movable(i) || liveTile(i) || featureTile(i);
+  /** グループ G に加われる枠 (実際の時刻: アーカイブ / 本編: アーカイブ・ライブ・本編の動画の枠) */
+  const fits = (G, i) => movable(i) || (isMovie(G) && (liveTile(i) || featureTile(i)));
   const vidOf = (i) => state.tiles[i].videoId;
   /**
    * 🎬 本編の枠 (同時視聴の配信が見ていた本編そのもの): 使う人が「本編にする」と決めた枠 (1 本だけのとき)。
    * 無ければ、枠の中のプレミア公開 (1 本だけのとき)。無ければ null
    */
   const mainOf = (list) => {
-    const one = (f) => {
-      const p = list.filter((i) => movable(i) && f(i));
+    const one = (f, kind = movable) => {
+      const p = list.filter((i) => kind(i) && f(i));
       return p.length === 1 ? p[0] : null;
     };
-    return one((i) => MovieAnchors.isMain(vidOf(i))) ?? one((i) => views[i].archive.premiere);
+    // 本編の動画の枠 (URL の枠など) があれば、それが本編
+    return one(() => true, featureTile) ?? one((i) => MovieAnchors.isMain(vidOf(i))) ?? one((i) => views[i].archive.premiere);
   };
   /**
    * 本編の枠の本編の位置: 決めていなければ 0 (動画の 0 秒が本編 0:00)。プレミア公開はそのとおりなので決めた値に、
@@ -108,7 +114,7 @@ const Sync = (() => {
    */
   function ensureMainAnchor(list) {
     const m = mainOf(list);
-    if (m != null && anchor(m) == null) MovieAnchors.set(vidOf(m), 0, { guess: !views[m].archive.premiere });
+    if (m != null && !featureTile(m) && anchor(m) == null) MovieAnchors.set(vidOf(m), 0, { guess: !views[m].archive.premiere });
   }
   /** 枠 k で本編 0:00 が流れた実際の時刻 (ミリ秒) */
   const movieZeroAt = (k) => views[k].archive.start + (anchor(k) - off(k)) * 1000;
@@ -120,7 +126,7 @@ const Sync = (() => {
    */
   function anchorsFromTime(list) {
     const m = mainOf(list);
-    if (m == null) return 0;
+    if (m == null || featureTile(m)) return 0; // 本編の動画の枠は時刻を持たない
     ensureMainAnchor(list);
     let n = 0;
     for (const j of list) {
@@ -151,6 +157,7 @@ const Sync = (() => {
   const timeRange = (i) => [views[i].archive.start, views[i].archive.start + views[i].archive.dur * 1000];
   const rangeOf = (G, i) => {
     if (isMovie(G)) {
+      if (featureTile(i)) return [0, views[i].web.d * 1000];
       const a = anchor(i);
       if (a == null || !views[i].archive) return [-Infinity, Infinity];
       return [-a * 1000, (views[i].archive.dur - a) * 1000];
@@ -164,6 +171,8 @@ const Sync = (() => {
   };
   /** 今の再生位置 (秒)。最後に届いた位置から、再生中なら経った分を足す */
   const posOf = (i) => {
+    const w = featureTile(i) ? views[i].web : null;
+    if (w) return w.t + (w.paused ? 0 : ((now() - (w.at || now())) / 1000) * (w.rate || 1)); // 本編の動画の枠
     const lv = views[i].lv;
     if (lv && !views[i].archive) return lv.pos + (lv.ps === 1 ? (now() - lv.at) / 1000 : 0); // ライブ: 配信開始からの経過
     const ss = views[i].ss;
@@ -210,7 +219,9 @@ const Sync = (() => {
   function joinMainGroup(a) {
     const loose = [...a.excluded].filter(([, why]) => why === 'alone' || why === 'live').map(([i]) => i);
     if (!loose.length) return;
-    const withMain = [...a.groups].filter(([g, list]) => groups.get(g)?.mode === 'movie' && mainOf(list) != null);
+    // 本編の動画の枠 (URL の枠など) は、🎬 のグループが 1 つだけなら、そこに入れる (そのグループの本編になる)
+    const movieGroups = [...a.groups].filter(([g]) => groups.get(g)?.mode === 'movie');
+    const withMain = loose.some(featureTile) && movieGroups.length === 1 ? movieGroups : [...a.groups].filter(([g, list]) => groups.get(g)?.mode === 'movie' && mainOf(list) != null);
     if (withMain.length !== 1) return;
     const [, list] = withMain[0];
     for (const i of loose) {
@@ -243,7 +254,7 @@ const Sync = (() => {
    */
   function initialReference(G, list = membersOf(G.g)) {
     if (isMovie(G)) {
-      const first = list.find(liveTile) ?? mainOf(list);
+      const first = list.find(liveTile) ?? list.find(featureTile) ?? mainOf(list);
       if (first != null) return first;
     }
     return list.find((i) => !state.tiles[i].muted) ?? list[0] ?? null;
@@ -251,7 +262,8 @@ const Sync = (() => {
   /** グループの基準の枠 (グループから外れていたら選び直す。閉じられていたら知らせる) */
   function reference(G) {
     const list = membersOf(G.g);
-    if (G.ref == null || !list.includes(G.ref) || (isMovie(G) && list.some(liveTile) && !liveTile(G.ref))) {
+    const wantFeature = isMovie(G) && !list.some(liveTile) && list.some(featureTile) && !featureTile(G.ref);
+    if (G.ref == null || !list.includes(G.ref) || (isMovie(G) && list.some(liveTile) && !liveTile(G.ref)) || wantFeature) {
       const prev = G.ref;
       G.ref = initialReference(G, list);
       if (on && prev != null && G.ref != null && !candidate(prev)) notify(tr('syncRefMoved', refLabel(G.ref)));
@@ -372,7 +384,7 @@ const Sync = (() => {
    * ライブの入ったグループ (🎬 本編モード) は等速のまま (ライブは速さを変えられないため)
    */
   function groupSpeed(G, list, ref) {
-    if (list.some(liveTile)) G.speed = 1;
+    if (list.some(liveTile) || list.some(featureTile)) G.speed = 1; // 本編の動画の枠の入ったグループも等速 (サイトの速さに頼らない)
     else if (G.speed == null) G.speed = clampSpeed(state.tiles[ref]?.speed ?? 1);
     let changed = false;
     for (const i of list) {
@@ -440,7 +452,15 @@ const Sync = (() => {
     const rs = views[ref].ss;
     let playing = !pausedAll && !G.paused;
     let R = nowR(G);
-    if (movie && liveTile(ref)) {
+    if (movie && featureTile(ref)) {
+      // 本編の動画の枠が基準: 時計は本編の動画の位置で進む (つまみで動かした直後は、本編の枠を時計に合わせる)
+      // (止まっている動画は位置の知らせが来なくなるので、止まっていれば古い知らせでも合わせる)
+      const w = views[ref].web;
+      if (now() > G.holdUntil && (w.paused || now() - (w.at || 0) < 3000)) {
+        R = posOf(ref) * 1000;
+        playing = !w.paused && !pausedAll && !G.paused;
+      }
+    } else if (movie && liveTile(ref)) {
       // ライブが基準: 時計はライブの位置で進む (止められない)。本編の位置を決めるまでは、時計はそのまま
       const lv = views[ref].lv;
       if (anchor(ref) != null && now() - lv.at < 3000) {
@@ -481,6 +501,16 @@ const Sync = (() => {
         overlay(i, tr('movieNeedAnchor')); // 本編の位置を決めるまでは動かさない
         if (!liveTile(i)) rate(i, 1);
         drift.delete(i);
+        continue;
+      }
+      if (movie && featureTile(i)) {
+        // 本編の動画の枠: ふだんは動かさない (ほかが追いかける)。つまみで動かした直後・グループで止めた / 再生したときだけ合わせる
+        overlay(i, '');
+        drift.set(i, i === ref ? 'ref' : 'ok');
+        const w = views[i].web;
+        if (now() < G.holdUntil && Math.abs(posOf(i) - R / 1000) > 1) seek(i, Math.max(0, R / 1000));
+        if (!playing && !w.paused) cmd(i, 'pause');
+        else if (playing && w.paused && now() < G.holdUntil) cmd(i, 'play');
         continue;
       }
       if (movie && liveTile(i)) {

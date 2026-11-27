@@ -1109,7 +1109,7 @@ async function mountFileTile(i) {
     // 再生の状態は URL の枠と同じ形で覚える (「ℹ 枠の情報」の再生位置・自動再生で止まった枠を戻すなど)
     const report = () => {
       const d = vid.duration;
-      v.web = { t: vid.currentTime, d: Number.isFinite(d) ? d : -1, paused: vid.paused, muted: vid.muted, w: vid.videoWidth, h: vid.videoHeight };
+      v.web = { t: vid.currentTime, d: Number.isFinite(d) ? d : -1, paused: vid.paused, muted: vid.muted, w: vid.videoWidth, h: vid.videoHeight, rate: vid.playbackRate || 1, at: performance.now() };
     };
     for (const ev of ['loadedmetadata', 'timeupdate', 'play', 'pause', 'volumechange', 'ratechange']) vid.addEventListener(ev, report);
     vid.addEventListener(
@@ -1167,7 +1167,8 @@ function postToVideo(vid, msg) {
   else if (msg.hakomado === 'sync' && msg.op === 'seek') {
     const t = Number(msg.t);
     if (Number.isFinite(t) && t >= 0) vid.currentTime = t;
-  }
+  } else if (msg.hakomado === 'sync' && msg.op === 'play') vid.play().catch(() => {}); // 🎬 の同期 (HAKO-49)
+  else if (msg.hakomado === 'sync' && msg.op === 'pause') vid.pause();
 }
 
 /**
@@ -2311,6 +2312,7 @@ function postToWebFrame(frame, msg) {
   else if (msg.hakomado === 'playback') out = { hakomadoWeb: 'playback', play: !!msg.play };
   else if (msg.hakomado === 'speed') out = { hakomadoWeb: 'rate', r: Number(msg.r) };
   else if (msg.hakomado === 'sync' && msg.op === 'seek') out = { hakomadoWeb: 'seek', t: Number(msg.t) };
+  else if (msg.hakomado === 'sync' && (msg.op === 'play' || msg.op === 'pause')) out = { hakomadoWeb: 'playback', play: msg.op === 'play' }; // 🎬 の同期 (HAKO-49)
   if (out) target.win.postMessage(out, target.origin);
 }
 
@@ -2330,7 +2332,7 @@ window.addEventListener('message', (e) => {
   const v = views[i];
   const first = !v.player.webTarget || v.player.webTarget.win !== e.source;
   v.player.webTarget = { win: e.source, origin: e.origin };
-  v.web = { t: Number(d.t) || 0, d: Number(d.d), paused: !!d.paused, muted: !!d.muted, w: Number(d.w) || 0, h: Number(d.h) || 0 };
+  v.web = { t: Number(d.t) || 0, d: Number(d.d), paused: !!d.paused, muted: !!d.muted, w: Number(d.w) || 0, h: Number(d.h) || 0, rate: Number(d.rate) || 1, at: performance.now() };
   // 動画が見つかった (入れ替わった) ら、音・速度・まとめて一時停止の状態を合わせる
   if (first) {
     applyAudio(i);
