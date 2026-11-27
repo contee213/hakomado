@@ -4727,7 +4727,8 @@ const Sync = (() => {
     /** グループ g を実際の時刻 R (ミリ秒) へ動かす */
     seekTo(g, R) {
       const G = on ? groups.get(g) : null;
-      if (G && !G.init && Number.isFinite(R)) seekGroup(G, R);
+      // グループの時間帯 (つまみの範囲) の外へは動かさない (HAKO-40)
+      if (G && !G.init && Number.isFinite(R)) seekGroup(G, Math.max(G.lo, Math.min(G.hi, R)));
     },
   };
 })();
