@@ -568,7 +568,9 @@
   let corr = 1;
   let rateSelfUntil = 0;
   const SPEED_MIN = 0.25;
-  const SPEED_MAX = 4;
+  // 下見用のプレイヤー (親が画面の外に開き、全編の音の波形を取る。hakomado_scan=1) だけは 16 倍まで (HAKO-39)
+  const SCAN = params.get('hakomado_scan') === '1';
+  const SPEED_MAX = SCAN ? 16 : 4;
   const near = (a, b) => Math.abs(a - b) < 0.001;
   let rateHooked = null;
   // 少し前に自分で動画要素に掛けた速度 (補正の分も含む)。YouTube がそれを知らせてきても、ユーザーの操作と取り違えないように
@@ -610,6 +612,13 @@
     base = Math.min(SPEED_MAX, Math.max(SPEED_MIN, r));
     applyRate();
   });
+  // 下見用のプレイヤーは、読み込みが 16 倍速に追いつくように一番低い画質にする (HAKO-39)
+  if (SCAN) {
+    setInterval(() => {
+      const p = player();
+      if (p && typeof p.setPlaybackQualityRange === 'function' && p.getPlaybackQuality?.() !== 'tiny') p.setPlaybackQualityRange('tiny', 'tiny');
+    }, 2000);
+  }
   // 広告のあとや画質の切り替えで動画要素の速度が戻ることがあるので、ときどき確かめて直す (広告中はそのまま)
   setInterval(() => {
     const v = video();
