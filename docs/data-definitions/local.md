@@ -247,6 +247,8 @@ URL の枠で許可したサイト。`array` of string。各要素は `https://*
 | `ui:shareImgLabels` | boolean | | 共有画像の各枠に枠の名前を入れるか |
 | `ui:shareAuthor` | string | | 共有画像に描く作者名 |
 | `ui:syncDock` | object | `{floating: boolean, x?: number, y?: number}` | 同期の調整パネルの置き方と小窓の位置 |
+| `ui:waveH` | number | 90〜 (ドット) | 〰 波形の帯の高さ (HAKO-39。以前の版には無い) |
+| `ui:waveRuler` | string | `elapsed` / `clock` | 〰 波形の帯の目盛り (経過時間 / 時刻) (HAKO-39) |
 
 **前の版から (HAKO-8):** localStorage の `hakomado.<名前>` (`libScope` `libKinds` `libPlaylist` `shareImgLabels` `shareAuthor` `syncDock`) は、初めて開いたときに `ui:<名前>` へ移して localStorage から消す。`ui:<名前>` がもうあればそちらを使う。`libKinds` `syncDock` は JSON の文字列から、`shareImgLabels` は `1` / `0` から直す。読めない値は移さずに消す。`hakomado.settingsTab` `hakomado.libTab` `hakomado.shareTab` は移さずに消す (今は sessionStorage)。
 

@@ -16,6 +16,8 @@ const UiPrefs = (() => {
     shareImgLabels: (s) => s === '1', // 共有画像に枠の名前を入れるか
     shareAuthor: String, // 共有画像に描く作者名
     syncDock: (s) => JSON.parse(s), // 同期の調整パネルの置き方と小窓の位置 {floating, x, y}
+    waveH: Number, // 〰 波形の帯の高さ (ドット。HAKO-39。以前の版には無い)
+    waveRuler: String, // 〰 波形の帯の目盛り 'elapsed' (経過時間) / 'clock' (時刻) (HAKO-39。以前の版には無い)
   };
   // 以前の版で localStorage に覚えていた、最後に開いたタブの位置。今は grid.js の TabMemory (sessionStorage) に置くので、引き継がずに消す
   const DROPPED = ['settingsTab', 'libTab', 'shareTab'];
