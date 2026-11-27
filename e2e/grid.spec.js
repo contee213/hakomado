@@ -621,7 +621,7 @@ test.describe('ライブラリの複数選択', () => {
     await page.clock.runFor(62_000);
     r = await result();
     expect(r.started).toBe(0);
-    expect(r.notices).toEqual(['⏱ 同期を始めましたが、再生が始まらないので ✨ 自動補正は始めていません。再生してから同期の調整パネルの ✨ を押してください']);
+    expect(r.notices).toEqual(['⏱ 同期を始めましたが、再生が始まらないので ✨ 自動補正は始めていません。再生してから同期の調整の帯の ✨ を押してください']);
   });
 
   test('🔖 を押しても一覧を描き直さない (カードが動かない)', async ({ openGrid }) => {
@@ -1440,7 +1440,8 @@ test.describe('画面の覚え (HAKO-8)', () => {
     await expect(page.locator('#grid .tile').first()).toBeAttached();
     await expect
       .poll(() => page.evaluate(() => chrome.storage.local.get(['ui:libKinds', 'ui:shareAuthor', 'ui:syncDock', 'ui:settingsTab'])))
-      .toEqual({ 'ui:libKinds': ['video'], 'ui:shareAuthor': 'TK', 'ui:syncDock': { floating: false } });
+      // 同期の調整パネルの置き方 (syncDock) は、パネルを無くした (HAKO-48) ので引き継がずに消す
+      .toEqual({ 'ui:libKinds': ['video'], 'ui:shareAuthor': 'TK' });
     const left = await page.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith('hakomado.')));
     expect(left).toEqual(['hakomado.lang']);
     // 引き継いだ覚えが画面に戻る

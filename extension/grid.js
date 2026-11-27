@@ -1,4 +1,4 @@
-/* global SyncGroups, SyncChart, Danmaku, LAYOUTS, ANCHORS, DEFAULT_LAYOUT_ID, MAX_SLOTS, getLayout, layoutFor, layoutIdOf, solveTracks, resizeLayoutFor, LANG, LANG_PREF, tr, setLangPref, Backup, UpdateCheck, qrcode, jsQR, ChannelPack, SyncOffsets, MovieAnchors, AudioAlign, Addons */
+/* global SyncGroups, Danmaku, LAYOUTS, ANCHORS, DEFAULT_LAYOUT_ID, MAX_SLOTS, getLayout, layoutFor, layoutIdOf, solveTracks, resizeLayoutFor, LANG, LANG_PREF, tr, setLangPref, Backup, UpdateCheck, qrcode, jsQR, ChannelPack, SyncOffsets, MovieAnchors, AudioAlign, Addons */
 'use strict';
 
 const MAX_TILES = MAX_SLOTS;
@@ -1306,7 +1306,7 @@ setInterval(() => {
   }
 }, TWITCH_RESUME_MS);
 
-// Twitch の枠に何か (浮いている同期の調整パネルなど) が重なっているか。Twitch と同じ見え方の判定 (trackVisibility) で見張り、
+// Twitch の枠に何か (お知らせ・小さな画面など) が重なっているか。Twitch と同じ見え方の判定 (trackVisibility) で見張り、
 // 見えるようになったらすぐ再生に戻す。重なっていて止まった枠には、そのことを枠に出す (枠の中のお知らせは、プレイヤーに重ならないバーの場所)
 const twitchVisObserver = new IntersectionObserver(
   (entries) => {
@@ -2776,10 +2776,10 @@ window.addEventListener('message', (e) => {
 // ---------------------------------------------------------------- ⏱ アーカイブの同期再生
 // コラボ配信を、参加者それぞれの視点のアーカイブで、同じ瞬間にそろえて見る。
 // - そろえる基準は実際の時刻: 各アーカイブの 0 秒 = その配信が始まった時刻 (動画の liveBroadcastDetails.startTimestamp)。
-//   ずれ (配信の遅延の違いなど) は、同期の調整パネル (画面の右の列) で直せる (← → キー・◀ ▶・0.01 秒単位で秒数を直接入れる)。
+//   ずれ (配信の遅延の違いなど) は、同期の調整の帯 (画面の下。wave-strip.js) で直せる (波形のドラッグ・← → キー・秒数を直接入れる)。
 //   ずれは動画ごとに記録する (SyncOffsets)。別の枠に入れても、次に開いても、視聴セットで人に渡しても同じ値を使う
 // - 同期グループ: A・B と C・D のように、別々の組でそろえられる (最大 4 組)。時間帯が重なるアーカイブどうしを自動でまとめ
-//   (SyncGroups)、パネルの各行で手で付け替えられる (手で決めた分は、その枠の中身が変わるまで保つ)。
+//   (SyncGroups)、帯で行をドラッグして手で付け替えられる (手で決めた分は、その枠の中身が変わるまで保つ。「自動で分け直す」で戻す)。
 //   グループごとに、そろえ方 (🕒 実際の時刻 / 🎬 本編)・基準の枠・「同期の時計」・一時停止・つまみを持つ
 // - 時計は基準の枠の再生位置に合わせて進む (基準の枠の中で一時停止・シークすると、同じグループのほかの枠もついてくる)。
 //   ほかの枠は時計に合わせてシーク・一時停止・再生・速度の微調整 (少しのずれは速度で吸収し、大きくずれたときだけシーク) を受ける
@@ -3000,14 +3000,6 @@ const Sync = (() => {
   }
   /** 共有・再生リストに使うグループ (番号の一番小さい、同期できるグループ) */
   const primary = () => (on ? (activeGroups()[0] ?? null) : null);
-  /** 上部バーのつまみで動かすグループ: 音を出している枠のグループ (無ければ primary) */
-  function topGroup() {
-    for (const i of audibleTiles()) {
-      const G = groupOfTile(i);
-      if (G && active(G)) return G;
-    }
-    return primary();
-  }
   const GROUP_COLORS = ['#f5b942', '#5ad19a', '#c08cff', '#ff8a5c'];
   const colorOf = (g) => GROUP_COLORS[(g - 1) % GROUP_COLORS.length];
 
@@ -3133,7 +3125,6 @@ const Sync = (() => {
       if (movable(i)) rate(i, 1);
       overlay(i, '');
     }
-    updateTop();
     updateMarks();
     Dock.update();
     renderSpeeds();
@@ -3400,23 +3391,6 @@ const Sync = (() => {
     G.holdUntil = now() + 4000;
     for (const i of membersOf(G.g)) sent.delete(i);
     tick();
-  }
-
-  /** 上部バー: 音を出している枠のグループのつまみ (グループが 2 つ以上なら、色と番号を出す) */
-  function updateTop() {
-    const G = topGroup();
-    const seekEl = document.getElementById('syncSeek');
-    const dot = document.getElementById('syncGroupDot');
-    if (!G) {
-      seekEl.disabled = true;
-      dot.hidden = true;
-      return;
-    }
-    fillSeek(seekEl, document.getElementById('syncNow'), document.getElementById('syncEnd'), G);
-    dot.hidden = activeGroups().length < 2;
-    dot.textContent = String(G.g);
-    dot.style.setProperty('--g', colorOf(G.g));
-    seekEl.title = tr('syncSeekGroup', G.g);
   }
 
   /** グループの一時停止 / 再開 (パネルの ⏸)。止めて待っている枠は止めたまま */
@@ -3772,13 +3746,6 @@ const Sync = (() => {
     const v = body.split(':').reduce((acc, x) => acc * 60 + Number(x), 0);
     return neg ? -v : v;
   }
-  /** 本編の位置 (秒) → 「12:34.56」(小数 2 桁まで。末尾の 0 は付けない) */
-  const anchorText = (a) => {
-    const cs = Math.round(Math.abs(a) * 100); // 0.01 秒単位
-    const frac = cs % 100 ? '.' + String(cs % 100).padStart(2, '0').replace(/0$/, '') : '';
-    return (a < 0 ? '−' : '') + hms(Math.floor(cs / 100)) + frac;
-  };
-
   /** 「⏲ 画面タイマー」の欄を押した: その瞬間の位置を覚え、(基準でなければ) この枠を同期から外す (タイマーなどが見える所まで動かせるように) */
   function startReading(i) {
     const p = posOf(i);
@@ -3832,811 +3799,52 @@ const Sync = (() => {
     applyOffsets(pairs);
     notify(tr('syncResetDone', pairs.length));
   }
-  /** ← → キー・◀ ▶: ずれ (本編の位置) を d 秒動かす */
-  function nudge(i, d) {
-    const G = groupOfTile(i);
-    if (!G || !active(G) || i === G.ref) return; // 基準の枠は動かさない (ほかの枠で合わせる)
-    if (isMovie(G)) {
-      if (anchor(i) != null && !liveTile(i)) setOffset(i, Math.round((anchor(i) + d) * 100) / 100);
-      return;
-    }
-    if (movable(i)) setOffset(i, Math.round((off(i) + d) * 100) / 100);
-  }
-
-  // ---------------------------------------------------------------- 同期の調整パネル (浮かぶ小窓 / 画面の右の列)
-  // グループごとに見出し (番号と色・そろえ方・⏸・✨ 自動補正・つまみ) と、枠の行 (基準・ずれ・止めて待つ・✨ 自動補正の候補・追いつき具合・グループ) を並べる。
-  // 置き方は 2 通り (見出しのボタンで切り替え。この画面を開いたブラウザで覚える):
-  // - 浮かぶ小窓: 枠の上に半透明で重ねる (枠の大きさは変わらない)。見出しをつかんで動かせる。左上の位置は固定で、中身が増えると下へ伸びる
-  // - 右の列: 枠の並びを横に縮めて置く (枠に重ねない)
-  // どちらも、たたむと番号とずれだけの細い形になる。
-  // 行を選んで ← → (Shift で 0.01 秒・Ctrl で 1 秒) でずれを動かし、↑ ↓ で行を移る
+  // ---------------------------------------------------------------- 同期の調整 (画面の下の帯。HAKO-48 でパネルを無くした)
+  // 同期の調整は画面の下の帯 (wave-strip.js の WaveStrip) だけ。ここでは出す / しまうの決まりだけ持つ:
+  // - 上部バーのボタンで同期を ON にしたとき・☰ を押したときは出す
+  // - 自動で同期を始めたとき (再開・⏱ 開いて同期など) は、帯の ✕ で閉じていなければ出す
   const Dock = (() => {
-    const el = () => document.getElementById('syncDock');
-    const body = () => document.getElementById('syncDockBody');
-    let shown = false;
-    let wanted = true; // ✕ で閉じたら、自動で同期を始めたとき (再開など) は出さない。上部バーのボタンで ON にしたときと ☰ では出す
-    let mini = false;
-    // 置き方と小窓の位置は UiPrefs の syncDock に覚える (消えても既定に戻るだけ)。読むのは setup() で (UiPrefs.load() のあと)
-    let floating = true;
-    let pos = null; // 小窓の左上 {x, y} (null = 右上の既定の位置)
-    const loadPref = () => {
-      const p = UiPrefs.get('syncDock');
-      if (p && typeof p === 'object') {
-        floating = p.floating !== false;
-        if (Number.isFinite(p.x) && Number.isFinite(p.y)) pos = { x: p.x, y: p.y };
-      }
-    };
-    const savePref = () => UiPrefs.set('syncDock', { floating, ...(pos || {}) });
-    let sel = null; // 選んでいる枠
-    let hl = null; // 枠の並びで光らせている枠 (行にマウスを乗せた・行を選んだ)
-    let structKey = '';
-    const folded = new Set(); // たたんだグループの番号 (調整しているグループだけ開いておけるように)
-    const rows = new Map(); // i -> {row, val, wait, cand, dot, short, now, minus, plus}
-    const heads = new Map(); // g -> {play, audio, range, now, end, note}
-
-    function show(i = null) {
+    let wanted = true; // 帯の ✕ で閉じたら false (自動で始めたときは出さない)
+    const toggleBtn = () => document.getElementById('syncDockToggle');
+    function show() {
       if (!on) return;
-      if (!shown) {
-        // ほかのタブで変えた置き方・位置も使う
-        loadPref();
-        applyFloating();
-      }
-      shown = true;
-      el().hidden = false;
-      document.body.classList.add('sync-dock-open');
-      document.body.classList.toggle('sync-dock-mini', mini);
-      document.getElementById('syncDockToggle').classList.add('on');
-      place();
-      if (i != null) {
-        sel = i;
-        const g = groupOfTile(i)?.g;
-        if (g != null) folded.delete(g); // 選んだ枠のグループは開く
-      }
-      structKey = '';
-      update();
-      if (i != null) rows.get(i)?.row.focus({ preventScroll: false });
+      wanted = true;
+      WaveStrip.open();
+      mark();
     }
     function hide() {
-      shown = false;
-      el().hidden = true;
-      document.body.classList.remove('sync-dock-open', 'sync-dock-mini');
-      document.getElementById('syncDockToggle').classList.remove('on');
-      setHl(null);
+      WaveStrip.close();
+      mark();
     }
-    function setMini(v) {
-      mini = v;
-      document.body.classList.toggle('sync-dock-mini', mini);
-      el().classList.toggle('mini', mini);
-      const b = document.getElementById('syncDockMini');
-      b.textContent = mini ? '⇤' : '⇥';
-      b.title = tr(mini ? 'syncDockExpand' : 'syncDockCollapse');
-      place();
+    /** ☰ の点灯を、帯を出しているかに合わせる */
+    function mark() {
+      const b = toggleBtn();
+      if (!b) return;
+      const open = WaveStrip.isShown();
+      b.classList.toggle('on', open);
+      b.setAttribute('aria-pressed', String(open));
     }
-    /** 浮かぶ小窓 / 右の列を切り替える */
-    function setFloating(v) {
-      floating = v;
-      applyFloating();
-      savePref();
-    }
-    function applyFloating() {
-      document.body.classList.toggle('sync-dock-float', floating);
-      el().classList.toggle('floating', floating);
-      const b = document.getElementById('syncDockFloat');
-      b.textContent = floating ? '⇲' : '⧉';
-      b.title = tr(floating ? 'syncDockToSide' : 'syncDockToFloat');
-      place();
-    }
-    /** 小窓の位置を画面の中に収めて置く (右の列のときは位置を外す) */
-    function place() {
-      const d = el();
-      if (!floating) {
-        d.style.removeProperty('left');
-        d.style.removeProperty('top');
-        d.style.removeProperty('max-height');
-        return;
-      }
-      const w = d.offsetWidth || 340;
-      const top = document.body.classList.contains('grid-fs') ? 0 : 36;
-      const x = pos ? pos.x : innerWidth - w - 16;
-      const y = pos ? pos.y : top + 12;
-      d.style.left = Math.round(Math.max(0, Math.min(innerWidth - w, x))) + 'px';
-      // 画面の下に 〰 波形の帯を出している間は、その上までにする (帯を優先する。HAKO-39)
-      const below = document.body.classList.contains('wave-open') ? parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--wave-h')) || 0 : 0;
-      const t = Math.round(Math.max(top, Math.min(innerHeight - below - 120, y))); // 上部バーには重ねない
-      d.style.top = t + 'px';
-      d.style.maxHeight = Math.max(120, innerHeight - below - t - 12) + 'px'; // 下へ伸びて画面からはみ出す分は、中をスクロールさせる
-    }
-    /** 見出しをつかんで小窓を動かす (ボタンの上では始めない。動かしている間は枠の iframe にマウスを取られないように) */
-    function setupDrag() {
-      const head = el().querySelector('.dock-head');
-      let start = null;
-      head.addEventListener('pointerdown', (e) => {
-        if (!floating || e.button !== 0 || e.target.closest('button')) return;
-        const r = el().getBoundingClientRect();
-        start = { px: e.clientX, py: e.clientY, x: r.left, y: r.top };
-        try {
-          head.setPointerCapture(e.pointerId);
-        } catch {
-          /* つかめなくても、ページの上で動かす分には動く */
-        }
-        document.body.classList.add('dragging');
-        e.preventDefault();
-      });
-      const end = () => {
-        if (!start) return;
-        start = null;
-        document.body.classList.remove('dragging');
-        const r = el().getBoundingClientRect();
-        pos = { x: Math.round(r.left), y: Math.round(r.top) };
-        savePref();
-      };
-      addEventListener('pointermove', (e) => {
-        if (!start) return;
-        if (!(e.buttons & 1)) return end(); // 放したのを取りこぼしていた
-        pos = { x: start.x + e.clientX - start.px, y: start.y + e.clientY - start.py };
-        place();
-      });
-      // どこで放しても・つかみが外れても終える (終わらないと、枠の iframe がマウスを受け付けないままになる)
-      head.addEventListener('pointerup', end);
-      head.addEventListener('pointercancel', end);
-      head.addEventListener('lostpointercapture', end);
-      addEventListener('pointerup', end);
-      addEventListener('blur', end);
-      addEventListener('resize', () => shown && place());
-    }
-    function setHl(i) {
-      if (hl === i) return;
-      if (hl != null) views[hl]?.el.classList.remove('sync-hl');
-      hl = i;
-      if (hl != null) views[hl]?.el.classList.add('sync-hl');
-    }
-
-    const groupOptions = (i) => {
-      const cur = manual.has(i) ? String(manual.get(i).g) : 'auto';
-      const opts = [['auto', tr('syncGroupAuto')]];
-      for (let g = 1; g <= SyncGroups.MAX; g++) opts.push([String(g), tr('syncGroupN', g)]); // まだ無い番号を選ぶと、そのグループを作る
-      opts.push(['0', tr('syncGroupNone')]);
-      return opts.map(([v, label]) => mk('option', { value: v, selected: v === cur }, label));
-    };
-
-    /**
-     * 行の「🎬 本編」: 本編の枠なら印 (手で本編にした枠は、押すと本編をやめる)。本編でない、動かせる枠には
-     * 「🎬」(押すとこの枠を本編にする。ライブのアーカイブなど、プレミア公開でない本編のため)
-     */
-    function mainTagEl(i, G) {
-      if (!G || !isMovie(G) || !movable(i)) return null; // 🕒 コラボ配信では出さない
-      const isMainTile = mainOf(membersOf(G.g)) === i;
-      const marked = MovieAnchors.isMain(vidOf(i));
-      if (isMainTile) {
-        return marked
-          ? mk('button', { type: 'button', class: 'dr-ref-tag dr-main-tag', title: tr('movieMainUnsetTitle'), onclick: () => setMain(i, false) }, '🎬 ' + tr('movieMainTag'))
-          : mk('span', { class: 'dr-ref-tag dr-main-tag', title: tr('movieMainTagTitle') }, '🎬 ' + tr('movieMainTag'));
-      }
-      return mk('button', { type: 'button', class: 'dr-make-main', textContent: '🎬', title: tr('movieMakeMainTitle'), onclick: () => setMain(i, true) });
-    }
-    function rowEl(i, G) {
-      const movie = !!G && isMovie(G);
-      const isRef = !!G && i === G.ref;
-      const r = {};
-      r.dot = mk('span', { class: 'dr-dot' });
-      r.short = mk('span', { class: 'dr-short' });
-      r.elapsed = mk('span', { class: 'dr-elapsed' }); // 🕒 その配信の始まりからの経過時間 (HAKO-39)
-      const groupSel = mk('select', { class: 'dr-group', title: tr('syncGroupTitle') }, groupOptions(i));
-      groupSel.addEventListener('change', () => {
-        const v = groupSel.value;
-        moveTile(i, v === 'auto' ? 'auto' : Number(v));
-      });
-      const line1 = mk(
-        'div',
-        { class: 'dr-line' },
-        G
-          ? mk('button', {
-              type: 'button',
-              class: 'dr-ref' + (isRef ? ' on' : ''),
-              // 実際の時刻の基準は 🔒 (補正が 0 に固定)。本編の基準は本編の位置を決めるので ◉
-              textContent: isRef ? (movie ? '◉' : '🔒') : '○',
-              title: tr(isRef ? (movie ? 'syncRefBadgeTitle' : 'syncRefLockTitle') : 'syncSetRefTitle'),
-              disabled: isRef || (movie && !liveTile(i) && membersOf(G.g).some(liveTile)),
-              onclick: () => setReference(i),
-            })
-          : null,
-        mk('span', { class: 'dr-num' }, String(tileNo(i))),
-        mk('span', { class: 'dr-name', title: tileName(i) || '' }, tileName(i) || state.tiles[i].videoId),
-        r.elapsed,
-        isRef ? mk('span', { class: 'dr-ref-tag', title: tr('syncRefBadgeTitle') }, tr('syncRefShort')) : null,
-        mainTagEl(i, G),
-        r.short,
-        r.dot,
-        groupSel,
-      );
-      const parts = [line1];
-      if (G && active(G)) {
-        const stepLabel = (d) => (d < 0 ? '−' : '+') + Math.abs(d);
-        r.steps = [-0.1, -0.01, 0.01, 0.1].map((d) =>
-          holdButton({ class: 'dr-step', textContent: stepLabel(d), title: tr('syncStepTitle', stepLabel(d)) }, () => nudge(i, d)),
-        );
-        const [m1, m2, p2, p1] = r.steps;
-        r.val = mk('input', { type: 'text', class: 'dr-val sync-input', inputMode: 'decimal', spellcheck: false, title: tr(movie ? 'syncAnchorInputTitle' : 'syncInputTitle') });
-        r.val.addEventListener('keydown', (e) => {
-          if (e.key === 'Enter') {
-            e.preventDefault();
-            commitVal(i, r.val);
-            r.row.focus();
-          } else if (e.key === 'Escape') {
-            r.val.value = '';
-            r.row.focus();
-          }
-          e.stopPropagation();
-        });
-        r.val.addEventListener('change', () => commitVal(i, r.val));
-        // 入れ始めるときは今の値を出して選んでおく (少し直すだけで済むように)。離れたら空に戻す (値は薄い文字で出す)
-        r.val.addEventListener('focus', () => {
-          r.val.value = r.val.dataset.shown || '';
-          r.val.select();
-        });
-        r.val.addEventListener('blur', () => (r.val.value = ''));
-        r.wait = mk('button', { type: 'button', class: 'dr-wait sync-wait', title: tr('syncWaitTitle'), onclick: () => toggleWait(i) });
-        r.cand = mk('span', { class: 'dr-cand' });
-        // 実際の時刻に戻す (ずれを 0 に。手で合わせてうまくいかなかったとき)。本編モードは ✕ (本編の位置を消す) がその代わり
-        if (!movie) r.reset = mk('button', { type: 'button', class: 'dr-reset', textContent: '↺', title: tr('syncResetTitle'), onclick: () => setOffset(i, 0) });
-        const live = liveTile(i);
-        // 基準の枠は時計を動かす側なので、補正は動かさない (動かすと、基準ではなくほかの枠が逆向きにずれるため)。合わせるのはほかの枠で
-        // 実際の時刻の基準: 補正はいつも 0 (zeroRef)。ほかの枠と同じ操作を、押せない形で 🔒 と並べる (固定されていると分かるように)
-        // 本編の基準: 本編の位置は決める必要があるので、位置だけ出す (下に「🚩 開始位置」など)
-        if (isRef && !live && !movie) {
-          r.locked = true;
-          r.reset = null;
-          for (const b of [...r.steps, r.wait]) b.disabled = true;
-          r.val.disabled = true;
-        } else if (isRef && !live) {
-          r.refVal = mk('span', { class: 'dr-ref-val', title: tr('syncRefAnchorTitle') });
-          r.steps = r.val = r.wait = null;
-        }
-        const line2 = live
-          ? mk('div', { class: 'dr-line dr-sub' }, mk('span', { class: 'dr-note' }, tr(isRef ? 'syncLiveRef' : 'movieLiveRefOnly')))
-          : isRef && movie
-            ? mk('div', { class: 'dr-line dr-sub' }, r.refVal)
-            : mk(
-                'div',
-                { class: 'dr-line dr-sub' + (r.locked ? ' is-locked' : '') },
-                m1,
-                m2,
-                r.val,
-                p2,
-                p1,
-                r.wait,
-                r.reset,
-                r.cand,
-              );
-        parts.push(line2);
-        if (movie && !live) {
-          const nowIn = mk('input', { type: 'text', class: 'dr-movie-now sync-input', inputMode: 'numeric', placeholder: '0:47:12', title: tr('syncMovieNowTitle') });
-          // 欄を押した瞬間の位置で決める (入力にかかった時間がずれにならないように)。読む間は、この枠を同期から外す
-          nowIn.addEventListener('focus', () => startReading(i));
-          nowIn.addEventListener('keydown', (e) => {
-            e.stopPropagation();
-            if (e.key === 'Escape') {
-              e.preventDefault();
-              nowIn.value = '';
-              stopReading(i);
-              r.row.focus();
-              return;
-            }
-            if (e.key !== 'Enter') return;
-            e.preventDefault();
-            const c = parseClock(nowIn.value);
-            const p = reading.get(i)?.p ?? posOf(i);
-            if (c == null || p == null) {
-              showToast(i, tr('movieBadClock'));
-              return;
-            }
-            stopReading(i);
-            setOffset(i, Math.round((p - c) * 100) / 100);
-            nowIn.value = '';
-            r.row.focus();
-          });
-          const here = mk('button', {
-            type: 'button',
-            class: 'dr-here',
-            textContent: tr('syncMovieHere'),
-            title: tr('syncMovieHereTitle'),
-            onclick: () => {
-              const p = posOf(i);
-              if (p != null) setOffset(i, Math.round(p * 100) / 100);
-            },
-          });
-          const clear = mk('button', { type: 'button', class: 'dr-clear', textContent: '✕', title: tr('movieClear'), onclick: () => setOffset(i, null) });
-          parts.push(mk('div', { class: 'dr-line dr-sub' }, here, mk('label', { class: 'dr-movie-label' }, tr('syncMovieNow'), nowIn), clear));
-        } else if (live && movie) {
-          const here = mk('button', {
-            type: 'button',
-            class: 'dr-here',
-            textContent: tr('syncMovieHere'),
-            title: tr('syncMovieHereTitle'),
-            onclick: () => {
-              const p = posOf(i);
-              if (p != null) setOffset(i, Math.round(p * 100) / 100);
-            },
-          });
-          parts.push(mk('div', { class: 'dr-line dr-sub' }, here));
-        }
-      } else {
-        const reason = assigned.excluded.get(i) || (G ? 'wait' : 'alone');
-        parts.push(mk('div', { class: 'dr-line dr-sub' }, mk('span', { class: 'dr-note' }, tr('syncWhyRow_' + reason))));
-      }
-      r.row = mk('div', { class: 'dock-row' + (isRef ? ' is-ref' : '') + (sel === i ? ' is-sel' : ''), tabIndex: 0, dataset: { i: String(i) } }, parts);
-      r.row.addEventListener('mouseenter', () => setHl(i));
-      r.row.addEventListener('mouseleave', () => setHl(r.row.contains(document.activeElement) ? i : null));
-      r.row.addEventListener('focusin', () => {
-        sel = i;
-        for (const x of rows.values()) x.row.classList.toggle('is-sel', x.row === r.row);
-        setHl(i);
-      });
-      r.row.addEventListener('focusout', (e) => {
-        if (!r.row.contains(e.relatedTarget)) setHl(null);
-      });
-      r.row.addEventListener('keydown', (e) => onRowKey(e, i));
-      rows.set(i, r);
-      return r.row;
-    }
-
-    /** 行の入力欄で Enter / 欄を離れた: 秒 (本編モードは h:mm:ss も) を入れる。空なら何もしない (本編は消す) */
-    function commitVal(i, input) {
-      const G = groupOfTile(i);
-      const text = input.value.trim();
-      input.value = '';
-      if (!G || text === '' || text === input.dataset.shown) return update();
-      if (isMovie(G)) {
-        const v = parseClock(text);
-        if (v == null) showToast(i, tr('movieBadClock'));
-        else setOffset(i, Math.round(v * 100) / 100);
-        return update();
-      }
-      const v = Number(text.replace('−', '-').replace(/^\+/, ''));
-      if (Number.isFinite(v)) setOffset(i, v);
-      update();
-    }
-
-    function onRowKey(e, i) {
-      if (e.target !== e.currentTarget) return; // 入力欄・ボタンの中のキーは、そちらに任せる
-      if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
-        const step = e.shiftKey ? 0.01 : 0.1; // 大きく動かすときは、ボタンの長押しで
-        nudge(i, e.key === 'ArrowLeft' ? -step : step);
-      } else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
-        const list = [...body().querySelectorAll('.dock-row')].filter((r) => r.offsetParent); // たたんだグループの行は飛ばす
-        const k = list.indexOf(e.currentTarget) + (e.key === 'ArrowUp' ? -1 : 1);
-        list[Math.max(0, Math.min(list.length - 1, k))]?.focus();
-      } else if (e.key === 'Enter') {
-        rows.get(i)?.val?.focus();
-      } else if (e.key === 'Escape') {
-        e.currentTarget.blur();
-      } else return;
-      e.preventDefault();
-      e.stopPropagation(); // 上の操作 (矢印キーで音の枠を移すなど) にしない
-    }
-
-    function groupEl(G) {
-      const list = membersOf(G.g);
-      const h = {};
-      const modeSel = mk(
-        'select',
-        { class: 'dg-mode', title: tr('syncModeTitle') },
-        mk('option', { value: 'time', selected: G.mode === 'time' }, tr('syncModeTime')),
-        mk('option', { value: 'movie', selected: G.mode === 'movie' }, tr('syncModeMovie')),
-      );
-      modeSel.addEventListener('change', () => {
-        modeSel.blur();
-        setMode(G, modeSel.value === 'movie' ? 'movie' : 'time');
-      });
-      h.play = mk('button', { type: 'button', class: 'dg-play', onclick: () => togglePauseGroup(G) });
-      h.audio = mk('button', { type: 'button', class: 'dg-audio sync-audio', title: tr('syncAudioTitle'), onclick: () => AudioSync.toggle(G.g) });
-      h.reset = mk('button', { type: 'button', class: 'dg-reset', textContent: tr('syncResetLabel'), title: tr('syncResetGroupTitle', G.g), onclick: () => resetGroup(G) });
-      // 〰 波形: 配信全編の音の波形を画面の下の帯に出す (大まかに合わせる。HAKO-39)
-      h.wave = mk('button', {
-        type: 'button',
-        class: 'dg-wave' + (WaveStrip.isOpen(G.g) ? ' on' : ''),
-        textContent: tr('waveBtn'),
-        title: tr('waveBtnTitle'),
-        'aria-pressed': String(WaveStrip.isOpen(G.g)),
-        onclick: () => WaveStrip.toggle(G.g),
-      });
-      h.now = mk('span', { class: 'sync-time dg-now' });
-      h.end = mk('span', { class: 'sync-time dg-end' });
-      h.range = mk('input', { type: 'range', class: 'dg-range', min: 0, max: 1, step: 1, value: 0, title: tr('syncSeekGroup', G.g) });
-      bindSeek(h.range, h.now);
-      h.note = mk('div', { class: 'dg-note' });
-      const ok = active(G);
-      const fold = mk('button', {
-        type: 'button',
-        class: 'dg-fold',
-        textContent: folded.has(G.g) ? '▸' : '▾',
-        title: tr(folded.has(G.g) ? 'syncGroupUnfold' : 'syncGroupFold'),
-        'aria-expanded': String(!folded.has(G.g)),
-        onclick: () => {
-          if (folded.has(G.g)) folded.delete(G.g);
-          else folded.add(G.g);
-          structKey = '';
-          update();
-        },
-      });
-      h.tl = ok ? timelineEl(G, list) : null;
-      h.box = ok ? AudioSync.resultEl(G.g) : null;
-      const kids = [
-        mk(
-          'div',
-          { class: 'dg-head' },
-          fold,
-          mk('span', { class: 'dg-num', title: tr('syncGroupN', G.g) }, String(G.g)),
-          modeSel,
-          folded.has(G.g) ? mk('span', { class: 'dg-count' }, tr('syncGroupCount', list.length)) : null,
-        ),
-        // ✨ 自動補正と ↺ はコラボ配信だけ (同時視聴の配信には本編の音が入っていないことが多いので、タイマーなどで合わせる)
-        ok ? mk('div', { class: 'dg-actions' }, h.play, !isMovie(G) ? h.wave : null, !isMovie(G) ? h.audio : null, !isMovie(G) ? h.reset : null) : null,
-        ok ? mk('div', { class: 'dg-seek' }, h.now, h.range, h.end) : null,
-        h.tl?.el,
-        h.note,
-        h.box?.el,
-        ...list.map((i) => rowEl(i, G)),
-      ];
-      heads.set(G.g, h);
-      return mk(
-        'section',
-        { class: 'dock-group' + (ok ? '' : ' is-idle') + (folded.has(G.g) ? ' is-folded' : ''), style: `--g: ${colorOf(G.g)}`, dataset: { g: String(G.g) } },
-        kids,
-      );
-    }
-
-    // ---- 図: 各枠の開始のあたりを拡大して並べる (何時間もの配信の全体では、数十秒や 0.1 秒の違いが見えないため。全体はつまみで見る)。
-    // 開始どうしが 1 分より離れていれば、間を詰めて切れ目 (≈) にする (SyncChart。10 分・30 分の差が混ざっても見分けられるように)。
-    // 横棒 = 配信の実際の開始から右へ。補正の分は水色で (早めたか遅らせたかは、補正前の位置の細い線との位置で分かる)。
-    // 今の時刻が拡大した範囲に入っていれば縦の線を引く。左に基準との開始の差、右に状態 (✓ 設定どおり / ↻ あと何秒 / 基準 / 待機中)
-    /** 秒 → 「36秒」「2分10秒」「1時間5分」 */
-    function spanLabel(sec) {
-      const s = Math.round(Math.abs(sec));
-      if (s < 60) return tr('syncTlSec', s);
-      if (s < 3600) return s % 60 ? tr('syncTlMinSec', Math.floor(s / 60), s % 60) : tr('syncTlMin', s / 60);
-      return tr('syncTlHour', Math.floor(s / 3600), Math.round((s % 3600) / 60));
-    }
-    /** 枠 i の開始 (時計の上の時刻): {at: 補正を入れた開始, raw: 配信の実際の開始 (本編モードは null)}。分からなければ null */
-    function startMarks(G, i) {
-      if (!views[i].archive) return null; // ライブ (本編モードの基準) は 0 秒が無いので、図には出さない
-      if (isMovie(G)) {
-        const a = anchor(i);
-        return a == null ? null : { at: -a * 1000, raw: null };
-      }
-      return { at: realOf(G, i, 0), raw: views[i].archive.start };
-    }
-    /**
-     * 押すと 1 回、押し続けると続けて fn を呼ぶボタン (0.4 秒後から、1.5 秒たつと 2 倍の速さで)。キーボードの Enter / Space は 1 回。
-     * 押している間にパネルが作り直されて外れたら止める (止まらないまま動き続けないように)
-     */
-    let stopHold = null; // 押し続けているボタンを止める (ページのどこで放しても・ウィンドウを離れても)
-    function holdButton(props, fn) {
-      const b = mk('button', { type: 'button', ...props });
-      let wait = 0;
-      let rep = 0;
-      const stop = () => {
-        clearTimeout(wait);
-        clearInterval(rep);
-        wait = rep = 0;
-      };
-      b.addEventListener('pointerdown', (e) => {
-        if (e.button !== 0 || b.disabled) return;
-        e.preventDefault(); // 行の選択 (フォーカス) はそのまま
-        stop();
-        fn();
-        const t0 = performance.now();
-        wait = setTimeout(() => {
-          rep = setInterval(() => {
-            if (!b.isConnected || b.disabled) return stop();
-            fn();
-            if (performance.now() - t0 > 1500) fn();
-          }, 80);
-        }, 400);
-      });
-      for (const ev of ['pointerup', 'pointerleave', 'pointercancel', 'lostpointercapture']) b.addEventListener(ev, stop);
-      b.addEventListener('pointerdown', () => (stopHold = stop)); // どこで放しても止める (下の setup の 1 つの受け口で)
-      b.addEventListener('click', (e) => {
-        if (e.detail === 0) fn(); // キーボードで押したとき
-      });
-      return b;
-    }
-
-    function timelineEl(G, list) {
-      const t = { rows: new Map() };
-      t.breakKey = '';
-      t.labelKey = '';
-      const rowsEl = list.map((i) => {
-        const x = {
-          bar: mk('div', { class: 'tl-bar' }),
-          corr: mk('div', { class: 'tl-corr' }),
-          raw: mk('div', { class: 'tl-raw', title: tr('syncTlRawTitle') }),
-          now: mk('div', { class: 'tl-now', title: tr('syncTlNowTitle') }),
-          cand: mk('div', { class: 'tl-cand' }),
-          candSpan: mk('div', { class: 'tl-cand-span' }),
-          diff: mk('span', { class: 'tl-diff' }),
-          st: mk('span', { class: 'tl-st' }),
-        };
-        t.rows.set(i, x);
-        return mk(
-          'div',
-          { class: 'tl-row', title: tileName(i) || '' },
-          mk('span', { class: 'tl-no' }, String(tileNo(i))),
-          x.diff,
-          (x.track = mk('div', { class: 'tl-track' }, x.bar, x.corr, x.candSpan, x.raw, x.cand, x.now)),
-          x.st,
-        );
-      });
-      t.axis = mk('div', { class: 'tl-axis' });
-      t.el = mk('div', { class: 'dg-tl' }, mk('div', { class: 'tl-axis-row' }, t.axis), ...rowsEl);
-      return t;
-    }
-    /** 図を今に合わせる (同期の処理のたび) */
-    function updateTimeline(G, t) {
-      const marks = new Map([...t.rows.keys()].map((i) => [i, startMarks(G, i)]));
-      // 補正を見せる位置: 基準と一緒に流れ始めるところ (基準より前に始まった枠は基準の開始、後に始まった枠と基準は自分の開始)
-      const refRaw = marks.get(G.ref)?.raw ?? null;
-      const corrAt = (i, m) => (i !== G.ref && refRaw != null ? Math.max(m.raw, refRaw) : m.raw);
-      // ✨ 自動補正の候補 (反映したら補正を入れた開始がどこへ動くか。コラボ配信のグループだけ)
-      const cands = new Map();
-      if (!isMovie(G)) {
-        for (const [i, m] of marks) {
-          const c = m?.raw != null ? AudioSync.candidateFor(i) : null;
-          if (c) cands.set(i, c);
-        }
-      }
-      const pts = [...marks.entries()]
-        .filter(([, m]) => m)
-        .flatMap(([i, m]) =>
-          m.raw == null ? [m.at] : [m.at, m.raw, corrAt(i, m), corrAt(i, m) - (m.raw - m.at), ...(cands.has(i) ? [corrAt(i, m) - cands.get(i).v * 1000] : [])],
-        );
-      const sc = SyncChart.scale(pts);
-      if (!sc) return;
-      const pct = sc.pos;
-      const fmt = isMovie(G) ? (ms) => movieText(ms).replace(/^\S+\s/, '') : clockText;
-      // 目盛り: 各枠の開始の時刻 (実際の時刻は配信が始まった時刻、本編は本編 0:00 の位置) を、その位置に出せるだけ出す。
-      // 2 段に振り分け、どちらの段でも重なるものは出さない (差は左の文字で分かる)
-      const starts = [...new Set([...marks.values()].filter(Boolean).map((m) => m.raw ?? m.at))].sort((a, b) => a - b);
-      const labelKey = starts.map((v) => fmt(v) + '@' + pct(v).toFixed(1)).join(',');
-      if (labelKey !== t.labelKey && t.axis.clientWidth) {
-        t.labelKey = labelKey;
-        const w = t.axis.clientWidth;
-        const lanes = [-Infinity, -Infinity]; // 各段の、最後に置いた文字の右端 (px)
-        const spans = [];
-        t.axis.replaceChildren();
-        for (const v of starts) {
-          const el = mk('span', { class: 'tl-time' }, fmt(v));
-          t.axis.append(el);
-          const half = el.offsetWidth / 2;
-          const x = Math.max(half, Math.min(w - half, (pct(v) / 100) * w)); // 端ではみ出さないよう、内側へ寄せる
-          const lane = lanes.findIndex((right) => x - half >= right + 4);
-          if (lane < 0) {
-            el.remove();
-            continue;
-          }
-          lanes[lane] = x + half;
-          el.style.left = x + 'px';
-          el.style.top = lane * 11 + 'px';
-          spans.push(el);
-        }
-      }
-      // 各枠の棒の切れ目 (間を詰めたところ。位置が変わったときだけ作り直す)
-      const breakKey = sc.breaks.map((b) => b.toFixed(1)).join(',');
-      if (breakKey !== t.breakKey) {
-        t.breakKey = breakKey;
-        for (const x of t.rows.values()) {
-          x.track.querySelectorAll('.tl-break').forEach((e) => e.remove());
-          x.track.append(...sc.breaks.map((b) => mk('span', { class: 'tl-break', style: `left: ${b}%` })));
-        }
-      }
-      const R = nowR(G);
-      const ref = G.ref;
-      // 開始の差: 実際の時刻は配信が始まった時刻どうし (補正は含めない)、本編は本編 0:00 の位置どうし
-      const startOf = (i) => (marks.get(i) ? (marks.get(i).raw ?? marks.get(i).at) : null);
-      for (const [i, x] of t.rows) {
-        const m = marks.get(i);
-        x.bar.hidden = !m;
-        const shift = m && m.raw != null ? m.raw - m.at : 0; // 補正 (ミリ秒。+ = 早めた)
-        const corrected = Math.abs(shift) >= 5;
-        const cand = cands.get(i);
-        x.corr.hidden = !corrected;
-        x.raw.hidden = !corrected && !cand;
-        x.cand.hidden = x.candSpan.hidden = !cand;
-        if (m && cand) {
-          // 候補の印: 反映したあとの補正を入れた開始。今の位置 (補正を入れた開始) から点線でつなぐ
-          const p = corrAt(i, m);
-          const a = pct(p - shift);
-          const b = pct(p - cand.v * 1000);
-          x.raw.style.left = pct(p) + '%';
-          x.cand.style.left = b + '%';
-          x.candSpan.style.left = Math.min(a, b) + '%';
-          x.candSpan.style.width = Math.abs(b - a) + '%';
-          for (const e of [x.cand, x.candSpan]) e.classList.toggle('is-prelim', cand.prelim);
-          x.cand.title = tr(cand.prelim ? 'syncTlCandPrelimTitle' : 'syncTlCandTitle', signedSec(cand.v), tr(`syncAudioGrade_${cand.grade}`));
-          x.cand.dataset.grade = GRADE_MARK[cand.grade];
-        }
-        if (m) {
-          const p = corrected ? corrAt(i, m) : null;
-          // 補正を自分の開始で見せる (基準・基準より後に始まった枠) ときは、棒は遅いほうの開始から (早めた分は空いたところへ延びる)。
-          // 基準の開始で見せるときは、棒は補正を入れた開始からそのまま、その途中に補正の分を重ねる
-          const atOwnStart = corrected && p === m.raw;
-          x.bar.style.left = pct(atOwnStart ? Math.max(m.at, m.raw) : m.at) + '%';
-          if (corrected) {
-            const earlier = shift > 0;
-            const a = pct(Math.min(p, p - shift));
-            const b = pct(Math.max(p, p - shift));
-            x.raw.style.left = pct(p) + '%';
-            x.corr.style.left = a + '%';
-            x.corr.style.width = b - a + '%';
-            x.corr.title = tr(earlier ? 'syncTlCorrEarlier' : 'syncTlCorrLater', signedSec(off(i)));
-          }
-        }
-        // 今の時刻: 図に入っていれば縦の線 (ずっと後なら出さない)
-        const nowX = pct(R);
-        x.now.hidden = nowX <= 0 || nowX >= 100;
-        x.now.style.left = nowX + '%';
-        const d = i === ref || startOf(i) == null || startOf(ref) == null ? null : (startOf(i) - startOf(ref)) / 1000;
-        x.diff.textContent =
-          i === ref ? tr('syncTlBase') : d == null ? '' : Math.abs(d) < 0.5 ? tr('syncTlSame') : tr(d < 0 ? 'syncTlEarlier' : 'syncTlLater', spanLabel(d));
-        const st = waiting.has(i) ? 'wait' : drift.get(i);
-        x.st.textContent =
-          st === 'ref'
-            ? '✓'
-            : st === 'wait'
-              ? tr('syncTlWait')
-              : st === 'ok'
-                ? '✓'
-                : st === 'fix'
-                  ? tr('syncTlFix', Math.abs(driftSec.get(i) ?? 0).toFixed(2))
-                  : '—';
-        x.st.classList.toggle('is-fix', st === 'fix');
-        x.st.title = tr('syncDot_' + (st || 'none'));
-      }
-      // 見比べる目印: 補正を見せている時刻に、そのとき既に流れているほかの枠の行にも線を引く
-      // (基準より前に始まった枠の補正は、基準の棒の左端が目印になるので要らない。基準より後に始まった枠や、基準そのものの補正のため)
-      const corrPts = [...t.rows.keys()]
-        .filter((i) => marks.get(i)?.raw != null && Math.abs(marks.get(i).raw - marks.get(i).at) >= 5)
-        .map((i) => [i, corrAt(i, marks.get(i))]);
-      for (const [j, x] of t.rows) {
-        const mj = marks.get(j);
-        const guides = mj ? corrPts.filter(([i, p]) => i !== j && Math.min(mj.at, mj.raw ?? mj.at) < p - 5).map(([, p]) => p) : [];
-        x.track.querySelectorAll('.tl-guide').forEach((e) => e.remove());
-        x.track.append(...guides.map((p) => mk('div', { class: 'tl-guide', style: `left: ${pct(p)}%`, title: tr('syncTlGuideTitle') })));
-      }
-    }
-
-    /**
-     * 行の ✨ の候補: 「✨ −1.61 ◎」(途中の結果は薄く)。決められなかった枠は「✨ —」。
-     * ほかの枠とは合ったのに音が合わなかった枠は「✨ — 別の配信かも」
-     */
-    function paintCand(el, c, i) {
-      const suspect = c === false && AudioSync.isSuspect(i);
-      const key = c == null ? '' : c === false ? (suspect ? '-?' : '-') : [c.v, c.grade, c.prelim].join();
-      if (el.dataset.k === key) return;
-      el.dataset.k = key;
-      el.classList.toggle('is-prelim', !!c?.prelim);
-      el.title = c == null ? '' : c === false ? tr(suspect ? 'syncAudioSuspectTitle' : 'syncAudioNoCandTitle') : tr(c.prelim ? 'syncAudioCandPrelimTitle' : 'syncAudioCandTitle', signedSec(c.v), tr(`syncAudioGrade_${c.grade}`));
-      el.replaceChildren(
-        ...(c == null ? [] : c === false ? ['✨ —', ...(suspect ? [' ', mk('span', { class: 'dr-suspect' }, tr('syncAudioSuspectShort'))] : [])] : [`✨ ${signedSec(c.v)} `, mk('span', { class: 'dr-grade g' + c.grade }, GRADE_MARK[c.grade])]),
-      );
-    }
-
-    function render() {
-      rows.clear();
-      heads.clear();
-      const focusedRow = document.activeElement?.closest?.('.dock-row')?.dataset.i;
-      const kids = [...groups.values()].sort((a, b) => a.g - b.g).map(groupEl);
-      const rest = [...assigned.excluded.keys()].filter((i) => !groupOfTile(i)).sort((a, b) => tileNo(a) - tileNo(b));
-      if (rest.length) kids.push(mk('section', { class: 'dock-group dock-rest' }, mk('div', { class: 'dg-head' }, mk('span', { class: 'dg-title' }, tr('syncGroupNone'))), ...rest.map((i) => rowEl(i, null))));
-      if (!kids.length) kids.push(mk('p', { class: 'dock-empty' }, tr('syncDockEmpty')));
-      body().replaceChildren(...kids);
-      if (focusedRow != null) rows.get(Number(focusedRow))?.row.focus({ preventScroll: true });
-    }
-
-    /** 同期の処理のたびに呼ぶ: 形 (グループ・行) が変わったら作り直し、数字・点・時刻を書き換える */
-    function update() {
-      if (!shown || !on) return;
-      const key = JSON.stringify([
-        LANG,
-        mini,
-        [...groups.values()].map((G) => [G.g, G.mode, G.ref, active(G), membersOf(G.g)]),
-        [...assigned.excluded],
-        [...manual].map(([i, m]) => [i, m.g]),
-        visibleIndexes().map((i) => [i, tileName(i), liveTile(i), MovieAnchors.isMain(state.tiles[i].videoId)]),
-        AudioSync.resultKey(),
-      ]);
-      if (key !== structKey) {
-        structKey = key;
-        render();
-      }
-      for (const [g, h] of heads) {
-        const G = groups.get(g);
-        if (!G || !active(G)) {
-          h.note.textContent = tr(membersOf(g).length < 2 ? 'syncGroupNeedMore' : 'syncGroupNeedArchive');
-          continue;
-        }
-        const playing = G.clock.playing && !G.paused;
-        h.play.textContent = tr(playing ? 'syncGroupPauseLabel' : 'syncGroupPlayLabel');
-        h.play.title = tr(playing ? 'syncGroupPause' : 'syncGroupPlay');
-        fillSeek(h.range, h.now, h.end, G);
-        if (h.tl) updateTimeline(G, h.tl);
-        const a = AudioSync.progressText(g);
-        h.audio.textContent = a || tr('syncAudioLabel');
-        h.audio.classList.toggle('is-measuring', !!a);
-        // まだ補正していないグループでは ✨ を目立たせる (見つけてもらえるように)
-        h.audio.classList.toggle('is-suggest', !a && !AudioSync.hasOutput(g) && membersOf(g).every((i) => !movable(i) || off(i) === 0));
-        h.box?.paint();
-        h.reset.disabled = !membersOf(g).some((i) => movable(i) && off(i) !== 0);
-        h.note.textContent = isMovie(G) && anchor(G.ref) == null ? tr('syncGroupNeedAnchor') : '';
-      }
-      for (const [i, r] of rows) {
-        const G = groupOfTile(i);
-        const wait = waiting.get(i);
-        const movie = !!G && isMovie(G);
-        let v = null;
-        if (G && active(G)) v = (wait ? offsetAt(G, i, nowR(G)) : null) ?? (movie ? anchor(i) : off(i));
-        // 本編の位置の見当 (配信の時刻から付けた値) は「≈」を付ける
-        const guess = movie && v != null && !wait && MovieAnchors.isGuess(vidOf(i));
-        const txt = v == null ? (movie ? tr('syncAnchorUnset') : '') : movie ? (guess ? '≈' : '') + anchorText(v) : signedSec(v);
-        r.short.textContent = G && active(G) && !liveTile(i) ? txt || '—' : '';
-        if (r.refVal) r.refVal.textContent = tr('syncRefAnchor', txt); // 本編モードの基準だけ (実際の時刻の基準の補正はいつも 0)
-        if (r.val && document.activeElement !== r.val) {
-          r.val.placeholder = txt;
-          r.val.dataset.shown = txt;
-        }
-        if (r.wait) {
-          r.wait.textContent = wait ? '▶' : '⏸';
-          r.wait.title = tr(wait ? 'syncWaitResumeTitle' : 'syncWaitTitle');
-          r.wait.classList.toggle('is-waiting', !!wait);
-        }
-        if (r.steps && !r.locked) for (const b of r.steps) b.disabled = movie && anchor(i) == null;
-        if (r.cand) paintCand(r.cand, AudioSync.candidateFor(i), i);
-        const st = wait ? 'wait' : drift.get(i) || 'none';
-        r.dot.className = 'dr-dot is-' + st;
-        r.dot.textContent = st === 'ok' ? '✓' : st === 'fix' ? '↻' : '';
-        r.dot.title = tr('syncDot_' + st);
-        if (r.reset) r.reset.hidden = !movable(i) || off(i) === 0 || !!wait;
-        // 🕒 その配信の始まりからの経過時間 (始まる前は −、終わっていれば「終了」)
-        if (G && active(G) && !movie && movable(i) && !G.init) {
-          const t = targetOf(G, i, nowR(G));
-          const ended = t > views[i].archive.dur + 1;
-          const s = ended ? tr('syncElapsedEnded') : signedHms(t);
-          if (r.elapsed.textContent !== s) r.elapsed.textContent = s;
-          r.elapsed.title = tr('syncElapsedTitle');
-        } else if (r.elapsed.textContent) r.elapsed.textContent = '';
-      }
-    }
-
     function setup() {
-      document.getElementById('syncDockToggle').addEventListener('click', (e) => {
+      toggleBtn().addEventListener('click', (e) => {
         e.currentTarget.blur();
-        wanted = !shown;
-        if (shown) hide();
-        else show();
+        if (WaveStrip.isShown()) {
+          wanted = false;
+          hide();
+        } else show();
       });
-      document.getElementById('syncDockClose').addEventListener('click', () => {
+    }
+    return {
+      show,
+      hide,
+      update: mark,
+      setup,
+      autoShow: () => wanted && show(),
+      /** 帯の ✕ で閉じた (次に自動で同期を始めたときは出さない) */
+      closedByUser: () => {
         wanted = false;
-        hide();
-      });
-      document.getElementById('syncDockMini').addEventListener('click', () => {
-        setMini(!mini);
-        structKey = '';
-        update();
-      });
-      for (const ev of ['pointerup', 'blur']) addEventListener(ev, () => stopHold?.());
-      document.getElementById('syncDockFloat').addEventListener('click', () => setFloating(!floating));
-      setupDrag();
-      setMini(false);
-      loadPref();
-      setFloating(floating);
-    }
-
-    /** 自分で出した (上部バーの ☰): 次に同期を始めたときも出す */
-    function open(i) {
-      wanted = true;
-      show(i);
-    }
-    return { show: open, hide, update, setup, autoShow: () => wanted && show() };
+        mark();
+      },
+    };
   })();
 
   function setup() {
@@ -4647,11 +3855,10 @@ const Sync = (() => {
       if (on) stop();
       else if (canStart()) {
         start();
-        // ボタンで ON にしたときは、✕ で閉じていた同期の調整パネルも開き直す
+        // ボタンで ON にしたときは、✕ で閉じていた同期の調整の帯も開き直す
         if (on) Dock.show();
       } else notify(whyNot().join('\n'));
     });
-    bindSeek(document.getElementById('syncSeek'), document.getElementById('syncNow'));
     Dock.setup();
   }
 
@@ -4702,7 +3909,17 @@ const Sync = (() => {
     seekToAllStarted,
     /** 枠 i を同期しないにする (✨ 自動補正で、ほかの枠と音が合わなかった枠) */
     excludeTile: (i) => moveTile(i, 0),
+    /** 同期の調整の帯を出す (✕ で閉じていても) */
     showDock: () => Dock.show(),
+    /** 手で決めたグループを全部やめて、自動 (時間帯が重なる枠をまとめる) に戻す (帯の「自動で分け直す」。パネルの行の「自動」の代わり) */
+    autoRegroup() {
+      if (!on || !manual.size) return;
+      for (const i of [...manual.keys()]) moveTile(i, 'auto');
+    },
+    /** 手で決めたグループがあるか */
+    hasManualGroups: () => manual.size > 0,
+    /** 同期の調整の帯を ✕ で閉じた (次に自動で同期を始めたときは出さない) */
+    stripClosedByUser: () => Dock.closedByUser(),
     speedGroupOf,
     setGroupSpeed,
     /** 🎬 🚩 開始位置: 今の再生位置を本編 0:00 にする (パネルの「🚩 開始位置」と同じ) */
@@ -4729,10 +3946,10 @@ const Sync = (() => {
     movieClear: (i) => setOffset(i, null),
     /** 🎬 本編の印: on = この枠を本編にする / false = 本編をやめる */
     setMain: (i, on) => setMain(i, on),
-    /** 同期の調整の帯のグループの ✨ 自動補正 (パネルのグループの ✨ と同じ) */
+    /** 同期の調整の帯のグループの ✨ 自動補正 */
     toggleAudioSync: (g) => AudioSync.toggle(g),
     /** 同期の調整の帯に出す ✨ の箱 ({el, paint} / null) */
-    audioResultEl: (g) => AudioSync.resultEl(g, 'strip'),
+    audioResultEl: (g) => AudioSync.resultEl(g),
     /** 同期の調整の帯の行の 🔊 / 🔇: その枠だけ音を出す / 消す (ほかの枠はそのまま。枠の情報の 🔊 と同じ) */
     toggleAudio(i) {
       setAudio(i, { solo: false });
@@ -4876,7 +4093,7 @@ const Sync = (() => {
       for (const v of views) v?.el?.classList.remove('sync-hl');
       if (i != null) views[i]?.el?.classList.add('sync-hl');
     },
-    /** グループ g を一時停止 / 再生する (同期の調整パネルの ⏸ と同じ) */
+    /** グループ g を一時停止 / 再生する (同期の調整の帯の ⏸) */
     togglePause(g) {
       const G = on ? groups.get(g) : null;
       if (G && active(G)) togglePauseGroup(G);
@@ -4898,7 +4115,7 @@ const Sync = (() => {
 
 // ---------------------------------------------------------------- ✨ 自動補正 (今は音で合わせる。アーカイブの同期再生のずれを、音で測って直す)
 // コラボの各視点には通話の声が共通して入っているので、同期しているグループの枠の音を最大 180 秒聞いて突き合わせ、ずれを求める。
-// - 同期の調整パネル・同期の調整の帯のグループの「✨ 自動補正」で始める (いくつものグループを同時に測れる)。今の位置からそのまま再生しながら測る
+// - 同期の調整の帯のグループの「✨ 自動補正」で始める (いくつものグループを同時に測れる)。今の位置からそのまま再生しながら測る
 //   (基準の枠が再生している間だけ数える)。もう一度押すとやめる
 // - 測っている間は、各枠の中 (content/watch.js の Mix) が音の大きさを記録して送ってくる。消音中の枠もプレイヤーの消音を外して
 //   Web Audio 側で消音するので、聞こえ方は変わらない。終わったら元の消音に戻す
@@ -5306,11 +4523,11 @@ const AudioSync = (() => {
   /**
    * パネル・帯のグループに出す箱: 測っている間 (途中の結果)・結果 (試す・決める・試す前に戻す・測り直す・閉じる。2 枠なら合わせ方)・
    * 決められなかった (測り直す・閉じる)。出すものが無ければ null。{el, paint}: paint で数字を書き換える (更新のたび)。
-   * scope = 出す場所 ('dock' パネル / 'strip' 同期の調整の帯)。帯では帯で見えるもの (波形の ✨ と点線) を指す文にする
+   * 文は帯で見えるもの (波形の ✨ と点線) を指す
    */
-  function resultEl(g, scope = 'dock') {
-    if (runs.has(g)) return measuringEl(runs.get(g), scope);
-    if (resultOf(g)) return { el: doneEl(g, scope), paint() {} };
+  function resultEl(g) {
+    if (runs.has(g)) return measuringEl(runs.get(g));
+    if (resultOf(g)) return { el: doneEl(g), paint() {} };
     const failure = failureFor(g);
     if (failure) {
       const el = mk(
@@ -5335,13 +4552,12 @@ const AudioSync = (() => {
   const slots = (a, b, c) =>
     mk('div', { class: 'dga-buttons' }, mk('span', { class: 'dga-slot a' }, a), mk('span', { class: 'dga-slot b' }, b), mk('span', { class: 'dga-slot c' }, c));
 
-  function measuringEl(run, scope) {
+  function measuringEl(run) {
     const title = mk('div', { class: 'dga-title' });
     const sub = mk('div', { class: 'dga-legend' });
     const now = mk('button', { type: 'button', class: 'primary-action', textContent: tr('syncAudioFinishNow'), title: tr('syncAudioFinishNowTitle'), onclick: () => finish(run) });
     const stop = mk('button', { type: 'button', textContent: tr('syncAudioStop'), onclick: () => cancel(run) });
     const el = mk('div', { class: 'dg-audio-result is-measuring' }, title, sub, slots(now, null, stop));
-    const strip = scope === 'strip';
     return {
       el,
       paint() {
@@ -5356,7 +4572,7 @@ const AudioSync = (() => {
             : p
               ? tr('syncAudioPrelimTitle', p.sec)
               : tr('syncAudioListening');
-        sub.textContent = run.closed ? '' : p ? tr(strip ? 'stripAudioLegend' : 'syncAudioLegend') : tr(strip ? 'stripAudioListeningSub' : 'syncAudioListeningSub', PRELIM_FIRST);
+        sub.textContent = run.closed ? '' : p ? tr('stripAudioLegend') : tr('stripAudioListeningSub', PRELIM_FIRST);
         now.disabled = run.closed || !p;
         stop.disabled = run.closed;
       },
@@ -5364,13 +4580,12 @@ const AudioSync = (() => {
   }
 
   const sec = (v) => (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(v).toFixed(2);
-  function doneEl(g, scope) {
+  function doneEl(g) {
     const result = resultOf(g);
     const { tiles, ref, two, tried } = result;
-    const strip = scope === 'strip';
     const kids = [
-      mk('div', { class: 'dga-title' }, tr(tried ? 'syncAudioTrying' : strip ? 'stripAudioResultTitle' : 'syncAudioResultTitle')),
-      mk('div', { class: 'dga-legend' }, tr(strip ? 'stripAudioLegend' : 'syncAudioLegend')),
+      mk('div', { class: 'dga-title' }, tr(tried ? 'syncAudioTrying' : 'stripAudioResultTitle')),
+      mk('div', { class: 'dga-legend' }, tr('stripAudioLegend')),
     ];
     // 音が合わなかった枠: 同じコラボではないかもしれない。外すかは使う人が決める (勝手に外さない)
     for (const i of suspects(g)) {

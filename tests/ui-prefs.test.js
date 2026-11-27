@@ -19,12 +19,12 @@ test('覚えたものは chrome.storage.local の ui:<名前> に置き、読み
   assert.equal(U.get('libScope'), undefined);
   U.set('libScope', 'all');
   U.set('libKinds', ['live', 'short']);
-  U.set('syncDock', { floating: false });
+  U.set('waveRuler', 'clock');
   await new Promise((r) => setTimeout(r));
   const saved = env.chrome.storage.local._dump();
   assert.equal(saved['ui:libScope'], 'all');
   assert.deepEqual(plain(saved['ui:libKinds']), ['live', 'short']);
-  assert.deepEqual(plain(saved['ui:syncDock']), { floating: false });
+  assert.equal(saved['ui:waveRuler'], 'clock');
   assert.equal(ls.getItem('hakomado.libScope'), null, 'localStorage には書かない');
 
   const again = load(['ui-prefs.js']);
@@ -44,7 +44,7 @@ test('知らない名前は読み書きしない', async () => {
   assert.deepEqual(plain(env.chrome.storage.local._dump()), {});
 });
 
-test('以前の版の localStorage の覚えを引き継ぎ、localStorage から消す (タブの位置は引き継がずに消す。表示言語は残す)', async () => {
+test('以前の版の localStorage の覚えを引き継ぎ、localStorage から消す (タブの位置・同期パネルの置き方は引き継がずに消す。表示言語は残す)', async () => {
   const { U, env, ls } = setup({
     legacy: {
       'hakomado.lang': 'en',
@@ -64,7 +64,7 @@ test('以前の版の localStorage の覚えを引き継ぎ、localStorage か�
   assert.equal(U.get('libScope'), 'all');
   assert.deepEqual(plain(U.get('libKinds')), ['video']);
   assert.equal(U.get('shareImgLabels'), true);
-  assert.deepEqual(plain(U.get('syncDock')), { floating: true, x: 10, y: 20 });
+  assert.equal(U.get('syncDock'), undefined, '同期の調整パネルは無くした (HAKO-48) ので引き継がない');
   const saved = env.chrome.storage.local._dump();
   assert.equal(saved['ui:libPlaylist'], 'p1');
   assert.equal(saved['ui:shareAuthor'], 'TK');
@@ -87,6 +87,16 @@ test('引き継ぐときは chrome.storage にあるほうを使い、壊れた�
   assert.equal(saved['ui:libScope'], 'star');
   assert.equal('ui:libKinds' in saved, false);
   assert.equal(ls.getItem('hakomado.libKinds'), null, '壊れた値も localStorage からは消す');
+});
+
+test('使わなくなった覚え (同期の調整パネルの置き方 ui:syncDock) は、読んだときに chrome.storage から消す', async () => {
+  const { U, env } = setup({ seed: { 'ui:syncDock': { floating: true, x: 1, y: 2 }, 'ui:libScope': 'all' } });
+  await U.load();
+  await new Promise((r) => setTimeout(r));
+  const saved = env.chrome.storage.local._dump();
+  assert.equal('ui:syncDock' in saved, false);
+  assert.equal(saved['ui:libScope'], 'all', 'ほかの覚えは残す');
+  assert.equal(U.get('syncDock'), undefined);
 });
 
 test('ほかのタブで変わったら覚え直す', async () => {
