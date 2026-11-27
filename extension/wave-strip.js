@@ -45,13 +45,15 @@ const WaveStrip = (() => {
 
   const root = () => document.getElementById('waveStrip');
   const groupOf = (g) => model?.groups.find((G) => G.g === g) || null;
-  /** 波を描ける節 (同期できる 🕒 コラボ配信のグループ) */
-  const drawable = (G) => !!G && G.active && !G.movie;
-  /** 波を描ける枠 (YouTube のアーカイブ) */
-  const waveTiles = (G) => (drawable(G) ? G.tiles.filter((t) => t.youtube && t.movable && t.start != null) : []);
-  const offOf = (t) => (drag?.i === t.i ? drag.off : t.off || 0);
-  const realStart = (t) => t.start - offOf(t) * 1000;
-  const realEnd = (t) => t.start + (t.dur - offOf(t)) * 1000;
+  /** 波を描ける節 (同期できるグループ。🕒 は実際の時刻、🎬 は本編の時刻の軸。HAKO-47) */
+  const drawable = (G) => !!G && G.active;
+  /** ✨ 自動補正・実際の時刻に戻すが使える節 (🕒 コラボ配信だけ) */
+  const timeMode = (G) => drawable(G) && !G.movie;
+  /** 波を描ける枠 (YouTube のアーカイブ。🎬 は本編の位置が決まった枠だけ) */
+  const waveTiles = (G) => (drawable(G) ? G.tiles.filter((t) => t.youtube && t.movable && t.start != null && t.off != null) : []);
+  const offOf = (t) => (drag?.i === t.i ? drag.off : t.off); // 🕒 は秒 (0 があり得る)、🎬 は本編の位置 (null = 未定)
+  const realStart = (t) => t.start - (offOf(t) ?? 0) * 1000;
+  const realEnd = (t) => t.start + (t.dur - (offOf(t) ?? 0)) * 1000;
   const refTile = (G) => G?.tiles.find((t) => t.i === G.ref) || null;
 
   // ---------------------------------------------------------------- 音の大きさを測る
@@ -539,7 +541,7 @@ const WaveStrip = (() => {
     s.head.progress = drawable(G) ? mk('span', { class: 'wv-progress', title: tr('waveScanTitle') }) : null;
     s.head.play = G.active ? mk('button', { type: 'button', class: 'wv-play', onclick: () => (Sync.togglePause(G.g), update()) }) : null;
     s.head.reset =
-      G.active && !G.movie
+      timeMode(G)
         ? mk('button', { type: 'button', class: 'wv-reset', textContent: tr('stripResetLabel'), title: tr('syncResetGroupTitle', G.g), onclick: () => (Sync.resetGroup(G.g), update()) })
         : null;
     // グループの再生速度 (超低速の 0.1× から。0.1× は YouTube の枠だけのグループで選べる)。ライブの入ったグループは等速のまま
@@ -559,11 +561,11 @@ const WaveStrip = (() => {
       s.head.speed = sel;
     }
     // ✨ 自動補正 (パネルのグループの ✨ と同じ。測っている間にもう一度押すとやめる)。🕒 の同期できるグループだけ
-    s.head.audio = drawable(G)
+    s.head.audio = timeMode(G)
       ? mk('button', { type: 'button', class: 'wv-audio-sync sync-audio', title: tr('syncAudioTitle'), onclick: () => (Sync.toggleAudioSync(G.g), update()) })
       : null;
     // ✨ の箱 (測っている間の様子・結果・決められなかった)
-    s.head.box = drawable(G) ? Sync.audioResultEl(G.g) : null;
+    s.head.box = timeMode(G) ? Sync.audioResultEl(G.g) : null;
     // グループの音 (🔊 / 🔇): グループの中に音の出ている枠があれば全部消す・全部消えていれば全部出す
     s.head.mute = G.tiles.length ? mk('button', { type: 'button', class: 'wv-group-audio', onclick: () => (Sync.toggleGroupAudio(G.g), update()) }) : null;
     // つまみ (上部バーのつまみと同じ。グループの時刻を動かす)。残りの幅を使い、狭ければ縮む (拡大のスライダーの幅までは保つ)
@@ -597,7 +599,8 @@ const WaveStrip = (() => {
       s.head.mute,
       s.head.progress,
     );
-    const bottom = drawable(G) ? mk('div', { class: 'wv-sec-head wv-head-msg' }, mk('div', { class: 'wv-audio-box' }, s.head.box?.el)) : null;
+    s.head.movieMsg = G.movie ? mk('span', { class: 'wv-movie-msg' }) : null;
+    const bottom = drawable(G) ? mk('div', { class: 'wv-sec-head wv-head-msg' }, mk('div', { class: 'wv-audio-box' }, s.head.box?.el, s.head.movieMsg)) : null;
     s.head.note = mk('div', { class: 'wv-sec-note' });
     const kids = [top, bottom, s.head.note];
     if (!folded.has(G.g)) {
@@ -642,7 +645,7 @@ const WaveStrip = (() => {
       }
       for (const t of ordered(G.g, G.tiles)) kids.push(rowEl(G, t, s));
     }
-    return mk('section', { class: 'wv-sec' + (folded.has(G.g) ? ' is-folded' : ''), dataset: { g: String(G.g) }, style: `--g: ${color}` }, kids);
+    return mk('section', { class: 'wv-sec' + (folded.has(G.g) ? ' is-folded' : '') + (G.movie ? ' is-movie' : ''), dataset: { g: String(G.g) }, style: `--g: ${color}` }, kids);
   }
 
   /**
@@ -730,7 +733,8 @@ const WaveStrip = (() => {
   function rowEl(G, t, s) {
     const isRef = !!G && G.ref === t.i;
     const r = { t };
-    const tuned = !!G && G.active && !G.movie;
+    const tuned = !!G && G.active && !t.live;
+    const movie = !!G && G.movie;
     // 一番左: 基準の選択 (○ を押すと基準にする。基準は 🔒 (🕒。補正は 0 のまま) / ◉ (🎬))
     const refBtn = G
       ? mk('button', {
@@ -768,7 +772,8 @@ const WaveStrip = (() => {
     const tune = mk('div', { class: 'wv-tune' });
     r.elapsed = mk('span', { class: 'wv-elapsed', title: tr('syncElapsedTitle') });
     if (tuned) {
-      r.off = mk('button', { type: 'button', class: 'wv-off', title: tr('stripOffsetTitle'), disabled: isRef || !t.movable });
+      // 🕒 は補正の秒数 (基準は 0 のまま)。🎬 は本編の位置 (この動画で本編 0:00 に当たる再生位置。基準も決められる。決めるのは 🎬 の列でも)
+      r.off = mk('button', { type: 'button', class: 'wv-off', title: tr(movie ? 'stripAnchorTitle' : 'stripOffsetTitle'), disabled: (isRef && !movie) || !t.movable });
       r.off.addEventListener('click', (e) => {
         e.stopPropagation();
         editOffset(r, t);
@@ -778,17 +783,24 @@ const WaveStrip = (() => {
       r.audio = mk('button', { type: 'button', class: 'wv-audio', onclick: (e) => (e.stopPropagation(), Sync.toggleAudio(t.i), update()) });
       r.wait = t.movable ? mk('button', { type: 'button', class: 'wv-wait', disabled: isRef, onclick: (e) => (e.stopPropagation(), Sync.toggleWait(t.i), update()) }) : mk('span', { class: 'wv-slot' });
       // 元に戻す (この枠の補正を、ひとつ前の値に)。基準の行も列をそろえるために置く (押せない)
-      r.undo = t.movable ? mk('button', { type: 'button', class: 'wv-undo', textContent: '↶', disabled: isRef, onclick: (e) => (e.stopPropagation(), undoOffset(t.i)) }) : null;
+      r.undo = t.movable ? mk('button', { type: 'button', class: 'wv-undo', textContent: '↶', disabled: isRef && !movie, onclick: (e) => (e.stopPropagation(), undoOffset(t.i)) }) : null;
       tune.append(r.elapsed, r.off, r.dot, r.audio, r.wait, r.undo || mk('span', { class: 'wv-slot' }));
       // 罫線と波の間を押しても、行を選ぶ (行の左を押したときと同じ)
       tune.addEventListener('click', (e) => {
         if (!e.target.closest('button, input')) toggleSelect(G, t.i, e);
       });
     } else {
-      tune.append(mk('span', { class: 'wv-why' }, tr(G ? (G.movie ? 'stripMovieInPanel' : 'syncGroupNeedArchive') : 'syncWhyRow_' + (t.why || 'alone'))));
+      const why = !G ? 'syncWhyRow_' + (t.why || 'alone') : t.live && movie ? (isRef ? 'syncLiveRef' : 'movieLiveRefOnly') : 'syncGroupNeedArchive';
+      tune.append(mk('span', { class: 'wv-why', title: tr(why) }, tr(why)));
     }
+    // 🎬 の列 (🎬 のグループだけ): 本編の印・🚩 開始位置・⏲ 画面タイマー・✕ 本編の位置を消す (パネルの行と同じ動き)
+    let movieCol = null;
+    if (movie && G.active) movieCol = movieColEl(G, t, r, isRef);
     let right;
-    if (G && drawable(G) && t.youtube && t.movable) {
+    if (movie && G.active && t.movable && t.off == null) {
+      // 本編の位置が決まっていない: 波を置く場所が無い
+      right = mk('div', { class: 'wv-nowave' }, tr('stripNoAnchor'));
+    } else if (G && drawable(G) && t.youtube && t.movable) {
       right = mk('canvas', { class: 'wv-canvas' + (isRef ? ' is-ref' : ''), title: tr('waveRowTitle') });
       bindCanvas(right, G.g, t.i);
       r.canvas = right;
@@ -796,15 +808,63 @@ const WaveStrip = (() => {
     // 基準の行は、波に半透明の覆いを乗せて触れないようにする (ホイールの拡大・縮小だけは通す)。
     // 罫線の右の補正・止めて待つは、基準の行では押せない形 (disabled) にしてある
     let cover = null;
-    if (isRef && tuned) {
+    if (isRef && tuned && !movie) {
       cover = mk('div', { class: 'wv-cover', title: tr('stripRefCoverTitle') });
       cover.addEventListener('wheel', (e) => onWheel(e, G.g), { passive: false });
     }
-    r.el = mk('div', { class: 'wv-row' + (isRef ? ' is-ref' : ''), dataset: { i: String(t.i), g: String(G ? G.g : 0) } }, label, tune, right, cover);
+    r.el = mk('div', { class: 'wv-row' + (isRef ? ' is-ref' : ''), dataset: { i: String(t.i), g: String(G ? G.g : 0) } }, label, tune, movieCol, right, cover);
     r.el.addEventListener('mouseenter', () => Sync.highlight(t.i));
     r.el.addEventListener('mouseleave', () => Sync.highlight(null));
     s.rows.set(t.i, r);
     return r.el;
+  }
+
+  /** 🎬 の列: 本編の印 (本編でなければ 🎬 で本編にする)・🚩 開始位置・⏲ 画面タイマー (欄を押した瞬間の位置で読む)・✕ */
+  function movieColEl(G, t, r, isRef) {
+    const col = mk('div', { class: 'wv-movie-col' });
+    if (t.live) {
+      // ライブ: 本編の位置は「今がどこか」だけ決められる (パネルと同じ)
+      col.append(mk('button', { type: 'button', class: 'wv-here', textContent: tr('syncMovieHere'), title: tr('syncMovieHereTitle'), onclick: (e) => (e.stopPropagation(), Sync.movieHere(t.i), update()) }));
+      return col;
+    }
+    if (!t.movable) return col;
+    r.main = mk('button', {
+      type: 'button',
+      class: 'wv-main',
+      onclick: (e) => {
+        e.stopPropagation();
+        if (!t.main) Sync.setMain(t.i, true);
+        else if (r.t.mainMarked) Sync.setMain(t.i, false);
+        update();
+      },
+    });
+    r.here = mk('button', { type: 'button', class: 'wv-here', textContent: tr('syncMovieHere'), title: tr('syncMovieHereTitle'), onclick: (e) => (e.stopPropagation(), Sync.movieHere(t.i), update()) });
+    const timer = mk('input', { type: 'text', class: 'wv-timer sync-input', inputMode: 'numeric', placeholder: tr('stripTimerPlaceholder'), spellcheck: false, title: tr('syncMovieNowTitle') });
+    timer.addEventListener('focus', () => Sync.movieTimerStart(t.i));
+    timer.addEventListener('keydown', (e) => {
+      e.stopPropagation();
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        timer.value = '';
+        Sync.movieTimerCancel(t.i);
+        timer.blur();
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        if (Sync.movieTimerCommit(t.i, timer.value)) {
+          timer.value = '';
+          timer.blur();
+          update();
+        }
+      }
+    });
+    // 入れずに離れたら、読むのをやめる (同期に戻す)
+    timer.addEventListener('blur', () => {
+      if (timer.value) return;
+      Sync.movieTimerCancel(t.i);
+    });
+    r.clear = mk('button', { type: 'button', class: 'wv-clear', textContent: '✕', title: tr('movieClear'), onclick: (e) => (e.stopPropagation(), Sync.movieClear(t.i), update()) });
+    col.append(r.main, r.here, timer, r.clear);
+    return col;
   }
 
   // ---------------------------------------------------------------- 行をドラッグ (並べ替え・ほかのグループへ移す)
@@ -893,14 +953,14 @@ const WaveStrip = (() => {
   const UNDO_GAP_MS = 1500;
   const UNDO_MAX = 100;
   const history = new Map(); // i -> {vid, known: 今の値, stack: 前の値 (古い順), at: 最後に変わった時刻}
-  const prevOf = (h) => (h?.stack.length ? h.stack[h.stack.length - 1] : null);
+  const prevOf = (h) => (h?.stack.length ? h.stack[h.stack.length - 1] : undefined); // 無ければ undefined (🎬 は null = 未定に戻すこともある)
   function trackOffsets() {
     const now = performance.now();
     for (const G of model.groups) {
-      if (!G.active || G.movie) continue;
+      if (!G.active) continue;
       for (const t of G.tiles) {
         const h = history.get(t.i);
-        const v = t.off || 0;
+        const v = G.movie ? t.off ?? null : t.off || 0; // 🎬 は本編の位置 (null = 未定。元に戻すで未定にも戻る)
         if (!h || h.vid !== t.vid) {
           history.set(t.i, { vid: t.vid, known: v, stack: [], at: 0 });
           continue;
@@ -920,7 +980,7 @@ const WaveStrip = (() => {
   function undoOffset(i) {
     const h = history.get(i);
     const back = prevOf(h);
-    if (back == null) return;
+    if (back === undefined) return;
     h.stack.pop();
     h.known = back;
     h.at = 0;
@@ -955,6 +1015,15 @@ const WaveStrip = (() => {
 
   // ---------------------------------------------------------------- 数字の書き換え
   const signed = (v) => (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(v).toFixed(2);
+  /** 秒 → 「0:15:18.00」(digits = 小数の桁。0 なら「0:15:18」)。🎬 の本編の位置・動画の再生位置 */
+  function clockOf(sec, digits) {
+    const neg = sec < 0;
+    const a = Math.abs(sec);
+    const h = Math.floor(a / 3600);
+    const m = Math.floor((a % 3600) / 60);
+    const sx = (a % 60).toFixed(digits).padStart(digits ? 3 + digits : 2, '0');
+    return (neg ? '−' : '') + `${h}:${String(m).padStart(2, '0')}:${sx}`;
+  }
 
   /** グループ G の波形のある割合 (0〜1) */
   function progressOf(G) {
@@ -998,6 +1067,11 @@ const WaveStrip = (() => {
         s.head.play.title = tr(G.playing ? 'syncGroupPause' : 'syncGroupPlay');
       }
       if (s.head.reset) s.head.reset.disabled = !G.canReset;
+      if (s.head.movieMsg) {
+        const n = G.tiles.filter((t) => t.movable && t.off == null).length;
+        const txt = G.note || (n ? tr('stripMovieNeedAnchor', n) : '');
+        if (s.head.movieMsg.textContent !== txt) s.head.movieMsg.textContent = txt;
+      }
       if (s.head.seek) Sync.fillGroupSeek(G.g, s.head.seek.input, s.head.seek.now, s.head.seek.end);
       if (s.head.mute) {
         const on = G.tiles.some((t) => !t.muted);
@@ -1020,18 +1094,29 @@ const WaveStrip = (() => {
         const tip = [...s.head.box.el.querySelectorAll('.dga-title, .dga-legend, .dga-suspect')].map((e) => e.textContent).filter(Boolean).join('\n');
         if (s.head.box.el.title !== tip) s.head.box.el.title = tip;
       }
-      const note = G.movie ? tr('stripMovieInPanel') : G.note;
+      const note = G.movie ? '' : G.note; // 🎬 の案内は見出しの 2 段目に出す
       if (s.head.note.textContent !== note) s.head.note.textContent = note;
       s.head.note.hidden = !note;
       for (const t of G.tiles) {
         const r = s.rows.get(t.i);
         if (!r) continue;
         r.t = t;
-        if (r.elapsed.textContent !== t.elapsed) r.elapsed.textContent = t.elapsed;
+        const elapsed = G.movie ? (t.pos == null ? '' : clockOf(t.pos, 0)) : t.elapsed;
+        if (r.elapsed.textContent !== elapsed) r.elapsed.textContent = elapsed;
         if (r.off && r.off.isConnected) {
-          const txt = signed(t.off || 0);
+          const txt = G.movie ? (t.off == null ? tr('stripAnchorNone') : clockOf(t.off, 2)) : signed(t.off || 0);
           if (r.off.textContent !== txt) r.off.textContent = txt;
+          r.off.classList.toggle('is-none', G.movie && t.off == null);
         }
+        if (r.main) {
+          const txt = t.main ? '🎬 ' + tr('movieMainTag') : '🎬';
+          if (r.main.textContent !== txt) r.main.textContent = txt;
+          r.main.classList.toggle('on', t.main);
+          r.main.disabled = t.main && !t.mainMarked; // プレミア公開の本編は、やめられない
+          r.main.title = tr(t.main ? (t.mainMarked ? 'movieMainUnsetTitle' : 'movieMainTagTitle') : 'movieMakeMainTitle');
+        }
+        if (r.here) r.here.classList.toggle('primary-action', t.off == null); // 本編の位置が未定なら目立たせる
+        if (r.clear) r.clear.disabled = t.off == null;
         if (r.dot) {
           const st = t.drift;
           r.dot.className = 'dr-dot is-' + st;
@@ -1060,8 +1145,9 @@ const WaveStrip = (() => {
         if (r.undo) {
           const h = history.get(t.i);
           const back = prevOf(h);
-          r.undo.disabled = back == null || t.waiting || t.i === G.ref; // 基準の補正は 0 のまま
-          r.undo.title = back == null ? tr('stripUndoNone') : tr('stripUndoTitle', signed(back), h.stack.length);
+          r.undo.disabled = back === undefined || t.waiting || (t.i === G.ref && !G.movie); // 🕒 の基準の補正は 0 のまま (🎬 の基準は本編の位置を決められる)
+          const backText = back == null ? tr('stripAnchorNone') : G.movie ? clockOf(back, 2) : signed(back);
+          r.undo.title = back === undefined ? tr('stripUndoNone') : tr('stripUndoTitle', backText, h.stack.length);
         }
       }
     }
@@ -1152,7 +1238,10 @@ const WaveStrip = (() => {
       for (const i of selected) {
         const G = model?.groups.find((x) => x.tiles.some((t) => t.i === i));
         if (!drawable(G) || i === G.ref) continue;
-        Sync.setOffset(i, Math.round((Sync.offOf(i) + d) * 100) / 100);
+        // 🕒 は補正、🎬 は本編の位置 (決まっていなければ動かさない)
+        const cur = G.movie ? G.tiles.find((t) => t.i === i)?.off : Sync.offOf(i);
+        if (cur == null) continue;
+        Sync.setOffset(i, Math.round((cur + d) * 100) / 100);
       }
       update();
     } else return;
@@ -1200,6 +1289,7 @@ const WaveStrip = (() => {
 
   /** 経過時間の目盛りの 0:00 (基準の枠の配信の始まり。実際の時刻のミリ秒)。時刻の目盛り・基準が無いときは null */
   function rulerZero(G) {
+    if (G.movie) return 0; // 🎬 は本編の時刻 (経過時刻・配信時刻の切り替えに関わらず)
     if (modeOf(G.g) !== 'elapsed') return null;
     const t = refTile(G);
     return t && t.start != null ? realStart(t) : null;

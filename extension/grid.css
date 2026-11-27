@@ -2095,7 +2095,7 @@ body.wave-resizing { cursor: ns-resize; user-select: none; }
 .wave-strip { --wv-lw: 270px; --wv-tw: 262px; }
 .wv-row { position: relative; display: flex; align-items: stretch; height: 51px; border-top: 1px solid var(--line); }
 .wv-label { display: flex; align-items: center; gap: 5px; width: var(--wv-lw); box-sizing: border-box; flex: none; padding: 0 6px; overflow: hidden; cursor: grab; font-size: 12px; white-space: nowrap; }
-.wv-ruler-label { width: calc(var(--wv-lw) + var(--wv-tw)); border-right: 1px solid var(--line); }
+.wv-ruler-label { width: calc(var(--wv-lw) + var(--wv-tw) + var(--wv-mw)); border-right: 1px solid var(--line); }
 /* 拡大率は、右に寄せる */
 .wv-ruler-label { justify-content: flex-end; cursor: default; }
 .wv-speed { font-size: 12px; min-height: 22px; }
@@ -2119,7 +2119,7 @@ body.wave-open #syncBar :is(#syncGroupDot, #syncNow, #syncSeek, #syncEnd) { disp
 .dga-try.on { color: #fff; border-color: #8fd3ff; background: #1d3550; }
 /* 拡大しているときに、今の再生位置を変えずに見る範囲を動かすスクロールバー (目盛りの下。いつも場所を取る) */
 .wv-scroll { display: flex; height: 10px; flex: none; }
-.wv-scroll-pad { width: calc(var(--wv-lw) + var(--wv-tw)); flex: none; }
+.wv-scroll-pad { width: calc(var(--wv-lw) + var(--wv-tw) + var(--wv-mw)); flex: none; }
 .wv-scroll-track { position: relative; flex: 1; min-width: 0; margin: 1px 0; background: rgba(255, 255, 255, 0.05); border-radius: 4px; cursor: pointer; touch-action: none; }
 .wv-scroll-thumb { position: absolute; top: 0; bottom: 0; min-width: 8px; background: rgba(255, 255, 255, 0.28); border-radius: 4px; cursor: grab; }
 .wv-scroll-thumb:hover { background: rgba(255, 255, 255, 0.4); }
@@ -2161,6 +2161,17 @@ body.wave-open #syncBar :is(#syncGroupDot, #syncNow, #syncSeek, #syncEnd) { disp
 .wv-audio.on { color: #fff; border-color: var(--on); background: var(--on-bg); }
 .wv-tune .dr-dot { width: 14px; }
 /* 基準の行: 罫線から右に半透明の覆い (触れない) */
+/* 🎬 同時視聴のグループ: 罫線の右に 🎬 の列 (本編の印・🚩 開始位置・⏲ 画面タイマー・✕) を足す (HAKO-47) */
+.wave-strip { --wv-mw: 0px; }
+.wv-sec.is-movie { --wv-mw: 268px; }
+.wv-movie-col { display: flex; align-items: center; gap: 4px; width: var(--wv-mw); box-sizing: border-box; flex: none; padding: 0 6px; border-right: 1px solid var(--line); overflow: hidden; white-space: nowrap; }
+.wv-movie-col button { flex: none; font-size: 11px; min-height: 22px; padding: 0 6px; }
+.wv-movie-col .wv-main { width: 58px; padding: 0 !important; }
+.wv-movie-col .wv-main.on { color: #cfc6ff; border-color: #7f77dd; background: #2c2550; }
+.wv-movie-col .wv-clear { width: 24px; padding: 0 !important; }
+.wv-timer { flex: 1; min-width: 0; width: 70px; font-size: 12px; }
+.wv-off.is-none { color: var(--muted); }
+.wv-movie-msg { color: #f0c36d; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .wv-cover { position: absolute; top: 0; bottom: 0; left: calc(var(--wv-lw) + var(--wv-tw)); right: 0; background: rgba(20, 20, 24, 0.6); }
 .wv-progress.is-measuring { color: var(--text); }
 .wv-sec.is-empty .wv-sec-title { color: var(--muted); font-weight: 400; }
