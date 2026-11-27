@@ -1628,4 +1628,27 @@ test.describe('上部バー', () => {
       expect(await page.evaluate(() => window.__barShapes.length)).toBe(1);
     });
   }
+
+  // 同じタブを更新すると、保存した視聴セッションを確認なしで再開する。既定と違うレイアウト・ストレッチにしておき、
+  // 再開した内容に整えてから中身を出すこと (既定の内容で一度出て、あとから動かないこと)
+  for (const width of [1920, 1280]) {
+    test(`ブラウザを更新して続きを再開したときにボタンが動かない (幅 ${width}px)`, async ({ context, extensionId, pageErrors }) => {
+      void pageErrors;
+      await context.addInitScript(RECORD);
+      const page = await context.newPage();
+      await page.setViewportSize({ width, height: 800 });
+      await page.goto(`chrome-extension://${extensionId}/grid.html`);
+      await skipTour(page);
+      for (let n = 0; n < 4; n++) await page.locator('#addTile').click();
+      await page.locator('#fitFill').click();
+      await page.locator('#repeatAll').click();
+      const name = await page.locator('#layoutName').textContent();
+      await page.waitForTimeout(1000); // 保存されるのを待つ
+
+      await page.reload();
+      await expect(page.locator('#layoutName')).toHaveText(name);
+      await page.waitForTimeout(500);
+      expect(await page.evaluate(() => window.__barShapes.length)).toBe(1);
+    });
+  }
 });
