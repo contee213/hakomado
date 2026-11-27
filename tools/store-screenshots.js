@@ -547,7 +547,7 @@ async function main() {
     });
     await page.waitForTimeout(4000);
     await page.locator('#openShare').click();
-    await page.locator('#shareDialog').waitFor({ state: 'visible' });
+    await page.locator('#xferDialog').waitFor({ state: 'visible' });
     await page.waitForTimeout(2500);
     await shot(page, '5-share.png');
   }
