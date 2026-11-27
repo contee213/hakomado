@@ -567,7 +567,11 @@
   let base = 1;
   let corr = 1;
   let rateSelfUntil = 0;
-  const SPEED_MIN = 0.25;
+  // 0.1× (同期の調整の帯のグループの超低速再生) まで。YouTube のプレイヤーは 0.25× までなので、それより遅いときは
+  // プレイヤーには 0.25× を伝え、動画要素に直接 0.1× を掛ける (補正と同じやり方)
+  const SPEED_MIN = 0.1;
+  const PLAYER_MIN = 0.25;
+  const playerRate = () => Math.max(PLAYER_MIN, base);
   // 下見用のプレイヤー (親が画面の外に開き、全編の音の波形を取る。hakomado_scan=1) だけは 16 倍まで (HAKO-39)
   const SCAN = params.get('hakomado_scan') === '1';
   const SPEED_MAX = SCAN ? 16 : 4;
@@ -581,9 +585,9 @@
     const v = video();
     if (!p) return;
     hookRate(p);
-    if (typeof p.setPlaybackRate === 'function' && !near(Number(p.getPlaybackRate?.()) || 1, base)) {
+    if (typeof p.setPlaybackRate === 'function' && !near(Number(p.getPlaybackRate?.()) || 1, playerRate())) {
       rateSelfUntil = performance.now() + 800;
-      p.setPlaybackRate(base);
+      p.setPlaybackRate(playerRate());
     }
     if (v && !near(v.playbackRate, base * corr)) {
       v.playbackRate = base * corr;
@@ -595,7 +599,7 @@
     rateHooked = p;
     p.addEventListener('onPlaybackRateChange', (r) => {
       r = Number(r);
-      if (!Number.isFinite(r) || near(r, base) || near(r, base * corr) || mine(r) || adShowing()) return;
+      if (!Number.isFinite(r) || near(r, base) || near(r, playerRate()) || near(r, base * corr) || mine(r) || adShowing()) return;
       if (performance.now() < rateSelfUntil || performance.now() - lastInput > 1500) {
         // 操作していないのに変わった (YouTube が読み込み・広告のあとで戻した等) → 親の指定に戻す
         applyRate();

@@ -2063,35 +2063,78 @@ body.wave-open .sync-dock:not(.floating) { bottom: var(--wave-h, 0px); }
 /* Shift / Ctrl を押しながら行を押して選ぶので、名前などの文字は選ばれないようにする */
 .wave-strip { user-select: none; }
 .wv-head { display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 8px; flex: none; }
-.wv-title { font-weight: 600; border-left: 4px solid var(--g); padding-left: 6px; }
+.wv-title { font-weight: 600; }
+.wv-modes { display: inline-flex; gap: 2px; }
 .wv-progress { color: var(--muted); font-size: 12px; min-width: 6em; }
 .wv-hint { color: var(--muted); font-size: 12px; margin-left: auto; }
-.wv-ruler { display: flex; align-items: stretch; height: 24px; flex: none; border-top: 1px solid var(--line); }
-.wv-ruler-label { color: var(--muted); font-size: 12px; }
-.wv-ruler-label { gap: 2px; }
 .wv-ruler-mode { font-size: 11px; padding: 0 6px; min-height: 20px; }
 .wv-ruler-mode.on { color: #fff; border-color: var(--on); background: var(--on-bg); }
-/* 目盛りは押せることが分かるように、地の色を付け、乗せると明るくする */
-.wave-strip { --wv-ruler-bg: rgba(255, 255, 255, 0.07); }
-.wv-ruler-canvas { flex: 1; min-width: 0; height: 100%; cursor: pointer; touch-action: none; border-radius: 3px; }
-.wv-ruler-canvas:hover { --wv-ruler-bg: rgba(255, 255, 255, 0.14); }
 .wv-resize { position: absolute; left: 0; right: 0; top: -4px; height: 8px; cursor: ns-resize; z-index: 1; }
 .wv-resize:hover { background: rgba(255, 255, 255, 0.12); }
 body.wave-resizing iframe { pointer-events: none; }
 body.wave-resizing { cursor: ns-resize; user-select: none; }
 .wave-strip:focus { outline: none; }
-.wv-lock { flex: none; font-size: 12px; }
-.wv-row:not(:has(.is-ref)) .wv-label { cursor: pointer; }
-.wv-row:not(:has(.is-ref)) .wv-label:hover { background: rgba(255, 255, 255, 0.05); }
+/* 節 (グループごと)。見出しは同期の調整パネルのグループの見出しと同じ並び */
+.wv-body { flex: 1; min-height: 0; overflow-y: auto; }
+.wv-sec { border-top: 1px solid var(--line); }
+.wv-sec-head { display: flex; align-items: center; gap: 6px; height: 32px; padding: 0 8px; background: rgba(255, 255, 255, 0.03); }
+.wv-sec-head button, .wv-sec-head select { font-size: 12px; min-height: 22px; }
+.wv-fold { padding: 0 4px; min-width: 22px; }
+.wv-num-dot { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 50%; background: var(--g); color: #1a1a1a; font-size: 12px; font-weight: 700; flex: none; }
+.wv-count { color: var(--muted); font-size: 12px; }
+.wv-sec-title { font-weight: 600; font-size: 12px; }
+.wv-sec-note { color: var(--muted); font-size: 12px; padding: 2px 10px 4px; }
+.wv-sec-note[hidden] { display: none; }
+/* 目盛りは押せることが分かるように、地の色を付け、乗せると明るくする */
+.wave-strip { --wv-ruler-bg: rgba(255, 255, 255, 0.07); }
+.wv-ruler { display: flex; align-items: stretch; height: 24px; flex: none; border-top: 1px solid var(--line); }
+.wv-ruler-canvas { flex: 1; min-width: 0; height: 100%; cursor: pointer; touch-action: none; border-radius: 3px; }
+.wv-ruler-canvas:hover { --wv-ruler-bg: rgba(255, 255, 255, 0.14); }
+/* 行: 左に調整 (パネルの行と同じ)、右に波 */
+/* 1 行。列の幅は固定 (名前の長さや補正の桁で、縦の罫線から右の位置が動かないように) */
+.wave-strip { --wv-lw: 270px; --wv-tw: 262px; }
+.wv-row { position: relative; display: flex; align-items: stretch; height: 51px; border-top: 1px solid var(--line); }
+.wv-label { display: flex; align-items: center; gap: 5px; width: var(--wv-lw); box-sizing: border-box; flex: none; padding: 0 6px; overflow: hidden; cursor: grab; font-size: 12px; white-space: nowrap; }
+.wv-ruler-label { width: calc(var(--wv-lw) + var(--wv-tw)); border-right: 1px solid var(--line); }
+/* 拡大率は、右に寄せる */
+.wv-ruler-label { justify-content: flex-end; cursor: default; }
+.wv-speed { font-size: 12px; min-height: 22px; }
+.wv-zoombox { display: inline-flex; align-items: center; gap: 2px; }
+.wv-zoombox button { font-size: 12px; min-height: 20px; width: 22px; padding: 0 !important; }
+.wv-zoombox .wv-fit { width: auto; padding: 0 6px !important; margin-right: 4px; }
+.wv-zoom { width: 90px; margin: 0 2px; }
+.wv-thumb { width: 44px; height: 25px; object-fit: cover; border-radius: 3px; flex: none; background: #000; }
+.wv-num { flex: none; width: 1.7em; text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; }
+.wv-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.wv-label button { font-size: 11px; min-height: 20px; }
+.wv-refbtn { flex: none; width: 22px; padding: 0 !important; }
+.wv-refbtn.on { opacity: 1; }
+.wv-refbtn.is-none { visibility: hidden; }
+.wv-refmark { flex: none; width: 2.8em; display: flex; justify-content: center; }
+.wv-ref { flex: none; font-size: 11px; padding: 0 4px; border-radius: 3px; color: #1a1a1a; background: #f5b942; }
+/* 罫線の右: 経過時間・補正・✓ / ↻・止めて待つ・元に戻す */
+.wv-tune { display: flex; align-items: center; gap: 4px; width: var(--wv-tw); box-sizing: border-box; flex: none; padding: 0 6px; border-left: 1px solid var(--line); border-right: 1px solid var(--line); overflow: hidden; font-size: 12px; white-space: nowrap; }
+.wv-tune button { font-size: 11px; min-height: 22px; }
+.wv-elapsed { flex: none; width: 4.8em; text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; }
+.wv-audio, .wv-wait, .wv-undo, .wv-slot { flex: none; width: 26px; padding: 0 !important; }
+.wv-audio.on { color: #fff; border-color: var(--on); background: var(--on-bg); }
+.wv-tune .dr-dot { width: 14px; }
+/* 基準の行: 罫線から右に半透明の覆い (触れない) */
+.wv-cover { position: absolute; top: 0; bottom: 0; left: calc(var(--wv-lw) + var(--wv-tw)); right: 0; background: rgba(20, 20, 24, 0.6); }
+.wv-progress.is-measuring { color: var(--text); }
+.wv-sec.is-empty .wv-sec-title { color: var(--muted); font-weight: 400; }
+.wv-row.is-dragging { opacity: 0.5; }
+.wv-row.drop-before { box-shadow: inset 0 2px 0 var(--on); }
+.wv-row.drop-after { box-shadow: inset 0 -2px 0 var(--on); }
+.wv-sec.drop-into { outline: 2px solid var(--on); outline-offset: -2px; }
+/* 補正: −99999.99 まで同じ幅 (入力欄も同じ幅) */
+.wv-off, .wv-off-input { flex: none; width: 6.6em; box-sizing: border-box; padding: 0 4px !important; font-variant-numeric: tabular-nums; text-align: right; font-size: 12px; }
+.wv-wait.is-waiting { color: #fff; border-color: var(--on); background: var(--on-bg); }
+.wv-why { color: var(--muted); overflow: hidden; text-overflow: ellipsis; }
+.wv-nowave { flex: 1; display: flex; align-items: center; padding: 0 10px; color: var(--muted); font-size: 12px; }
+.wv-row:has(.wv-canvas:not(.is-ref)) :is(.wv-label, .wv-tune):hover { background: rgba(255, 255, 255, 0.05); }
 .wv-row.is-selected { background: var(--on-bg); }
 .wv-row.is-selected .wv-label { box-shadow: inset 3px 0 0 var(--on); }
-.wv-rows { flex: 1; overflow-y: auto; }
-.wv-row { display: flex; align-items: stretch; height: 44px; border-top: 1px solid var(--line); }
-.wv-label { display: flex; align-items: center; gap: 6px; width: 200px; flex: none; padding: 0 6px; overflow: hidden; }
-.wv-thumb { width: 64px; height: 36px; object-fit: cover; border-radius: 3px; flex: none; background: #000; }
-.wv-name { display: flex; align-items: center; gap: 4px; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 12px; }
-.wv-num { color: var(--muted); }
-.wv-ref { font-size: 11px; padding: 0 4px; border-radius: 3px; color: #1a1a1a; background: #f5b942; }
 .wv-canvas { flex: 1; min-width: 0; height: 100%; cursor: ew-resize; touch-action: none; }
 .wv-canvas.is-ref { cursor: grab; }
 /* 下見用のプレイヤー (見えない場所に置く。操作も読み上げもしない) */
