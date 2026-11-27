@@ -2545,6 +2545,10 @@ function updateNowPlaying() {
 // 今の音声のチャンネル名も消して番号だけにする (tiny)。決めた幅の境目ではなく、実際に並べてはみ出すかで決める
 // (アーカイブ同期中のつまみ・言語・レイアウト名などで、要る幅が変わるため)
 let fitQueued = false;
+// 保険: 起動の途中で失敗して整えられなかったときも、上部バーの中身は出す (main の終わり)。
+// 待ちが返ってこないまま止まったとき用に、時間でも出す (遅いだけのときに整える前の形を出さないよう、長めに)
+const showToolbar = () => document.querySelector('.toolbar').classList.add('settled');
+setTimeout(showToolbar, 10000);
 function fitToolbar() {
   fitQueued = false;
   const bar = document.querySelector('.toolbar');
@@ -2556,6 +2560,8 @@ function fitToolbar() {
     if (over()) bar.classList.add('tiny');
   }
   bar.classList.remove('measuring');
+  // 1 回目を整え終わったら中身を見せる (grid.css。それまでは隠して、整える前の形を出さない)
+  bar.classList.add('settled');
 }
 function queueFitToolbar() {
   if (fitQueued) return;
@@ -13637,7 +13643,7 @@ async function chooseSession() {
     await chrome.storage.local.remove('tourPending');
     whenNoDialogOpen(startTour);
   }
-})();
+})().finally(showToolbar);
 
 /** 開いているダイアログが無くなったら fn を 1 回呼ぶ (閉じた直後に次のダイアログが開く流れも待つ) */
 function whenNoDialogOpen(fn) {
