@@ -565,7 +565,6 @@ test.describe('ライブラリの複数選択', () => {
         Sync.groupInfo = () => ({ ref: 0, tiles: [0, 1, 2], movie: false, active: true, paused: false, later: window.__t.later });
         AudioSync.runCount = () => 0;
         AudioSync.hasOutput = () => false;
-        AudioSync.busyOther = () => false;
         AudioSync.toggle = () => window.__t.started++;
         notify = (text) => window.__t.notices.push(text);
         for (const i of [0, 1, 2]) views[i] = { ss: { ps: i === 2 ? 2 : 1, ad: false } };

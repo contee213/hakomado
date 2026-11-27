@@ -4563,9 +4563,8 @@ const Sync = (() => {
         const a = AudioSync.progressText(g);
         h.audio.textContent = a || tr('syncAudioLabel');
         h.audio.classList.toggle('is-measuring', !!a);
-        h.audio.disabled = AudioSync.busyOther(g);
         // まだ補正していないグループでは ✨ を目立たせる (見つけてもらえるように)
-        h.audio.classList.toggle('is-suggest', !a && !AudioSync.hasOutput(g) && !AudioSync.busyOther(g) && membersOf(g).every((i) => !movable(i) || off(i) === 0));
+        h.audio.classList.toggle('is-suggest', !a && !AudioSync.hasOutput(g) && membersOf(g).every((i) => !movable(i) || off(i) === 0));
         h.box?.paint();
         h.reset.disabled = !membersOf(g).some((i) => movable(i) && off(i) !== 0);
         h.note.textContent = isMovie(G) && anchor(G.ref) == null ? tr('syncGroupNeedAnchor') : '';
@@ -4706,9 +4705,21 @@ const Sync = (() => {
     showDock: () => Dock.show(),
     speedGroupOf,
     setGroupSpeed,
+    /** 同期の調整の帯のグループの ✨ 自動補正 (パネルのグループの ✨ と同じ) */
+    toggleAudioSync: (g) => AudioSync.toggle(g),
+    /** 同期の調整の帯に出す ✨ の箱 ({el, paint} / null) */
+    audioResultEl: (g) => AudioSync.resultEl(g, 'strip'),
     /** 同期の調整の帯の行の 🔊 / 🔇: その枠だけ音を出す / 消す (ほかの枠はそのまま。枠の情報の 🔊 と同じ) */
     toggleAudio(i) {
       setAudio(i, { solo: false });
+    },
+    /** 同期の調整の帯のグループの 🔊 / 🔇: グループの中に音の出ている枠があれば全部消す。全部消えていれば全部出す (ほかのグループの枠はそのまま) */
+    toggleGroupAudio(g) {
+      const list = membersOf(g).filter((i) => tileFilled(state.tiles[i]));
+      if (!list.length) return;
+      const anyOn = list.some((i) => !state.tiles[i].muted);
+      for (const i of list) state.tiles[i].muted = anyOn;
+      refreshAudio();
     },
     /** 同期の調整の帯のグループの速度 (グループの速さを変えられる枠から変える) */
     setStripSpeed(g, r) {
@@ -4720,7 +4731,7 @@ const Sync = (() => {
     applyOffsets,
     setOffset,
     groupColor: (g) => colorOf(g),
-    dockChanged: () => Dock.update(),
+    dockChanged: () => (Dock.update(), WaveStrip.update()),
     /**
      * 同期の調整の帯用 (HAKO-42): 全部のグループ (番号順) と、どのグループにも入っていない枠。同期していなければ null。
      * グループ: {g, mode, movie, active, ref, now, playing, lo, hi, note, canReset, speed, speedLocked (ライブが入っていて速さを変えられない), tiles}。
@@ -4743,6 +4754,9 @@ const Sync = (() => {
           name: tileName(i) || vid,
           title: views[i]?.meta?.title || '',
           muted: !!state.tiles[i]?.muted,
+          // ✨ 自動補正の候補: {v, grade, prelim} / false (決められなかった) / null。suspect = 同じコラボではないかもしれない
+          cand: G && active(G) && !isMovie(G) ? AudioSync.candidateFor(i) : null,
+          suspect: G && active(G) && !isMovie(G) ? AudioSync.isSuspect(i) : false,
           youtube: /^[\w-]{11}$/.test(vid),
           start: arch ? arch.start : null,
           dur: arch ? arch.dur : null,
@@ -4781,6 +4795,16 @@ const Sync = (() => {
             canReset: tiles.some((i) => movable(i) && off(i) !== 0),
             speed: G.speed ?? 1,
             speedLocked: tiles.some(liveTile),
+            // ✨ 自動補正 (パネルのグループの ✨ と同じ): 文字・測っているか・目立たせるか・一番初めの候補の目印
+            audio: (() => {
+              const a = AudioSync.progressText(G.g);
+              return {
+                label: a || tr('syncAudioLabel'),
+                measuring: !!a,
+                suggest: !a && !AudioSync.hasOutput(G.g) && tiles.every((i) => !movable(i) || off(i) === 0),
+                candidateKey: AudioSync.candidateKey(G.g),
+              };
+            })(),
             tiles: tiles.map((i) => tileOf(i, G)),
           };
         });
@@ -4788,7 +4812,8 @@ const Sync = (() => {
         .filter((i) => !groupOfTile(i))
         .sort((a, b) => tileNo(a) - tileNo(b))
         .map((i) => tileOf(i, null));
-      return { groups: list, rest };
+      // audioKey: ✨ の箱の形が変わる目印 (測り始めた・結果が出た・合わせ方を変えた・閉じた)。変わったら帯の節を作り直す
+      return { groups: list, rest, audioKey: JSON.stringify(AudioSync.resultKey()) };
     },
     /** 帯の操作 (パネルと同じ動き。HAKO-42) */
     setReference: (i) => setReference(i),
@@ -4827,6 +4852,12 @@ const Sync = (() => {
       if (G && active(G)) togglePauseGroup(G);
     },
     /** グループ g を実際の時刻 R (ミリ秒) へ動かす */
+    /** 同期の調整の帯のグループのつまみ (上部バーのつまみと同じ動き・同じ時刻の出し方) */
+    bindGroupSeek: (input, nowEl) => bindSeek(input, nowEl),
+    fillGroupSeek(g, input, nowEl, endEl) {
+      const G = on ? groups.get(g) : null;
+      if (G && active(G) && !G.init) fillSeek(input, nowEl, endEl, G);
+    },
     seekTo(g, R) {
       const G = on ? groups.get(g) : null;
       // グループの時間帯 (つまみの範囲) の外へは動かさない (HAKO-40)
@@ -4837,7 +4868,7 @@ const Sync = (() => {
 
 // ---------------------------------------------------------------- ✨ 自動補正 (今は音で合わせる。アーカイブの同期再生のずれを、音で測って直す)
 // コラボの各視点には通話の声が共通して入っているので、同期しているグループの枠の音を最大 180 秒聞いて突き合わせ、ずれを求める。
-// - 同期の調整パネルのグループの見出しの「✨ 自動補正」で始める (一度に 1 グループ)。今の位置からそのまま再生しながら測る
+// - 同期の調整パネル・同期の調整の帯のグループの「✨ 自動補正」で始める (いくつものグループを同時に測れる)。今の位置からそのまま再生しながら測る
 //   (基準の枠が再生している間だけ数える)。もう一度押すとやめる
 // - 測っている間は、各枠の中 (content/watch.js の Mix) が音の大きさを記録して送ってくる。消音中の枠もプレイヤーの消音を外して
 //   Web Audio 側で消音するので、聞こえ方は変わらない。終わったら元の消音に戻す
@@ -4863,24 +4894,24 @@ const AudioSync = (() => {
   const SUGGEST_MIN = 90; // これより前には、切り上げを提案しない (大きいずれは、長く聞かないと確かめられない。実測: 63 秒)
   const STABLE_SEC = 0.02; // ほかの計算の値とこれ以内なら「同じ値」
   const MOVING_SEC = 0.05; // 前の計算の値からこれより変わっていたら、確かさを下げる
-  // 測っている間: {g, tiles, ref, offs, ids, tracks, blocked, played, last, timer, closed, busy, nextPrelim,
+  // グループごとに持つ (いくつものグループを同時に測れる。HAKO-43)。
+  // 測っている間: g -> {g, tiles, ref, offs, ids, tracks, blocked, played, last, timer, closed, busy, nextPrelim,
   //   history: 計算ごとの結果 [{sec, tiles, res, grade, streak}], best: 一番よかった値 (bestOf), suggested: 切り上げを提案した, n}
-  let run = null;
-  let result = null; // 結果の候補: {g, tiles, ref, offs, ids, pick: Map, two, choice, n}
-  let failure = null; // 決められなかった: {g, ref, ids, reason, n}
+  const runs = new Map();
+  // 結果の候補: g -> {g, tiles, ref, offs, ids, pick: Map, two, choice, n, tried: 試している間は試す前の補正 (Map i -> 秒) / null}
+  const results = new Map();
+  const failures = new Map(); // 決められなかった: g -> {g, ref, ids, reason, n}
   let seq = 0;
   let starts = 0; // 測り始めた回数
+  const runOfTile = (i) => [...runs.values()].find((r) => r.tiles.includes(i)) || null;
 
   function toggle(g) {
-    if (run) {
-      if (run.g === g) cancel();
-      return;
-    }
-    start(g);
+    if (runs.has(g)) cancel(runs.get(g));
+    else start(g);
   }
 
   function start(g) {
-    if (run) return;
+    if (runs.has(g)) return;
     const info = Sync.groupInfo(g);
     if (!info || !info.active || info.movie) return;
     const { ref, tiles } = info;
@@ -4889,10 +4920,10 @@ const AudioSync = (() => {
       notify(tr('syncAudioNeedPlay'));
       return;
     }
-    result = null;
-    failure = null;
+    results.delete(g);
+    failures.delete(g);
     starts++;
-    run = {
+    const run = {
       g,
       tiles,
       ref,
@@ -4910,26 +4941,29 @@ const AudioSync = (() => {
       suggested: false,
       n: ++seq,
     };
+    runs.set(g, run);
     for (const i of tiles) postToFrame(views[i].player, { hakomado: 'measure', on: true, muted: !!state.tiles[i].muted });
-    run.timer = setInterval(progress, 500);
+    run.timer = setInterval(() => progress(run), 500);
     notify(tr('syncAudioStart', MEASURE_SEC));
     Sync.dockChanged();
   }
 
-  function progress() {
+  const live = (r) => runs.get(r.g) === r; // まだ測っている (やめた・測り直したら false)
+
+  function progress(run) {
     const t = performance.now();
     const dt = (t - run.last) / 1000;
     run.last = t;
     // 同期が止まった・本編モードにした・グループの枠が変わった → やめる
     const info = Sync.groupInfo(run.g);
     if (!info || info.movie || run.tiles.some((i) => !info.tiles.includes(i) || state.tiles[i].videoId !== run.ids.get(i))) {
-      cancel();
+      cancel(run);
       return;
     }
     // 基準の枠が再生している (広告でない) 間だけ数える
     const ss = views[run.ref]?.ss;
     if (ss && ss.ps === 1 && !ss.ad && !pausedAll && !info.paused) run.played += dt;
-    if (run.played >= MEASURE_SEC) return void finish();
+    if (run.played >= MEASURE_SEC) return void finish(run);
     if (!run.busy && run.played >= run.nextPrelim) {
       run.nextPrelim = run.played + PRELIM_EVERY;
       prelim(run);
@@ -4941,11 +4975,11 @@ const AudioSync = (() => {
     for (const i of tiles) postToFrame(views[i]?.player, { hakomado: 'measure', on: false });
   };
 
-  function cancel(msg = tr('syncAudioCancelled')) {
-    if (!run) return;
+  function cancel(run, msg = tr('syncAudioCancelled')) {
+    if (!run || !live(run)) return;
     clearInterval(run.timer);
     stopFrames(run.tiles);
-    run = null;
+    runs.delete(run.g);
     releaseWorker();
     Sync.dockChanged();
     notify(msg);
@@ -5001,7 +5035,7 @@ const AudioSync = (() => {
   }
   /** 測り終えて計算も残っていなければ Worker を閉じる (計算に使ったメモリを返す。次に測るときにまた作る) */
   function releaseWorker() {
-    if (run || jobs.size || !worker) return;
+    if (runs.size || jobs.size || !worker) return;
     worker.terminate();
     worker = null;
   }
@@ -5099,7 +5133,7 @@ const AudioSync = (() => {
   /** 今の記録で計算して、計算ごとの結果に足す (計算できたら true) */
   async function measureOnce(r, isPrelim) {
     const out = await analyzeRun(r);
-    if (run !== r || !out.res?.ok) return false;
+    if (!live(r) || !out.res?.ok) return false;
     const prev = r.history.at(-1);
     r.history.push(gradesOf({ ...out, ref: r.ref }, prev && prev.sec < out.sec ? prev : null, isPrelim));
     r.best = bestOf(r.history, r.ref);
@@ -5110,7 +5144,7 @@ const AudioSync = (() => {
     r.busy = true;
     await measureOnce(r, true);
     r.busy = false;
-    if (run !== r || r.closed) return;
+    if (!live(r) || r.closed) return;
     // 切り上げの提案: 全部の枠が ◎ で、2 回以上同じ値が出た
     const b = r.best;
     const ready =
@@ -5123,34 +5157,35 @@ const AudioSync = (() => {
   }
 
   /** 測るのを終えて、そこまでで一番よかった値を結果にする */
-  async function finish() {
-    const r = run;
-    if (!r || r.closed) return;
+  async function finish(r) {
+    if (!r || !live(r) || r.closed) return;
     clearInterval(r.timer);
     stopFrames(r.tiles);
     r.closed = true;
     Sync.dockChanged();
     await new Promise((res) => setTimeout(res, 1500)); // 止めたときに枠が送る最後の記録を待つ
-    if (run !== r) return;
+    if (!live(r)) return;
     const okNow = await measureOnce(r, false);
-    if (run !== r) return;
-    run = null;
+    if (!live(r)) return;
+    runs.delete(r.g);
     releaseWorker();
     const b = r.best;
     if (!b || !b.pick.size) {
-      failure = { g: r.g, ref: r.ref, ids: r.ids, reason: okNow || r.played >= PRELIM_FIRST ? 'weak' : 'short', n: ++seq };
+      const failure = { g: r.g, ref: r.ref, ids: r.ids, reason: okNow || r.played >= PRELIM_FIRST ? 'weak' : 'short', n: ++seq };
+      failures.set(r.g, failure);
       Sync.dockChanged();
       notify(tr(failure.reason === 'short' ? 'syncAudioShort' : 'syncAudioWeak'));
       return;
     }
-    result = { g: r.g, tiles: b.tiles, ref: r.ref, offs: r.offs, ids: r.ids, pick: b.pick, two: b.two, choice: 'mid', blocked: new Set(r.blocked), n: ++seq };
+    results.set(r.g, { g: r.g, tiles: b.tiles, ref: r.ref, offs: r.offs, ids: r.ids, pick: b.pick, two: b.two, choice: 'mid', tried: null, blocked: new Set(r.blocked), n: ++seq });
     notify(tr('syncAudioDone'));
     Sync.dockChanged();
   }
 
   /** 枠から届いた記録 (形を確かめてから貯める) */
   function chunk(i, d) {
-    if (!run || !run.tiles.includes(i)) return;
+    const run = runOfTile(i);
+    if (!run) return;
     const sr = Number(d.sr);
     const per = Number(d.per);
     if (!(sr >= 8000 && sr <= 192000) || !Number.isInteger(per) || per < 1 || per > 1000) return;
@@ -5165,10 +5200,11 @@ const AudioSync = (() => {
 
   /** 枠の中で音を処理できなかった (AudioContext が動かない) */
   function blocked(i) {
-    if (!run || !run.tiles.includes(i)) return;
+    const run = runOfTile(i);
+    if (!run) return;
     run.blocked.add(i);
     showToast(i, tr('mixBlocked'));
-    if (i === run.ref || run.tiles.length - run.blocked.size < 2) cancel(tr('syncAudioBlocked'));
+    if (i === run.ref || run.tiles.length - run.blocked.size < 2) cancel(run, tr('syncAudioBlocked'));
   }
 
   // ---- 結果の候補
@@ -5178,13 +5214,19 @@ const AudioSync = (() => {
     const info = Sync.groupInfo(o.g);
     return !!info && !info.movie && info.ref === o.ref && [...o.ids].every(([i, id]) => !info.tiles.includes(i) || state.tiles[i].videoId === id);
   }
-  function resultValid() {
-    return stillSame(result) && result.tiles.every((i) => state.tiles[i].videoId === result.ids.get(i));
+  /** グループ g の結果 (まだ使えるものだけ) */
+  function resultOf(g) {
+    const result = results.get(g);
+    return stillSame(result) && result.tiles.every((i) => state.tiles[i].videoId === result.ids.get(i)) ? result : null;
   }
-  const failureFor = (g) => failure?.g === g && stillSame(failure);
-  /** 出している候補: 最後の結果か、測っている途中の結果。{src, prelim} / null */
-  function shown() {
-    if (resultValid()) return { src: result, prelim: false };
+  const failureFor = (g) => (stillSame(failures.get(g)) ? failures.get(g) : null);
+  /** 枠 i に出している候補: そのグループの結果か、測っている途中の結果。{src, prelim} / null */
+  function shown(i) {
+    for (const g of results.keys()) {
+      const result = resultOf(g);
+      if (result?.tiles.includes(i)) return { src: result, prelim: false };
+    }
+    const run = runOfTile(i);
     if (run?.best && !run.closed) return { src: { ...run.best, offs: run.offs, choice: 'mid' }, prelim: true };
     return null;
   }
@@ -5199,44 +5241,55 @@ const AudioSync = (() => {
    * 同じコラボではないかもしれない枠 (結果が出ていて、3 枠以上で測り、ほかの枠は ○ 以上で合ったのに、音が合わなかった枠)。
    * 音を処理できなかった枠と、同期から外した枠は入れない。2 枠のときは、どちらが違うのか分からないので出さない
    */
-  function suspects() {
-    if (!resultValid() || result.tiles.length < 3) return [];
+  function suspects(g) {
+    const result = resultOf(g);
+    if (!result || result.tiles.length < 3) return [];
     const info = Sync.groupInfo(result.g);
     const others = result.tiles.filter((i) => i !== result.ref && info?.tiles.includes(i) && !result.blocked.has(i));
     if (!others.some((i) => (result.pick.get(i)?.grade ?? 0) >= 2)) return [];
     return others.filter((i) => !result.pick.has(i));
   }
-  const isSuspect = (i) => suspects().includes(i);
+  const isSuspect = (i) => [...results.keys()].some((g) => suspects(g).includes(i));
 
-  /** パネルの行と図に出す ✨ の候補: {v: 新しいずれ, grade: 1〜3, prelim} / false (決められなかった) / null (候補なし) */
+  /** パネルの行・図と帯の波に出す ✨ の候補: {v: 新しいずれ, grade: 1〜3, prelim} / false (決められなかった) / null (候補なし) */
   function candidateFor(i) {
-    const s = shown();
+    const s = shown(i);
     if (!s || !s.src.tiles.includes(i) || i === s.src.ref) return null;
     const v = proposedIn(s.src, i);
     return v == null ? false : { v, grade: s.src.pick.get(i)?.grade ?? 1, prelim: s.prelim };
   }
-  /** パネルの形が変わる目印 (結果が出た・消えた・選び方を変えた・測り始めた・終えた・決められなかった) */
+  /** パネル・帯の形が変わる目印 (結果が出た・消えた・選び方を変えた・試し始めた・測り始めた・終えた・決められなかった) */
   const resultKey = () => [
-    resultValid() ? [result.g, result.n, result.choice] : null,
-    run ? [run.g, run.n] : null,
-    failure && stillSame(failure) ? [failure.g, failure.n] : null,
+    [...results.keys()]
+      .sort()
+      .map((g) => resultOf(g))
+      .filter(Boolean)
+      .map((r) => [r.g, r.n, r.choice, !!r.tried]),
+    [...runs.values()].map((r) => [r.g, r.n]).sort(),
+    [...failures.keys()]
+      .sort()
+      .map((g) => failureFor(g))
+      .filter(Boolean)
+      .map((f) => [f.g, f.n]),
   ];
 
   /**
-   * パネルのグループの見出しの下に出す箱: 測っている間 (途中の結果)・結果 (2 枠なら合わせ方の選択・反映・測り直す・閉じる)・
-   * 決められなかった (測り直す・閉じる)。出すものが無ければ null。{el, paint}: paint で数字を書き換える (パネルの更新のたび)
+   * パネル・帯のグループに出す箱: 測っている間 (途中の結果)・結果 (試す・決める・試す前に戻す・測り直す・閉じる。2 枠なら合わせ方)・
+   * 決められなかった (測り直す・閉じる)。出すものが無ければ null。{el, paint}: paint で数字を書き換える (更新のたび)。
+   * scope = 出す場所 ('dock' パネル / 'strip' 同期の調整の帯)。帯では帯で見えるもの (波形の ✨ と点線) を指す文にする
    */
-  function resultEl(g) {
-    if (run && run.g === g) return measuringEl();
-    if (resultValid() && result.g === g) return { el: doneEl(), paint() {} };
-    if (failureFor(g)) {
+  function resultEl(g, scope = 'dock') {
+    if (runs.has(g)) return measuringEl(runs.get(g), scope);
+    if (resultOf(g)) return { el: doneEl(g, scope), paint() {} };
+    const failure = failureFor(g);
+    if (failure) {
       const el = mk(
         'div',
         { class: 'dg-audio-result is-fail' },
         mk('div', { class: 'dga-title' }, tr(failure.reason === 'short' ? 'syncAudioShort' : 'syncAudioWeak')),
         // 3 枠以上でどれも合わなかった: 基準の枠だけが別の配信かもしれない (ずれは基準との差で測るため)
         failure.reason === 'weak' && failure.ids.size >= 3 ? mk('div', { class: 'dga-suspect' }, tr('syncAudioRefSuspect')) : null,
-        mk('div', { class: 'dga-buttons' }, retryButton(g), mk('button', { type: 'button', textContent: tr('syncAudioClose'), onclick: dismiss })),
+        slots(null, retryButton(g), closeButton(g)),
       );
       return { el, paint() {} };
     }
@@ -5244,17 +5297,25 @@ const AudioSync = (() => {
   }
 
   const retryButton = (g) => mk('button', { type: 'button', textContent: tr('syncAudioRetry'), title: tr('syncAudioRetryTitle'), onclick: () => retry(g) });
+  const closeButton = (g) => mk('button', { type: 'button', textContent: tr('syncAudioClose'), title: tr('syncAudioCloseTitle'), onclick: () => dismiss(g) });
+  /**
+   * 箱のボタンは決まった 3 つの置き場所に入れる (状態が変わっても、同じ役目のボタンが同じ場所に出るように。空いた場所も幅を取る):
+   * a = 決める側 (ここで決める・試す・決める)、b = 測り直す・試す前に戻す、c = やめる・閉じる
+   */
+  const slots = (a, b, c) =>
+    mk('div', { class: 'dga-buttons' }, mk('span', { class: 'dga-slot a' }, a), mk('span', { class: 'dga-slot b' }, b), mk('span', { class: 'dga-slot c' }, c));
 
-  function measuringEl() {
+  function measuringEl(run, scope) {
     const title = mk('div', { class: 'dga-title' });
     const sub = mk('div', { class: 'dga-legend' });
-    const now = mk('button', { type: 'button', class: 'primary-action', textContent: tr('syncAudioFinishNow'), title: tr('syncAudioFinishNowTitle'), onclick: () => finish() });
-    const stop = mk('button', { type: 'button', textContent: tr('syncAudioStop'), onclick: () => cancel() });
-    const el = mk('div', { class: 'dg-audio-result is-measuring' }, title, sub, mk('div', { class: 'dga-buttons' }, now, stop));
+    const now = mk('button', { type: 'button', class: 'primary-action', textContent: tr('syncAudioFinishNow'), title: tr('syncAudioFinishNowTitle'), onclick: () => finish(run) });
+    const stop = mk('button', { type: 'button', textContent: tr('syncAudioStop'), onclick: () => cancel(run) });
+    const el = mk('div', { class: 'dg-audio-result is-measuring' }, title, sub, slots(now, null, stop));
+    const strip = scope === 'strip';
     return {
       el,
       paint() {
-        if (!run) return;
+        if (!live(run)) return;
         const p = run.best;
         const suggest = run.suggested && !run.closed;
         el.classList.toggle('is-suggest', suggest);
@@ -5265,18 +5326,24 @@ const AudioSync = (() => {
             : p
               ? tr('syncAudioPrelimTitle', p.sec)
               : tr('syncAudioListening');
-        sub.textContent = run.closed ? '' : p ? tr('syncAudioLegend') : tr('syncAudioListeningSub', PRELIM_FIRST);
+        sub.textContent = run.closed ? '' : p ? tr(strip ? 'stripAudioLegend' : 'syncAudioLegend') : tr(strip ? 'stripAudioListeningSub' : 'syncAudioListeningSub', PRELIM_FIRST);
         now.disabled = run.closed || !p;
         stop.disabled = run.closed;
       },
     };
   }
 
-  function doneEl() {
-    const { tiles, ref, two } = result;
-    const kids = [mk('div', { class: 'dga-title' }, tr('syncAudioResultTitle')), mk('div', { class: 'dga-legend' }, tr('syncAudioLegend'))];
+  const sec = (v) => (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(v).toFixed(2);
+  function doneEl(g, scope) {
+    const result = resultOf(g);
+    const { tiles, ref, two, tried } = result;
+    const strip = scope === 'strip';
+    const kids = [
+      mk('div', { class: 'dga-title' }, tr(tried ? 'syncAudioTrying' : strip ? 'stripAudioResultTitle' : 'syncAudioResultTitle')),
+      mk('div', { class: 'dga-legend' }, tr(strip ? 'stripAudioLegend' : 'syncAudioLegend')),
+    ];
     // 音が合わなかった枠: 同じコラボではないかもしれない。外すかは使う人が決める (勝手に外さない)
-    for (const i of suspects()) {
+    for (const i of suspects(g)) {
       kids.push(
         mk(
           'div',
@@ -5286,77 +5353,95 @@ const AudioSync = (() => {
         ),
       );
     }
+    // 試す: 押すとその値をすぐ入れる (再生しながら聞き比べられる)。2 枠なら合わせ方ごとに押せる。「決める」で終える・「試す前に戻す」で ✨ の前の補正へ
+    const tryBtn = (key, label) =>
+      mk('button', {
+        type: 'button',
+        class: 'dga-try' + (tried && result.choice === key ? ' on' : ''),
+        'aria-pressed': String(!!tried && result.choice === key),
+        textContent: label,
+        title: tr('syncAudioTryTitle'),
+        onclick: () => tryResult(g, key),
+      });
     if (two) {
+      // 3 択: 真ん中が中間 (映像がそろう)。両側は、それぞれ片方の人の声がそろう値 (誰の声かは出さず、補正の値の小さい順に並べる)
       const other = tiles.find((i) => i !== ref);
-      const name = (i) => tileName(i) || String(visibleIndexes().indexOf(i) + 1);
-      const opts = [
-        ['mid', tr('syncAudioMid')],
-        ['refVoice', tr('syncAudioVoice', name(ref))],
-        ['otherVoice', tr('syncAudioVoice', name(other))],
-      ];
+      const valueOf = (key) => proposedIn({ ...result, choice: key }, other) ?? 0; // 押したときに入る値と同じ
+      const [lo, hi] = ['refVoice', 'otherVoice'].sort((a, b) => two[a] - two[b]);
       kids.push(
         mk(
           'div',
           { class: 'dga-choice' },
-          opts.map(([key, label]) =>
-            mk(
-              'label',
-              {},
-              mk('input', {
-                type: 'radio',
-                name: 'syncAudioChoice',
-                value: key,
-                checked: result.choice === key,
-                onchange: () => {
-                  result.choice = key;
-                  Sync.dockChanged();
-                },
-              }),
-              ' ' + label,
-            ),
-          ),
+          tryBtn(lo, sec(valueOf(lo))),
+          tryBtn('mid', `${tr('syncAudioMidBtn')} ${sec(valueOf('mid'))}`),
+          tryBtn(hi, sec(valueOf(hi))),
         ),
       );
     }
     kids.push(
-      mk(
-        'div',
-        { class: 'dga-buttons' },
-        mk('button', { type: 'button', class: 'primary-action', textContent: tr('syncAudioApply'), onclick: applyResult }),
-        retryButton(result.g),
-        mk('button', { type: 'button', textContent: tr('syncAudioClose'), onclick: dismiss }),
-      ),
+      tried
+        ? slots(
+            mk('button', { type: 'button', class: 'primary-action', textContent: tr('syncAudioDecide'), title: tr('syncAudioDecideTitle'), onclick: () => decide(g) }),
+            mk('button', { type: 'button', textContent: tr('syncAudioUntry'), title: tr('syncAudioUntryTitle'), onclick: () => untry(g) }),
+            null,
+          )
+        : slots(two ? null : tryBtn('mid', tr('syncAudioTry')), retryButton(g), closeButton(g)),
     );
-    return mk('div', { class: 'dg-audio-result' }, kids);
+    return mk('div', { class: 'dg-audio-result' + (tried ? ' is-trying' : '') }, kids);
   }
 
-  function dismiss() {
-    result = null;
-    failure = null;
+  function dismiss(g) {
+    results.delete(g);
+    failures.delete(g);
     Sync.dockChanged();
   }
 
-  /** 測り直す (今の位置から。前の結果・知らせは消す) */
+  /** 測り直す (今の位置から。前の結果・知らせは消す。試していれば、試す前の補正に戻してから) */
   function retry(g) {
-    if (run) return; // ほかのグループで測っている
-    result = null;
-    failure = null;
+    if (runs.has(g)) return;
+    if (resultOf(g)?.tried) untry(g);
+    results.delete(g);
+    failures.delete(g);
     start(g);
     Sync.dockChanged();
   }
 
-  function applyResult() {
-    if (!resultValid()) return dismiss();
-    // 測ったあとで別の動画にした枠は直さない
-    const pairs = result.tiles.map((i) => [i, proposedIn(result, i)]).filter(([i, v]) => v != null && state.tiles[i].videoId === result.ids.get(i));
-    result = null;
-    Sync.applyOffsets(pairs);
-    notify(tr('syncAudioApplied', pairs.length));
+  /** 結果のうち、入れる値 ([枠, 補正]。測ったあとで別の動画にした枠は直さない) */
+  const pairsOf = (result) => result.tiles.map((i) => [i, proposedIn(result, i)]).filter(([i, v]) => v != null && state.tiles[i].videoId === result.ids.get(i));
+
+  /** 試す: 合わせ方 key の値をすぐ入れる (結果は出したまま。初めて試すときに、試す前の補正を覚えておく) */
+  function tryResult(g, key) {
+    const result = resultOf(g);
+    if (!result) return dismiss(g);
+    if (!result.tried) result.tried = new Map(result.tiles.map((i) => [i, Sync.offOf(i)]));
+    result.choice = key;
+    Sync.applyOffsets(pairsOf(result));
+    Sync.dockChanged();
+  }
+  /** 決める: 試している値のまま終える */
+  function decide(g) {
+    const result = resultOf(g);
+    if (!result) return dismiss(g);
+    const n = pairsOf(result).length;
+    results.delete(g);
+    Sync.dockChanged();
+    notify(tr('syncAudioApplied', n));
+  }
+  /** 試す前に戻す: ✨ の前の補正に戻す (結果は出したまま。もう一度試せる) */
+  function untry(g) {
+    const result = resultOf(g);
+    if (!result?.tried) return;
+    const back = [...result.tried].filter(([i]) => state.tiles[i].videoId === result.ids.get(i));
+    result.tried = null;
+    result.choice = 'mid';
+    Sync.applyOffsets(back);
+    Sync.dockChanged();
   }
 
   /** グループ g の見出しの ✨ に出す進み具合 (測っていなければ '') */
   function progressText(g) {
-    if (!run || run.g !== g) return '';
+    const run = runs.get(g);
+    if (!run) return '';
     return run.closed ? tr('syncAudioAnalyzing') : tr('syncAudioMeasuring', Math.floor(run.played), MEASURE_SEC);
   }
 
@@ -5364,12 +5449,17 @@ const AudioSync = (() => {
     toggle,
     chunk,
     blocked,
-    /** ほかのグループで測っている (このグループの ✨ は押せない) */
-    busyOther: (g) => !!run && run.g !== g,
     /** これまでに測り始めた回数 (⏱ 開いて同期で、使う人が自分で押したかを見る) */
     runCount: () => starts,
     /** このグループの結果・途中の結果・知らせを出している */
-    hasOutput: (g) => (!!run && run.g === g) || (resultValid() && result.g === g) || failureFor(g),
+    hasOutput: (g) => runs.has(g) || !!resultOf(g) || !!failureFor(g),
+    /** このグループで、途中の結果か結果が出ている目印 (帯が測るたびに一度だけ拡大するのに使う)。無ければ null */
+    candidateKey: (g) => {
+      const run = runs.get(g);
+      if (run) return run.best ? 'run' + run.n : null;
+      const result = resultOf(g);
+      return result ? 'run' + result.n : null;
+    },
     progressText,
     isSuspect,
     candidateFor,
@@ -10151,7 +10241,6 @@ function openSync(tiles) {
         const info = Sync.groupInfo(g);
         if (!info || !info.active || info.movie) return; // 同期をやめた・グループが変わった
         if (AudioSync.runCount() !== runs || AudioSync.hasOutput(g)) return;
-        if (AudioSync.busyOther(g)) return void notify(tr('selSyncBusy'));
         // 入れた枠 (グループに入ったもの) が全部、再生している (広告でない) ときに始める
         const mine = info.tiles.filter((i) => tiles.includes(i));
         // 入れた枠をほかのグループへ移した・別の配信に入れ替えた → 頼まれていない ✨ を始めないように、待つのをやめる

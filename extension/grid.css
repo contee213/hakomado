@@ -2099,9 +2099,50 @@ body.wave-resizing { cursor: ns-resize; user-select: none; }
 /* 拡大率は、右に寄せる */
 .wv-ruler-label { justify-content: flex-end; cursor: default; }
 .wv-speed { font-size: 12px; min-height: 22px; }
+/* ✨ 自動補正の箱: グループの見出しの行の残りに 1 行で収める (帯の高さ・行の位置を変えない)。
+   色はパネルの .dg-audio-result と同じ。切れた文と確かさの説明は乗せたときの説明に */
+/* グループの見出し (2 段)。上の段: どのグループか・✨ | ⏸・つまみ・速度・グループの音・取得率。下の段: ✨ の様子 → ボタン (右寄せ) */
+.wave-strip { --wv-idw: 236px; }
+.wv-head-id { display: flex; align-items: center; gap: 6px; width: var(--wv-idw); flex: none; min-width: 0; }
+.wv-sec-head .wv-audio-sync { flex: none; width: 104px; padding: 0 4px; }
+.wv-head-sep { flex: none; width: 1px; height: 18px; background: var(--line); }
+.wv-seek-box { flex: 1; min-width: calc(90px + 9em); display: flex; align-items: center; gap: 6px; }
+.wv-seek { flex: 1; min-width: 90px; }
+.wv-seek-time { flex: none; min-width: 4.2em; font-size: 12px; font-variant-numeric: tabular-nums; text-align: right; }
+.wv-seek-time.is-end { color: var(--muted); text-align: left; }
+.wv-head-msg { height: 28px; padding-left: calc(8px + var(--wv-idw) + 6px); background: rgba(255, 255, 255, 0.02); }
+/* 上部バーの小さいつまみは、帯を出している間は隠す (帯のグループごとのつまみで動かす) */
+body.wave-open #syncBar :is(#syncGroupDot, #syncNow, #syncSeek, #syncEnd) { display: none !important; }
+.wv-audio-box { flex: 1; min-width: 0; display: flex; }
+.wv-group-audio.on { color: #fff; border-color: var(--on); background: var(--on-bg); }
+.wv-sec-head .wv-progress { min-width: 5.5em; text-align: right; }
+.dga-try.on { color: #fff; border-color: #8fd3ff; background: #1d3550; }
+/* 拡大しているときに、今の再生位置を変えずに見る範囲を動かすスクロールバー (目盛りの下。いつも場所を取る) */
+.wv-scroll { display: flex; height: 10px; flex: none; }
+.wv-scroll-pad { width: calc(var(--wv-lw) + var(--wv-tw)); flex: none; }
+.wv-scroll-track { position: relative; flex: 1; min-width: 0; margin: 1px 0; background: rgba(255, 255, 255, 0.05); border-radius: 4px; cursor: pointer; touch-action: none; }
+.wv-scroll-thumb { position: absolute; top: 0; bottom: 0; min-width: 8px; background: rgba(255, 255, 255, 0.28); border-radius: 4px; cursor: grab; }
+.wv-scroll-thumb:hover { background: rgba(255, 255, 255, 0.4); }
+.wv-scroll-now { position: absolute; top: 0; bottom: 0; width: 1px; background: #fff; pointer-events: none; }
+.wv-audio-box .dg-audio-result { flex: 1; min-width: 0; flex-direction: row; align-items: center; gap: 8px; height: 24px; padding: 0 6px; box-sizing: border-box; overflow: hidden; white-space: nowrap; }
+.wv-audio-box .dga-title { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: 12px; }
+.wv-audio-box .dga-legend { display: none; }
+.wv-audio-box .dga-suspect { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.wv-audio-box .dga-choice { flex: none; flex-direction: row; gap: 8px; font-size: 12px; }
+.wv-audio-box .dga-buttons { flex: none; margin-left: auto; gap: 4px; }
+/* ボタンの決まった置き場所 (空いていても幅を取る): a 決める側 / b 測り直す・試す前に戻す / c やめる・閉じる */
+.wv-audio-box .dga-slot { display: flex; flex: none; }
+.wv-audio-box .dga-slot.a { width: 92px; }
+.wv-audio-box .dga-slot.b { width: 104px; }
+.wv-audio-box .dga-slot.c { width: 64px; }
+.wv-audio-box .dga-slot button { flex: 1; min-height: 20px; padding: 0 4px; }
+.wv-audio-box .dga-choice button { min-height: 20px; }
+/* パネルでは置き場所を作らない (今までどおり、決める側を右端に) */
+.dga-slot { display: contents; }
 .wv-zoombox { display: inline-flex; align-items: center; gap: 2px; }
-.wv-zoombox button { font-size: 12px; min-height: 20px; width: 22px; padding: 0 !important; }
-.wv-zoombox .wv-fit { width: auto; padding: 0 6px !important; margin-right: 4px; }
+.wv-zoombox button { font-size: 12px; min-height: 22px; width: 22px; padding: 0 !important; }
+/* 全体表示・実際の時刻に戻すは、見出しのボタンと同じ大きさ */
+.wv-ruler-label .wv-reset, .wv-zoombox .wv-fit { width: auto; font-size: 12px; min-height: 22px; padding: 0 7px !important; margin-right: 4px; }
 .wv-zoom { width: 90px; margin: 0 2px; }
 .wv-thumb { width: 44px; height: 25px; object-fit: cover; border-radius: 3px; flex: none; background: #000; }
 .wv-num { flex: none; width: 1.7em; text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; }
