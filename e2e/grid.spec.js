@@ -551,14 +551,15 @@ test.describe('ライブラリの複数選択', () => {
     expect(ids).toContain('bbbbbbbbbb2');
   });
 
-  test('⏱ 開いて同期: 時間帯がまだ始まっていない枠があれば、60 秒で打ち切らず、始まってから ✨ を始める', async ({ openGrid }) => {
+  test('⏱ 開いて同期: 時間帯がまだ始まっていない枠があれば、全部が始まる位置まで進める。進められなければ 60 秒で打ち切らず、始まってから ✨ を始める', async ({ openGrid }) => {
     const page = await openGrid();
     await skipTour(page);
     await page.clock.install();
-    const run = (later) =>
-      page.evaluate((later) => {
+    const run = (later, canSeek = false) =>
+      page.evaluate(([later, canSeek]) => {
         // 同期と ✨ の代わり (枠 2 は配信の時間帯がまだ始まっていない)
-        window.__t = { later, started: 0, notices: [] };
+        window.__t = { later, started: 0, notices: [], seeks: [] };
+        Sync.seekToAllStarted = (g, tiles) => (window.__t.seeks.push([g, tiles]), canSeek);
         Sync.startWhenReady = (tiles, ref, { then }) => then(1);
         Sync.showDock = () => {};
         Sync.groupInfo = () => ({ ref: 0, tiles: [0, 1, 2], movie: false, active: true, paused: false, later: window.__t.later });
@@ -569,13 +570,30 @@ test.describe('ライブラリの複数選択', () => {
         notify = (text) => window.__t.notices.push(text);
         for (const i of [0, 1, 2]) views[i] = { ss: { ps: i === 2 ? 2 : 1, ad: false } };
         openSync([0, 1, 2]);
-      }, later);
-    const result = () => page.evaluate(() => ({ started: window.__t.started, notices: window.__t.notices }));
+      }, [later, canSeek]);
+    const result = () => page.evaluate(() => ({ started: window.__t.started, notices: window.__t.notices, seeks: window.__t.seeks }));
 
+    // 全部の枠が始まっている位置まで進められたら、そう知らせ、全部の枠が再生を始めたら ✨ を始める (HAKO-34)
+    await run([2], true);
+    await page.clock.runFor(1_000);
+    let r = await result();
+    expect(r.seeks).toEqual([[1, [0, 1, 2]]]);
+    expect(r.notices).toEqual(['⏱ 同期を始めました。まだ始まっていない配信があったので、全部の配信が始まっているところまで進めました。全部の枠が再生を始めたら ✨ 自動補正を始めます']);
+    await page.evaluate(() => {
+      window.__t.later = [];
+      views[2].ss.ps = 1;
+    });
+    await page.clock.runFor(2_000);
+    r = await result();
+    expect(r.started).toBe(1);
+    expect(r.seeks.length).toBe(1); // 進めるのは 1 回だけ
+
+    // 進められない (全部がそろう時刻が無い) ときは、始まるまで待つ
     await run([2]);
     await page.clock.runFor(90_000);
-    let r = await result();
+    r = await result();
     expect(r.started).toBe(0);
+    expect(r.seeks.length).toBe(1);
     expect(r.notices).toEqual(['⏱ 同期を始めました。まだ始まっていない配信があるので、全部の枠が再生を始めてから ✨ 自動補正を始めます']); // 1 回だけ
     // 枠 2 の配信の時間帯が始まって、再生を始めた
     await page.evaluate(() => {
