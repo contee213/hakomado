@@ -82,6 +82,23 @@ test('拡大: 動画の部分を、縦横の比を変えずに画面にぴった
   assert.deepEqual(plain(WebSite.fitZoom({ x: 0, y: 0, width: 635, height: 357 }, 635, 357)), { s: 1, tx: 0, ty: 0, x: 0, y: 0, w: 635, h: 357 });
 });
 
+test('映像が映っている部分に合わせる (要素の比が違えば、余白を除く)', () => {
+  // Prime Video: 縦に長い要素 (463×4748) の真ん中に 16:9 の映像
+  const p = plain(WebSite.pictureRect({ x: 0, y: 0, width: 463, height: 4748 }, 1280, 720, 'contain'));
+  assert.equal(p.width, 463);
+  assert.ok(Math.abs(p.height - 260.4375) < 1e-6);
+  assert.ok(Math.abs(p.y - (4748 - 260.4375) / 2) < 1e-6);
+  // 横に長い要素なら左右の余白を除く
+  assert.deepEqual(plain(WebSite.pictureRect({ x: 10, y: 0, width: 800, height: 225 }, 1600, 900, 'contain')), { x: 210, y: 0, width: 400, height: 225 });
+  // scale-down は元の大きさより大きくしない
+  assert.deepEqual(plain(WebSite.pictureRect({ x: 0, y: 0, width: 800, height: 600 }, 320, 180, 'scale-down')), { x: 240, y: 210, width: 320, height: 180 });
+  // 引き伸ばし・切り抜き・大きさが分からないときは要素のまま
+  const r = { x: 1, y: 2, width: 300, height: 400 };
+  assert.equal(WebSite.pictureRect(r, 1280, 720, 'cover'), r);
+  assert.equal(WebSite.pictureRect(r, 1280, 720, 'fill'), r);
+  assert.equal(WebSite.pictureRect(r, 0, 0, 'contain'), r);
+});
+
 test('広げるのは画面の中で大きめの動画だけ (おすすめの小さな試聴は広げない)', () => {
   assert.equal(WebSite.bigEnough({ width: 528, height: 297 }, 528, 297), true);
   assert.equal(WebSite.bigEnough({ width: 208, height: 117 }, 528, 297), true); // 狭い枠で小さく置かれた本編 (15%)

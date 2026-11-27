@@ -127,7 +127,8 @@ html:has([${FILL}]), html:has([${FILL}]) body { overflow: hidden !important; bac
     if (v && v.isConnected) {
       // 拡大はページの左上を基準にするので、拡大している間にサイトがスクロールしたら戻してから測る
       if (zoom && (scrollX || scrollY)) scrollTo(0, 0);
-      const r = rawRect(v);
+      // 要素でなく、映像が映っている部分に合わせる (要素が縦に長いと、余白ごと収めて映像が小さくなる)
+      const r = WebSite.pictureRect(rawRect(v), v.videoWidth, v.videoHeight, getComputedStyle(v).objectFit);
       if (WebSite.bigEnough(r, innerWidth, innerHeight)) {
         setFill(null);
         setZoom(r);
