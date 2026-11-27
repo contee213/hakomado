@@ -1159,7 +1159,7 @@ function postToVideo(vid, msg) {
     else vid.pause();
   } else if (msg.hakomado === 'speed') {
     const r = Number(msg.r);
-    if (Number.isFinite(r) && r >= 0.25 && r <= 4) vid.playbackRate = r;
+    if (Number.isFinite(r) && r >= 0.1 && r <= 4) vid.playbackRate = r;
   } else if (msg.hakomado === 'loop') vid.loop = !!msg.on;
   else if (msg.hakomado === 'sync' && msg.op === 'seek') {
     const t = Number(msg.t);
@@ -2026,7 +2026,8 @@ function applyAudio(i) {
 // - 上部バーの ⏩ は、表示中の全部の枠 (同期しているグループはグループごと) をまとめて同じ速度にする
 const SPEEDS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
 // 枠の中のプレイヤーで細かく決めた速度 (YouTube の「カスタム」) も受け取れるように、範囲と刻みだけそろえる
-const clampSpeed = (v) => (Number.isFinite(v) && v > 0 ? Math.max(0.25, Math.min(4, Math.round(v * 20) / 20)) : 1);
+// 0.1× は同期の調整の帯のグループの速度 (超低速再生) だけで選べる
+const clampSpeed = (v) => (Number.isFinite(v) && v > 0 ? Math.max(0.1, Math.min(4, Math.round(v * 20) / 20)) : 1);
 const speedText = (r) => `${Number(r.toFixed(2))}×`;
 // Twitch のチャンネルの枠には is-live を付けない (枠の線がプレイヤーに重なると、Twitch が自動再生しないため)
 const isLiveTile = (i) => !!views[i]?.el.classList.contains('is-live') || (!!state.tiles[i] && !!twitchChannelOfTile(state.tiles[i]));
@@ -3327,9 +3328,12 @@ const Sync = (() => {
         drift.set(i, 'fix');
         driftSec.set(i, d);
       } else if (ad > RATE_DRIFT || (correcting && ad > RATE_STOP)) {
-        // 3 秒ほどで詰め終わる速さ (1〜10% 速く / 遅く。0.5% 単位で丸めて、指示を送り直しすぎないように)
+        // 3 秒ほどで詰め終わる速さ (1〜10% 速く / 遅く。0.5% 単位で丸めて、指示を送り直しすぎないように)。
+        // 遅い速度 (超低速の 0.1× など) では同じ割合だと詰まらないので、速度に合わせて強める (50% まで)
         forceSeek.delete(i);
-        const k = Math.round(Math.min(0.1, Math.max(0.01, ad / 3)) * 200) / 200;
+        const sp = G.speed ?? 1;
+        const kMax = sp < 1 ? Math.min(0.5, 0.1 / sp) : 0.1;
+        const k = Math.round(Math.min(kMax, Math.max(0.01, ad / (3 * Math.min(1, sp)))) * 200) / 200;
         rate(i, d > 0 ? 1 - k : 1 + k);
         drift.set(i, 'fix');
         driftSec.set(i, d);
@@ -4702,22 +4706,120 @@ const Sync = (() => {
     showDock: () => Dock.show(),
     speedGroupOf,
     setGroupSpeed,
+    /** 同期の調整の帯の行の 🔊 / 🔇: その枠だけ音を出す / 消す (ほかの枠はそのまま。枠の情報の 🔊 と同じ) */
+    toggleAudio(i) {
+      setAudio(i, { solo: false });
+    },
+    /** 同期の調整の帯のグループの速度 (グループの速さを変えられる枠から変える) */
+    setStripSpeed(g, r) {
+      const G = groups.get(g);
+      const i = G ? membersOf(g).find((j) => speedAdjustable(j)) : null;
+      if (i != null) setTileSpeed(i, r);
+    },
     offOf: off,
     applyOffsets,
     setOffset,
     groupColor: (g) => colorOf(g),
     dockChanged: () => Dock.update(),
     /**
-     * 〰 波形の帯用 (HAKO-39): グループ g の YouTube のアーカイブの枠と、今の時刻 (実際の時刻のミリ秒。まだ決まっていなければ null)。
-     * 各枠は {i, vid, start: 配信の開始 (ミリ秒), dur: 長さ (秒)}。再生位置 t 秒は、実際の時刻 start + (t − 補正) × 1000 に当たる
+     * 同期の調整の帯用 (HAKO-42): 全部のグループ (番号順) と、どのグループにも入っていない枠。同期していなければ null。
+     * グループ: {g, mode, movie, active, ref, now, playing, lo, hi, note, canReset, speed, speedLocked (ライブが入っていて速さを変えられない), tiles}。
+     * 枠: {i, vid, no, name, youtube, start, dur, movable, live, off, drift, waiting, group (グループの選択の値), why, elapsed}
      */
-    waveGroup(g) {
+    stripModel() {
+      if (!on) return null;
+      const tileOf = (i, G) => {
+        const vid = vidOf(i) || '';
+        const arch = views[i]?.archive;
+        let elapsed = '';
+        if (G && active(G) && !isMovie(G) && movable(i) && !G.init) {
+          const t = targetOf(G, i, nowR(G));
+          elapsed = t > arch.dur + 1 ? tr('syncElapsedEnded') : signedHms(t);
+        }
+        return {
+          i,
+          vid,
+          no: tileNo(i),
+          name: tileName(i) || vid,
+          title: views[i]?.meta?.title || '',
+          muted: !!state.tiles[i]?.muted,
+          youtube: /^[\w-]{11}$/.test(vid),
+          start: arch ? arch.start : null,
+          dur: arch ? arch.dur : null,
+          movable: movable(i),
+          live: liveTile(i),
+          off: G && isMovie(G) ? anchor(i) : off(i),
+          drift: waiting.has(i) ? 'wait' : drift.get(i) || 'none',
+          waiting: waiting.has(i),
+          paused: !!waiting.get(i)?.paused,
+          group: manual.has(i) ? String(manual.get(i).g) : 'auto',
+          why: G ? null : assigned.excluded.get(i) || 'alone',
+          elapsed,
+        };
+      };
+      const list = [...groups.values()]
+        .sort((a, b) => a.g - b.g)
+        .map((G) => {
+          const ok = active(G);
+          const tiles = membersOf(G.g);
+          const note = !ok
+            ? tr(tiles.length < 2 ? 'syncGroupNeedMore' : 'syncGroupNeedArchive')
+            : isMovie(G) && anchor(reference(G)) == null
+              ? tr('syncGroupNeedAnchor')
+              : '';
+          return {
+            g: G.g,
+            mode: G.mode,
+            movie: isMovie(G),
+            active: ok,
+            ref: ok ? reference(G) : G.ref,
+            now: G.init ? null : nowR(G),
+            playing: G.clock.playing && !G.paused,
+            lo: G.lo,
+            hi: G.hi,
+            note,
+            canReset: tiles.some((i) => movable(i) && off(i) !== 0),
+            speed: G.speed ?? 1,
+            speedLocked: tiles.some(liveTile),
+            tiles: tiles.map((i) => tileOf(i, G)),
+          };
+        });
+      const rest = [...assigned.excluded.keys()]
+        .filter((i) => !groupOfTile(i))
+        .sort((a, b) => tileNo(a) - tileNo(b))
+        .map((i) => tileOf(i, null));
+      return { groups: list, rest };
+    },
+    /** 帯の操作 (パネルと同じ動き。HAKO-42) */
+    setReference: (i) => setReference(i),
+    moveTile: (i, v) => moveTile(i, v === 'auto' ? 'auto' : Number(v)),
+    toggleWait: (i) => toggleWait(i),
+    setMode(g, m) {
       const G = on ? groups.get(g) : null;
-      if (!G || isMovie(G)) return null;
-      const tiles = membersOf(g)
-        .filter((i) => movable(i) && /^[\w-]{11}$/.test(vidOf(i)))
-        .map((i) => ({ i, vid: vidOf(i), start: views[i].archive.start, dur: views[i].archive.dur }));
-      return { g, ref: reference(G), tiles, now: G.init ? null : nowR(G), active: active(G), playing: G.clock.playing && !G.paused };
+      if (G) setMode(G, m === 'movie' ? 'movie' : 'time');
+    },
+    resetGroup(g) {
+      const G = on ? groups.get(g) : null;
+      if (G) resetGroup(G);
+    },
+    /** 補正の秒数を文字で入れる (パネルの入力欄と同じ読み方。🎬 は本編 0:00 の位置を h:mm:ss でも)。読めなければ枠に知らせる */
+    commitOffsetText(i, text) {
+      const G = on ? groupOfTile(i) : null;
+      const s = String(text || '').trim();
+      if (!G || !s) return;
+      if (isMovie(G)) {
+        const v = parseClock(s);
+        if (v == null) showToast(i, tr('movieBadClock'));
+        else setOffset(i, Math.round(v * 100) / 100);
+        return;
+      }
+      const v = Number(s.replace('−', '-').replace(/^\+/, ''));
+      if (Number.isFinite(v)) setOffset(i, v);
+    },
+    /** 枠 i を光らせる (帯の行に乗せたとき。null で消す) */
+    highlight(i) {
+      for (const v of views) v?.el?.classList.remove('sync-hl');
+      if (i != null) views[i]?.el?.classList.add('sync-hl');
     },
     /** グループ g を一時停止 / 再生する (同期の調整パネルの ⏸ と同じ) */
     togglePause(g) {
