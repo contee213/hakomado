@@ -34,8 +34,6 @@
 | `updateNotified` | お知らせを出した版 | 一時 | `update-check.js` | [local.md#updatecheck](data-definitions/local.md#updatecheck) |
 | `ui:<名前>` | 画面の小さな覚え (絞り込み・最後の再生リスト・共有画像の設定・同期パネルの置き方) | 設定 | `ui-prefs.js` | [local.md#ui](data-definitions/local.md#ui) |
 | `tourPending` | 使い方ツアーを出す印 | 一時 | `background.js` | [local.md#tourpending](data-definitions/local.md#tourpending) |
-| `feed:<チャンネル ID>` (`feed:UULF:…` `feed:UUSH:…`) | チャンネルの再生リストの RSS | 取得 | `favorites.js` | [local.md#feed](data-definitions/local.md#feed) |
-| `twpage:<名前>` | Twitch のチャンネルのページ | 取得 | `favorites.js` | [local.md#twpage](data-definitions/local.md#twpage) |
 | `videoStates` | 動画ごとの状態 | 取得 | `favorites.js` | [local.md#videostates](data-definitions/local.md#videostates) |
 | `fetchBackoff` | 制限 (429) を受けたときの待ち時間 | 一時 | `favorites.js` | [local.md#fetchbackoff](data-definitions/local.md#fetchbackoff) |
 
@@ -59,6 +57,9 @@
 
 | データベース | ストア | 中身 | 種類 | 詳細 |
 | --- | --- | --- | --- | --- |
+| `hakomado-cache` | `kv` (`feed:*`・`twpage:*`) | チャンネルの再生リストの RSS・Twitch のチャンネルのページ | 取得 | [other.md#hakomado-cache](data-definitions/other.md#hakomado-cache) |
+| `hakomado-cache` | `streams` | 配信ごとの実際の開始・終了 | 取得 | [other.md#hakomado-cache](data-definitions/other.md#hakomado-cache) |
+| `hakomado-cache` | `collab` | 🤝 の判定の記録 | 一時 | [other.md#hakomado-cache](data-definitions/other.md#hakomado-cache) |
 | `hakomado-files` | `handles` | ファイルの枠のファイルの持ち手 | 作った | [other.md#indexeddb](data-definitions/other.md#indexeddb) |
 
 ## ファイル

@@ -9714,7 +9714,8 @@ function buildCollabGroups(entries) {
     const atB = atChs.get(B.e);
     const ab = !!atA?.has(B.e.ch);
     const ba = !!atB?.has(A.e.ch);
-    if (ab || ba) return gap <= (ab && ba ? COLLAB_AT_MUTUAL : COLLAB_AT_ONE_WAY) ? { s: 5, named: true } : { s: 0, apart: true };
+    const at = ab && ba ? 'mutual' : 'one-way';
+    if (ab || ba) return gap <= (ab && ba ? COLLAB_AT_MUTUAL : COLLAB_AT_ONE_WAY) ? { s: 5, named: true, at } : { s: 0, apart: true, at };
     if (atA?.size || atB?.size) return { s: 0, apart: true };
     if ((A.e.holo && atA) || (B.e.holo && atB)) return { s: 0, apart: true };
     if ((A.e.official && atA) || (B.e.official && atB)) return { s: 0, apart: true }; // 公式チャンネルの配信 (ホロライブ以外も)
@@ -9730,9 +9731,11 @@ function buildCollabGroups(entries) {
   };
   const links = [];
   const apart = new Set(); // 「別」と決めた 2 本 (`id\nid`、両向き)
+  const atPairs = []; // 概要欄の @ が関わった組 (判定の記録用。CollabStats)
   for (let i = 0; i < info.length; i++) {
     for (let j = i + 1; j < info.length; j++) {
       const r = strength(info[i], info[j]);
+      if (r.at) atPairs.push([info[i], info[j], r.at]);
       if (r.apart) apart.add(`${info[i].e.id}\n${info[j].e.id}`).add(`${info[j].e.id}\n${info[i].e.id}`);
       if (r.s) links.push({ a: info[i], b: info[j], s: r.s, named: r.named, gap: Math.abs((info[i].e.t || 0) - (info[j].e.t || 0)) });
     }
@@ -9761,8 +9764,60 @@ function buildCollabGroups(entries) {
     const ids = g.sort((x, y) => (y.e.t || 0) - (x.e.t || 0)).map((x) => x.e.id);
     for (const id of ids) collabOf.set(id, ids);
   }
+  CollabStats.record(atPairs.map(([A, B, at]) => ({ A: A.e, B: B.e, rule: at, together: groupOf.get(A) === groupOf.get(B) })));
   CollabAI.flush();
 }
+
+/**
+ * 🤝 の判定の成績を測る (HAKO-30)。最近の動画で、概要欄の @ が関わった組の判定を IndexedDB に記録し、
+ * 配信状況の確認で覚えた実際の開始・終了で答え合わせする。新しい問い合わせはしない。画面には出さない:
+ * マルチビュー画面の DevTools のコンソールで CollabStats.report() を呼ぶ
+ */
+const CollabStats = (() => {
+  const written = new Map(); // この画面で記録した組 → 判定 (同じ判定を何度も書かない)
+  const SAME_START_MS = 90 * 60e3; // 答え: 時間が重なり、開始の差がこれ以内なら「同じ時間の配信」(遅れて入る人もいるので広め)
+
+  /** 組の判定を記録する ({A, B, rule: one-way / mutual, together}) */
+  function record(rows) {
+    if (typeof IdbCache === 'undefined' || !IdbCache.available) return;
+    const now = Date.now();
+    const out = [];
+    for (const { A, B, rule, together } of rows) {
+      const [a, b] = A.id < B.id ? [A, B] : [B, A];
+      const key = `${a.id}|${b.id}`;
+      const judged = together ? 'together' : 'apart';
+      if (written.get(key) === judged + rule) continue;
+      written.set(key, judged + rule);
+      out.push({ a: a.id, b: b.id, la: a.label, lb: b.label, rule, judged, gap: Math.round(Math.abs((a.t || 0) - (b.t || 0)) / 60e3), at: now });
+    }
+    IdbCache.putCollab(out).catch((e) => console.warn('hakomado: 🤝 の判定を記録できませんでした', e));
+  }
+
+  /**
+   * 直近 days 日の成績。答え (実際の時刻) が分かった組だけを数える。
+   * @returns {Promise<{pairs: number, known: number, together: {right: number, wrong: number}, apart: {right: number, wrong: number}, wrong: object[]}>}
+   */
+  async function report(days = 7) {
+    const [rows, times] = await Promise.all([IdbCache.collab(), IdbCache.streams()]);
+    const since = Date.now() - days * 24 * 3600e3;
+    const out = { pairs: 0, known: 0, together: { right: 0, wrong: 0 }, apart: { right: 0, wrong: 0 }, wrong: [] };
+    for (const r of rows.values()) {
+      if (!(r.at >= since)) continue;
+      out.pairs++;
+      const ta = times.get(r.a);
+      const tb = times.get(r.b);
+      if (!ta?.end || !tb?.end) continue;
+      out.known++;
+      const same = Math.min(ta.end, tb.end) > Math.max(ta.start, tb.start) && Math.abs(ta.start - tb.start) <= SAME_START_MS;
+      const right = (r.judged === 'together') === same;
+      out[r.judged][right ? 'right' : 'wrong']++;
+      if (!right) out.wrong.push({ ...r, startGap: Math.round(Math.abs(ta.start - tb.start) / 60e3) });
+    }
+    return out;
+  }
+
+  return { record, report };
+})();
 
 /** チャンネルの配信中・配信予定の 1 件 */
 function favSelEntry(f, st) {

@@ -54,6 +54,58 @@ YouTube の視聴ページの中 (`content/watch-main.js`) は、YouTube 自身�
 
 ## IndexedDB
 
+### hakomado-cache
+
+取り直せて増えていくもの (`idb-cache.js`。HAKO-30)。データベース `hakomado-cache` (版 1)、ストア `kv`・`streams`・`collab`。
+
+**前の版から:** chrome.storage.local の `feed:*`・`twpage:*` は、画面を開いて最初に使うときに `kv` へ移して chrome.storage.local から消す (ロック `hakomado-cache-move`。先に書いてから消すので、途中で閉じても次に開いたときに残りを移す。`kv` にもっと新しいものがあれば、そちらを残す)。
+
+#### kv の feed
+
+チャンネルの再生リストの RSS から読んだもの (取得)。キーと値の形は、前の版で chrome.storage.local に置いていたときと同じ。`feed:<チャンネル ID>` (ライブ配信 UULV)・`feed:UULF:<チャンネル ID>` (動画)・`feed:UUSH:<チャンネル ID>` (ショート) → `{at: 取った日時, items: array}`。`items` は新しい順に最大 15 件で、配信をしたことがないチャンネルは `[]`。
+
+| `items` の項目 | 型 | 意味 |
+| --- | --- | --- |
+| `videoId` | string | 動画 ID |
+| `title` | string | 題名 (300 文字まで) |
+| `at` | number | 枠・動画を作った日時 |
+| `views` | number \| null | 再生数 (配信予定・公開予定は 0)。RSS に無ければ null |
+| `ats` | string[] | 概要欄に書いてある @ハンドル (小文字・@ を外したもの、最大 20 個)。ライブラリの 🤝 (コラボの判定) で、相手の配信者を見分けるのに使う。概要欄の文そのものは覚えない。前の版で覚えたものには無い (取り直すまでは今までのタイトルの判定だけ。HAKO-25) |
+
+#### kv の twpage
+
+Twitch のチャンネルのページから読んだもの (取得)。`twpage:<ログイン名>` → `{at: 取った日時, page}`。
+
+| `page` の項目 | 型 | 意味 |
+| --- | --- | --- |
+| `name` | string | 表示名 |
+| `icon` | string | アイコンの URL |
+| `live` | object \| null | 配信中なら `{title, startAt?}` |
+| `vods` | array | 最近の VOD `{videoId: 'tw:v:…', title, at, views, thumb?}` |
+
+#### streams
+
+配信ごとの実際の開始・終了 (取得)。キー = 動画 ID。
+
+| 値の項目 | 型 | 意味 |
+| --- | --- | --- |
+| `start` | number | 実際の開始の日時 |
+| `end` | number | 実際の終了の日時 (終わった配信だけ) |
+| `at` | number | 覚えた日時。8 日より前のものは画面を開いたときに消す |
+
+#### collab
+
+ライブラリの 🤝 の判定の記録 (一時)。キー = 2 本の動画 ID (小さい順) を改行でつないだもの。最近の動画で、概要欄の @ が関わった組だけ。
+
+| 値の項目 | 型 | 意味 |
+| --- | --- | --- |
+| `a` `b` | string | 動画 ID (小さい順) |
+| `la` `lb` | string | チャンネル名 |
+| `rule` | string | `one-way` (片方だけ呼んでいる) / `mutual` (お互いに呼んでいる) |
+| `judged` | string | `together` / `apart` |
+| `gap` | number | RSS の公開の時刻の差 (分) |
+| `at` | number | 記録した日時。8 日より前のものは画面を開いたときに消す |
+
 ### hakomado-files
 
 ファイルの枠のファイルの持ち手 (`local-files.js`)。データベース `hakomado-files` (版 1)、ストア `handles`。
