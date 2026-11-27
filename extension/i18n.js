@@ -538,6 +538,18 @@ const MESSAGES = {
   movieAnchorSet: ['本編 0:00 をこの動画の {0} にしました', 'Movie 0:00 set to {0} in this video'],
   movieClear: ['本編の位置を消す', 'Clear movie start'],
   movieBadClock: ['h:mm:ss・m:ss・秒のどれかで入れてください', 'Enter h:mm:ss, m:ss or seconds'],
+  // 🔍 画面のタイマーから本編の位置を探す (同期の調整の帯の 🎬 の列。HAKO-49)
+  timerScanTitle: ['配信の画面のタイマーから、作品ごとの本編の位置を探す', "Find where each title starts from the on-screen timer"],
+  timerScanQueued: ['⏳ 順番待ち', '⏳ Queued'],
+  timerScanBusy: ['⏳ {0} 秒', '⏳ {0}s'],
+  timerScanBusyTitle: ['タイマーを探しています。押すとやめる', 'Looking for the timer. Click to stop'],
+  timerScanNone: ['🔍 見つかりません', '🔍 Not found'],
+  timerScanNoneTitle: ['タイマーが見つかりませんでした。押すと調べ直す', 'No timer found. Click to look again'],
+  timerScanAsk: ['🔍 最後まで', '🔍 Full scan'],
+  timerScanAskTitle: ['同時視聴の配信ですが、タイマーが見つかりませんでした。最後まで詳しく調べますか？ (1 時間あたり約 8 秒)', 'This looks like a watch-along, but no timer was found. Scan the whole archive? (about 8 s per hour)'],
+  timerScanPick: ['作品を選ぶ', 'Pick a title'],
+  timerScanWork: ['{0} 本目 {1}〜', 'Title {0} {1}–'],
+  timerScanWorksTitle: ['画面のタイマーから見つけた作品。選ぶと、その作品の 0:00 を本編の位置にして移る', 'Titles found from the on-screen timer. Pick one to move to its 0:00'],
   readMovie: ['🎬 同時視聴 (本編でそろえる)', '🎬 Watch-along (aligned on the movie)'],
   packConfirm: [
     'チャンネルパック「{0}」を読み込みますか？\n{1} 件を追加します (登録済みの {2} 件はそのまま)',

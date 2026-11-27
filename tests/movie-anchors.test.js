@@ -101,3 +101,47 @@ test('読み込むとき: 本編の印だけの項目も読む。見当の印は
   assert.equal(M.isGuess(vid(3)), true);
   assert.equal(M.isMain(vid(3)), true);
 });
+
+test('画面のタイマーの区間 (HAKO-49): 作品の一覧・未定なら 1 本目を入れる・選ぶ・手で決め直すと選んだ印を外す', async () => {
+  const { M, env } = setup();
+  await M.load();
+  // 1 本目は 608.54 秒に 00:00:00 から、途中で止めて 1000 秒に 00:06:00 から続き、2 本目は 2096.65 秒に 00:00:00 から
+  await M.addSections(vid(1), [
+    [608.543, 0],
+    [1000, 360],
+  ]);
+  await M.addSections(vid(1), [[2096.65, 0]]);
+  assert.deepEqual(plain(M.works(vid(1))), [
+    { n: 1, at: 608.54, zero: 608.54 },
+    { n: 2, at: 2096.65, zero: 2096.65 },
+  ]);
+  assert.equal(M.get(vid(1)), 608.54, '未定だったので 1 本目の 0:00 が入る');
+  assert.equal(M.selected(vid(1)), 1);
+  assert.equal(M.select(vid(1), 2), 2096.65);
+  assert.equal(M.get(vid(1)), 2096.65);
+  assert.equal(M.selected(vid(1)), 2);
+  assert.equal(M.select(vid(1), 9), null, '無い作品は選べない');
+  await M.set(vid(1), 700);
+  assert.equal(M.selected(vid(1)), null, '手で決め直したら選んだ印は外す');
+  assert.equal(M.works(vid(1)).length, 2, '見つけた区間は残す');
+  const saved = env.chrome.storage.local._dump().movieAnchors[vid(1)];
+  assert.deepEqual(plain(saved.w), [
+    [608.54, 0],
+    [1000, 360],
+    [2096.65, 0],
+  ]);
+});
+
+test('画面のタイマーの区間: 00:00:00 から始まらないタイマー・決まっている位置は変えない・おかしな値は捨てる', async () => {
+  const { M } = setup({ movieAnchors: { [vid(2)]: { s: 10, at: 1 } } });
+  await M.load();
+  // 26:20 (1580 秒) から動き出した → 本編の 0:00 は 1832.3 − 1580 = 252.3
+  await M.addSections(vid(1), [[1832.3, 1580], ['x', 1], [-5, 0], [5, -1], [3]]);
+  assert.deepEqual(plain(M.works(vid(1))), [{ n: 1, at: 1832.3, zero: 252.3 }]);
+  assert.equal(M.get(vid(1)), 252.3);
+  await M.addSections(vid(2), [[500, 0]]);
+  assert.equal(M.get(vid(2)), 10, '手で決めた位置があれば変えない');
+  assert.equal(M.selected(vid(2)), null);
+  await M.addSections('bad', [[1, 0]]);
+  assert.deepEqual(plain(M.works('bad')), []);
+});

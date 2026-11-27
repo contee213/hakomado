@@ -1194,6 +1194,15 @@ const Sync = (() => {
     },
     /** 🎬 ✕: 本編の位置を消す */
     movieClear: (i) => setOffset(i, null),
+    /** 🎬 画面のタイマーから見つけた作品 n を選ぶ: その作品の 0:00 を本編の位置にして、グループを本編の 0:00 へ移す (HAKO-49) */
+    movieSelectWork(i, n) {
+      if (MovieAnchors.select(vidOf(i), n) == null) return;
+      sent.delete(i);
+      forceSeek.add(i);
+      const G = groupOfTile(i);
+      if (G && isMovie(G)) seekGroup(G, 0);
+      else tick();
+    },
     /** 🎬 本編の印: on = この枠を本編にする / false = 本編をやめる */
     setMain: (i, on) => setMain(i, on),
     /** 同期の調整の帯のグループの ✨ 自動補正 */

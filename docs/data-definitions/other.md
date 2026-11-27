@@ -10,6 +10,10 @@
 
 開いているマルチビュー画面のタブ。`array` of number (タブの id、登録した順)。最後に使った順に並べるのは読むとき (`gridTabsByRecent`)。閉じたタブは書くときに除く。右クリックの追加の送り先と、X-Frame-Options を外すルールの対象のタブ (`background.js`)。
 
+### timerScanMiss
+
+画面のタイマーを探して見つからなかった配信 (🎬 同時視聴。HAKO-49)。`object`: YouTube の動画 ID → `{at: 探し終えた日時}`。ここにある配信は自動では探し直さない (🔍 を押せば探す)。Chrome を閉じると消える (PC に残さない)。`timer-scan.js`。
+
 ### statusShared
 
 配信状況の取得のうち、ブラウザを開き直したら使わないもの (`favorites.js`)。1 つの `object`。書き込みはロック `hakomado-status-store`。
