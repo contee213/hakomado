@@ -640,6 +640,7 @@ const Sync = (() => {
    * - 本編が、配信のタイマーが止まった値に着いた → 本編の枠を止めて、配信だけを流す (G.stop)。配信のタイマーが動き出す所に着いたら、本編を再生する
    * - 本編の枠が終わり近くから頭に戻った (次の話に進んだ) → 頭で止めて待たせ、配信を次の作品の始まりまで流す。着いたら作品を進めて一緒に再生する
    * - 本編の枠より先に、配信が次の作品の始まりに着いた → 配信をそこで止めて、本編の枠を次の話にしてもらう (G.wait)
+   * - 本編の枠が作品の頭で止まっていて、配信がまだ作品の始まりより前 → 配信を流して、タイマーが動き出したら本編を再生する
    * 使う人が本編の枠で自分で再生したら、待つのをやめて配信が追いかける。時計の時刻と動いているかを返す
    */
   function movieFlow(G, list, ref, R, playing) {
@@ -686,6 +687,13 @@ const Sync = (() => {
       // 本編の枠を戻した (次の作品の始まりより前へ) → 待つのをやめる
       if (MovieAnchors.toArchive(pl.secs, R / 1000) < G.wait.at - 1) G.wait = null;
       return { R, playing };
+    }
+    // 本編の枠が作品の頭で止まっていて、配信がまだ作品の始まり (タイマーが動き出す所) より前 → 配信は流して待ち、
+    // タイマーが動き出したら本編を再生する (配信の前置きを見ながら、タイマーに合わせて本編を始める使い方)
+    const [at0, v0] = pl.secs[0];
+    if (w.paused && Math.abs(fp - v0) <= 2 && p != null && p < at0 - 0.5 && now() > G.holdUntil) {
+      G.stop = { tile: arch, until: at0, v: v0, next: null, seen: true };
+      return { R: v0 * 1000, playing: false };
     }
     if (!playing || now() < G.holdUntil || p == null) return { R, playing };
     const t = R / 1000;
