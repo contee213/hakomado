@@ -54,6 +54,8 @@
   </header>
 
   <main id="grid" class="grid"></main>
+  <!-- 〰 波形 (同期のグループの配信全編の音の波形を並べ、大まかに合わせる帯。画面の下に出し、枠の並びはこの分だけ縦に縮む)。中身は wave-strip.js が作る -->
+  <section id="waveStrip" class="wave-strip" hidden></section>
   <!-- 同期の調整パネル (アーカイブ同期中。枠の上に浮かぶ半透明の小窓か、画面の右の列 (枠の並びはこの分だけ横に縮む))。中身は grid.js (Sync の Dock) が作る -->
   <aside id="syncDock" class="sync-dock" hidden>
     <div class="dock-head">
@@ -964,6 +966,7 @@
   <script src="sync-groups.js"></script>
   <script src="sync-chart.js"></script>
   <script src="audio-align.js"></script>
+  <script src="waves.js"></script>
   <script src="movie-anchors.js"></script>
   <script src="tour.js"></script>
   <script src="vendor/qrcode-generator.js"></script>
@@ -981,6 +984,7 @@
   <script src="tile-slots.js"></script>
   <script src="web-site.js"></script>
   <script src="local-files.js"></script>
+  <script src="wave-strip.js"></script>
   <script src="grid.js"></script>
 </body>
 </html>

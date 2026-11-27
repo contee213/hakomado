@@ -3083,6 +3083,23 @@ const Sync = (() => {
     return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
   };
   const spanText = (sec) => hms(Math.ceil(sec));
+  /** 秒 → 「1:23:45」(負なら − を付ける) */
+  const signedHms = (sec) => (sec < 0 ? '−' : '') + hms(Math.floor(Math.abs(sec)));
+  /** 🕒 コラボ配信のグループの物差しの 0:00 = 基準の枠の配信の始まり (実際の時刻のミリ秒)。基準がアーカイブでなければ null */
+  const refStartOf = (G) => {
+    const r = G && !isMovie(G) ? reference(G) : null;
+    return r != null && views[r]?.archive ? realOf(G, r, 0) : null;
+  };
+  /**
+   * 🕒 コラボ配信の時刻 (ミリ秒) → 基準の枠の配信の経過時間「1:23:45」(HAKO-39)。基準より先に始めた配信の分は −、
+   * 基準の配信が終わったあとも続く配信の分は、そのまま数え続ける。基準が決まらなければ実際の時刻
+   */
+  const elapsedText = (G, ms) => {
+    const s = refStartOf(G);
+    return s == null ? clockText(ms) : signedHms((ms - s) / 1000);
+  };
+  /** つまみの時刻の出し方 (🎬 は本編の時刻、🕒 は基準の枠の経過時間) */
+  const timeTextOf = (G) => (isMovie(G) ? movieText : (ms) => elapsedText(G, ms));
   /** 本編の時刻 (ミリ秒) → 「本編 0:47:12」(本編の前なら − を付ける) */
   const movieText = (ms) => tr('movieClock', (ms < 0 ? '−' : '') + hms(Math.floor(Math.abs(ms) / 1000)));
 
@@ -3336,7 +3353,7 @@ const Sync = (() => {
 
   /** つまみ (上部バーかパネル) を、グループ G の今に合わせる */
   function fillSeek(input, nowEl, endEl, G) {
-    const text = isMovie(G) ? movieText : clockText;
+    const text = timeTextOf(G);
     input.dataset.g = String(G.g);
     input.dataset.lo = String(G.lo);
     input.max = String(Math.max(1, Math.round((G.hi - G.lo) / 1000)));
@@ -3352,6 +3369,9 @@ const Sync = (() => {
       nowEl.textContent = text(nowR(G));
     }
     endEl.textContent = text(G.hi);
+    // 🕒 は、乗せると実際の時刻も分かるようにする
+    nowEl.title = isMovie(G) ? '' : tr('syncClockAt', clockText(nowR(G)));
+    endEl.title = isMovie(G) ? '' : tr('syncClockAt', clockText(G.hi));
   }
   /** つまみを動かしている途中 (時刻だけ出す) と、放したとき (グループ全部をその時刻へ) */
   function bindSeek(input, nowEl) {
@@ -3360,7 +3380,7 @@ const Sync = (() => {
       const G = groupOf();
       if (!G) return;
       G.dragging = true;
-      nowEl.textContent = (isMovie(G) ? movieText : clockText)(Number(input.dataset.lo) + Number(input.value) * 1000);
+      nowEl.textContent = timeTextOf(G)(Number(input.dataset.lo) + Number(input.value) * 1000);
     });
     input.addEventListener('change', () => {
       const G = groupOf();
@@ -3916,9 +3936,11 @@ const Sync = (() => {
       const x = pos ? pos.x : innerWidth - w - 16;
       const y = pos ? pos.y : top + 12;
       d.style.left = Math.round(Math.max(0, Math.min(innerWidth - w, x))) + 'px';
-      const t = Math.round(Math.max(top, Math.min(innerHeight - 120, y))); // 上部バーには重ねない
+      // 画面の下に 〰 波形の帯を出している間は、その上までにする (帯を優先する。HAKO-39)
+      const below = document.body.classList.contains('wave-open') ? parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--wave-h')) || 0 : 0;
+      const t = Math.round(Math.max(top, Math.min(innerHeight - below - 120, y))); // 上部バーには重ねない
       d.style.top = t + 'px';
-      d.style.maxHeight = innerHeight - t - 12 + 'px'; // 下へ伸びて画面からはみ出す分は、中をスクロールさせる
+      d.style.maxHeight = Math.max(120, innerHeight - below - t - 12) + 'px'; // 下へ伸びて画面からはみ出す分は、中をスクロールさせる
     }
     /** 見出しをつかんで小窓を動かす (ボタンの上では始めない。動かしている間は枠の iframe にマウスを取られないように) */
     function setupDrag() {
@@ -3994,6 +4016,7 @@ const Sync = (() => {
       const r = {};
       r.dot = mk('span', { class: 'dr-dot' });
       r.short = mk('span', { class: 'dr-short' });
+      r.elapsed = mk('span', { class: 'dr-elapsed' }); // 🕒 その配信の始まりからの経過時間 (HAKO-39)
       const groupSel = mk('select', { class: 'dr-group', title: tr('syncGroupTitle') }, groupOptions(i));
       groupSel.addEventListener('change', () => {
         const v = groupSel.value;
@@ -4015,6 +4038,7 @@ const Sync = (() => {
           : null,
         mk('span', { class: 'dr-num' }, String(tileNo(i))),
         mk('span', { class: 'dr-name', title: tileName(i) || '' }, tileName(i) || state.tiles[i].videoId),
+        r.elapsed,
         isRef ? mk('span', { class: 'dr-ref-tag', title: tr('syncRefBadgeTitle') }, tr('syncRefShort')) : null,
         mainTagEl(i, G),
         r.short,
@@ -4203,6 +4227,15 @@ const Sync = (() => {
       h.play = mk('button', { type: 'button', class: 'dg-play', onclick: () => togglePauseGroup(G) });
       h.audio = mk('button', { type: 'button', class: 'dg-audio sync-audio', title: tr('syncAudioTitle'), onclick: () => AudioSync.toggle(G.g) });
       h.reset = mk('button', { type: 'button', class: 'dg-reset', textContent: tr('syncResetLabel'), title: tr('syncResetGroupTitle', G.g), onclick: () => resetGroup(G) });
+      // 〰 波形: 配信全編の音の波形を画面の下の帯に出す (大まかに合わせる。HAKO-39)
+      h.wave = mk('button', {
+        type: 'button',
+        class: 'dg-wave' + (WaveStrip.isOpen(G.g) ? ' on' : ''),
+        textContent: tr('waveBtn'),
+        title: tr('waveBtnTitle'),
+        'aria-pressed': String(WaveStrip.isOpen(G.g)),
+        onclick: () => WaveStrip.toggle(G.g),
+      });
       h.now = mk('span', { class: 'sync-time dg-now' });
       h.end = mk('span', { class: 'sync-time dg-end' });
       h.range = mk('input', { type: 'range', class: 'dg-range', min: 0, max: 1, step: 1, value: 0, title: tr('syncSeekGroup', G.g) });
@@ -4234,7 +4267,7 @@ const Sync = (() => {
           folded.has(G.g) ? mk('span', { class: 'dg-count' }, tr('syncGroupCount', list.length)) : null,
         ),
         // ✨ 自動補正と ↺ はコラボ配信だけ (同時視聴の配信には本編の音が入っていないことが多いので、タイマーなどで合わせる)
-        ok ? mk('div', { class: 'dg-actions' }, h.play, !isMovie(G) ? h.audio : null, !isMovie(G) ? h.reset : null) : null,
+        ok ? mk('div', { class: 'dg-actions' }, h.play, !isMovie(G) ? h.wave : null, !isMovie(G) ? h.audio : null, !isMovie(G) ? h.reset : null) : null,
         ok ? mk('div', { class: 'dg-seek' }, h.now, h.range, h.end) : null,
         h.tl?.el,
         h.note,
@@ -4560,6 +4593,14 @@ const Sync = (() => {
         r.dot.textContent = st === 'ok' ? '✓' : st === 'fix' ? '↻' : '';
         r.dot.title = tr('syncDot_' + st);
         if (r.reset) r.reset.hidden = !movable(i) || off(i) === 0 || !!wait;
+        // 🕒 その配信の始まりからの経過時間 (始まる前は −、終わっていれば「終了」)
+        if (G && active(G) && !movie && movable(i) && !G.init) {
+          const t = targetOf(G, i, nowR(G));
+          const ended = t > views[i].archive.dur + 1;
+          const s = ended ? tr('syncElapsedEnded') : signedHms(t);
+          if (r.elapsed.textContent !== s) r.elapsed.textContent = s;
+          r.elapsed.title = tr('syncElapsedTitle');
+        } else if (r.elapsed.textContent) r.elapsed.textContent = '';
       }
     }
 
@@ -4663,7 +4704,31 @@ const Sync = (() => {
     setGroupSpeed,
     offOf: off,
     applyOffsets,
+    setOffset,
+    groupColor: (g) => colorOf(g),
     dockChanged: () => Dock.update(),
+    /**
+     * 〰 波形の帯用 (HAKO-39): グループ g の YouTube のアーカイブの枠と、今の時刻 (実際の時刻のミリ秒。まだ決まっていなければ null)。
+     * 各枠は {i, vid, start: 配信の開始 (ミリ秒), dur: 長さ (秒)}。再生位置 t 秒は、実際の時刻 start + (t − 補正) × 1000 に当たる
+     */
+    waveGroup(g) {
+      const G = on ? groups.get(g) : null;
+      if (!G || isMovie(G)) return null;
+      const tiles = membersOf(g)
+        .filter((i) => movable(i) && /^[\w-]{11}$/.test(vidOf(i)))
+        .map((i) => ({ i, vid: vidOf(i), start: views[i].archive.start, dur: views[i].archive.dur }));
+      return { g, ref: reference(G), tiles, now: G.init ? null : nowR(G), active: active(G), playing: G.clock.playing && !G.paused };
+    },
+    /** グループ g を一時停止 / 再生する (同期の調整パネルの ⏸ と同じ) */
+    togglePause(g) {
+      const G = on ? groups.get(g) : null;
+      if (G && active(G)) togglePauseGroup(G);
+    },
+    /** グループ g を実際の時刻 R (ミリ秒) へ動かす */
+    seekTo(g, R) {
+      const G = on ? groups.get(g) : null;
+      if (G && !G.init && Number.isFinite(R)) seekGroup(G, R);
+    },
   };
 })();
 
@@ -5773,6 +5838,8 @@ window.addEventListener('message', (e) => {
     if (data.ok === false) showToast(i, tr('mixBlocked'));
   } else if (data.hakomado === 'envChunk') {
     AudioSync.chunk(i, data); // ✨ 自動補正: 枠の音の大きさの記録
+    // 〰 波形: 測った分は、その動画の全編の波形にも足す (HAKO-39)
+    if (views[i].archive && /^[\w-]{11}$/.test(state.tiles[i].videoId || '')) Waves.feed(state.tiles[i].videoId, data).catch(() => {});
   } else if (data.hakomado === 'measure') {
     if (data.ok === false) AudioSync.blocked(i);
   } else if (data.hakomado === 'live') {
