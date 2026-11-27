@@ -779,7 +779,17 @@ const WaveStrip = (() => {
     }
   };
 
-  /** 時刻の目盛り: 押す・なぞると、グループがその時刻へ動く */
+  /** 目盛りで選んだ時刻を、見ている範囲とグループの配信のある範囲 (一番早い始まり〜一番遅い終わり) の中に収める (HAKO-40) */
+  function seekTime(c, clientX) {
+    const R = timeAt(c, clientX);
+    const all = fullRange();
+    const pad = all ? (all.to - all.from) / 102 : 0; // fullRange は前後に 1% の余白を足しているので、その分を戻す
+    const lo = Math.max(view.from, all ? all.from + pad : -Infinity);
+    const hi = Math.min(view.to, all ? all.to - pad : Infinity);
+    return hi > lo ? Math.max(lo, Math.min(hi, R)) : R;
+  }
+
+  /** 時刻の目盛り: 押す・なぞると、グループがその時刻へ動く (帯の外までなぞっても、配信のある範囲の中で止まる) */
   function bindRuler(c) {
     let scrub = false;
     let last = 0;
@@ -787,20 +797,21 @@ const WaveStrip = (() => {
       if (e.button !== 0 || !view) return;
       capture(c, e);
       scrub = true;
-      Sync.seekTo(g, timeAt(c, e.clientX));
+      Sync.seekTo(g, seekTime(c, e.clientX));
       last = performance.now();
     });
     c.addEventListener('pointermove', (e) => {
-      hoverX = e.clientX - c.getBoundingClientRect().left;
+      // 乗せた位置の線と時刻も、目盛りの中に収める
+      hoverX = Math.max(0, Math.min(c.clientWidth, e.clientX - c.getBoundingClientRect().left));
       queueDraw();
       if (!scrub || performance.now() - last < 150) return;
       last = performance.now();
-      Sync.seekTo(g, timeAt(c, e.clientX));
+      Sync.seekTo(g, seekTime(c, e.clientX));
     });
     const end = (e) => {
       if (!scrub) return;
       scrub = false;
-      Sync.seekTo(g, timeAt(c, e.clientX));
+      Sync.seekTo(g, seekTime(c, e.clientX));
     };
     c.addEventListener('pointerup', end);
     c.addEventListener('pointercancel', () => (scrub = false));
