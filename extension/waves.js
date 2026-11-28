@@ -141,16 +141,38 @@ const Waves = (() => {
     for (const f of listeners) f(id);
   }
 
-  /** 変わった分を保存する (末尾のまだ無いところは切って持つ) */
+  /** 保存してある波形 saved のうち、この画面でまだ無いところを w に足す (足したら true) */
+  function adopt(w, saved) {
+    let changed = false;
+    if (saved.length > w.vals.length) grow(w, saved.length);
+    for (let k = 0; k < saved.length; k++) {
+      if (!w.vals[k] && saved[k]) {
+        w.vals[k] = saved[k];
+        changed = true;
+      }
+    }
+    return changed;
+  }
+
+  /**
+   * 変わった分を保存する (末尾のまだ無いところは切って持つ)。丸ごと書くので、ほかのタブが同じ動画に足した分を先に取り込む
+   * (読んでから書くまでの間に割り込まれないよう、タブをまたいで 1 つずつ)
+   */
   async function save() {
     saveTimer = 0;
     for (const [id, w] of mem) {
       if (!w.dirty) continue;
       w.dirty = false;
-      let end = w.vals.length;
-      while (end > 0 && !w.vals[end - 1]) end--;
-      try {
+      const write = async () => {
+        const saved = await IdbCache.getWave(id);
+        if (saved?.vals instanceof Uint8Array && adopt(w, saved.vals)) for (const f of listeners) f(id);
+        let end = w.vals.length;
+        while (end > 0 && !w.vals[end - 1]) end--;
         await IdbCache.putWave(id, w.vals.slice(0, end));
+      };
+      try {
+        if (typeof navigator !== 'undefined' && navigator.locks) await navigator.locks.request('hakomado-wave', write);
+        else await write();
       } catch (e) {
         console.warn('hakomado: 波形を保存できませんでした', e);
       }
