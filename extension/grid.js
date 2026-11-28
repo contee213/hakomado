@@ -2247,7 +2247,7 @@ function renderMix(i) {
   if (!t.videoId) panel.hidden = true;
   if (panel.hidden) return;
   // 遅延の行はライブ配信のときだけ出す (アーカイブは ⏱ の同期で映像ごと合わせる)。0 以外なら戻せるように出したままにする
-  const showDelay = el.classList.contains('is-live') || t.delay !== 0;
+  const showDelay = isLiveTile(i) || t.delay !== 0; // Twitch のチャンネルの枠 (is-live を付けない) もライブ
   for (const row of panel.querySelectorAll('.mix-delay-row')) row.hidden = !showDelay;
   const input = panel.querySelector('.mix-delay');
   if (document.activeElement !== input) input.value = t.delay.toFixed(2);
@@ -7687,11 +7687,13 @@ function updateSelMarks() {
   syncBtn.hidden = favMode === 'all' || !Sync.enabled();
   syncBtn.disabled = selArchives() < 2;
   const room = selRoom();
-  document.getElementById('favSelCount').textContent = none
+  const count = document.getElementById('favSelCount');
+  count.textContent = none
     ? tr(syncBtn.hidden ? 'selNoneLive' : 'selNone') // ⏱ 開いて同期が無ければ、まとめて枠に入れることだけ案内する
     : favSel.size > room
       ? tr('selCountOver', favSel.size, room)
       : tr('selCount', favSel.size);
+  count.title = count.textContent; // 狭くて … になったときに全文を見られるように
 }
 
 /**
@@ -9906,10 +9908,14 @@ async function queueNextNow(i) {
 //   配信状況は自動再生を ON にした最初の 1 回と同じ速いやり方 (quick) で取る
 let pickBusy = false;
 async function pickAnything(i, { replace = false } = {}) {
-  if (pickBusy) return;
+  if (pickBusy) {
+    if (replace) showToast(i, tr('pickSearching')); // N キーをもう一度押したとき、探している最中だと分かるように
+    return;
+  }
   pickBusy = true;
   const btn = views[i].el.querySelector(replace ? '[data-act="surf"]' : '.pick-any');
   btn.disabled = true;
+  if (replace) btn.classList.add('busy'); // 入れ替えるときの進み具合は 🎲 で見せる (枠の中は中身があるので使わない)
   const before = state.tiles[i].videoId;
   // 探している間に枠の中身が変わった (閉じた・ほかのものを入れた) ら入れない
   const stillSame = () => state.tiles[i].videoId === before;
@@ -9972,6 +9978,7 @@ async function pickAnything(i, { replace = false } = {}) {
     progress.hide();
     pickBusy = false;
     btn.disabled = false;
+    btn.classList.remove('busy');
   }
 }
 

@@ -503,11 +503,6 @@
         <label class="share-name"><span data-i18n="share.nameLabel">名前</span>
           <input type="text" id="shareName" maxlength="40" spellcheck="false" data-i18n-placeholder="share.namePlaceholder" placeholder="なくてもよい (画像には「Hakomado 視聴セット」と出ます)">
         </label>
-        <!-- 説明付きの空き枠 (URL の枠・ファイルの枠はコードに入らない。説明を書くと、その説明の付いた空き枠として入る。HAKO-49) -->
-        <div id="shareNotes" class="share-notes" hidden>
-          <p class="settings-note" data-i18n="share.notesHead">URL の枠・ファイルの枠は、そのままでは入りません。説明を書くと、受け取った人の画面に、その説明の付いた空き枠として入ります</p>
-          <div class="share-notes-rows"></div>
-        </div>
         <div class="settings-tabs share-tabs" role="tablist">
           <button type="button" role="tab" data-stab="image" data-i18n="share.tabImage">🖼 画像</button>
           <button type="button" role="tab" data-stab="link" data-i18n="share.tabLink">🌐 リンク</button>
@@ -545,6 +540,12 @@
         </div>
         <div class="share-buttons share-feed">
           <button type="button" id="shareToFeed" data-i18n="share.toFeed" data-i18n-title="share.toFeedTitle" title="このセットを入れた Hakomado のサイトの投稿画面を開きます (X でログインして、投稿ボタンは自分で押します。拡張機能からは送りません)">📮 サイトに投稿</button>
+        </div>
+        <!-- 説明付きの空き枠 (URL の枠・ファイルの枠はコードに入らない。説明を書くと、その説明の付いた空き枠として入る。HAKO-49)。
+             共有するものを切り替えると出たり消えたりするので、タブと中身が動かないよう、いちばん下に置く -->
+        <div id="shareNotes" class="share-notes" hidden>
+          <p class="settings-note" data-i18n="share.notesHead">URL の枠・ファイルの枠は、そのままでは入りません。説明を書くと、受け取った人の画面に、その説明の付いた空き枠として入ります</p>
+          <div class="share-notes-rows"></div>
         </div>
         <span id="shareStatus" class="share-status" role="status"></span>
       </div>
