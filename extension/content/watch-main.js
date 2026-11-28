@@ -5,6 +5,7 @@
 //   watch.js → ここ : 'hakomado:set-muted'  detail '1' | '0' | '0q' ('0q' = 消音を外すだけで、止まっていても再生し直さない。
 //                     ✨ 自動補正 (音で合わせる) で、同期が止めている枠の消音を外すため)
 //   ここ → watch.js : 'hakomado:user-audio' detail JSON {muted}  (枠内のプレイヤーで直接操作されたとき)
+//                     'hakomado:player-volume' detail '0'〜'100' (プレイヤーの音量のつまみ。🎚 音量バランス用。HAKO-54)
 (() => {
   'use strict';
 
@@ -45,10 +46,15 @@
   const video = () => document.querySelector('#movie_player video');
 
   let hooked = null;
+  const tellVolume = (v) => {
+    if (Number.isFinite(Number(v))) document.dispatchEvent(new CustomEvent('hakomado:player-volume', { detail: String(Number(v)) }));
+  };
   function hook(p) {
     if (hooked === p) return;
     hooked = p;
+    if (typeof p.getVolume === 'function') tellVolume(p.getVolume());
     p.addEventListener('onVolumeChange', (d) => {
+      tellVolume(d?.volume);
       const muted = !!(d && (d.muted || d.volume === 0));
       if (muted === desired || performance.now() < selfUntil) return;
       if (performance.now() - lastInput > 1500) {
@@ -567,8 +573,14 @@
   let base = 1;
   let corr = 1;
   let rateSelfUntil = 0;
-  const SPEED_MIN = 0.25;
-  const SPEED_MAX = 4;
+  // 0.1× (同期の調整の帯のグループの超低速再生) まで。YouTube のプレイヤーは 0.25× までなので、それより遅いときは
+  // プレイヤーには 0.25× を伝え、動画要素に直接 0.1× を掛ける (補正と同じやり方)
+  const SPEED_MIN = 0.1;
+  const PLAYER_MIN = 0.25;
+  const playerRate = () => Math.max(PLAYER_MIN, base);
+  // 下見用のプレイヤー (親が画面の外に開き、全編の音の波形を取る。hakomado_scan=1) だけは 16 倍まで (HAKO-39)
+  const SCAN = params.get('hakomado_scan') === '1';
+  const SPEED_MAX = SCAN ? 16 : 4;
   const near = (a, b) => Math.abs(a - b) < 0.001;
   let rateHooked = null;
   // 少し前に自分で動画要素に掛けた速度 (補正の分も含む)。YouTube がそれを知らせてきても、ユーザーの操作と取り違えないように
@@ -579,9 +591,9 @@
     const v = video();
     if (!p) return;
     hookRate(p);
-    if (typeof p.setPlaybackRate === 'function' && !near(Number(p.getPlaybackRate?.()) || 1, base)) {
+    if (typeof p.setPlaybackRate === 'function' && !near(Number(p.getPlaybackRate?.()) || 1, playerRate())) {
       rateSelfUntil = performance.now() + 800;
-      p.setPlaybackRate(base);
+      p.setPlaybackRate(playerRate());
     }
     if (v && !near(v.playbackRate, base * corr)) {
       v.playbackRate = base * corr;
@@ -593,7 +605,7 @@
     rateHooked = p;
     p.addEventListener('onPlaybackRateChange', (r) => {
       r = Number(r);
-      if (!Number.isFinite(r) || near(r, base) || near(r, base * corr) || mine(r) || adShowing()) return;
+      if (!Number.isFinite(r) || near(r, base) || near(r, playerRate()) || near(r, base * corr) || mine(r) || adShowing()) return;
       if (performance.now() < rateSelfUntil || performance.now() - lastInput > 1500) {
         // 操作していないのに変わった (YouTube が読み込み・広告のあとで戻した等) → 親の指定に戻す
         applyRate();
@@ -610,6 +622,21 @@
     base = Math.min(SPEED_MAX, Math.max(SPEED_MIN, r));
     applyRate();
   });
+  // 下見用のプレイヤーは、読み込みが 16 倍速に追いつくように一番低い画質にする (HAKO-39)
+  if (SCAN) {
+    setInterval(() => {
+      const p = player();
+      if (p && typeof p.setPlaybackQualityRange === 'function' && p.getPlaybackQuality?.() !== 'tiny') p.setPlaybackQualityRange('tiny', 'tiny');
+    }, 2000);
+  }
+  // 画面のタイマーを探すプレイヤー (hakomado_timer=1) は、指定の画質に固定する (通信量を抑える。HAKO-49)
+  const TIMER_Q = params.get('hakomado_timer') === '1' ? params.get('hakomado_quality') : null;
+  if (TIMER_Q && /^(tiny|small|medium|large|hd720|hd1080)$/.test(TIMER_Q)) {
+    setInterval(() => {
+      const p = player();
+      if (p && typeof p.setPlaybackQualityRange === 'function' && p.getPlaybackQuality?.() !== TIMER_Q) p.setPlaybackQualityRange(TIMER_Q, TIMER_Q);
+    }, 500);
+  }
   // 広告のあとや画質の切り替えで動画要素の速度が戻ることがあるので、ときどき確かめて直す (広告中はそのまま)
   setInterval(() => {
     const v = video();

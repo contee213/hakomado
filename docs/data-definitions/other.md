@@ -10,6 +10,10 @@
 
 開いているマルチビュー画面のタブ。`array` of number (タブの id、登録した順)。最後に使った順に並べるのは読むとき (`gridTabsByRecent`)。閉じたタブは書くときに除く。右クリックの追加の送り先と、X-Frame-Options を外すルールの対象のタブ (`background.js`)。
 
+### timerScanMiss
+
+画面のタイマーを探して見つからなかった配信 (🎬 同時視聴。HAKO-49)。`object`: YouTube の動画 ID → `{at: 探し終えた日時}`。ここにある配信は自動では探し直さない (🔍 を押せば探す)。Chrome を閉じると消える (PC に残さない)。`timer-scan.js`。
+
 ### statusShared
 
 配信状況の取得のうち、ブラウザを開き直したら使わないもの (`favorites.js`)。1 つの `object`。書き込みはロック `hakomado-status-store`。
@@ -56,7 +60,7 @@ YouTube の視聴ページの中 (`content/watch-main.js`) は、YouTube 自身�
 
 ### hakomado-cache
 
-取り直せて増えていくもの (`idb-cache.js`。HAKO-30)。データベース `hakomado-cache` (版 1)、ストア `kv`・`streams`・`collab`。
+取り直せて増えていくもの (`idb-cache.js`。HAKO-30)。データベース `hakomado-cache` (版 2)、ストア `kv`・`streams`・`collab`・`wave`。版 1 → 2 (HAKO-39) は `wave` を足しただけで、ほかのストアはそのまま。
 
 **前の版から:** chrome.storage.local の `feed:*`・`twpage:*` は、画面を開いて最初に使うときに `kv` へ移して chrome.storage.local から消す (ロック `hakomado-cache-move`。先に書いてから消すので、途中で閉じても次に開いたときに残りを移す。`kv` にもっと新しいものがあれば、そちらを残す)。
 
@@ -105,6 +109,15 @@ Twitch のチャンネルのページから読んだもの (取得)。`twpage:<�
 | `judged` | string | `together` / `apart` |
 | `gap` | number | RSS の公開の時刻の差 (分) |
 | `at` | number | 記録した日時。8 日より前のものは画面を開いたときに消す |
+
+#### wave
+
+動画ごとの全編の音の大きさの波形 (一時。HAKO-39)。キー = YouTube の動画 ID。〰 波形の帯を出している間に自動で測った分と、✨ 自動補正で測った音の記録 (`content/mix.js` の包絡) を、`waves.js` が再生位置 0.1 秒ごとにまとめる。
+
+| 値の項目 | 型 | 意味 |
+| --- | --- | --- |
+| `vals` | Uint8Array | 再生位置 0.1 秒ごとの音の大きさ。0 = まだ無い、1〜255 = −60 dB〜0 dB を等分。末尾のまだ無いところは切って持つ |
+| `at` | number | 書いた日時。100 本を超えたら、画面を開いたときに古いものから消す |
 
 ### hakomado-files
 

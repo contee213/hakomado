@@ -11,14 +11,16 @@ const EXTENSION = path.join(__dirname, '..', 'extension');
 const IGNORED_CONSOLE = [/Failed to load resource/, /net::ERR_/];
 
 const test = base.extend({
-  // eslint-disable-next-line no-empty-pattern
-  context: async ({}, use) => {
+  /** 読み込む拡張機能のフォルダ (ふだんは extension/。リリース版のビルドを試すときは test.use で差し替える。HAKO-51) */
+  extensionPath: [EXTENSION, { option: true }],
+
+  context: async ({ extensionPath }, use) => {
     const context = await chromium.launchPersistentContext('', {
       // 拡張機能はヘッドレスでも読み込める (同梱の Chromium の新しいヘッドレス)。
       // 同梱の Chromium が動かない環境では E2E_CHANNEL=msedge などで差し替える (市販版の Chrome は --load-extension を無視するので不可)
       channel: process.env.E2E_CHANNEL || 'chromium',
       locale: 'ja-JP',
-      args: [`--disable-extensions-except=${EXTENSION}`, `--load-extension=${EXTENSION}`],
+      args: [`--disable-extensions-except=${extensionPath}`, `--load-extension=${extensionPath}`],
     });
     await context.route(/^https?:/, (route) => route.abort());
     await use(context);

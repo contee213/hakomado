@@ -2,6 +2,14 @@
 // YouTube の中で動く部分 (content/・プレイヤー・ライブチャット) は扱わない (tests/MANUAL.md の手順で手で確かめる)
 const { test, expect, visibleTiles, skipTour } = require('./fixtures');
 
+/** 実験的な機能のアーカイブ同期を ON にする (はじめは OFF。HAKO-50) */
+async function enableSync(page) {
+  await page.evaluate(() => {
+    state.settings.expSync = true;
+    Sync.refresh();
+  });
+}
+
 test.describe('インストール直後', () => {
   test('最初に開いたときだけ使い方ツアーが出る', async ({ openGrid }) => {
     const page = await openGrid();
@@ -177,6 +185,39 @@ test.describe('ツールバー', () => {
   });
 });
 
+test.describe('実験的な機能 (HAKO-50)', () => {
+  test('アーカイブ同期ははじめ OFF で、⏱ とヘルプの「同期」が出ない。設定で ON にすると出て、OFF に戻すとまた隠れる', async ({ openGrid }) => {
+    const page = await openGrid();
+    await skipTour(page);
+    await expect(page.locator('#syncToggle')).toBeHidden();
+    await expect(page.locator('body')).toHaveClass(/sync-off/); // 枠の情報の「アーカイブ同期」の列も隠す (HAKO-51)
+    expect(await page.evaluate(() => state.settings.expSync)).toBe(false);
+    await page.locator('#openSettings').click();
+    await page.locator('#settings [data-tab="view"]').click();
+    const box = page.locator('#expSync');
+    await expect(box).not.toBeChecked();
+    await box.check();
+    await expect(page.locator('#syncToggle')).toBeVisible();
+    await expect(page.locator('body')).not.toHaveClass(/sync-off/);
+    await expect(page.locator('[data-help="sync"]')).toBeAttached();
+    expect(await page.evaluate(() => document.querySelector('[data-help="sync"]').hidden)).toBe(false);
+    await expect.poll(() => page.evaluate(async () => (await chrome.storage.local.get('settings')).settings?.expSync)).toBe(true);
+    await box.uncheck();
+    await expect(page.locator('#syncToggle')).toBeHidden();
+    expect(await page.evaluate(() => document.querySelector('[data-help="sync"]').hidden)).toBe(true);
+  });
+
+  test('OFF のときは、再開・共有コード・⏱ 開いて同期で同期を始めない', async ({ openGrid }) => {
+    const page = await openGrid();
+    await skipTour(page);
+    const started = await page.evaluate(() => {
+      Sync.startWhenReady([0, 1], 0, {});
+      return new Promise((r) => setTimeout(() => r(Sync.isOn()), 200));
+    });
+    expect(started).toBe(false);
+  });
+});
+
 test.describe('空き枠', () => {
   test('幅の狭い空き枠では、「📺 チャンネルから選ぶ」「📚 ライブラリから選ぶ」が記号だけになる', async ({ openGrid }) => {
     const page = await openGrid();
@@ -283,6 +324,91 @@ test.describe('視聴セッション', () => {
         }),
       )
       .toBe(true);
+  });
+
+  // HAKO-54: 上部バーの 🎚 音量 (V) で、枠の音量を並べて見比べ、主役・大きさをそろえるを決める
+  test('音量バランス: 🎚 音量で開き、枠の音量・主役・大きさをそろえるを変えると、枠の 🎚 と視聴セッションに残る', async ({ openGrid }) => {
+    const page = await openGrid();
+    await skipTour(page);
+    const tiles = visibleTiles(page);
+    for (const [k, id] of [
+      [0, 'dQw4w9WgXcQ'],
+      [1, 'jNQXAC9IVRw'],
+    ]) {
+      const input = tiles.nth(k).locator('.url-input');
+      await input.fill(id);
+      await input.press('Enter');
+    }
+    const open = page.locator('#openVolume');
+    const menu = page.locator('#volumeMenu');
+    await open.click();
+    await expect(menu).toBeVisible();
+    const rows = menu.locator('.vol-row');
+    await expect(rows).toHaveCount(2);
+    await expect(rows.first().locator('.vol-num')).toHaveText('1');
+
+    // 音量のつまみ = 枠の 🎚 の音量
+    await rows.nth(1).locator('.vol-gain').fill('150');
+    await expect(rows.nth(1).locator('.vol-value')).toHaveText('150%');
+    await tiles.nth(1).hover();
+    await tiles.nth(1).locator('.bar [data-act="mix"]').click();
+    await expect(tiles.nth(1).locator('.mix-gain-value')).toHaveText('150%');
+
+    // 🔊 で 2 番の音も出し、1 番を主役にすると、2 番は「ほかの枠」の割合 (30%) になる
+    await open.click(); // 開き直す (枠のバーを押したので閉じている)
+    await expect(menu).toBeVisible();
+    await rows.nth(1).locator('.vol-mute').click();
+    await expect(rows.nth(1).locator('.vol-mute')).toHaveText('🔊');
+    await expect(menu.locator('.vol-duck')).toBeDisabled();
+    await rows.first().locator('.vol-star').click();
+    await expect(rows.first().locator('.vol-star')).toHaveAttribute('aria-pressed', 'true');
+    await expect(menu.locator('.vol-duck')).toBeEnabled();
+    // つまみの横はつまみの値だけ。下がっている理由は棒の横に出す
+    await expect(rows.nth(1).locator('.vol-value')).toHaveText('150%');
+    await expect(rows.nth(1).locator('.vol-note')).toContainText('★ のため 30%');
+    // 説明が出ても出なくても、行の高さ (= パネルの高さ) は変わらない
+    expect(
+      await menu.evaluate((m) => {
+        const [a, b] = m.querySelectorAll('.vol-row');
+        a.querySelector('.vol-note').textContent = '';
+        return [a.offsetHeight, b.offsetHeight];
+      }),
+    ).toEqual(await menu.evaluate((m) => [0, 1].map(() => m.querySelectorAll('.vol-row')[1].offsetHeight)));
+    await expect(open).toHaveClass(/\bon\b/);
+
+    // 大きさをそろえる: ON にすると、まだ測れていない枠は「測っています…」
+    await menu.locator('.vol-auto').click();
+    await expect(menu.locator('.vol-auto')).toHaveAttribute('aria-pressed', 'true');
+    await expect
+      .poll(() =>
+        page.evaluate(async () => Object.entries(await chrome.storage.local.get(null)).find(([k]) => k.startsWith('session:'))?.[1].volume),
+      )
+      .toEqual({ auto: true, focus: 0, duck: 0.3, master: 1 });
+
+    // 全体の音量: 全部の枠をまとめて上げ下げする (視聴セッションに残る)
+    await menu.locator('.vol-master').fill('150');
+    await expect(menu.locator('.vol-master-value')).toHaveText('150%');
+    await expect
+      .poll(() =>
+        page.evaluate(async () => Object.entries(await chrome.storage.local.get(null)).find(([k]) => k.startsWith('session:'))?.[1].volume.master),
+      )
+      .toBe(1.5);
+    await expect(open).toHaveClass(/\bon\b/);
+
+    // V キーで閉じる ⇄ 開く
+    await page.keyboard.press('Escape');
+    await expect(menu).toBeHidden();
+    await page.locator('body').click({ position: { x: 5, y: 300 } });
+    await page.keyboard.press('v');
+    await expect(menu).toBeVisible();
+    if (process.env.E2E_SHOT) await page.screenshot({ path: process.env.E2E_SHOT });
+    await page.keyboard.press('v');
+    await expect(menu).toBeHidden();
+    // 🎚 音量をもう一度押すと閉じる
+    await open.click();
+    await expect(menu).toBeVisible();
+    await open.click();
+    await expect(menu).toBeHidden();
   });
 
   test('配信を入れた枠は、閉じて開き直すと再開を聞かれる', async ({ openGrid }) => {
@@ -518,6 +644,7 @@ test.describe('ライブラリの複数選択', () => {
   test('🤝 でコラボをまとめて選び、☐ で足して、まとめて枠に入れる', async ({ openGrid }) => {
     const page = await openGrid();
     await skipTour(page);
+    await enableSync(page);
     await openHistory(page);
     const collab = page.locator('#favList .fav-collab');
     await expect(collab).toHaveCount(2);
@@ -543,6 +670,7 @@ test.describe('ライブラリの複数選択', () => {
   test('⏱ 開いて同期: 1 本だけのときは押せず、押すと選んだ配信を枠に入れる', async ({ openGrid }) => {
     const page = await openGrid();
     await skipTour(page);
+    await enableSync(page);
     await openHistory(page);
     await page.locator('#favList .fav-item[data-sel="aaaaaaaaaa1"] .fav-title').click({ modifiers: ['Control'] });
     await expect(page.locator('#favSelCount')).toHaveText('1 本を選択中');
@@ -557,31 +685,49 @@ test.describe('ライブラリの複数選択', () => {
     expect(ids).toContain('bbbbbbbbbb2');
   });
 
-  test('⏱ 開いて同期: 時間帯がまだ始まっていない枠があれば、60 秒で打ち切らず、始まってから ✨ を始める', async ({ openGrid }) => {
+  test('⏱ 開いて同期: 時間帯がまだ始まっていない枠があれば、全部が始まる位置まで進める。進められなければ 60 秒で打ち切らず、始まってから ✨ を始める', async ({ openGrid }) => {
     const page = await openGrid();
     await skipTour(page);
+    await enableSync(page);
     await page.clock.install();
-    const run = (later) =>
-      page.evaluate((later) => {
+    const run = (later, canSeek = false) =>
+      page.evaluate(([later, canSeek]) => {
         // 同期と ✨ の代わり (枠 2 は配信の時間帯がまだ始まっていない)
-        window.__t = { later, started: 0, notices: [] };
+        window.__t = { later, started: 0, notices: [], seeks: [] };
+        Sync.seekToAllStarted = (g, tiles) => (window.__t.seeks.push([g, tiles]), canSeek);
         Sync.startWhenReady = (tiles, ref, { then }) => then(1);
         Sync.showDock = () => {};
         Sync.groupInfo = () => ({ ref: 0, tiles: [0, 1, 2], movie: false, active: true, paused: false, later: window.__t.later });
         AudioSync.runCount = () => 0;
         AudioSync.hasOutput = () => false;
-        AudioSync.busyOther = () => false;
         AudioSync.toggle = () => window.__t.started++;
         notify = (text) => window.__t.notices.push(text);
         for (const i of [0, 1, 2]) views[i] = { ss: { ps: i === 2 ? 2 : 1, ad: false } };
         openSync([0, 1, 2]);
-      }, later);
-    const result = () => page.evaluate(() => ({ started: window.__t.started, notices: window.__t.notices }));
+      }, [later, canSeek]);
+    const result = () => page.evaluate(() => ({ started: window.__t.started, notices: window.__t.notices, seeks: window.__t.seeks }));
 
+    // 全部の枠が始まっている位置まで進められたら、そう知らせ、全部の枠が再生を始めたら ✨ を始める (HAKO-34)
+    await run([2], true);
+    await page.clock.runFor(1_000);
+    let r = await result();
+    expect(r.seeks).toEqual([[1, [0, 1, 2]]]);
+    expect(r.notices).toEqual(['⏱ 同期を始めました。まだ始まっていない配信があったので、全部の配信が始まっているところまで進めました。全部の枠が再生を始めたら ✨ 自動補正を始めます']);
+    await page.evaluate(() => {
+      window.__t.later = [];
+      views[2].ss.ps = 1;
+    });
+    await page.clock.runFor(2_000);
+    r = await result();
+    expect(r.started).toBe(1);
+    expect(r.seeks.length).toBe(1); // 進めるのは 1 回だけ
+
+    // 進められない (全部がそろう時刻が無い) ときは、始まるまで待つ
     await run([2]);
     await page.clock.runFor(90_000);
-    let r = await result();
+    r = await result();
     expect(r.started).toBe(0);
+    expect(r.seeks.length).toBe(1);
     expect(r.notices).toEqual(['⏱ 同期を始めました。まだ始まっていない配信があるので、全部の枠が再生を始めてから ✨ 自動補正を始めます']); // 1 回だけ
     // 枠 2 の配信の時間帯が始まって、再生を始めた
     await page.evaluate(() => {
@@ -610,7 +756,7 @@ test.describe('ライブラリの複数選択', () => {
     await page.clock.runFor(62_000);
     r = await result();
     expect(r.started).toBe(0);
-    expect(r.notices).toEqual(['⏱ 同期を始めましたが、再生が始まらないので ✨ 自動補正は始めていません。再生してから同期の調整パネルの ✨ を押してください']);
+    expect(r.notices).toEqual(['⏱ 同期を始めましたが、再生が始まらないので ✨ 自動補正は始めていません。再生してから同期の調整の帯の ✨ を押してください']);
   });
 
   test('🔖 を押しても一覧を描き直さない (カードが動かない)', async ({ openGrid }) => {
@@ -1429,7 +1575,8 @@ test.describe('画面の覚え (HAKO-8)', () => {
     await expect(page.locator('#grid .tile').first()).toBeAttached();
     await expect
       .poll(() => page.evaluate(() => chrome.storage.local.get(['ui:libKinds', 'ui:shareAuthor', 'ui:syncDock', 'ui:settingsTab'])))
-      .toEqual({ 'ui:libKinds': ['video'], 'ui:shareAuthor': 'TK', 'ui:syncDock': { floating: false } });
+      // 同期の調整パネルの置き方 (syncDock) は、パネルを無くした (HAKO-48) ので引き継がずに消す
+      .toEqual({ 'ui:libKinds': ['video'], 'ui:shareAuthor': 'TK' });
     const left = await page.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith('hakomado.')));
     expect(left).toEqual(['hakomado.lang']);
     // 引き継いだ覚えが画面に戻る
@@ -1588,6 +1735,73 @@ test.describe('ライブラリの最近の動画 (HAKO-9)', () => {
       await page.waitForTimeout(50);
       const moved = await page.evaluate(() => [...window.__moved].sort());
       expect(moved).toEqual(reduced ? [] : ['robo0000002', 'robo0000004', 'sora0000000', 'sora0000001', 'sora0000003']);
+    });
+  }
+});
+
+test.describe('上部バー', () => {
+  // 開いた直後に、整える前の形 (レイアウト名の幅が決まる前・文字を消す前) が出て、ボタンが動いて見えないこと。
+  // 中身が見えてから (.settled) のボタンの位置と幅を毎フレーム記録し、一度も変わらないことを確かめる
+  const RECORD = () => {
+    const shapes = [];
+    window.__barShapes = shapes;
+    const tick = () => {
+      const bar = document.querySelector('.toolbar');
+      if (bar?.classList.contains('settled')) {
+        const shape = [...bar.children]
+          .filter((e) => e.getClientRects().length)
+          .map((e) => {
+            const r = e.getBoundingClientRect();
+            return `${e.id || e.className}:${Math.round(r.left)}+${Math.round(r.width)}`;
+          })
+          .join(' ');
+        if (shapes.at(-1) !== shape) shapes.push(shape);
+      }
+      requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  };
+
+  for (const width of [1920, 1280]) {
+    test(`開いたとき・新しく始めたときにボタンが動かない (幅 ${width}px)`, async ({ context, extensionId, pageErrors }) => {
+      void pageErrors;
+      await context.addInitScript(RECORD);
+      const page = await context.newPage();
+      await page.setViewportSize({ width, height: 800 });
+      await page.goto(`chrome-extension://${extensionId}/grid.html`);
+      await skipTour(page);
+      await page.waitForTimeout(500);
+      expect(await page.evaluate(() => window.__barShapes.length)).toBe(1);
+
+      // ロゴ → 新しく始める (ページを開き直す)
+      await page.click('#brandHome');
+      await page.locator('#startChoices button', { hasText: '新しく始める' }).click();
+      await expect(visibleTiles(page).first()).toBeVisible();
+      await page.waitForTimeout(500);
+      expect(await page.evaluate(() => window.__barShapes.length)).toBe(1);
+    });
+  }
+
+  // 同じタブを更新すると、保存した視聴セッションを確認なしで再開する。既定と違うレイアウト・ストレッチにしておき、
+  // 再開した内容に整えてから中身を出すこと (既定の内容で一度出て、あとから動かないこと)
+  for (const width of [1920, 1280]) {
+    test(`ブラウザを更新して続きを再開したときにボタンが動かない (幅 ${width}px)`, async ({ context, extensionId, pageErrors }) => {
+      void pageErrors;
+      await context.addInitScript(RECORD);
+      const page = await context.newPage();
+      await page.setViewportSize({ width, height: 800 });
+      await page.goto(`chrome-extension://${extensionId}/grid.html`);
+      await skipTour(page);
+      for (let n = 0; n < 4; n++) await page.locator('#addTile').click();
+      await page.locator('#fitFill').click();
+      await page.locator('#repeatAll').click();
+      const name = await page.locator('#layoutName').textContent();
+      await page.waitForTimeout(1000); // 保存されるのを待つ
+
+      await page.reload();
+      await expect(page.locator('#layoutName')).toHaveText(name);
+      await page.waitForTimeout(500);
+      expect(await page.evaluate(() => window.__barShapes.length)).toBe(1);
     });
   }
 });

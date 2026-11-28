@@ -33,11 +33,26 @@ function el(tag, props = {}, ...children) {
   return e;
 }
 
-/** レイアウトの形に、各枠の動画のサムネイルを並べた絵 (拡張機能のレイアウトの定義をそのまま使う) */
+/** 枠の並び (説明付きの空き枠の位置は null。動画は残りの位置に順に。HAKO-49) */
+function cellIds(set) {
+  const notes = new Map((set.notes || []).map((n) => [n.k, n]));
+  const rest = [...set.ids];
+  const out = [];
+  for (let p = 0; rest.length || notes.size; p++) {
+    if (notes.has(p)) {
+      out.push(null);
+      notes.delete(p);
+    } else out.push(rest.shift() ?? null);
+    if (p > 16) break;
+  }
+  return out;
+}
+
+/** レイアウトの形に、各枠の動画のサムネイルを並べた絵 (拡張機能のレイアウトの定義をそのまま使う)。ids の null は空き枠 */
 function layoutPreview(layoutId, ids, { big = false } = {}) {
   const id = layoutIdOf(layoutId); // 今は無いレイアウトは置き換え先で描く
   const l = LAYOUTS.find((x) => x.id === id);
-  const box = el('div', { class: 'layout', role: 'img', 'aria-label': t('count', ids.length) });
+  const box = el('div', { class: 'layout', role: 'img', 'aria-label': t('count', ids.filter(Boolean).length) });
   if (!l) return box;
   const { colW, rowH, aspect } = solveTracks(l);
   const sum = (a, n) => a.slice(0, n).reduce((s, v) => s + v, 0);
@@ -97,7 +112,7 @@ function setCard(set) {
   return el(
     'a',
     { class: 'card', href: `/s/${set.id}` },
-    layoutPreview(set.layoutId, set.ids),
+    layoutPreview(set.layoutId, cellIds(set)),
     el('div', { class: 'card-body' }, el('h3', { class: 'card-title', text: title }), el('p', { class: 'card-meta', text: meta }), tags, gone),
   );
 }

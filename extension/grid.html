@@ -29,14 +29,11 @@
     <button id="speedAll" class="speed-all" type="button" data-i18n-title="speedAll.title" title="全部の枠の再生速度をまとめて変える (同期しているグループはグループごと。ライブ配信は等速のまま)"><span class="tb-icon"><svg class="gauge" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.2A7 7 0 0 0 1 9.2c0 1.6.55 3.1 1.5 4.3l1.2-.95A5.4 5.4 0 0 1 2.6 9.2a5.4 5.4 0 0 1 10.8 0c0 1.25-.42 2.4-1.12 3.35l1.2.95A7 7 0 0 0 8 2.2z"/><path d="M11.9 4.6 8.9 8.4a1.5 1.5 0 1 1-1.2-.95z"/></svg></span><span class="tb-label">1×</span></button>
     <button id="nowPlaying" class="now-playing" type="button" data-i18n="nowPlaying">🔇 ミュート中</button>
     <button id="audioAll" class="toggle" type="button" aria-pressed="false" data-i18n-title="audioAll.title" title="全部の音 (A): 全部の枠の音を出す ⇄ 全部ミュート"><span class="tb-icon"><svg class="speakers" viewBox="0 0 16 16" aria-hidden="true"><path d="M1 5.6h2.4L6.6 3v10L3.4 10.4H1z"/><path d="M8.6 5.4a3.4 3.4 0 0 1 0 5.2M10.6 3.4a6.2 6.2 0 0 1 0 9.2M12.6 1.6a8.8 8.8 0 0 1 0 12.8" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg></span><span class="tb-label" data-i18n="audioAll.label">全部の音</span></button>
+    <button id="openVolume" class="vol-open" type="button" data-i18n-title="volume.title" title="音量 (V): 枠の音量を並べて見比べる・大きさを自動でそろえる・主役を決める"><span class="tb-icon"><svg class="faders" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.6 1.5h1.4v13H2.6zM7.3 1.5h1.4v13H7.3zM12 1.5h1.4v13H12z"/><rect x="1" y="8.6" width="4.6" height="2.6" rx=".8"/><rect x="5.7" y="3.8" width="4.6" height="2.6" rx=".8"/><rect x="10.4" y="6.6" width="4.6" height="2.6" rx=".8"/></svg></span><span class="tb-label" data-i18n="volume.label">音量</span></button>
     <button id="syncToggle" class="toggle unavailable" type="button" aria-pressed="false" aria-disabled="true" data-i18n-title="sync.title" title="アーカイブ同期: 配信のアーカイブを、配信していた実際の時刻でそろえて再生する"><span class="tb-icon">⏱</span><span class="tb-label" data-i18n="sync.label">アーカイブ同期</span></button>
-    <!-- 同期中だけ: 音を出している枠のグループの時刻とつまみ (グループが 2 つ以上なら、その番号と色)。☰ = 同期の調整パネル (画面の右の列) -->
+    <!-- 同期中だけ: ☰ = 同期の調整の帯 (画面の下) を出す / しまう。時刻とつまみは帯のグループごとにある (HAKO-48) -->
     <div id="syncBar" class="sync-bar" hidden>
-      <span id="syncGroupDot" class="sync-group-dot" hidden></span>
-      <span id="syncNow" class="sync-time"></span>
-      <input type="range" id="syncSeek" min="0" max="1" step="1" value="0" data-i18n-title="sync.seekTitle" title="同期している全部のアーカイブを、この時刻に動かす">
-      <span id="syncEnd" class="sync-time"></span>
-      <button id="syncDockToggle" type="button" class="sync-dock-toggle" data-i18n-title="sync.dockTitle" title="同期の調整パネル (グループ・基準・補正・✨ 自動補正) を出す / しまう">☰</button>
+      <button id="syncDockToggle" type="button" class="sync-dock-toggle" aria-pressed="false" data-i18n-title="sync.dockTitle" title="同期の調整の帯 (グループ・基準・補正・✨ 自動補正・波形) を出す / しまう">☰</button>
     </div>
 
     <span class="spacer"></span>
@@ -54,16 +51,8 @@
   </header>
 
   <main id="grid" class="grid"></main>
-  <!-- 同期の調整パネル (アーカイブ同期中。枠の上に浮かぶ半透明の小窓か、画面の右の列 (枠の並びはこの分だけ横に縮む))。中身は grid.js (Sync の Dock) が作る -->
-  <aside id="syncDock" class="sync-dock" hidden>
-    <div class="dock-head">
-      <span class="dock-title" data-i18n="sync.dockHead">⏱ 同期の調整</span>
-      <button type="button" id="syncDockFloat" class="dock-float">⇲</button>
-      <button type="button" id="syncDockMini" class="dock-mini">⇥</button>
-      <button type="button" id="syncDockClose" class="dock-close" data-i18n-title="close" title="閉じる">✕</button>
-    </div>
-    <div id="syncDockBody" class="dock-body"></div>
-  </aside>
+  <!-- 同期の調整の帯 (グループごとの節に、枠ごとの配信全編の音の波形と調整を並べる。画面の下に出し、枠の並びはこの分だけ縦に縮む)。中身は wave-strip.js が作る -->
+  <section id="waveStrip" class="wave-strip" hidden></section>
   <div id="globalToast" class="toast global-toast" role="status" popover="manual"></div>
 
   <dialog id="startDialog" class="start-dialog">
@@ -191,6 +180,12 @@
         <div class="settings-col">
         <label class="check"><input type="checkbox" id="verticalLiveFit"> <span data-i18n="tile.verticalFit">縦型の配信と分かったら、枠を縦長にする</span></label>
         <p class="settings-note" data-i18n="tile.verticalFitNote">読み込んでから枠の大きさが変わります (ショートの枠は、この設定に関係なく初めから縦長)</p>
+        </div>
+        <!-- 実験的な機能 (まだ試している機能。はじめは OFF。HAKO-50) -->
+        <div class="settings-col">
+          <span class="field-label" data-i18n="exp.h">実験的な機能</span>
+          <label class="check"><input type="checkbox" id="expSync"> <span data-i18n="exp.sync">⏱ アーカイブ同期</span></label>
+          <p class="settings-note" data-i18n="exp.syncNote">コラボ配信の各視点のアーカイブを、配信していた時刻でそろえて見ます (同期の調整の帯・✨ 自動補正・🎬 同時視聴を含む)。まだ試している機能です。OFF にしても、動画ごとに覚えた補正は消えません</p>
         </div>
       </section>
 
@@ -403,12 +398,11 @@
           <section class="help-page" data-help-page="sync" role="tabpanel" data-i18n-html="helpPage.sync" hidden>
             <ul>
               <li>上のバーの「⏱ アーカイブ同期」を押すと、配信の時間帯が重なるアーカイブを、配信していた実際の時刻でそろえて再生します。アーカイブが 2 本そろっていないときは薄く出ていて、押すと使えない理由 (ライブ配信中・ふつうの動画など) が出ます</li>
-              <li>時間帯が重なるアーカイブどうしを自動でグループにまとめるので、別々のコラボの A・B と C・D を別々にそろえられます (4 組まで。枠に色と番号が出ます)。グループは同期の調整パネルの各行で付け替えられます</li>
-              <li>同期の調整パネル (上のバーの ☰) は、枠の上に浮かぶ半透明の小窓で出ます (見出しをつかんで動かせます。⇲ で画面の右の列にもできます)。グループごとに、そろえ方 (🕒 コラボ配信 / 🎬 同時視聴)・⏸・✨ 自動補正・つまみ、枠ごとに、基準 (🔒。🎬 同時視聴のグループでは ◉)・補正・⏸ 止めて待つ があります。グループごとの図は、各枠の開始のあたりを拡大したものです (開始どうしが 1 分より離れていれば、間を詰めて棒に切れ目を入れます。上に各枠の開始の時刻を出せるだけ出します)。横棒は配信の実際の開始から右へ続き、補正の分は水色で出ます (早めたか遅らせたかは、細い線との位置で分かります)。出す位置は基準と一緒に流れ始めるところ (基準より前に始まった枠は基準の開始) で、細い線が補正を入れる前の位置です。そのとき既に流れているほかの枠の行にも同じ時刻に細い線が出るので、見比べられます。基準との開始の差と、設定の位置まであと何秒かも出ます。調整しないグループは ▾ でたためます</li>
-              <li>✨ 自動補正は、グループの枠の音 (コラボの通話の声) を最大 180 秒聞いて、各枠の補正を求めます。35 秒を過ぎると、枠ごとにここまでで一番よかった値が途中の結果として出ます。どの枠も ◎ になったら切り上げを提案するので「ここで決める」で終えられ、180 秒まで聞いたときは一番よかった値を採ります。結果は各行の「✨ −1.61 ◎」と図の ◆ (反映したあとの位置) で確かめてから「反映」します。◎ 確か / ○ たぶん / △ 怪しい。決まらなかったり △ が多ければ、話している場面で「測り直す」を押してください</li>
-              <li>🕒 コラボ配信は、同じ時間に配信していた各視点を、配信していた時刻でそろえます。🎬 同時視聴は、同じ本編を見ていた配信を、本編の同じ場面でそろえます (時間のずれた配信も。グループの見出しで切り替え)。🎬 同時視聴にすると、本編 (プレミア公開) の枠 (行に「🎬 本編」) の 0:00 が本編 0:00 で、ほかの枠の本編の位置は配信の時刻から見当を付けます。各枠の本編の位置は、同時視聴の配信のタイマーなどを見て「⏲ 画面タイマー」で決めます (0.01 秒単位。✨ 自動補正はコラボ配信だけです。同時視聴の配信には本編の音が入っていないことが多いため)。本編の枠が無いときは、各枠で「🚩 開始位置」か「⏲ 画面タイマー」で決めます。プレミア公開でない本編 (ライブのアーカイブなど) は、🎬 同時視聴のときに行の 🎬 で本編にできます。どのグループにも入らない、別の日の配信も、🎬 同時視聴の本編のグループに入ります。同時視聴の配信のタイマーなどを見て「⏲ 画面タイマー」に入れると、欄を押した瞬間の位置で決まります (欄を押している間は、その枠を同期から外すので、タイマーが見える所まで枠の中で動かせます)。同じ時間に配信していた枠どうしは、片方の本編の位置が決まると、もう片方の見当 (行に「≈」) も付きます</li>
-              <li>合わせるのは基準でない枠です。基準の枠 (行の頭が 🔒) の補正はいつも 0 で、基準を変えると、そろい方はそのままで補正をほかの枠に移します。補正は −0.1・−0.01・+0.01・+0.1 のボタンで動かし、押し続けると続けて動きます。⏸ はこの枠だけ止めて待ち、▶ でそこに合わせます。行を選んで ← → でも補正を 0.1 秒ずつ動かせます (Shift で 0.01 秒)。行の ✓ は設定した補正どおりの位置で再生中、↻ はその位置へ寄せている途中です (声が合っているかは、聞いて確かめます)。手で合わせてうまくいかなかったときは、行の ↺ (グループ全部なら見出しの ↺) で実際の時刻に戻せます。補正は動画ごとに覚え、再生リストや共有するコードにも入ります</li>
-              <li>上のバーのつまみは、音を出している枠のグループを動かします</li>
+              <li>時間帯が重なるアーカイブどうしを自動でグループにまとめるので、別々のコラボの A・B と C・D を別々にそろえられます (4 組まで。枠に色と番号が出ます)。グループは、同期の調整の帯で行を上下にドラッグして、ほかのグループや「同期しない」へ移せます。帯の見出しの「自動で分け直す」で、手で決めたグループを全部やめて自動に戻せます</li>
+              <li>同期の調整は、画面の下の帯で行います (同期を始めると出ます。上のバーの ☰ で出す / しまう)。グループごとに、見出しの上の段にそろえ方 (🕒 コラボ配信 / 🎬 同時視聴)・✨ 自動補正・⏸・つまみ・再生速度・グループの音・波形の取得率、下の段に ✨ の様子があります。枠ごとの行に、基準 (🔒。🎬 同時視聴のグループでは ◉)・その配信の経過時間・補正・⏸ 止めて待つ・↶ 元に戻すと、配信全編の音の大きさの波形が並びます。波形を見比べて、山がそろうように合わせます。調整しないグループは ▾ でたためます</li>
+              <li>✨ 自動補正は、グループの枠の音 (コラボの通話の声) を最大 180 秒聞いて、各枠の補正を求めます。35 秒を過ぎると、枠ごとにここまでで一番よかった値が途中の結果として出ます。どの枠も ◎ になったら切り上げを提案するので「ここで決める」で終えられ、180 秒まで聞いたときは一番よかった値を採ります。結果は各行の波形の「✨ −1.61 ◎」と水色の点線 (入れたあとの位置) で確かめ、「試す」で入れて聞き比べてから「決める」で終えます (「試す前に戻す」で ✨ の前に戻せます。2 枠のときは、中間と、片方ずつの声がそろう値の 3 つから試せます)。いくつものグループを同時に測れます。◎ 確か / ○ たぶん / △ 怪しい。決まらなかったり △ が多ければ、話している場面で「測り直す」を押してください</li>
+              <li>🕒 コラボ配信は、同じ時間に配信していた各視点を、配信していた時刻でそろえます。🎬 同時視聴は、同じ本編を見ていた配信を、本編の同じ場面でそろえます (時間のずれた配信も。グループの見出しで切り替え)。🎬 同時視聴にすると、帯の目盛りが本編の時刻になり、本編の位置が決まった枠の波形が本編の時刻にそろって並びます。本編 (プレミア公開) の枠 (行に「🎬 本編」) の 0:00 が本編 0:00 で、ほかの枠の本編の位置は配信の時刻から見当を付けます。各枠の本編の位置は、同時視聴の配信のタイマーなどを見て「⏲ 画面タイマー」で決めます (0.01 秒単位。✨ 自動補正はコラボ配信だけです。同時視聴の配信には本編の音が入っていないことが多いため)。本編の枠が無いときは、各枠で「🚩 開始位置」か「⏲ 画面タイマー」で決めます。プレミア公開でない本編 (ライブのアーカイブなど) は、🎬 同時視聴のときに行の 🎬 で本編にできます。どのグループにも入らない、別の日の配信も、🎬 同時視聴の本編のグループに入ります。同時視聴の配信のタイマーなどを見て「⏲ 画面タイマー」に入れると、欄を押した瞬間の位置で決まります (欄を押している間は、その枠を同期から外すので、タイマーが見える所まで枠の中で動かせます)。同じ時間に配信していた枠どうしは、片方の本編の位置が決まると、もう片方の見当 (行に「≈」) も付きます</li>
+              <li>合わせるのは基準でない枠です。基準の枠 (行の頭が 🔒) の補正はいつも 0 で、基準を変えると、そろい方はそのままで補正をほかの枠に移します。補正は、行の波形を横にドラッグするか、行を選んで ← → で動かします (0.1 秒。Shift で 0.01 秒、Ctrl で 1 秒)。補正の数字を押すと入力欄になります。⏸ はこの枠だけ止めて待ち、▶ でそこに合わせます。行の ✓ は設定した補正どおりの位置で再生中、↻ はその位置へ寄せている途中です (声が合っているかは、聞いて確かめます)。↶ でその枠の補正をひとつずつ前に戻せ、グループ全部は目盛りの左の「↺ 実際の時刻に戻す」で戻せます。補正は動画ごとに覚え、再生リストや共有するコードにも入ります</li>
               <li>再生速度: 同期しているグループの枠は、1 枠だけでは速度を変えられません。グループのどの枠で変えても (枠の 1× ボタン・<kbd>&lt;</kbd> <kbd>&gt;</kbd> キー・プレイヤーの ⚙)、グループ全部の速度になり、同期の時計もその速さで進みます。ライブ配信の入ったグループは等速のままです</li>
               <li>基準の選び方: 主に音を聞く枠を基準にすると、その音がいちばん自然に聞こえます (ほかの枠は合わせるために少し速さを変えたり飛んだりします)。1 本だけ補正が大きくなる枠があれば、その枠は基準にしないほうが、ほかの動画の補正が小さく済みます (補正は動画ごとに覚えるので、ほかの組み合わせでもそのまま使えます)</li>
             </ul>
@@ -446,6 +440,7 @@
               <tr><th><kbd>Shift</kbd> + <kbd>F</kbd></th><td data-i18n="key.gridFs">分割したまま全画面 (上端にマウスを寄せるとバーが出る)</td></tr>
               <tr><th><kbd>M</kbd></th><td data-i18n="key.mute">ミュート ⇄ 直前の状態に戻す</td></tr>
               <tr><th><kbd>A</kbd></th><td data-i18n="key.audioAll">全部の枠の音を出す ⇄ 全部ミュート</td></tr>
+              <tr><th><kbd>V</kbd></th><td data-i18n="key.volume">音量バランス (枠の音量を並べて見比べる・大きさをそろえる・主役) を開く ⇄ 閉じる</td></tr>
               <tr><th><kbd>Space</kbd></th><td data-i18n="key.pause">全部の枠をまとめて一時停止 ⇄ 再開 (ライブ配信は最新の位置から再開)</td></tr>
               <tr><th><kbd>L</kbd></th><td data-i18n="key.auto">自動再生の ON / OFF</td></tr>
               <tr><th><kbd>C</kbd></th><td data-i18n="key.cruise">クルーズの ON / OFF</td></tr>
@@ -508,6 +503,11 @@
         <label class="share-name"><span data-i18n="share.nameLabel">名前</span>
           <input type="text" id="shareName" maxlength="40" spellcheck="false" data-i18n-placeholder="share.namePlaceholder" placeholder="なくてもよい (画像には「Hakomado 視聴セット」と出ます)">
         </label>
+        <!-- 説明付きの空き枠 (URL の枠・ファイルの枠はコードに入らない。説明を書くと、その説明の付いた空き枠として入る。HAKO-49) -->
+        <div id="shareNotes" class="share-notes" hidden>
+          <p class="settings-note" data-i18n="share.notesHead">URL の枠・ファイルの枠は、そのままでは入りません。説明を書くと、受け取った人の画面に、その説明の付いた空き枠として入ります</p>
+          <div class="share-notes-rows"></div>
+        </div>
         <div class="settings-tabs share-tabs" role="tablist">
           <button type="button" role="tab" data-stab="image" data-i18n="share.tabImage">🖼 画像</button>
           <button type="button" role="tab" data-stab="link" data-i18n="share.tabLink">🌐 リンク</button>
@@ -863,7 +863,7 @@
         <div class="toast" role="status"></div>
         <!-- アーカイブの同期再生: この枠の配信がまだ始まっていない / もう終わっている時刻のときの表示 -->
         <div class="sync-overlay" hidden></div>
-        <!-- 同期グループの色の線・調整パネルで選んだ枠の点線 -->
+        <!-- 同期グループの色の線・同期の調整の帯で乗せた枠の点線 -->
         <div class="sync-mark" aria-hidden="true"></div>
         <!-- 音の左右・音量・遅延 (枠のバーの 🎚 で開く。遅延はライブ配信のときだけ。音の左右は「ℹ 枠の情報」でも変えられる) -->
         <div class="mix-panel" hidden>
@@ -893,6 +893,7 @@
         </div>
         <form class="empty">
           <div class="empty-title"></div>
+          <div class="empty-note" hidden></div>
           <input class="url-input" type="text" data-i18n-placeholder="tile.input" placeholder="URL / 動画 ID / @チャンネル名 を貼り付け" spellcheck="false">
           <div class="empty-actions">
             <button type="submit" data-i18n="tile.load">読み込む</button>
@@ -961,8 +962,8 @@
   <script src="playlists.js"></script>
   <script src="sync-offsets.js"></script>
   <script src="sync-groups.js"></script>
-  <script src="sync-chart.js"></script>
   <script src="audio-align.js"></script>
+  <script src="waves.js"></script>
   <script src="movie-anchors.js"></script>
   <script src="tour.js"></script>
   <script src="vendor/qrcode-generator.js"></script>
@@ -977,9 +978,15 @@
     <div class="speed-head"></div>
     <div class="speed-list"></div>
   </div>
+  <!-- 🎚 音量バランス (上部バーの「🎚 音量」の下に出す。中身は volume-balance.js が作る) -->
+  <div id="volumeMenu" class="volume-menu" popover></div>
+  <script src="volume-balance.js"></script>
   <script src="tile-slots.js"></script>
   <script src="web-site.js"></script>
   <script src="local-files.js"></script>
+  <script src="wave-strip.js"></script>
+  <script src="timer-scan.js"></script>
+  <script src="sync.js"></script>
   <script src="grid.js"></script>
 </body>
 </html>

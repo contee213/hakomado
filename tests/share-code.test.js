@@ -495,3 +495,80 @@ test('Twitch の枠: QR 用のリンクは hkt= に入れて読み戻せる (hak
   // 壊れた hkt= のリンクは読まない
   assert.equal(get('parseShareLink')(`https://www.youtube.com/watch_videos?video_ids=${A}&hkl=u1&hkt=x&hakomado=0`), null);
 });
+
+test('🎬 見つけた区間 (~w・hkw=) を入れて読める。区間の無い動画は書かない (HAKO-49)', () => {
+  const get = setup();
+  const plans = [{ w: [[608.54, 0], [640, 20], [2096.651, 0]], k: 2 }, null];
+  const code = get('formatShareCode')('u2x2', [A, B], [], 0, '無職転生', [2096.65, 12], -1, plans);
+  assert.equal(code, `#Hakomado u2x2.${A}${B} "無職転生" ~!2096.65,12 ~w 0=2:608.54_0:640_20:2096.65_0`);
+  const r = plain(get('parseShareCode')(code));
+  assert.deepEqual(r.movie, [2096.65, 12]);
+  assert.deepEqual(r.plans, [{ w: [[608.54, 0], [640, 20], [2096.65, 0]], k: 2 }, null]);
+  // リンクでも同じ
+  const link = get('formatShareLink')('u2x2', [A, B], [], 0, '', '', false, [2096.65, 12], -1, plans);
+  assert.match(link, /&hkw=0=2:608\.54_0:640_20:2096\.65_0&/);
+  assert.deepEqual(plain(get('parseShareLink')(link)).plans, r.plans);
+  // 作品を選んでいなければ 0、区間の無いセットは「~w」を付けない
+  assert.match(get('formatShareCode')('u2x2', [A], [], 0, '', [5], -1, [{ w: [[5, 0]], k: null }]), / ~w 0=0:5_0$/);
+  assert.equal(get('formatShareCode')('u2x2', [A], [], 0, '', [5], -1, [null]), `#Hakomado u2x2.${A} ~!5`);
+  assert.equal(plain(get('parseShareCode')(`#Hakomado u2x2.${A} ~!5`)).plans, undefined);
+});
+
+test('🎬 見つけた区間: 形の違う「~w」は無視して本編の位置だけで読む。Twitch の枠があっても動画の位置がずれない', () => {
+  const get = setup();
+  const bad = plain(get('parseShareCode')(`#Hakomado u2x2.${A} ~!5 ~w 0=1:abc`));
+  assert.deepEqual(bad.movie, [5]);
+  assert.equal(bad.plans, undefined);
+  const ids = ['tw:somebody', A, B];
+  const code = get('formatShareCode')('u2x2', ids, [], 1, '', [null, 5, 7], -1, [null, null, { w: [[7, 0]], k: 1 }]);
+  assert.match(code, / ~t 0=somebody ~w 1=1:7_0$/, 'YouTube の動画だけの並びでの番号');
+  const r = plain(get('parseShareCode')(code));
+  assert.deepEqual(r.ids, ids);
+  assert.deepEqual(r.plans, [null, null, { w: [[7, 0]], k: 1 }]);
+});
+
+test('説明付きの空き枠 (~e・hke=) を入れて読める。説明の「"」と改行は空白にし、60 文字で切る (HAKO-49)', () => {
+  const get = setup();
+  const notes = [{ k: 2, text: 'ここにPrime Video等のコマンドーのURLを入れてください' }];
+  const code = get('formatShareCode')('u2x2', [A, B], [], 0, 'コマンドー', [10, 20], -1, null, notes);
+  assert.equal(code, `#Hakomado u2x2.${A}${B} "コマンドー" ~!10,20 ~e 2="ここにPrime Video等のコマンドーのURLを入れてください"`);
+  const r = plain(get('parseShareCode')(code));
+  assert.deepEqual(r.ids, [A, B]);
+  assert.deepEqual(r.notes, notes);
+  const link = get('formatShareLink')('u2x2', [A, B], [], 0, '', '', false, [10, 20], -1, null, notes);
+  assert.match(link, /&hke=2:%E3%81%93/);
+  assert.deepEqual(plain(get('parseShareLink')(link)).notes, notes);
+  // 同期のセットにも付けられる。説明を整える。全部で 16 枠まで
+  const c2 = get('formatShareCode')('u2x2', [A], [1.5], 0, '', null, -1, null, [{ k: 0, text: 'a"b\nc' }, { k: 0, text: 'dup' }, { k: 3, text: 'x'.repeat(80) }]);
+  assert.equal(c2, `#Hakomado u2x2.${A}~1.5 ~e 0="a b c",3="${'x'.repeat(60)}"`);
+  const many = Array.from({ length: 16 }, (_, k) => ({ k, text: 'n' }));
+  assert.equal(plain(get('parseShareCode')(get('formatShareCode')('u4x4', [A, B], [], 0, '', null, -1, null, many))).notes.length, 14);
+  // 無ければ notes は付かない
+  assert.equal(plain(get('parseShareCode')(`#Hakomado u2x2.${A}`)).notes, undefined);
+});
+
+test('1 行 1 本のテキストの 🎬: 本編の位置 (~!)・見つけた区間 (~w)・説明付きの空き枠 ([empty]) を読む (HAKO-49)', async () => {
+  const get = setup();
+  const text = [
+    '# playlist=無職転生 5〜6 話',
+    '# movie=on',
+    `https://www.youtube.com/watch?v=${A}  ~!59:35.24  ~w 10:08.54,10:40=0:20,34:56.65,59:35.24  # 兎田ぺこら`,
+    '[empty]  # ここに 5 話を入れてください',
+    `${B}  ~!*1:02:03  # 基準`,
+    '[EMPTY]  # second note',
+    '[empty]',
+    '[空き枠]  # 日本語の印は読まない',
+  ].join('\n');
+  const r = plain(await get('parseVideoLines')(text, 200));
+  assert.equal(r.meta.movie, 'on');
+  assert.deepEqual(r.items[0], { videoId: A, label: '兎田ぺこら', anchor: 3575.24, w: [[608.54, 0], [640, 20], [2096.65, 0], [3575.24, 0]], k: 3 });
+  assert.deepEqual(r.items[1], { videoId: B, label: '基準', anchor: 3723 });
+  assert.equal(r.ref, B);
+  assert.deepEqual(r.notes, [{ k: 1, text: 'ここに 5 話を入れてください' }, { k: 3, text: 'second note' }], '説明の無い空き枠の行は飛ばす');
+  assert.equal(r.bad, 1, '「[空き枠]」は読めない行');
+  // 書き出し
+  const tail = get('movieLineTail');
+  assert.equal(tail(3575.24, [[608.54, 0], [640, 20], [2096.65, 0]], false), '~!59:35.24  ~w 10:08.54,10:40=0:20,34:56.65');
+  assert.equal(tail(3723, null, true), '~!*1:02:03');
+  assert.equal(tail(null, null), '');
+});

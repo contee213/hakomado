@@ -23,3 +23,6 @@ web/src/gen/
 web/public/js/ext/
 web/.wrangler/
 web/.dev.vars
+
+# 配る用のビルド (node tools/build.js)
+dist/

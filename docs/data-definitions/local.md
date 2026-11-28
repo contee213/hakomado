@@ -35,6 +35,7 @@
 | `hlGlow` | number | 0.3 | 枠の線の光の強さ |
 | `hlAnimate` | boolean | false | 枠の線を動かす |
 | `verticalLiveFit` | boolean | true | 縦型の配信と分かったら、枠を縦長 (9:16) に寄せる |
+| `expSync` | boolean | false | 実験的な機能: ⏱ アーカイブ同期 (同期の調整の帯・✨ 自動補正・🎬 同時視聴・⏱ 開いて同期を含む) を使うか。OFF なら同期を始めず、入口も出さない (HAKO-50。前の版には無いので、前の版から上げた人も OFF から)。リリース版 (同期のコードが無い) では設定に出さず、true になっていても同期は動かない。値は消さずに残す (HAKO-51) |
 | `chatZoom` | number | 0.9 | チャット欄の拡大率 |
 | `chatWidth` | number | 0.3 | チャット欄の幅 (割合) |
 | `chatHideAvatars` | boolean | false | チャット欄のアイコンを隠す |
@@ -154,6 +155,7 @@
 | `fit` | string | ○ | `fit` (16:9 に合わせる) / `fill` (ストレッチ) |
 | `autoMode` `cruise` `repeatAll` | boolean | ○ | 自動再生・クルーズ・全枠繰り返し |
 | `tileBars` | boolean | ○ | 枠のバーを出す |
+| `volume` | object | − | 🎚 音量バランス (HAKO-54): `auto` (boolean。大きさをそろえる)・`focus` (number \| null。主役の枠の番号 0〜15)・`duck` (number 0〜1、0.05 刻み。主役のときのほかの枠の割合、初期値 0.3)・`master` (number 0〜2、0.05 刻み。全体の音量、初期値 1)。前の版には無い (無ければ OFF・主役なし・0.3・1)。形の違う値は初期値にする (`VolumeBalance.normalize`)。自動の倍率は保存しない |
 | `dmAuto` | boolean | ○ | true。枠の `danmaku: null` (自動) を使う版で保存した印 |
 | `tiles` | array of 枠 | ○ | 全部の枠 (枠数を減らしても全枠分)。項目は下 |
 | `audible` | array of number | − | 音が出ている枠の番号 (`[]` = 全部ミュート)。前の版には無い |
@@ -176,9 +178,10 @@
 | `pan` | number | 0 | 音の左右 (-1〜1、0.01 刻み) |
 | `gain` | number | 1 | 音量 (0〜2、0.01 刻み) |
 | `delay` | number | 0 | 音を遅らせる秒数 (0〜60、0.01 秒単位) |
-| `speed` | number | 1 | 再生速度 (0.25〜4、0.05 刻み) |
+| `speed` | number | 1 | 再生速度 (0.1〜4、0.05 刻み。0.25 より遅いのは、同期の調整の帯のグループの速度で 0.1× にしたときだけ) |
 | `short` | boolean | false | ショートとして縦長で見せる |
 | `corner` | string | `'br'` | ストレッチで残す角 |
+| `note` | string | `''` | 説明付きの空き枠の説明 (60 文字まで。「"」・改行は空白)。共有画面で URL の枠・ファイルの枠に書くと、コードに説明付きの空き枠として入る。受け取ったら空き枠の上に出す。中身を入れても消さず、✕ で空き枠に戻すとまた出る (HAKO-49) |
 
 `muted` は保存しない (`audible` で戻す)。**前の版から:** 今は無いメイン + サブのレイアウト (`m<メイン数>s<サブ数>`。例 `m2s4r`) が `layoutId` に入っていれば、メインの数と枠数の近いレイアウトに置き換えて読む (`savedLayoutId`)。`audible` が無い版のセッションは、1 番の枠だけ音を出す。視聴セッションに分ける前の版は、`layoutId` `order` `fit` `autoMode` `danmakuAll` `tiles` を `chrome.storage.local` の最上位のキーに置いていた。あれば視聴セッション 1 つに移して消す (`migrateLegacyStorage`)。枠に `syncOffset` があれば動画のずれ (`syncOffsets`) に移す。`dmAuto` が無い版の `danmaku: true` は null (自動) として読む。
 
@@ -196,8 +199,12 @@
 | `s` | number | − | 本編の 0:00 に当たる再生位置 (秒、0.01 秒単位、±1 週間まで)。0 も意味がある |
 | `g` | 1 | − | `s` は見当で付けた値 |
 | `m` | 1 | − | 使う人がこの動画を本編にした |
+| `w` | array | − | 配信の画面のタイマーが動き出した所の並び `[[動き出した再生位置 (秒), そのときのタイマーの値 (秒)], ...]` (再生位置の順・0.01 秒単位・最大 200)。値が 0 (か最初の 1 つ) なら新しい作品の始まり、それ以外は同じ作品の続き。作品の 0:00 = 動き出した位置 − 値 (HAKO-49) |
+| `k` | number | − | `w` のうち今選んでいる作品 (1 から)。選んだ作品の 0:00 は `s` にも入れる。手で `s` を決め直したら消す |
 
-`s` も `m` も無いものは捨てる。
+`s` も `m` も `w` も無いものは捨てる。
+
+**前の版から:** `w`・`k` は HAKO-49 で足した。前の版は `w`・`k` を読まず、`s` だけ使う (選んだ作品の 0:00 が入っているので、そのまま合う)。
 
 ## notices
 
@@ -237,7 +244,7 @@ URL の枠で許可したサイト。`array` of string。各要素は `https://*
 
 ## ui
 
-画面の小さな覚え (`ui-prefs.js`)。キーは `ui:<名前>`。画面を開いたときにまとめて読み、ほかのタブで変わったら覚え直す。チャンネル・ライブラリ・受け渡しを開くとき、同期の調整パネルを出すときに読み直す。
+画面の小さな覚え (`ui-prefs.js`)。キーは `ui:<名前>`。画面を開いたときにまとめて読み、ほかのタブで変わったら覚え直す。チャンネル・ライブラリ・受け渡しを開くときに読み直す。
 
 | キー | 型 | 取りうる値 | 意味 |
 | --- | --- | --- | --- |
@@ -246,9 +253,11 @@ URL の枠で許可したサイト。`array` of string。各要素は `https://*
 | `ui:libPlaylist` | string | 再生リストの id | 開いていた再生リスト |
 | `ui:shareImgLabels` | boolean | | 共有画像の各枠に枠の名前を入れるか |
 | `ui:shareAuthor` | string | | 共有画像に描く作者名 |
-| `ui:syncDock` | object | `{floating: boolean, x?: number, y?: number}` | 同期の調整パネルの置き方と小窓の位置 |
+| `ui:syncDock` | (使わない) | − | 同期の調整パネルの置き方と小窓の位置だった。HAKO-48 でパネルを無くしたので、画面を開いて読んだときに消す |
+| `ui:waveH` | number | 90〜 (ドット) | 〰 波形の帯の高さ (HAKO-39。以前の版には無い) |
+| `ui:waveRuler` | string | `elapsed` / `clock` | 〰 波形の帯の目盛り (経過時間 / 時刻) (HAKO-39) |
 
-**前の版から (HAKO-8):** localStorage の `hakomado.<名前>` (`libScope` `libKinds` `libPlaylist` `shareImgLabels` `shareAuthor` `syncDock`) は、初めて開いたときに `ui:<名前>` へ移して localStorage から消す。`ui:<名前>` がもうあればそちらを使う。`libKinds` `syncDock` は JSON の文字列から、`shareImgLabels` は `1` / `0` から直す。読めない値は移さずに消す。`hakomado.settingsTab` `hakomado.libTab` `hakomado.shareTab` は移さずに消す (今は sessionStorage)。
+**前の版から (HAKO-8):** localStorage の `hakomado.<名前>` (`libScope` `libKinds` `libPlaylist` `shareImgLabels` `shareAuthor`) は、初めて開いたときに `ui:<名前>` へ移して localStorage から消す。`ui:<名前>` がもうあればそちらを使う。`libKinds` は JSON の文字列から、`shareImgLabels` は `1` / `0` から直す。読めない値は移さずに消す。`hakomado.settingsTab` `hakomado.libTab` `hakomado.shareTab` は移さずに消す (今は sessionStorage)。`hakomado.syncDock` も移さずに消す (パネルを無くした。HAKO-48)。
 
 ## tourPending
 

@@ -5,14 +5,15 @@
 //   前の版で chrome.storage.local に置いた分は、画面を開いたときに移して消す (途中で閉じても、次に開いたときに続きから移す)
 // - streams: 配信ごとの実際の開始・終了 {start, end, at}。配信状況の確認で読んだ動画のページから取る (新しい問い合わせはしない)
 // - collab: ライブラリの 🤝 の判定の記録 (2 本の組ごと)。CollabStats が実際の時刻で答え合わせする
+// - wave: 動画ごとの全編の音の大きさの波形 {vals: Uint8Array (0.1 秒ごと。0 = まだ無い), at}。同期の調整の波形の帯 (waves.js。HAKO-39)
 // - IndexedDB には storage.onChanged が無い。ほかのタブの書き込みは、読むたびに DB から読み直すので知らせは要らない
-// - IndexedDB が使えないとき (単体テストの node など) は、kv だけ chrome.storage.local を使い、streams・collab は覚えない
+// - IndexedDB が使えないとき (単体テストの node など) は、kv だけ chrome.storage.local を使い、streams・collab・wave は覚えない
 /* exported IdbCache */
 'use strict';
 
 const IdbCache = (() => {
   const DB = 'hakomado-cache';
-  const STORES = ['kv', 'streams', 'collab'];
+  const STORES = ['kv', 'streams', 'collab', 'wave'];
   const MOVE_PREFIXES = ['feed:', 'twpage:']; // 前の版で chrome.storage.local に置いていた分
   const has = typeof indexedDB !== 'undefined';
   const local = () => chrome.storage.local;
@@ -21,11 +22,18 @@ const IdbCache = (() => {
   function db() {
     if (!dbp) {
       dbp = new Promise((resolve, reject) => {
-        const req = indexedDB.open(DB, 1);
+        const req = indexedDB.open(DB, 2); // 2: wave を足した (HAKO-39)
         req.onupgradeneeded = () => {
           for (const s of STORES) if (!req.result.objectStoreNames.contains(s)) req.result.createObjectStore(s);
         };
-        req.onsuccess = () => resolve(req.result);
+        req.onsuccess = () => {
+          // ほかのページが新しい版で開こうとしたら、この接続を閉じて止めないようにする (次に使うときに開き直す)
+          req.result.onversionchange = () => {
+            req.result.close();
+            dbp = null;
+          };
+          resolve(req.result);
+        };
         req.onerror = () => reject(req.error);
       });
       dbp.catch(() => (dbp = null));
@@ -33,8 +41,17 @@ const IdbCache = (() => {
     return dbp;
   }
 
-  /** 1 つの store で fn(store) を動かし、終わったら fn が返したリクエストの結果を返す */
+  /** 1 つの store で fn(store) を動かし、終わったら fn が返したリクエストの結果を返す。接続が閉じられていたら、一度だけ開き直す */
   async function run(store, mode, fn) {
+    try {
+      return await run1(store, mode, fn);
+    } catch (e) {
+      if (e?.name !== 'InvalidStateError') throw e;
+      dbp = null; // ほかのページが新しい版で開いて、この接続が閉じられた
+      return run1(store, mode, fn);
+    }
+  }
+  async function run1(store, mode, fn) {
     const d = await db();
     return new Promise((resolve, reject) => {
       const tx = d.transaction(store, mode);
@@ -142,9 +159,10 @@ const IdbCache = (() => {
       : Promise.resolve();
   const collab = () => (has ? all('collab') : Promise.resolve(new Map()));
 
-  /** streams・collab の古いもの (keepMs より前に覚えたもの) を消す。画面を開いたときに呼ぶ */
+  /** streams・collab の古いもの (keepMs より前に覚えたもの) を消し、波形を WAVE_MAX 本までにする。画面を開いたときに呼ぶ */
   async function prune(keepMs = 8 * 24 * 3600e3, now = Date.now()) {
     if (!has) return;
+    await pruneWaves().catch((e) => console.warn('hakomado: 波形の片付けに失敗しました', e));
     for (const store of ['streams', 'collab']) {
       const rows = await all(store);
       const drop = [...rows].filter(([, v]) => !(now - (v?.at || 0) < keepMs)).map(([k]) => k);
@@ -155,5 +173,27 @@ const IdbCache = (() => {
     }
   }
 
-  return { kv, putStream, streams, putCollab, collab, prune, available: has };
+  // ---- 全編の音の波形 (videoId → {vals: Uint8Array, at})。WAVE_MAX 本まで、使っていないものから消す
+  const WAVE_MAX = 100;
+  const getWave = async (videoId) => (has ? (await run('wave', 'readonly', (s) => s.get(videoId))) || null : null);
+  async function putWave(videoId, vals) {
+    if (!has) return;
+    await run('wave', 'readwrite', (s) => s.put({ vals, at: Date.now() }, videoId));
+  }
+  /** 波形を WAVE_MAX 本までにする (古く書いたものから消す)。画面を開いたときに呼ぶ */
+  async function pruneWaves(max = WAVE_MAX) {
+    if (!has) return;
+    const keys = await run('wave', 'readonly', (s) => s.getAllKeys());
+    if (keys.length <= max) return;
+    const rows = await all('wave');
+    const drop = [...rows]
+      .sort((a, b) => (a[1]?.at || 0) - (b[1]?.at || 0))
+      .slice(0, rows.size - max)
+      .map(([k]) => k);
+    await run('wave', 'readwrite', (s) => {
+      for (const k of drop) s.delete(k);
+    });
+  }
+
+  return { kv, putStream, streams, putCollab, collab, prune, getWave, putWave, pruneWaves, available: has };
 })();

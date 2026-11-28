@@ -42,6 +42,7 @@
 | キー | 中身 | 種類 | 書くところ | 詳細 |
 | --- | --- | --- | --- | --- |
 | `gridTabs` | 開いているマルチビュー画面のタブ | 一時 | `background.js` | [other.md#gridtabs](data-definitions/other.md#gridtabs) |
+| `timerScanMiss` | 画面のタイマーが見つからなかった配信 (🎬) | 一時 | `timer-scan.js` | [other.md#timerscanmiss](data-definitions/other.md#timerscanmiss) |
 | `statusShared` | 配信予定のアドオンの結果・最後に取りに行った時刻 | 取得 | `favorites.js` | [other.md#statusshared](data-definitions/other.md#statusshared) |
 | `twvod:<番号>` | Twitch の VOD の開始時刻・題名 | 取得 | `favorites.js` | [other.md#twvod](data-definitions/other.md#twvod) |
 
@@ -60,6 +61,7 @@
 | `hakomado-cache` | `kv` (`feed:*`・`twpage:*`) | チャンネルの再生リストの RSS・Twitch のチャンネルのページ | 取得 | [other.md#hakomado-cache](data-definitions/other.md#hakomado-cache) |
 | `hakomado-cache` | `streams` | 配信ごとの実際の開始・終了 | 取得 | [other.md#hakomado-cache](data-definitions/other.md#hakomado-cache) |
 | `hakomado-cache` | `collab` | 🤝 の判定の記録 | 一時 | [other.md#hakomado-cache](data-definitions/other.md#hakomado-cache) |
+| `hakomado-cache` | `wave` | 動画ごとの全編の音の波形 | 一時 | [other.md#hakomado-cache](data-definitions/other.md#hakomado-cache) |
 | `hakomado-files` | `handles` | ファイルの枠のファイルの持ち手 | 作った | [other.md#indexeddb](data-definitions/other.md#indexeddb) |
 
 ## ファイル

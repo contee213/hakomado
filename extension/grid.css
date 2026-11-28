@@ -50,6 +50,10 @@ button:hover, select:hover { border-color: #444450; }
   overflow: hidden;
 }
 .toolbar > * { flex: none; }
+/* 開いた直後は、整え終わるまで (レイアウト名の幅・入りきらないときのアイコンだけの形を決めるまで) 中身を見せない。
+   整える前の形が一度出て、ボタンが右へずれたり縮んだりして動くのを見せないため。バーの高さ・背景は最初から出す。
+   付けるのは grid.js (fitToolbar の 1 回目。動かなかったときの保険で数秒後にも付ける) */
+.toolbar:not(.settled) > * { visibility: hidden; }
 .brand { display: inline-flex; align-items: center; gap: 6px; font-weight: 700; letter-spacing: .02em; margin-right: 6px; }
 /* ロゴは起動時の画面を出すボタン。ふだんはボタンの枠を見せず、乗せたときだけ枠を出す */
 .toolbar button.brand { background: none; border-color: transparent; padding: 0 6px 0 2px; }
@@ -57,12 +61,14 @@ button:hover, select:hover { border-color: #444450; }
 .brand-logo { width: 22px; height: 22px; flex: none; }
 .spacer { flex: 1 1 0; min-width: 8px; }
 .toolbar button { display: inline-flex; align-items: center; gap: 5px; height: 26px; }
+/* 実験的な機能が OFF のときの ⏱ アーカイブ同期など (hidden を display より優先する) */
+.toolbar button[hidden] { display: none; }
 .toolbar .tb-icon { width: 1em; text-align: center; }
 /* クルーズの船 (SVG)。文字のアイコンと同じ大きさ・色 (ON / OFF の色に従う) */
 /* クルーズの船・自動再生の舵輪・速度のメーターは、同じ大きさの単色の絵 */
 /* 枠のバーのチャンネル登録 (人 + の絵) */
 .bar-buttons .sub-icon { display: block; width: 1.1em; height: 1.1em; fill: currentColor; }
-.toolbar .tb-icon .ship, .toolbar .tb-icon .helm, .toolbar .tb-icon .gauge, .toolbar .tb-icon .repeat, .toolbar .tb-icon .speakers { display: block; width: 1.15em; height: 1.15em; margin: 0 -0.075em; fill: currentColor; }
+.toolbar .tb-icon .ship, .toolbar .tb-icon .helm, .toolbar .tb-icon .gauge, .toolbar .tb-icon .repeat, .toolbar .tb-icon .speakers, .toolbar .tb-icon .faders { display: block; width: 1.15em; height: 1.15em; margin: 0 -0.075em; fill: currentColor; }
 .toolbar .icon-only { width: 28px; justify-content: center; padding: 0; }
 /* レイアウト名は長いものもあるので幅を抑えて省略 */
 /* 幅は grid.js がいちばん長いレイアウト名に合わせて固定する (切り替えても後ろのボタンが動かないように) */
@@ -128,7 +134,6 @@ body.grid-fs .grid { height: 100%; }
 .toolbar.compact > .now-playing { flex-basis: 140px; width: 140px; }
 .toolbar.tiny > .now-playing { flex-basis: auto; width: auto; min-width: 0; }
 .toolbar.tiny .now-playing .np-name { display: none; }
-.toolbar.tiny .sync-time { display: none; }
 .toolbar.tiny { gap: 3px; padding: 0 6px; }
 .toolbar.tiny > .sync-bar { min-width: 140px; }
 /* 測るときは、縮むもの (今の音声・同期のつまみ) を縮めずに置いて、はみ出すかを見る */
@@ -362,6 +367,19 @@ body.bars-off .tile.is-web .player-slot { top: 0; }
 .twitch-ask button { font: inherit; padding: 6px 14px; border-radius: 6px; border: 0; background: #9146ff; color: #fff; cursor: pointer; }
 .twitch-ask p { margin: 0; font-size: 12px; opacity: 0.8; }
 .empty-title { color: var(--muted); font-size: 12px; }
+/* 説明付きの空き枠の説明 (共有コードで受け取ったもの。HAKO-49) */
+.empty-note {
+  max-width: min(520px, 100%);
+  padding: 6px 12px;
+  border: 1px solid rgba(255, 196, 0, 0.45);
+  border-radius: 6px;
+  background: rgba(255, 196, 0, 0.1);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
 .empty .url-input {
   width: min(420px, 100%);
   background: #000;
@@ -376,6 +394,7 @@ body.bars-off .tile.is-web .player-slot { top: 0; }
 @container (max-height: 190px) {
   .empty { gap: 4px; padding: 30px 8px 6px; }
   .empty-title, .empty .error:empty { display: none; }
+  .empty-note { padding: 2px 6px; font-size: 12px; }
   .empty .url-input { padding: 3px 6px; font-size: 12px; }
   .empty-actions button { padding: 1px 7px; font-size: 12px; }
 }
@@ -1442,6 +1461,7 @@ dialog.settings-dialog { width: min(780px, calc(100% - 32px)); overflow: hidden;
 }
 .settings-panel[hidden] { display: grid; visibility: hidden; }
 .settings-col { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.settings-col[hidden] { display: none; }
 .preset-buttons { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
 /* チャンネルパック */
 .pack-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
@@ -1493,6 +1513,7 @@ dialog.help-dialog { width: min(880px, calc(100% - 32px)); }
 .help-body { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 18px; height: min(540px, calc(100vh - 190px)); }
 .help-nav { display: flex; flex-direction: column; gap: 2px; overflow: auto; padding-right: 10px; border-right: 1px solid var(--line); }
 .help-nav button { border: 0; background: transparent; color: var(--muted); text-align: left; padding: 7px 10px; border-radius: 6px; }
+.help-nav button[hidden] { display: none; }
 .help-nav button:hover { color: var(--text); }
 /* 選んだものは太字にしない (幅が変わるので)。影で少し太く見せる */
 .help-nav button.selected { background: #2a2a31; color: var(--text); text-shadow: 0 0 .6px currentColor, 0 0 .6px currentColor; }
@@ -1538,6 +1559,12 @@ dialog.share-dialog { width: min(600px, calc(100% - 32px)); }
 .share-preview img { display: block; width: 100%; height: 100%; object-fit: contain; }
 .share-preview img:not([src]) { visibility: hidden; }
 .share-name { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.share-notes { display: flex; flex-direction: column; gap: 4px; }
+.share-notes .settings-note { margin: 0; }
+.share-notes-rows { display: flex; flex-direction: column; gap: 4px; }
+.share-note-row { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.share-note-row > span { flex: 0 0 auto; max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.share-note-row > input { flex: 1 1 auto; min-width: 0; }
 .share-check { display: flex; align-items: center; gap: 6px; font-size: 13px; width: fit-content; }
 .share-name > span { flex: none; font-weight: 600; }
 .share-name input { flex: 1 1 auto; min-width: 0; background: #000; color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; }
@@ -1588,8 +1615,6 @@ code { font-size: 12px; background: #222228; padding: 0 4px; border-radius: 3px;
 .sync-bar { flex: 6 1 160px; min-width: 140px; max-width: 520px; display: flex; align-items: center; gap: 6px; }
 .sync-bar[hidden] { display: none; }
 .sync-bar input[type="range"] { flex: 1 1 auto; min-width: 60px; margin: 0; }
-.sync-time { color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; white-space: nowrap; }
-#syncNow { color: var(--text); }
 /* 枠の配信がまだ始まっていない / もう終わっている時刻 */
 .sync-overlay {
   position: absolute;
@@ -1681,127 +1706,80 @@ code { font-size: 12px; background: #222228; padding: 0 4px; border-radius: 3px;
 .speed-list { display: grid; grid-template-columns: repeat(4, auto); gap: 4px; }
 .speed-list button { min-width: 52px; height: 28px; font-variant-numeric: tabular-nums; }
 .speed-list button[aria-pressed="true"] { color: #fff; border-color: var(--on); background: var(--on-bg); }
+/* 🎚 音量バランス (上部バーの「🎚 音量」の下に出す。volume-balance.js) */
+.toolbar .vol-open.on { color: #fff; border-color: var(--on); background: var(--on-bg); }
+.volume-menu {
+  width: 480px;
+  max-width: calc(100vw - 16px);
+  max-height: calc(100vh - 60px);
+  overflow: auto;
+  padding: 8px;
+  color: var(--text);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, .5);
+}
+@supports (position-area: block-end) {
+  .volume-menu {
+    position-anchor: --volume-anchor;
+    inset: auto;
+    margin: 4px 0;
+    position-area: block-end;
+    position-try-fallbacks: block-end span-inline-start, block-end span-inline-end, flip-block;
+  }
+}
+.vol-head { margin: 0 2px 8px; font-size: 12px; color: var(--muted); }
+.vol-top { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+.vol-auto { height: 26px; padding: 0 10px; }
+.vol-auto.on, .vol-star.on { color: #fff; border-color: var(--on); background: var(--on-bg); }
+.vol-slider { display: flex; align-items: center; gap: 6px; font-size: 12px; white-space: nowrap; }
+.vol-slider input { width: 100px; }
+.vol-slider input:disabled { opacity: .4; }
+.vol-master-value, .vol-duck-value, .vol-value { font-size: 12px; font-variant-numeric: tabular-nums; }
+.vol-master-value, .vol-duck-value { min-width: 3em; }
+.vol-rows { display: grid; gap: 6px; }
+/* 1 段目: 番号・名前・★・🔊・つまみ・値。2 段目: 聞こえる大きさの棒 (全部の行で同じ位置・同じ目盛り) と説明 */
+.vol-row { display: grid; grid-template-columns: 1.6em minmax(0, 1fr) 26px 26px 110px 3.5em; align-items: center; gap: 2px 6px; }
+.vol-row.muted .vol-name, .vol-row.muted .vol-num { opacity: .55; }
+.vol-num { text-align: right; font-variant-numeric: tabular-nums; }
+.vol-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+.vol-star, .vol-mute { width: 26px; height: 24px; padding: 0; }
+.vol-star:disabled, .vol-gain:disabled { opacity: .35; cursor: default; }
+.vol-gain { width: 110px; }
+.vol-value { color: var(--muted); white-space: nowrap; text-align: right; }
+/* 説明の文字が有っても無くても高さを変えない (説明の出し入れでパネルの高さが動かないように) */
+.vol-meter { grid-column: 2 / -1; display: flex; align-items: center; gap: 8px; min-width: 0; height: 16px; }
+.vol-bar { position: relative; flex: 0 0 220px; height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; }
+.vol-fill { position: absolute; inset: 0 auto 0 0; width: 0; border-radius: 3px; background: var(--on); transition: width .4s; }
+.vol-row.muted .vol-fill { opacity: .4; }
+.vol-bar.unknown { opacity: .5; }
+.vol-note { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; line-height: 16px; color: var(--muted); }
+.vol-empty { padding: 6px 2px; font-size: 12px; color: var(--muted); }
+.vol-empty[hidden] { display: none; }
 .sync-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
 .sync-row[hidden] { display: none; }
 .sync-input { width: 6.5em; padding: 1px 4px; background: #000; color: var(--text); border: 1px solid var(--line); border-radius: 6px; font-size: 12px; font-variant-numeric: tabular-nums; }
-.sync-wait.is-waiting { color: #8fd3ff; border-color: #8fd3ff; }
 /* 使えないとき (同期できるアーカイブが 2 本ない) も出しておき、薄くする。押すと理由が出る */
 #syncToggle.unavailable { opacity: .5; }
 /* 上部バー: グループが 2 つ以上のとき、つまみが動かすグループの番号と色 */
-.sync-group-dot {
-  flex: none;
-  min-width: 18px;
-  padding: 0 4px;
-  border-radius: 9px;
-  background: var(--g);
-  color: #111;
-  font-size: 11px;
-  font-weight: 700;
-  line-height: 18px;
-  text-align: center;
-}
-.sync-group-dot[hidden] { display: none; }
 .sync-dock-toggle { flex: none; }
 .sync-dock-toggle.on { color: #fff; border-color: var(--on); background: var(--on-bg); }
 
 /* ---------- 同期の調整パネル (画面の右の列。枠の並びはこの分だけ横に縮む) ---------- */
-:root { --dock-w: 340px; --dock-mini-w: 144px; }
-body.sync-dock-open:not(.sync-dock-float) .grid { margin-right: var(--dock-w); }
-body.sync-dock-open.sync-dock-mini:not(.sync-dock-float) .grid { margin-right: var(--dock-mini-w); }
-.sync-dock {
-  position: fixed;
-  top: 36px;
-  right: 0;
-  bottom: 0;
-  z-index: 20;
-  width: var(--dock-w);
-  display: flex;
-  flex-direction: column;
-  background: var(--panel);
-  border-left: 1px solid var(--line);
-  font-size: 13px;
-}
 /* パネルの中の入力欄・時刻も、パネルの文字に合わせて大きめに */
-.sync-dock .sync-input { font-size: 13px; padding: 2px 5px; }
-.sync-dock .sync-time { font-size: 12px; }
-.sync-dock select { font-size: 13px; }
-.sync-dock button { min-height: 24px; }
-.sync-dock[hidden] { display: none; }
-.sync-dock.mini { width: var(--dock-mini-w); }
-body.grid-fs .sync-dock { top: 0; }
 /* 浮かぶ小窓: 枠の上に半透明で重ねる。マウスを乗せている・中を操作している間は濃くする。左上は固定で、下へ伸びる */
-.sync-dock.floating {
-  right: auto;
-  bottom: auto;
-  border: 1px solid #ffffff22;
-  border-radius: 8px;
-  background: rgba(20, 20, 24, .62);
-  backdrop-filter: blur(6px);
-  box-shadow: 0 8px 28px rgba(0, 0, 0, .45);
-  transition: background .15s;
-  overflow: hidden;
-}
-.sync-dock.floating:hover, .sync-dock.floating:focus-within { background: rgba(20, 20, 24, .93); }
-.sync-dock.floating .dock-head { cursor: move; user-select: none; touch-action: none; }
-.sync-dock.floating .dock-group { border-color: #ffffff1f; }
-.dock-head { flex: none; display: flex; align-items: center; gap: 4px; padding: 6px 8px; border-bottom: 1px solid var(--line); }
-.dock-title { flex: 1; min-width: 0; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.dock-head button { padding: 0 8px; }
-.dock-body { flex: 1; min-height: 0; overflow-y: auto; padding: 8px; display: flex; flex-direction: column; gap: 10px; }
-.dock-empty { margin: 8px; color: var(--muted); }
 /* パネルの中でグループの色を使うのは、見出しの番号の丸だけ (ほかは同じ色にして、✓ などの色とまぎれないように) */
-.dock-group { border: 1px solid var(--line); border-radius: 6px; padding: 6px; display: flex; flex-direction: column; gap: 6px; }
-.dock-group.is-idle { opacity: .8; }
-.dock-rest { border-left-color: var(--line); }
-.dg-head { display: flex; align-items: center; gap: 4px; }
-.dg-head select { min-width: 0; flex: 1 1 auto; }
 /* 本編の枠があるときのそろえ方 (切り替えは出さず、文字だけ) */
-.dg-head button { flex: none; padding: 0 8px; font-variant-numeric: tabular-nums; }
-.dg-num { flex: none; min-width: 20px; border-radius: 10px; background: var(--g); color: #111; font-weight: 700; line-height: 20px; text-align: center; }
-.dg-title { color: var(--muted); }
-.dg-actions { display: flex; flex-wrap: wrap; gap: 6px; padding-left: 24px; }
-.dg-actions button { padding: 0 8px; font-size: 13px; white-space: nowrap; font-variant-numeric: tabular-nums; }
-.dg-seek { display: flex; align-items: center; gap: 4px; }
-.dg-range { flex: 1 1 auto; min-width: 40px; margin: 0; }
 /* 図: 各枠の開始のあたりを拡大。横棒 = 配信の実際の開始から右へ、補正の分は水色 (下の .tl-corr)、縦の白線 = 今。左に基準との開始の差、右に状態 */
-.dg-tl { display: flex; flex-direction: column; gap: 4px; padding: 2px 0 4px; font-size: 12px; font-variant-numeric: tabular-nums; }
 /* 目盛り: 棒と同じ横の範囲に、両端の開始の時刻と切れ目の ≈ を、その位置に置く */
-.tl-axis-row { display: flex; gap: 4px; }
-.tl-axis { position: relative; flex: 1 1 auto; height: 26px; margin: 0 84px 0 88px; color: var(--muted); font-size: 11px; }
-.tl-time { position: absolute; top: 0; white-space: nowrap; transform: translateX(-50%); line-height: 13px; }
-.tl-break { position: absolute; top: -1px; bottom: -1px; width: 4px; margin-left: -2px; background: var(--panel); transform: skewX(-20deg); z-index: 1; }
-.tl-row { display: flex; align-items: center; gap: 4px; }
-.tl-no { flex: none; width: 14px; color: var(--muted); text-align: right; }
-.tl-diff { flex: none; width: 66px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.tl-track { position: relative; flex: 1 1 auto; min-width: 60px; height: 10px; border-radius: 2px; background: #ffffff10; }
 /* 棒は青 (グループの色 = 黄・緑・紫・橙 に使わない色) */
-.tl-bar { position: absolute; top: 1px; bottom: 1px; right: 0; border-radius: 2px 0 0 2px; background: #4a86e8; }
 /* 補正の分: 早めても遅らせても同じ水色 (向きは細い線との位置で分かる)。小さな補正も見えるよう、少なくとも 2px */
-.tl-corr { position: absolute; top: 1px; bottom: 1px; min-width: 2px; background: #a9cbff; }
-.tl-corr[hidden] { display: none; }
 /* 配信が実際に始まった時刻の細い線 (補正を入れると、棒の左端がここから離れる) */
-.tl-raw { position: absolute; top: -3px; bottom: -3px; width: 1px; background: var(--text); opacity: .7; z-index: 1; }
-.tl-raw[hidden] { display: none; }
 /* 基準の行の目印: ほかの枠の補正を見比べる時刻 (基準より後に始まった枠の開始) */
-.tl-guide { position: absolute; top: -3px; bottom: -3px; width: 1px; background: var(--text); opacity: .7; z-index: 1; }
-.tl-now[hidden] { display: none; }
-.tl-bar[hidden] { display: none; }
-.tl-now { position: absolute; top: -2px; bottom: -2px; width: 2px; margin-left: -1px; background: var(--text); }
 /* ✨ 自動補正の候補: 反映したあとの位置の ◆ と、今の位置からの点線 (途中の結果は薄く) */
-.tl-cand-span { position: absolute; top: 3px; height: 0; border-top: 2px dotted #8fd3ff; z-index: 1; }
-.tl-cand { position: absolute; top: 50%; width: 9px; height: 9px; margin: -5px 0 0 -5px; background: #8fd3ff; transform: rotate(45deg); box-shadow: 0 0 0 1px #111; z-index: 2; }
-.tl-cand.is-prelim, .tl-cand-span.is-prelim { opacity: .5; }
-.tl-cand[hidden], .tl-cand-span[hidden] { display: none; }
-.tl-st { flex: none; width: 80px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.tl-st.is-fix { color: var(--text); }
 /* たためるグループ: たたんだら見出しだけ */
-.dg-fold { flex: none; padding: 0 4px !important; border: none; background: none; color: var(--muted); }
-.dg-count { flex: none; color: var(--muted); font-size: 12px; }
-.sync-dock:not(.mini) .dock-group.is-folded > :not(.dg-head) { display: none; }
 /* 状態は図に出すので、行の ✓ / ↻ はたたんだパネル (図が無い) のときだけ */
-.sync-dock:not(.mini) .dock-row .dr-dot { display: none; }
-.dg-note { color: #f0c36d; font-size: 12px; }
-.dg-note:empty { display: none; }
 .sync-audio.is-measuring { color: #8fd3ff; border-color: #8fd3ff; }
 /* まだ補正していないグループ: ✨ を目立たせる */
 .sync-audio.is-suggest:not(:disabled) { border-color: #8fd3ff; box-shadow: 0 0 6px #8fd3ff66; }
@@ -1814,60 +1792,23 @@ body.grid-fs .sync-dock { top: 0; }
 .dg-audio-result.is-suggest { border-color: #8fd3ff; box-shadow: 0 0 6px #8fd3ff66; }
 .dg-audio-result.is-fail .dga-title { color: #f0c36d; }
 /* ✨ で音が合わなかった枠 (同じコラボではないかもしれない)。「同期から外す」は青い文字リンク (.fav-restore) */
-.dr-suspect { color: #f0c36d; }
 .dga-suspect { color: #f0c36d; font-size: 12px; }
 .dga-choice { display: flex; flex-direction: column; gap: 2px; }
 .dga-buttons { display: flex; gap: 6px; justify-content: flex-end; }
-.dock-row { display: flex; flex-direction: column; gap: 4px; padding: 5px; border-radius: 4px; outline: none; }
-.dock-row:hover { background: #ffffff0a; }
-.dock-row.is-sel, .dock-row:focus-visible { background: #ffffff12; box-shadow: inset 0 0 0 1px var(--muted); }
-.dr-line { display: flex; align-items: center; gap: 5px; min-width: 0; }
-.dr-line button { padding: 0 6px; font-size: 13px; }
-.dr-ref { flex: none; padding: 0 3px !important; border: none; background: none; color: var(--muted); }
-.dr-ref.on { color: var(--text); font-size: 12px; }
-.dr-num { flex: none; min-width: 1.2em; color: var(--muted); font-variant-numeric: tabular-nums; }
-.dr-name { flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.dr-ref-tag { flex: none; padding: 0 4px; border-radius: 3px; background: var(--g, #ffffff30); color: #111; font-size: 11px; font-weight: 700; line-height: 1.5; }
 /* 🎬 本編の枠 (プレミア公開) の印 */
-.dr-main-tag { background: #9ad4ff; }
-button.dr-main-tag { border: 0; cursor: pointer; }
 /* 本編にする (🎬) */
-.dr-make-main { flex: none; padding: 0 4px; opacity: .55; }
-.dr-make-main:hover, .dr-make-main:focus-visible { opacity: 1; }
-.dr-short { flex: none; color: var(--muted); font-variant-numeric: tabular-nums; display: none; }
 /* 設定したずれどおりの位置か (✓) / その位置へ寄せている途中か (↻)。グループの色と混ざらないよう、色ではなく記号で見せる */
 .dr-dot { flex: none; width: 1.1em; text-align: center; color: var(--muted); font-size: 12px; line-height: 1; }
+/* ↻ 寄せている途中 (同期の調整の帯の行。'dr-dot is-' + 状態 で付ける) */
 .dr-dot.is-fix { color: var(--text); display: inline-block; animation: dr-spin 1.2s linear infinite; }
 @keyframes dr-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .dr-dot.is-fix { animation: none; } }
-.dr-group { flex: none; max-width: 110px; font-size: 12px; }
-.dr-sub { padding-left: 4px; flex-wrap: wrap; }
+
 /* 補正の操作は 1 行に収める (間と幅を詰める) */
-.dr-sub:has(.dr-step) { gap: 3px; }
-.dr-val { width: 4.2em; text-align: right; }
-.dr-line .dr-step { padding: 0 5px; font-size: 12px; font-variant-numeric: tabular-nums; touch-action: none; user-select: none; }
 /* 基準の行: 補正は 0 に固定 (行の頭の 🔒)。操作は押せない形で薄く */
-.dr-line.is-locked > * { opacity: .4; }
-.dr-val::placeholder { color: var(--text); opacity: 1; }
-.dr-wait.is-waiting { color: #8fd3ff; border-color: #8fd3ff; }
-.dr-reset[hidden] { display: none; }
-.dr-ref-val { font-variant-numeric: tabular-nums; }
-.dr-cand { color: #8fd3ff; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.dr-cand.is-prelim { opacity: .6; font-style: italic; }
 /* 確かさ: ◎ / ○ はそのまま、△ は注意の色 */
-.dr-grade.g1 { color: #f0c36d; }
-.dr-note { color: var(--muted); }
 /* 🚩 開始位置・⏲ 画面タイマー・✕ も 1 行に収める (欄を縮める) */
-.dr-sub:has(.dr-movie-now) { flex-wrap: nowrap; gap: 3px; }
-.dr-movie-label { display: inline-flex; align-items: center; gap: 4px; flex: 0 1 auto; min-width: 0; white-space: nowrap; }
-.dr-movie-now { width: 6em; flex: 0 1 6em; min-width: 3.5em; }
-.dr-sub .dr-here, .dr-sub .dr-clear { flex: none; white-space: nowrap; }
 /* たたんだとき: 番号・ずれ・点だけ */
-.sync-dock.mini .dock-title, .sync-dock.mini .dg-actions, .sync-dock.mini .dr-ref-tag, .sync-dock.mini .dr-make-main, .sync-dock.mini .dr-sub, .sync-dock.mini .dr-name,
-.sync-dock.mini .dr-group, .sync-dock.mini .dr-ref, .sync-dock.mini .dg-seek, .sync-dock.mini .dg-head select,
-.sync-dock.mini .dg-head button, .sync-dock.mini .dg-note, .sync-dock.mini .dg-audio-result, .sync-dock.mini .dg-tl, .sync-dock.mini .dg-count { display: none; }
-.sync-dock.mini .dr-short { display: inline; flex: 1 1 auto; text-align: right; }
-.sync-dock.mini .dock-body { padding: 4px; }
 
 /* 📃 再生リストに入れる (枠のバーや一覧の 📃 で開く) */
 dialog.pl-pick-dialog { width: min(420px, calc(100% - 32px)); }
@@ -2004,6 +1945,8 @@ dialog.info-dialog::backdrop { background: rgba(0, 0, 0, .15); }
 .info-n { text-align: right; }
 .info-sync { color: var(--muted); white-space: nowrap; }
 .info-sync.ok { color: var(--text); }
+/* アーカイブ同期が使えない (実験的な機能が OFF・リリース版で同期のコードが無い) ときは、列ごと隠す (HAKO-51) */
+body.sync-off .info-sync, body.sync-off .info-table th[data-i18n="info.colSync"] { display: none; }
 .info-note { margin: 0; padding: 8px 14px 12px; color: var(--muted); font-size: 11px; }
 
 /* ℹ 枠の情報の「操作」の列: 音の左右 (L / C / R)・📌・🔖・📃・チャンネル登録・高評価 */
@@ -2038,3 +1981,163 @@ a.info-channel:hover, a.info-channel:focus-visible { text-decoration: underline;
 .info-add:disabled { opacity: .35; cursor: default; }
 a.info-title:hover, a.info-title:focus-visible { color: var(--text); text-decoration: underline; }
 
+
+/* ---------- 〰 波形 (画面の下の帯。同期のグループの配信全編の音の波形。枠の並びはこの分だけ縦に縮む。HAKO-39) ---------- */
+body.wave-open .grid { height: calc(100% - 36px - var(--wave-h, 0px)); }
+body.grid-fs.wave-open .grid { height: calc(100% - var(--wave-h, 0px)); }
+.wave-strip {
+  --wv-band: rgba(255, 255, 255, 0.08);
+  --wv-now: #ffffff;
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 21;
+  height: var(--wave-h, 0px);
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+  border-top: 1px solid var(--line);
+  font-size: 13px;
+}
+.wave-strip[hidden] { display: none; }
+/* Shift / Ctrl を押しながら行を押して選ぶので、名前などの文字は選ばれないようにする */
+.wave-strip { user-select: none; }
+.wv-head { display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 8px; flex: none; }
+.wv-title { font-weight: 600; }
+.wv-modes { display: inline-flex; gap: 2px; }
+.wv-progress { color: var(--muted); font-size: 12px; min-width: 6em; }
+.wv-hint { color: var(--muted); font-size: 12px; margin-left: auto; }
+.wv-ruler-mode { font-size: 11px; padding: 0 6px; min-height: 20px; }
+.wv-ruler-mode.on { color: #fff; border-color: var(--on); background: var(--on-bg); }
+.wv-resize { position: absolute; left: 0; right: 0; top: -4px; height: 8px; cursor: ns-resize; z-index: 1; }
+.wv-resize:hover { background: rgba(255, 255, 255, 0.12); }
+body.wave-resizing iframe { pointer-events: none; }
+body.wave-resizing { cursor: ns-resize; user-select: none; }
+.wave-strip:focus { outline: none; }
+/* 節 (グループごと)。見出しは同期の調整パネルのグループの見出しと同じ並び */
+.wv-body { flex: 1; min-height: 0; overflow-y: auto; }
+.wv-sec { border-top: 1px solid var(--line); }
+.wv-sec-head { display: flex; align-items: center; gap: 6px; height: 32px; padding: 0 8px; background: rgba(255, 255, 255, 0.03); }
+.wv-sec-head button, .wv-sec-head select { font-size: 12px; min-height: 22px; }
+.wv-fold { padding: 0 4px; min-width: 22px; }
+.wv-num-dot { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 50%; background: var(--g); color: #1a1a1a; font-size: 12px; font-weight: 700; flex: none; }
+.wv-count { color: var(--muted); font-size: 12px; }
+.wv-sec-title { font-weight: 600; font-size: 12px; }
+.wv-sec-note { color: var(--muted); font-size: 12px; padding: 2px 10px 4px; }
+.wv-sec-note[hidden] { display: none; }
+/* 目盛りは押せることが分かるように、地の色を付け、乗せると明るくする */
+.wave-strip { --wv-ruler-bg: rgba(255, 255, 255, 0.07); }
+.wv-ruler { display: flex; align-items: stretch; height: 24px; flex: none; border-top: 1px solid var(--line); }
+.wv-ruler-canvas { flex: 1; min-width: 0; height: 100%; cursor: pointer; touch-action: none; border-radius: 3px; }
+.wv-ruler-canvas:hover { --wv-ruler-bg: rgba(255, 255, 255, 0.14); }
+/* 行: 左に調整 (パネルの行と同じ)、右に波 */
+/* 1 行。列の幅は固定 (名前の長さや補正の桁で、縦の罫線から右の位置が動かないように) */
+.wave-strip { --wv-lw: 270px; --wv-tw: 262px; }
+.wv-row { position: relative; display: flex; align-items: stretch; height: 51px; border-top: 1px solid var(--line); }
+.wv-label { display: flex; align-items: center; gap: 5px; width: var(--wv-lw); box-sizing: border-box; flex: none; padding: 0 6px; overflow: hidden; cursor: grab; font-size: 12px; white-space: nowrap; }
+.wv-ruler-label { width: calc(var(--wv-lw) + var(--wv-tw) + var(--wv-mw)); border-right: 1px solid var(--line); }
+/* 拡大率は、右に寄せる */
+.wv-ruler-label { justify-content: flex-end; cursor: default; }
+.wv-speed { font-size: 12px; min-height: 22px; }
+/* ✨ 自動補正の箱: グループの見出しの行の残りに 1 行で収める (帯の高さ・行の位置を変えない)。
+   色はパネルの .dg-audio-result と同じ。切れた文と確かさの説明は乗せたときの説明に */
+/* グループの見出し (2 段)。上の段: どのグループか・✨ | ⏸・つまみ・速度・グループの音・取得率。下の段: ✨ の様子 → ボタン (右寄せ) */
+.wave-strip { --wv-idw: 236px; }
+.wv-head-id { display: flex; align-items: center; gap: 6px; width: var(--wv-idw); flex: none; min-width: 0; }
+.wv-sec-head .wv-audio-sync { flex: none; width: 104px; padding: 0 4px; }
+.wv-regroup { font-size: 12px; min-height: 22px; }
+.wv-head-sep { flex: none; width: 1px; height: 18px; background: var(--line); }
+.wv-seek-box { flex: 1; min-width: calc(90px + 9em); display: flex; align-items: center; gap: 6px; }
+.wv-seek { flex: 1; min-width: 90px; }
+.wv-seek-time { flex: none; min-width: 4.2em; font-size: 12px; font-variant-numeric: tabular-nums; text-align: right; }
+.wv-seek-time.is-end { color: var(--muted); text-align: left; }
+.wv-head-msg { height: 28px; padding-left: calc(8px + var(--wv-idw) + 6px); background: rgba(255, 255, 255, 0.02); }
+/* 上部バーの小さいつまみは、帯を出している間は隠す (帯のグループごとのつまみで動かす) */
+.wv-audio-box { flex: 1; min-width: 0; display: flex; }
+.wv-group-audio.on { color: #fff; border-color: var(--on); background: var(--on-bg); }
+.wv-sec-head .wv-progress { min-width: 5.5em; text-align: right; }
+.dga-try.on { color: #fff; border-color: #8fd3ff; background: #1d3550; }
+/* 拡大しているときに、今の再生位置を変えずに見る範囲を動かすスクロールバー (目盛りの下。いつも場所を取る) */
+.wv-scroll { display: flex; height: 10px; flex: none; }
+.wv-scroll-pad { width: calc(var(--wv-lw) + var(--wv-tw) + var(--wv-mw)); flex: none; }
+.wv-scroll-track { position: relative; flex: 1; min-width: 0; margin: 1px 0; background: rgba(255, 255, 255, 0.05); border-radius: 4px; cursor: pointer; touch-action: none; }
+.wv-scroll-thumb { position: absolute; top: 0; bottom: 0; min-width: 8px; background: rgba(255, 255, 255, 0.28); border-radius: 4px; cursor: grab; }
+.wv-scroll-thumb:hover { background: rgba(255, 255, 255, 0.4); }
+.wv-scroll-now { position: absolute; top: 0; bottom: 0; width: 1px; background: #fff; pointer-events: none; }
+.wv-audio-box .dg-audio-result { flex: 1; min-width: 0; flex-direction: row; align-items: center; gap: 8px; height: 24px; padding: 0 6px; box-sizing: border-box; overflow: hidden; white-space: nowrap; }
+.wv-audio-box .dga-title { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: 12px; }
+.wv-audio-box .dga-legend { display: none; }
+.wv-audio-box .dga-suspect { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.wv-audio-box .dga-choice { flex: none; flex-direction: row; gap: 8px; font-size: 12px; }
+.wv-audio-box .dga-buttons { flex: none; margin-left: auto; gap: 4px; }
+/* ボタンの決まった置き場所 (空いていても幅を取る): a 決める側 / b 測り直す・試す前に戻す / c やめる・閉じる */
+.wv-audio-box .dga-slot { display: flex; flex: none; }
+.wv-audio-box .dga-slot.a { width: 92px; }
+.wv-audio-box .dga-slot.b { width: 104px; }
+.wv-audio-box .dga-slot.c { width: 64px; }
+.wv-audio-box .dga-slot button { flex: 1; min-height: 20px; padding: 0 4px; }
+.wv-audio-box .dga-choice button { min-height: 20px; }
+/* パネルでは置き場所を作らない (今までどおり、決める側を右端に) */
+.dga-slot { display: contents; }
+.wv-zoombox { display: inline-flex; align-items: center; gap: 2px; }
+.wv-zoombox button { font-size: 12px; min-height: 22px; width: 22px; padding: 0 !important; }
+/* 全体表示・実際の時刻に戻すは、見出しのボタンと同じ大きさ */
+.wv-ruler-label .wv-reset, .wv-zoombox .wv-fit { width: auto; font-size: 12px; min-height: 22px; padding: 0 7px !important; margin-right: 4px; }
+.wv-zoom { width: 90px; margin: 0 2px; }
+.wv-thumb { width: 44px; height: 25px; object-fit: cover; border-radius: 3px; flex: none; background: #000; }
+.wv-num { flex: none; width: 1.7em; text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; }
+.wv-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.wv-label button { font-size: 11px; min-height: 20px; }
+.wv-refbtn { flex: none; width: 22px; padding: 0 !important; }
+.wv-refbtn.on { opacity: 1; }
+.wv-refbtn.is-none { visibility: hidden; }
+.wv-refmark { flex: none; width: 2.8em; display: flex; justify-content: center; }
+.wv-ref { flex: none; font-size: 11px; padding: 0 4px; border-radius: 3px; color: #1a1a1a; background: #f5b942; }
+/* 罫線の右: 経過時間・補正・✓ / ↻・止めて待つ・元に戻す */
+.wv-tune { display: flex; align-items: center; gap: 4px; width: var(--wv-tw); box-sizing: border-box; flex: none; padding: 0 6px; border-left: 1px solid var(--line); border-right: 1px solid var(--line); overflow: hidden; font-size: 12px; white-space: nowrap; }
+.wv-tune button { font-size: 11px; min-height: 22px; }
+.wv-elapsed { flex: none; width: 4.8em; text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; }
+.wv-audio, .wv-wait, .wv-undo, .wv-slot { flex: none; width: 26px; padding: 0 !important; }
+.wv-audio.on { color: #fff; border-color: var(--on); background: var(--on-bg); }
+.wv-tune .dr-dot { width: 14px; }
+/* 基準の行: 罫線から右に半透明の覆い (触れない) */
+/* 🎬 同時視聴のグループ: 罫線の右に 🎬 の列 (本編の印・🚩 開始位置・⏲ 画面タイマー・✕) を足す (HAKO-47) */
+.wave-strip { --wv-mw: 0px; }
+.wv-sec.is-movie { --wv-mw: 392px; }
+.wv-movie-col { display: flex; align-items: center; gap: 4px; width: var(--wv-mw); box-sizing: border-box; flex: none; padding: 0 6px; border-right: 1px solid var(--line); overflow: hidden; white-space: nowrap; }
+.wv-movie-col button { flex: none; font-size: 11px; min-height: 22px; padding: 0 6px; }
+.wv-movie-col .wv-main { width: 58px; padding: 0 !important; }
+.wv-movie-col .wv-main.on { color: #cfc6ff; border-color: #7f77dd; background: #2c2550; }
+.wv-movie-col .wv-clear { width: 24px; padding: 0 !important; }
+.wv-timer { flex: 1; min-width: 0; width: 70px; font-size: 12px; }
+.wv-off.is-none { color: var(--muted); }
+.wv-movie-msg { color: #f0c36d; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.wv-cover { position: absolute; top: 0; bottom: 0; left: calc(var(--wv-lw) + var(--wv-tw)); right: 0; background: rgba(20, 20, 24, 0.6); }
+.wv-progress.is-measuring { color: var(--text); }
+.wv-sec.is-empty .wv-sec-title { color: var(--muted); font-weight: 400; }
+.wv-row.is-dragging { opacity: 0.5; }
+.wv-row.drop-before { box-shadow: inset 0 2px 0 var(--on); }
+.wv-row.drop-after { box-shadow: inset 0 -2px 0 var(--on); }
+.wv-sec.drop-into { outline: 2px solid var(--on); outline-offset: -2px; }
+/* 補正: −99999.99 まで同じ幅 (入力欄も同じ幅) */
+.wv-off, .wv-off-input { flex: none; width: 6.6em; box-sizing: border-box; padding: 0 4px !important; font-variant-numeric: tabular-nums; text-align: right; font-size: 12px; }
+.wv-wait.is-waiting { color: #fff; border-color: var(--on); background: var(--on-bg); }
+.wv-why { color: var(--muted); overflow: hidden; text-overflow: ellipsis; }
+.wv-nowave { flex: 1; display: flex; align-items: center; padding: 0 10px; color: var(--muted); font-size: 12px; }
+.wv-row:has(.wv-canvas:not(.is-ref)) :is(.wv-label, .wv-tune):hover { background: rgba(255, 255, 255, 0.05); }
+.wv-row.is-selected { background: var(--on-bg); }
+.wv-row.is-selected .wv-label { box-shadow: inset 3px 0 0 var(--on); }
+.wv-canvas { flex: 1; min-width: 0; height: 100%; cursor: ew-resize; touch-action: none; }
+.wv-canvas.is-ref { cursor: grab; }
+/* 下見用のプレイヤー (見えない場所に置く。操作も読み上げもしない) */
+.wave-scan-box { position: fixed; left: -4000px; top: 0; width: 320px; pointer-events: none; }
+.wave-scan-box iframe { display: block; width: 320px; height: 180px; border: 0; }
+/* 画面のタイマーを探す用のプレイヤー (画面の外。HAKO-49) */
+.timer-scan-box { position: fixed; left: -4000px; top: 0; width: 640px; pointer-events: none; }
+.timer-scan-box iframe { display: block; width: 640px; height: 360px; border: 0; }
+/* 🎬 の列の 🔍 (探す・探している秒数・作品の一覧) */
+.wv-scan { display: flex; align-items: center; flex: none; width: 118px; }
+.wv-scan .wv-scan-btn { width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.wv-scan .wv-scan-btn.is-busy { color: var(--muted); }
+.wv-scan .wv-works { width: 100%; font-size: 11px; min-height: 22px; }

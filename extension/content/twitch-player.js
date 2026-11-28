@@ -129,7 +129,7 @@
     } else if (d.hakomado === 'measure') {
       Mix.measure(!!d.on, !!d.muted);
     } else if (d.hakomado === 'mix') {
-      Mix.set(d.pan, d.gain, d.delay);
+      Mix.set(d.pan, d.gain, d.delay, d.level);
     } else if (d.hakomado === 'speed' && Number.isFinite(Number(d.r))) {
       base = Math.min(SPEED_MAX, Math.max(SPEED_MIN, Number(d.r)));
       applyRate();
