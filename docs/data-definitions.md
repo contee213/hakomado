@@ -42,6 +42,7 @@
 | キー | 中身 | 種類 | 書くところ | 詳細 |
 | --- | --- | --- | --- | --- |
 | `gridTabs` | 開いているマルチビュー画面のタブ | 一時 | `background.js` | [other.md#gridtabs](data-definitions/other.md#gridtabs) |
+| `timerScanMiss` | 画面のタイマーが見つからなかった配信 (🎬) | 一時 | `timer-scan.js` | [other.md#timerscanmiss](data-definitions/other.md#timerscanmiss) |
 | `statusShared` | 配信予定のアドオンの結果・最後に取りに行った時刻 | 取得 | `favorites.js` | [other.md#statusshared](data-definitions/other.md#statusshared) |
 | `twvod:<番号>` | Twitch の VOD の開始時刻・題名 | 取得 | `favorites.js` | [other.md#twvod](data-definitions/other.md#twvod) |
 

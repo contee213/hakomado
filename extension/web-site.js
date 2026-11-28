@@ -92,6 +92,20 @@ const WebSite = (() => {
   }
 
   /**
+   * 動画の要素 r の中で、映像が実際に映っている部分。要素の比が映像と違うと、映像は真ん中に縮めて置かれ、残りは黒い余白になる
+   * (object-fit が contain・scale-down。Prime Video は縦に長い要素の真ん中に映す)。映像の大きさが分からない、
+   * または引き伸ばし・切り抜き (fill・cover) なら要素のまま
+   */
+  function pictureRect(r, vw, vh, fit) {
+    if (!(vw > 0 && vh > 0 && r.width > 0 && r.height > 0) || (fit !== 'contain' && fit !== 'scale-down')) return r;
+    let s = Math.min(r.width / vw, r.height / vh);
+    if (fit === 'scale-down') s = Math.min(s, 1);
+    const width = vw * s;
+    const height = vh * s;
+    return { x: r.x + (r.width - width) / 2, y: r.y + (r.height - height) / 2, width, height };
+  }
+
+  /**
    * 動画が画面のこれより小さいときは広げない (動画のページの中の、おすすめの小さな試聴など)。
    * 枠が狭いと、サイトによっては本編の動画も小さく置かれる (画面の 15% ほど) ので、それより小さくしておく
    */
@@ -100,5 +114,5 @@ const WebSite = (() => {
   /** 動画 vr が、幅 w・高さ h の画面で、広げる値打ちのある大きさか */
   const bigEnough = (vr, w, h) => w > 0 && h > 0 && vr.width * vr.height >= MIN_SHARE * w * h;
 
-  return { siteDomain, pattern, frameRules, CSP_PROTECTIVE, fitZoom, bigEnough };
+  return { siteDomain, pattern, frameRules, CSP_PROTECTIVE, fitZoom, pictureRect, bigEnough };
 })();

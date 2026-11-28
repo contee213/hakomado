@@ -367,6 +367,19 @@ body.bars-off .tile.is-web .player-slot { top: 0; }
 .twitch-ask button { font: inherit; padding: 6px 14px; border-radius: 6px; border: 0; background: #9146ff; color: #fff; cursor: pointer; }
 .twitch-ask p { margin: 0; font-size: 12px; opacity: 0.8; }
 .empty-title { color: var(--muted); font-size: 12px; }
+/* 説明付きの空き枠の説明 (共有コードで受け取ったもの。HAKO-49) */
+.empty-note {
+  max-width: min(520px, 100%);
+  padding: 6px 12px;
+  border: 1px solid rgba(255, 196, 0, 0.45);
+  border-radius: 6px;
+  background: rgba(255, 196, 0, 0.1);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
 .empty .url-input {
   width: min(420px, 100%);
   background: #000;
@@ -381,6 +394,7 @@ body.bars-off .tile.is-web .player-slot { top: 0; }
 @container (max-height: 190px) {
   .empty { gap: 4px; padding: 30px 8px 6px; }
   .empty-title, .empty .error:empty { display: none; }
+  .empty-note { padding: 2px 6px; font-size: 12px; }
   .empty .url-input { padding: 3px 6px; font-size: 12px; }
   .empty-actions button { padding: 1px 7px; font-size: 12px; }
 }
@@ -1541,6 +1555,12 @@ dialog.share-dialog { width: min(600px, calc(100% - 32px)); }
 .share-preview img { display: block; width: 100%; height: 100%; object-fit: contain; }
 .share-preview img:not([src]) { visibility: hidden; }
 .share-name { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.share-notes { display: flex; flex-direction: column; gap: 4px; }
+.share-notes .settings-note { margin: 0; }
+.share-notes-rows { display: flex; flex-direction: column; gap: 4px; }
+.share-note-row { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.share-note-row > span { flex: 0 0 auto; max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.share-note-row > input { flex: 1 1 auto; min-width: 0; }
 .share-check { display: flex; align-items: center; gap: 6px; font-size: 13px; width: fit-content; }
 .share-name > span { flex: none; font-weight: 600; }
 .share-name input { flex: 1 1 auto; min-width: 0; background: #000; color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; }
@@ -2080,7 +2100,7 @@ body.wave-resizing { cursor: ns-resize; user-select: none; }
 /* 基準の行: 罫線から右に半透明の覆い (触れない) */
 /* 🎬 同時視聴のグループ: 罫線の右に 🎬 の列 (本編の印・🚩 開始位置・⏲ 画面タイマー・✕) を足す (HAKO-47) */
 .wave-strip { --wv-mw: 0px; }
-.wv-sec.is-movie { --wv-mw: 268px; }
+.wv-sec.is-movie { --wv-mw: 392px; }
 .wv-movie-col { display: flex; align-items: center; gap: 4px; width: var(--wv-mw); box-sizing: border-box; flex: none; padding: 0 6px; border-right: 1px solid var(--line); overflow: hidden; white-space: nowrap; }
 .wv-movie-col button { flex: none; font-size: 11px; min-height: 22px; padding: 0 6px; }
 .wv-movie-col .wv-main { width: 58px; padding: 0 !important; }
@@ -2109,3 +2129,11 @@ body.wave-resizing { cursor: ns-resize; user-select: none; }
 /* 下見用のプレイヤー (見えない場所に置く。操作も読み上げもしない) */
 .wave-scan-box { position: fixed; left: -4000px; top: 0; width: 320px; pointer-events: none; }
 .wave-scan-box iframe { display: block; width: 320px; height: 180px; border: 0; }
+/* 画面のタイマーを探す用のプレイヤー (画面の外。HAKO-49) */
+.timer-scan-box { position: fixed; left: -4000px; top: 0; width: 640px; pointer-events: none; }
+.timer-scan-box iframe { display: block; width: 640px; height: 360px; border: 0; }
+/* 🎬 の列の 🔍 (探す・探している秒数・作品の一覧) */
+.wv-scan { display: flex; align-items: center; flex: none; width: 118px; }
+.wv-scan .wv-scan-btn { width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.wv-scan .wv-scan-btn.is-busy { color: var(--muted); }
+.wv-scan .wv-works { width: 100%; font-size: 11px; min-height: 22px; }

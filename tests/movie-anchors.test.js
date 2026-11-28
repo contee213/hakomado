@@ -101,3 +101,101 @@ test('読み込むとき: 本編の印だけの項目も読む。見当の印は
   assert.equal(M.isGuess(vid(3)), true);
   assert.equal(M.isMain(vid(3)), true);
 });
+
+test('画面のタイマーの区間 (HAKO-49): 作品の一覧・未定なら 1 本目を入れる・選ぶ・手で決め直すと選んだ印を外す', async () => {
+  const { M, env } = setup();
+  await M.load();
+  // 1 本目は 608.54 秒に 00:00:00 から、途中で止めて 1000 秒に 00:06:00 から続き、2 本目は 2096.65 秒に 00:00:00 から
+  await M.addSections(vid(1), [
+    [608.543, 0],
+    [1000, 360],
+  ]);
+  await M.addSections(vid(1), [[2096.65, 0]]);
+  assert.deepEqual(plain(M.works(vid(1))), [
+    { n: 1, at: 608.54, zero: 608.54 },
+    { n: 2, at: 2096.65, zero: 2096.65 },
+  ]);
+  assert.equal(M.get(vid(1)), 608.54, '未定だったので 1 本目の 0:00 が入る');
+  assert.equal(M.selected(vid(1)), 1);
+  assert.equal(M.select(vid(1), 2), 2096.65);
+  assert.equal(M.get(vid(1)), 2096.65);
+  assert.equal(M.selected(vid(1)), 2);
+  assert.equal(M.select(vid(1), 9), null, '無い作品は選べない');
+  await M.set(vid(1), 700);
+  assert.equal(M.selected(vid(1)), null, '手で決め直したら選んだ印は外す');
+  assert.equal(M.works(vid(1)).length, 2, '見つけた区間は残す');
+  const saved = env.chrome.storage.local._dump().movieAnchors[vid(1)];
+  assert.deepEqual(plain(saved.w), [
+    [608.54, 0],
+    [1000, 360],
+    [2096.65, 0],
+  ]);
+});
+
+test('画面のタイマーの区間: 00:00:00 から始まらないタイマー・決まっている位置は変えない・おかしな値は捨てる', async () => {
+  const { M } = setup({ movieAnchors: { [vid(2)]: { s: 10, at: 1 } } });
+  await M.load();
+  // 26:20 (1580 秒) から動き出した → 本編の 0:00 は 1832.3 − 1580 = 252.3
+  await M.addSections(vid(1), [[1832.3, 1580], ['x', 1], [-5, 0], [5, -1], [3]]);
+  assert.deepEqual(plain(M.works(vid(1))), [{ n: 1, at: 1832.3, zero: 252.3 }]);
+  assert.equal(M.get(vid(1)), 252.3);
+  await M.addSections(vid(2), [[500, 0]]);
+  assert.equal(M.get(vid(2)), 10, '手で決めた位置があれば変えない');
+  assert.equal(M.selected(vid(2)), null);
+  await M.addSections('bad', [[1, 0]]);
+  assert.deepEqual(plain(M.works('bad')), []);
+});
+
+test('区間での読み替え (HAKO-49 STEP3): 途中でタイマーを止めた作品・止まっている間は本編の時刻が止まる', () => {
+  const { M } = setup();
+  // 600 秒で 0:00 から動き出し、本編 300 秒 (配信 900 秒) で止め、配信 1000 秒で 300 から再開
+  const secs = [
+    [600, 0],
+    [1000, 300],
+  ];
+  assert.equal(M.toArchive(secs, 0), 600);
+  assert.equal(M.toArchive(secs, 299), 899);
+  assert.equal(M.toArchive(secs, 300), 1000, '止まった値からは、再開した所 (止まっている間は飛ばす)');
+  assert.equal(M.toArchive(secs, 400), 1100);
+  assert.equal(M.toArchive(secs, -10), 590, '始まる前');
+  assert.deepEqual(plain(M.toMovie(secs, 700)), { t: 100, stop: null });
+  assert.deepEqual(plain(M.toMovie(secs, 950)), { t: 300, stop: { until: 1000, v: 300 } }, '止まっている間');
+  assert.deepEqual(plain(M.toMovie(secs, 1050)), { t: 350, stop: null });
+  assert.deepEqual(plain(M.toMovie(secs, 500)), { t: -100, stop: null });
+});
+
+test('区間での読み替え: 選んでいる作品の区間と次の作品の始まり。作品を選んでいなければ null', async () => {
+  const { M } = setup();
+  await M.load();
+  await M.addSections(vid(1), [
+    [600, 0],
+    [1000, 300],
+    [2500, 0],
+    [4000, 0],
+  ]);
+  assert.deepEqual(plain(M.plan(vid(1))), { secs: [[600, 0], [1000, 300]], next: 2500, k: 1 });
+  M.select(vid(1), 3);
+  assert.deepEqual(plain(M.plan(vid(1))), { secs: [[4000, 0]], next: null, k: 3 });
+  await M.set(vid(1), 10);
+  assert.equal(M.plan(vid(1)), null, '手で決め直したら区間は使わない');
+  assert.equal(M.plan(vid(2)), null);
+});
+
+test('共有コードの区間: 受け取った区間で置き換え、選んだ作品の 0:00 を本編の位置にする。読み出しは写し (HAKO-49 STEP6)', async () => {
+  const { M } = setup({ movieAnchors: { [vid(1)]: { s: 99, g: 1, w: [[50, 0]], k: 1, at: 1 } } });
+  await M.load();
+  await M.setSections(vid(1), [[2096.65, 0], [608.54, 0], [640, 20]], 2);
+  assert.equal(M.get(vid(1)), 2096.65, '2 本目の作品の 0:00');
+  assert.equal(M.isGuess(vid(1)), false);
+  const sec = M.sections(vid(1));
+  assert.deepEqual(plain(sec), { w: [[608.54, 0], [640, 20], [2096.65, 0]], k: 2 });
+  sec.w[0][0] = 1;
+  assert.equal(M.sections(vid(1)).w[0][0], 608.54, '読み出したものを変えても中は変わらない');
+  // 作品の番号がおかしければ選ばない (位置はそのまま)。区間が空なら何もしない
+  await M.setSections(vid(1), [[10, 0]], 5);
+  assert.deepEqual(plain(M.sections(vid(1))), { w: [[10, 0]], k: null });
+  assert.equal(M.get(vid(1)), 2096.65);
+  await M.setSections(vid(1), [], 1);
+  assert.deepEqual(plain(M.sections(vid(1)).w), [[10, 0]]);
+  assert.equal(M.sections(vid(2)), null);
+});

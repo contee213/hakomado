@@ -629,6 +629,14 @@
       if (p && typeof p.setPlaybackQualityRange === 'function' && p.getPlaybackQuality?.() !== 'tiny') p.setPlaybackQualityRange('tiny', 'tiny');
     }, 2000);
   }
+  // 画面のタイマーを探すプレイヤー (hakomado_timer=1) は、指定の画質に固定する (通信量を抑える。HAKO-49)
+  const TIMER_Q = params.get('hakomado_timer') === '1' ? params.get('hakomado_quality') : null;
+  if (TIMER_Q && /^(tiny|small|medium|large|hd720|hd1080)$/.test(TIMER_Q)) {
+    setInterval(() => {
+      const p = player();
+      if (p && typeof p.setPlaybackQualityRange === 'function' && p.getPlaybackQuality?.() !== TIMER_Q) p.setPlaybackQualityRange(TIMER_Q, TIMER_Q);
+    }, 500);
+  }
   // 広告のあとや画質の切り替えで動画要素の速度が戻ることがあるので、ときどき確かめて直す (広告中はそのまま)
   setInterval(() => {
     const v = video();

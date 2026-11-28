@@ -21,7 +21,7 @@ const EXT = path.join(ROOT, 'extension');
 
 /** リリース版で抜く、アーカイブ同期だけが使うファイル (extension/ からの相対) */
 // 波形 (waves.js) は 🎚 音量バランスも使うので残す (HAKO-54)
-const SYNC_FILES = ['sync.js', 'sync-groups.js', 'audio-align.js', 'audio-align-worker.js', 'wave-strip.js'];
+const SYNC_FILES = ['sync.js', 'sync-groups.js', 'audio-align.js', 'audio-align-worker.js', 'wave-strip.js', 'timer-scan.js'];
 /** 同期入りのときに抜く、リリース版だけが使うファイル */
 const OFF_FILES = ['sync-off.js'];
 

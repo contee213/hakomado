@@ -62,7 +62,7 @@ const POST_VIEW = (() => {
     $('parseMsg').textContent = error ? errorText(error) : set ? `${t('count', set.ids.length)} · ${LAYOUTS.find((l) => l.id === set.layoutId).name}${set.name ? ` · ${set.name}` : ''}` : '';
     $('parseMsg').classList.toggle('bad', !!error);
     $('postPreview').hidden = !set;
-    $('postPreview').replaceChildren(set ? layoutPreview(set.layoutId, set.ids) : '');
+    $('postPreview').replaceChildren(set ? layoutPreview(set.layoutId, cellIds(set)) : '');
     $('submit').disabled = !set || sending || (needTurnstile && !turnstileToken);
   }
 

@@ -503,6 +503,11 @@
         <label class="share-name"><span data-i18n="share.nameLabel">名前</span>
           <input type="text" id="shareName" maxlength="40" spellcheck="false" data-i18n-placeholder="share.namePlaceholder" placeholder="なくてもよい (画像には「Hakomado 視聴セット」と出ます)">
         </label>
+        <!-- 説明付きの空き枠 (URL の枠・ファイルの枠はコードに入らない。説明を書くと、その説明の付いた空き枠として入る。HAKO-49) -->
+        <div id="shareNotes" class="share-notes" hidden>
+          <p class="settings-note" data-i18n="share.notesHead">URL の枠・ファイルの枠は、そのままでは入りません。説明を書くと、受け取った人の画面に、その説明の付いた空き枠として入ります</p>
+          <div class="share-notes-rows"></div>
+        </div>
         <div class="settings-tabs share-tabs" role="tablist">
           <button type="button" role="tab" data-stab="image" data-i18n="share.tabImage">🖼 画像</button>
           <button type="button" role="tab" data-stab="link" data-i18n="share.tabLink">🌐 リンク</button>
@@ -889,6 +894,7 @@
         </div>
         <form class="empty">
           <div class="empty-title"></div>
+          <div class="empty-note" hidden></div>
           <input class="url-input" type="text" data-i18n-placeholder="tile.input" placeholder="URL / 動画 ID / @チャンネル名 を貼り付け" spellcheck="false">
           <div class="empty-actions">
             <button type="submit" data-i18n="tile.load">読み込む</button>
@@ -980,6 +986,7 @@
   <script src="web-site.js"></script>
   <script src="local-files.js"></script>
   <script src="wave-strip.js"></script>
+  <script src="timer-scan.js"></script>
   <script src="sync.js"></script>
   <script src="grid.js"></script>
 </body>

@@ -150,6 +150,7 @@ h2 { font-size: 15px; margin: 24px 0 8px; }
 .videos li:hover { background: #222228; }
 .videos li > div { min-width: 0; }
 .videos img { flex: none; border-radius: 4px; object-fit: cover; background: #000; }
+.videos .thumb.note { flex: none; width: 96px; height: 72px; border-radius: 4px; display: grid; place-items: center; background: #3a3320; font-size: 24px; }
 .videos .thumb.twitch { flex: none; width: 96px; height: 72px; border-radius: 4px; display: grid; place-items: center; background: #3a2370; color: #fff; font-size: 12px; }
 .videos a { color: var(--text); font-weight: 700; overflow-wrap: anywhere; text-decoration: none; }
 .videos a:hover { text-decoration: underline; }

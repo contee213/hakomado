@@ -844,8 +844,59 @@ const WaveStrip = (() => {
       Sync.movieTimerCancel(t.i);
     });
     r.clear = mk('button', { type: 'button', class: 'wv-clear', textContent: '✕', title: tr('movieClear'), onclick: (e) => (e.stopPropagation(), Sync.movieClear(t.i), update()) });
-    col.append(r.main, r.here, timer, r.clear);
+    // 🔍 画面のタイマーから本編の位置を探す (YouTube のアーカイブだけ。HAKO-49)
+    r.scan = t.youtube ? mk('span', { class: 'wv-scan' }) : null;
+    if (r.scan) fillScan(r, t);
+    col.append(r.main, r.here, timer, r.clear, r.scan);
     return col;
+  }
+
+  /**
+   * 🎬 の列の 🔍 の欄 (HAKO-49): 探している間は「⏳ n 秒」(押すとやめる)、見つかったら作品の一覧 (選ぶとその作品の 0:00 へ)、
+   * 見つからなければ「見つかりません」(押すと調べ直す)、同時視聴らしいのに見つからなければ「最後まで」(押すと最後まで調べる)
+   */
+  function fillScan(r, t) {
+    const vid = t.vid;
+    const st = TimerScan.stateOf(vid);
+    const works = MovieAnchors.works(vid);
+    const k = MovieAnchors.selected(vid);
+    const key = [st?.status, st?.sec, k, works.map((w) => w.zero).join(',')].join('|');
+    if (r.scanKey === key) return;
+    r.scanKey = key;
+    const el = r.scan;
+    el.replaceChildren();
+    const busy = st && (st.status === 'scanning' || st.status === 'queued');
+    if (works.length && !busy) {
+      const sel = mk('select', { class: 'wv-works', title: tr('timerScanWorksTitle') });
+      if (!k) sel.append(mk('option', { value: '', textContent: tr('timerScanPick') }));
+      for (const w of works) sel.append(mk('option', { value: String(w.n), textContent: tr('timerScanWork', w.n, hms(w.at)), selected: w.n === k }));
+      sel.addEventListener('click', (e) => e.stopPropagation());
+      sel.addEventListener('keydown', (e) => e.stopPropagation());
+      sel.addEventListener('change', (e) => {
+        e.stopPropagation();
+        const n = Number(sel.value);
+        if (n) Sync.movieSelectWork(t.i, n);
+        update();
+      });
+      el.append(sel);
+      return;
+    }
+    let text = '🔍';
+    let title = tr('timerScanTitle');
+    let act = () => TimerScan.request(vid);
+    if (busy) {
+      text = st.status === 'queued' ? tr('timerScanQueued') : tr('timerScanBusy', st.sec);
+      title = tr('timerScanBusyTitle');
+      act = () => TimerScan.cancel(vid);
+    } else if (st?.status === 'ask') {
+      text = tr('timerScanAsk');
+      title = tr('timerScanAskTitle');
+      act = () => TimerScan.request(vid, { full: true });
+    } else if (st?.status === 'none') {
+      text = tr('timerScanNone');
+      title = tr('timerScanNoneTitle');
+    }
+    el.append(mk('button', { type: 'button', class: 'wv-scan-btn' + (busy ? ' is-busy' : ''), textContent: text, title, onclick: (e) => (e.stopPropagation(), act(), update()) }));
   }
 
   // ---------------------------------------------------------------- 行をドラッグ (並べ替え・ほかのグループへ移す)
@@ -1098,6 +1149,11 @@ const WaveStrip = (() => {
           r.main.title = tr(t.main ? (t.mainMarked ? 'movieMainUnsetTitle' : 'movieMainTagTitle') : 'movieMakeMainTitle');
         }
         if (r.here) r.here.classList.toggle('primary-action', t.off == null); // 本編の位置が未定なら目立たせる
+        if (r.scan) {
+          // 本編の位置が未定で、題に同時視聴らしい言葉があれば、自動でタイマーを探し始める (見つからなかった配信は調べ直さない)
+          if (G.movie && G.active && t.movable && t.off == null && TimerScan.hinted(t.title || t.name)) TimerScan.request(t.vid, { auto: true });
+          fillScan(r, t);
+        }
         if (r.clear) r.clear.disabled = t.off == null;
         if (r.dot) {
           const st = t.drift;
