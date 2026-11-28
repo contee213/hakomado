@@ -513,6 +513,8 @@ body.shooting .global-toast { visibility: hidden; }
   background: var(--on-bg);
   color: #fff;
 }
+/* 選んでいる方にキーボードで移ったときも、フォーカスの印が見えるように */
+.seg button.selected:focus-visible { outline: 2px solid #fff; outline-offset: -2px; }
 .bar .index {
   flex: none;
   min-width: 18px;
@@ -1432,8 +1434,8 @@ dialog.settings-dialog { width: min(780px, calc(100% - 32px)); overflow: hidden;
 }
 .tour-steps li.done button { color: #c9d4e2; }
 .tour-steps li.done .tour-step-num { border-color: #4db3ff; color: #4db3ff; }
-.tour-dock .tour-steps li.on button { background: rgba(26, 140, 255, .22); color: #fff; font-weight: 700; }
-.tour-steps li.on .tour-step-num { border-color: #1a8cff; background: #1a8cff; color: #fff; }
+.tour-dock .tour-steps li.on button { background: var(--on-bg); color: #fff; font-weight: 700; } /* 今のステップ = 選択中 (デザインガイド 7 章) */
+.tour-steps li.on .tour-step-num { border-color: var(--on); background: var(--on); color: #fff; }
 .tour-row { display: flex; flex-direction: column; align-items: stretch; gap: 6px; padding-top: 10px; border-top: 1px solid #4c525e; }
 .tour-nav { display: flex; align-items: center; gap: 8px; }
 .tour-nav .primary { flex: 1 1 auto; }
@@ -1444,7 +1446,7 @@ dialog.settings-dialog { width: min(780px, calc(100% - 32px)); overflow: hidden;
 .tour-dock .tour-skip { align-self: center; padding: 4px 8px; font-size: 13px; }
 .tour-dock .tour-skip .tour-label-stack { justify-items: center; }
 /* 主ボタンの強調はほかと同じ 1 種類 (デザインガイド 4 章) */
-:is(.tour-dock, .tour-hero-nav) .primary { border-color: var(--on); background: var(--on-bg); color: #fff; }
+:is(.tour-dock, .tour-hero-nav) .primary, :is(.tour-dock, .tour-hero-nav) .primary:hover { border-color: var(--on); background: var(--on-bg); color: #fff; }
 /* 最後の「自動再生をはじめる」: 明るくしたボタンと同じように光らせて誘う */
 :is(.tour-dock, .tour-act-nav) .primary.action { animation: tour-btn 1.2s ease-in-out infinite; }
 /* 最後の吹き出しの「自動再生をはじめる」は右寄せ */

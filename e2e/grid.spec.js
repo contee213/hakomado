@@ -1412,6 +1412,8 @@ test.describe('色・ボタン・言葉 (HAKO-61)', () => {
     await skipTour(page);
     await expect(page.locator('#cmFilter')).toHaveAttribute('placeholder', '名前・@チャンネル名・グループ・パックで絞り込み');
     await expect(page.locator('#favEmptySubs')).toHaveText('登録チャンネルから選ぶ');
+    // 🎚 の説明は「名前: 説明」。キーを書く場所に L / C / R (自動再生・クルーズ・繰り返しのキー) を書かない
+    expect(await page.locator('.tile .mix-btn').first().getAttribute('title')).toMatch(/^音の調整: (?!.*L \/ C \/ R)/);
   });
 });
 

@@ -460,7 +460,6 @@ const VolumeBalance = (() => {
     const auto = el.querySelector('.vol-auto');
     auto.classList.toggle('on', c.auto);
     auto.setAttribute('aria-pressed', String(!!c.auto)); // ON/OFF を読み上げに伝える (デザインガイド 4 章)
-    auto.setAttribute('aria-pressed', String(c.auto));
     const sync = (cls, v, disabled = false) => {
       const range = el.querySelector(`.${cls}`);
       if (document.activeElement !== range) range.value = String(pct(v));
@@ -491,7 +490,6 @@ const VolumeBalance = (() => {
       const isFocus = c.focus === i;
       star.classList.toggle('on', isFocus);
       star.setAttribute('aria-pressed', String(isFocus)); // ON/OFF を読み上げに伝える (デザインガイド 4 章)
-      star.setAttribute('aria-pressed', String(isFocus));
       star.disabled = !ok;
       star.title = ok ? tr(isFocus ? 'volStarOffTitle' : 'volStarTitle') : tr('volNoMix');
       const mute = row.querySelector('.vol-mute');

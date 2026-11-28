@@ -3822,7 +3822,6 @@ function setupLayoutPicker() {
     setToggle(star, fav);
     star.textContent = fav ? '★' : '☆';
     star.title = tr(fav ? 'layoutFavRemove' : 'layoutFavAdd');
-    star.setAttribute('aria-pressed', String(fav));
     star.addEventListener('click', () => {
       toggleLayoutFav(l.id);
       renderTab();
@@ -9049,7 +9048,9 @@ async function renderChannelManage() {
   const ids = new Set(favs.map((f) => f.channelId));
   for (const id of cmSelected) if (!ids.has(id)) cmSelected.delete(id); // もう無いもの
   const q = document.getElementById('cmFilter').value.trim().toLowerCase();
-  const hit = (f) => [f.name, f.nameJa, f.handle, f.group, f.pack].some((s) => String(s ?? '').toLowerCase().includes(q));
+  // パックは、行に出している名前 (同梱のチャンネルは「ホロライブ (同梱版)」、自分で足したものは「自分で追加」) でも当てる
+  const packLabel = (f) => (f.preset ? tr('packBuiltin') : f.pack || tr('cmMine'));
+  const hit = (f) => [f.name, f.nameJa, f.handle, f.group, f.pack, packLabel(f)].some((s) => String(s ?? '').toLowerCase().includes(q));
   cmShown = (q ? favs.filter(hit) : favs)
     .map((f, i) => ({ f, i }))
     .sort((a, b) => cmOrder(a.f) - cmOrder(b.f) || a.i - b.i)

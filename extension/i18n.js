@@ -85,7 +85,7 @@ const MESSAGES = {
   sep: ['、', ', '],
   andMore: [' ほか {0} 個', ' and {0} more'],
   autoReplaceConfirm: [
-    '自動再生を ON にすると、自分で入れた枠 {0} 個 ({1}) が配信中の配信に置き換わります。続けますか？\n(キャンセルすると、枠はそのままで自動再生は OFF に戻ります)',
+    '自動再生を ON にすると、自分で入れた枠 {0} 個 ({1}) が配信中のチャンネルの配信に置き換わります。続けますか？\n(キャンセルすると、枠はそのままで自動再生は OFF に戻ります)',
     'Turning on auto play replaces {0} tiles you set yourself ({1}) with live streams. Continue?\n(Cancel keeps the tiles as they are and turns auto play back off)',
   ],
   autoReplaceCanceled: ['自動再生を OFF に戻しました (枠はそのままです)', 'Auto play is off again (the tiles were left as they were)'],
@@ -148,7 +148,7 @@ const MESSAGES = {
 
   // チャンネル・ピックアップ
   secLive: ['● 配信中', '● Live'],
-  secUpcoming: ['予定', 'Upcoming'],
+  secUpcoming: ['配信予定', 'Upcoming'],
   secOther: ['その他', 'Others'],
   secAll: ['すべて', 'All'],
   favNoMatch: ['「{0}」に一致するチャンネルはありません。', 'No channels match "{0}".'],
@@ -1309,7 +1309,7 @@ const HTML_EN = {
 <li>Each row of “ℹ️ Tile info” (<kbd>I</kbd>): left/right audio (L / C / R) / 📌 pickup / 🔖 watch later / 📃 add to a playlist / subscribe / 👍 like. Click a title to open that video on YouTube in a new tab</li>
 <li>🎚 makes that tile heard from the left, center or right and changes its volume (0–200%). You can also change left/right with L / C / R in “ℹ️ Tile info”. On a live stream, “Audio delay” delays only that tile’s audio (the picture stays as it is; for a collab whose voices come earlier than the other tiles)</li>
 <li>“⛶” (<kbd>Shift</kbd> + <kbd>F</kbd>) goes fullscreen with all tiles. Move the mouse to the top edge to show the bar</li>
-<li>“🔁 Repeat” (<kbd>R</kbd>) makes every tile’s video or archive start over when it reaches the end (not live streams or watch later queue tiles; auto play tiles also repeat instead of moving on)</li>
+<li>“Repeat” (<kbd>R</kbd>) makes every tile’s video or archive start over when it reaches the end (not live streams or watch later queue tiles; auto play tiles also repeat instead of moving on)</li>
 <li>“ℹ️” (<kbd>I</kbd>) lists each tile’s type (live, archive, video), stream times, current viewers, views and whether it can be archive-synced</li>
 </ul>`,
   'helpPage.auto': `<p>Turn on “Auto play” (<kbd>L</kbd>) to lay out every live channel. After that, every minute, tiles are added for streams that start and removed for streams that end.</p>

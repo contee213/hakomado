@@ -88,3 +88,18 @@ test('_locales: manifest.json の __MSG_…__ が日本語・英語の両方に�
     for (const k of keys) assert.ok(msgs[k]?.message, `_locales/${lang} に ${k} が無い`);
   }
 });
+
+test('日本語の画面の言葉はデザインガイド 8・9 章どおり (配信の状態は「配信中」「配信予定」、🔁・📥 の使い方。HAKO-61)', () => {
+  const env = load(['i18n.js']);
+  const messages = env.get('MESSAGES');
+  // grid.html はコメントを除いた画面の文言、i18n.js は日本語の側だけを見る
+  const html = readExt('grid.html').replace(/<!--[\s\S]*?-->/g, '');
+  const ja = [html, ...Object.values(messages).map(([j]) => j)].join('\n');
+  const bad = [
+    [/ライブ配信|ライブ中|配信前/, '「配信中」「配信予定」「配信」と呼ぶ (C2)'],
+    [/🔁/, '繰り返しに 🔁 を付けない (C7)'],
+    [/📥 登録チャンネル/, '📥 は読み込むだけに使う (C3)'],
+    [/右上の \? \(使い方\)/, '使い方の記号は 📖'],
+  ];
+  for (const [re, why] of bad) assert.ok(!re.test(ja), `${why}: ${ja.match(re)?.[0]}`);
+});

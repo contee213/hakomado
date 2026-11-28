@@ -1114,7 +1114,6 @@ const WaveStrip = (() => {
         s.head.mute.title = tr(on ? 'stripGroupAudioMuteTitle' : 'stripGroupAudioUnmuteTitle', G.g);
         s.head.mute.classList.toggle('on', on);
         s.head.mute.setAttribute('aria-pressed', String(on)); // ON/OFF を読み上げに伝える (デザインガイド 4 章)
-        s.head.mute.setAttribute('aria-pressed', String(on));
       }
       if (s.head.audio) {
         const a = G.audio;
@@ -1178,12 +1177,12 @@ const WaveStrip = (() => {
           r.audio.title = tr(t.muted ? 'infoAudioOn' : 'infoAudioOff');
           r.audio.classList.toggle('on', !t.muted);
           r.audio.setAttribute('aria-pressed', String(!t.muted)); // ON/OFF を読み上げに伝える (デザインガイド 4 章)
-          r.audio.setAttribute('aria-pressed', String(!t.muted));
         }
         if (r.wait) {
           r.wait.textContent = t.waiting ? '▶' : '⏸';
           r.wait.title = tr(t.waiting ? 'syncWaitResumeTitle' : 'syncWaitTitle');
           r.wait.classList.toggle('is-waiting', t.waiting);
+          r.wait.setAttribute('aria-pressed', String(!!t.waiting)); // ON/OFF を読み上げに伝える (デザインガイド 4 章)
         }
         if (r.undo) {
           const h = history.get(t.i);
