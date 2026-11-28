@@ -147,7 +147,7 @@ function movieLineTail(anchor, w, isRef = false) {
   if (!Number.isFinite(anchor)) return '';
   const parts = [`~!${isRef ? '*' : ''}${clockOf(anchor)}`];
   const ws = Array.isArray(w) ? w.filter((p) => Array.isArray(p) && p[0] >= 0 && p[1] >= 0) : [];
-  if (ws.length) parts.push(`~w ${ws.map((p, i) => (i === 0 || p[1] === 0 ? clockOf(p[0]) : `${clockOf(p[0])}=${clockOf(p[1])}`)).join(',')}`);
+  if (ws.length) parts.push(`~w ${ws.map((p) => (p[1] === 0 ? clockOf(p[0]) : `${clockOf(p[0])}=${clockOf(p[1])}`)).join(',')}`);
   return parts.join('  ');
 }
 /** 「~w」の中身を区間の並びにする (読めなければ null) */

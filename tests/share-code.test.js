@@ -570,5 +570,10 @@ test('1 行 1 本のテキストの 🎬: 本編の位置 (~!)・見つけた区
   const tail = get('movieLineTail');
   assert.equal(tail(3575.24, [[608.54, 0], [640, 20], [2096.65, 0]], false), '~!59:35.24  ~w 10:08.54,10:40=0:20,34:56.65');
   assert.equal(tail(3723, null, true), '~!*1:02:03');
+  // 1 作品目の始まりでも、タイマーが 0 でなければ値を残す (読み戻すと 1 作品目の 0:00 が同じ位置になる)
+  const w0 = [[200, 5], [900, 0], [1500, 300]];
+  assert.equal(tail(195, w0, false), '~!3:15  ~w 3:20=0:05,15:00,25:00=5:00');
+  const back = plain(await get('parseVideoLines')(`https://www.youtube.com/watch?v=${A} ${tail(195, w0, false)}`, 200));
+  assert.deepEqual(back.items[0].w, w0);
   assert.equal(tail(null, null), '');
 });
