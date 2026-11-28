@@ -1203,6 +1203,161 @@ test.describe('知らせ (HAKO-59)', () => {
   });
 });
 
+test.describe('文が出ても、ボタンと一覧が動かない (HAKO-60)', () => {
+  const top = (loc) => loc.evaluate((el) => Math.round(el.getBoundingClientRect().top));
+  const height = (loc) => loc.evaluate((el) => Math.round(el.getBoundingClientRect().height));
+
+  test('📚 ライブラリ: 下の知らせ欄に文が出ても、選択のバーは動かない', async ({ openGrid }) => {
+    const page = await openGrid();
+    await skipTour(page);
+    await page.evaluate(() => chrome.storage.local.set({ history: [{ videoId: 'live0000001', title: '雑談配信', label: 'A', kind: 'live', at: Date.now() }] }));
+    await page.locator('#openFavorites').click();
+    await page.locator('[data-favtab="history"]').click();
+    const bar = page.locator('#favSelBar');
+    await expect(bar).toBeVisible();
+    const before = await top(bar);
+    await page.evaluate(() => (favErrorEl.textContent = '入りきりません。'.repeat(20)));
+    expect(await top(bar)).toBe(before);
+    await expect(page.locator('#favError')).toHaveAttribute('title', /入りきりません/); // … で切った全文は乗せると出る
+    await page.evaluate(() => (favErrorEl.textContent = ''));
+    expect(await top(bar)).toBe(before);
+  });
+
+  test('⚙ チャンネルの管理: 選択のバーはいつも出し、選んでも追加中の文が出ても、一覧と追加の欄が動かない', async ({ openGrid }) => {
+    const page = await openGrid();
+    await skipTour(page);
+    await page.locator('#openSettings').click();
+    await page.locator('#settings [data-tab="channels"]').click();
+    await page.locator('#settingsChManage').click();
+    const bar = page.locator('#cmSelBar');
+    await expect(bar).toBeVisible();
+    await expect(page.locator('#cmSelCount')).toHaveText('☐ で選ぶと、まとめて外せます');
+    await expect(page.locator('#cmRemove')).toBeDisabled();
+    const list = page.locator('#cmList');
+    const input = page.locator('#favAdd input');
+    const [listH, inputTop] = [await height(list), await top(input)];
+    await page.locator('#cmList .cm-item .fav-check').first().check();
+    await expect(page.locator('#cmSelCount')).toHaveText('1 件を選択中');
+    await expect(page.locator('#cmRemove')).toBeEnabled();
+    expect(await height(list)).toBe(listH);
+    await page.evaluate(() => document.getElementById('cmError').replaceChildren(okNote(tr('adding'))));
+    expect(await top(input)).toBe(inputTop);
+    expect(await height(list)).toBe(listH);
+  });
+
+  test('まとめて外す前の確かめ: 見出しと ✕ があり、「📌 付きも外す」を付け外ししても「外す」が動かない', async ({ openGrid }) => {
+    const page = await openGrid();
+    await skipTour(page);
+    await page.locator('#openSettings').click();
+    await page.locator('#settings [data-tab="channels"]').click();
+    await page.locator('#settingsChManage').click();
+    await page.locator('#cmFilter').fill('ときのそら');
+    await page.locator('#cmList .cm-item', { hasText: 'ときのそら' }).locator('.fav-star').click();
+    await page.locator('#cmList .cm-item', { hasText: 'ときのそら' }).locator('.fav-check').check();
+    await page.locator('#cmFilter').fill('ロボ子');
+    await page.locator('#cmList .cm-item', { hasText: 'ロボ子さん' }).locator('.fav-check').check();
+    await page.locator('#cmRemove').click();
+    const dialog = page.locator('#cmConfirm');
+    await expect(dialog.locator('h2')).toHaveText('⚙ チャンネルを外す');
+    const ok = page.locator('#cmConfirmOk');
+    const before = await top(ok);
+    await page.locator('#cmConfirmStar').check();
+    expect(await top(ok)).toBe(before);
+    await page.locator('#cmConfirmStar').uncheck();
+    expect(await top(ok)).toBe(before);
+    await dialog.locator('.dialog-close').click();
+    await expect(dialog).toBeHidden();
+    expect(await page.evaluate(async () => (await chrome.storage.local.get('favorites')).favorites.length)).toBeGreaterThan(2); // ✕ では外さない
+  });
+
+  test('長い名前の再生リストから外しても、「元に戻す」は切れずに押せる', async ({ openGrid }) => {
+    const page = await openGrid();
+    await skipTour(page);
+    const name = 'とても長い名前の再生リストです。'.repeat(2).slice(0, 40);
+    await page.evaluate((name) => Playlists.create(name, [{ videoId: 'aaaaaaaaaaa', title: '1' }]), name);
+    await page.evaluate(() => openPlaylistPicker({ videoId: 'aaaaaaaaaaa' }));
+    const status = page.locator('#plPickStatus');
+    const before = await height(status);
+    await page.locator('#plPickList button', { hasText: '✓' }).click();
+    const undo = status.locator('.fav-restore');
+    await expect(undo).toBeVisible();
+    const [box, line] = [await undo.boundingBox(), await status.boundingBox()];
+    expect(box.x + box.width).toBeLessThanOrEqual(line.x + line.width + 1); // 欄の外に押し出されていない
+    expect(await height(status)).toBe(before);
+    await undo.click();
+    await expect.poll(() => page.evaluate(async () => (await Playlists.list())[0].items.length)).toBe(1);
+  });
+
+  test('まとめて外す前の確かめは、Esc でも背景のクリックでも何も外さずに閉じる', async ({ openGrid }) => {
+    const page = await openGrid();
+    await skipTour(page);
+    await page.locator('#openSettings').click();
+    await page.locator('#settings [data-tab="channels"]').click();
+    await page.locator('#settingsChManage').click();
+    const count = () => page.evaluate(async () => (await chrome.storage.local.get('favorites')).favorites.length);
+    const n = await count();
+    await page.locator('#cmList .cm-item .fav-check').first().check();
+    const dialog = page.locator('#cmConfirm');
+    await page.locator('#cmRemove').click();
+    await expect(dialog).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(dialog).toBeHidden();
+    await page.locator('#cmRemove').click();
+    await expect(dialog).toBeVisible();
+    await page.mouse.click(5, 5); // 背景
+    await expect(dialog).toBeHidden();
+    expect(await count()).toBe(n);
+  });
+
+  test('ℹ️ 枠の情報: 空き枠の行で読み込めなかった文が出ても、行の高さが変わらない', async ({ openGrid }) => {
+    const page = await openGrid();
+    await skipTour(page);
+    await page.locator('#openInfo').click();
+    const row = page.locator('#infoRows tr').first();
+    const before = await height(row);
+    await row.locator('.info-load .url-input').fill('これは URL ではない');
+    await row.locator('.info-load button[type=submit]').click();
+    await expect(page.locator('#infoRows tr').first().locator('.info-error')).not.toBeEmpty();
+    expect(await height(page.locator('#infoRows tr').first())).toBe(before);
+  });
+
+  test('📺 チャンネル: 配信状況を取っている間は、⟳ 更新に進み具合を出す', async ({ openGrid }) => {
+    const page = await openGrid();
+    await skipTour(page);
+    await page.locator('#openChannels').click();
+    const btn = page.locator('#favRefresh');
+    await page.evaluate(async () => {
+      const favs = await Favorites.list();
+      favStatus.set(favs[0].channelId, 'loading');
+      renderFavorites(favs);
+    });
+    await expect(btn).toHaveClass(/\bbusy\b/);
+    await expect(btn).toHaveAttribute('title', /^取得中 \d+ \/ \d+$/);
+    await expect(page.locator('#favRefreshBar')).toBeVisible();
+    await page.evaluate(async () => {
+      const favs = await Favorites.list();
+      favQueue.length = 0; // 取りに行く残りを止めて、全部取り終えたことにする
+      for (const f of favs) favStatus.set(f.channelId, 'error');
+      renderFavorites(favs);
+    });
+    await expect(btn).not.toHaveClass(/\bbusy\b/);
+    await expect(page.locator('#favRefreshBar')).toBeHidden();
+  });
+
+  test('📥 読み込む: 読み取りが済んでも「枠に並べる」が動かない', async ({ openGrid }) => {
+    const page = await openGrid();
+    await skipTour(page);
+    await page.locator('#openRead').click();
+    const apply = page.locator('#readApply');
+    const before = await top(apply);
+    await page.locator('#readIn').fill(
+      ['https://www.youtube.com/watch?v=aaaaaaaaaaa', 'https://www.youtube.com/watch?v=bbbbbbbbbbb', 'これは URL ではない行', 'もう 1 行'].join('\n'),
+    );
+    await expect(page.locator('#readSummary')).toContainText('2 本');
+    expect(await top(apply)).toBe(before);
+  });
+});
+
 test.describe('チャンネルの管理', () => {
   // 既定のチャンネル (同梱のホロライブ) のうち 2 つ
   const SORA = 'UCp6993wxpyDPHUpavwDFqgg';

@@ -792,6 +792,8 @@ dialog.fav-dialog.tour-preview {
   padding: 12px 14px;
   border-top: 1px solid var(--line);
 }
+/* 📺 チャンネル・ライブラリの下の帯は知らせ欄だけ。何も出ていなくても場所は取る (デザインガイド 3 章) ので、余白を詰めて目立たなくする */
+#favorites .fav-foot { padding: 6px 14px; }
 .fav-add { display: flex; gap: 6px; flex: 1; min-width: min(260px, 100%); }
 .fav-add input {
   flex: 1;
@@ -801,7 +803,8 @@ dialog.fav-dialog.tour-preview {
   border-radius: 6px;
   padding: 5px 8px;
 }
-.fav-error { width: 100%; color: #ff8a80; font-size: 12px; }
+/* 知らせ欄は、空のときも 1 行ぶんの場所を取り、長い文は折り返さず … で切る (全文は乗せると出る。デザインガイド 3 章) */
+.fav-error { width: 100%; min-height: 18px; line-height: 18px; color: #ff8a80; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* ---------- 複数選択 (☐) とコラボの一括選択 (🤝) ---------- */
 .fav-check { flex: none; width: 16px; height: 16px; margin: 0; accent-color: var(--accent); cursor: pointer; }
@@ -824,15 +827,12 @@ dialog.fav-dialog.tour-preview {
 .fav-selbar.idle { background: transparent; }
 .fav-selbar.idle .fav-selcount { font-weight: 400; color: var(--muted); }
 .fav-selbar button:disabled { opacity: .35; cursor: default; }
-.fav-error:empty { display: none; }
 
 /* 📺 チャンネルが 1 つも無いときの足し方 (空の案内のすぐ下) */
 /* 案内文のすぐ下に並べ、残りの高さはボタンの側で埋める */
 .fav-empty-actions { display: flex; flex-wrap: wrap; align-items: flex-start; align-content: flex-start; gap: 8px; padding: 0 14px 16px; }
 .fav-empty:has(+ .fav-empty-actions:not([hidden])) { flex: none; }
 .fav-empty-actions:not([hidden]) { flex: 1; }
-/* 📺 チャンネル・ライブラリの下の帯は、出すもの (知らせ) があるときだけ */
-#favorites .fav-foot:has(> .fav-error:empty) { display: none; }
 
 /* ---------- ⚙ チャンネルの管理 ---------- */
 /* 左に一覧 (☐ で選んでまとめて外す・足す)、右にチャンネルパックと登録チャンネル。狭ければ縦に並べる */
@@ -851,8 +851,8 @@ dialog.fav-dialog.tour-preview {
 .cm-group { flex: none; color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 40%; }
 .cm-list .fav-star { flex: none; }
 dialog.cm-confirm { width: min(440px, calc(100% - 32px)); }
-.cm-confirm p { margin: 0 0 10px; }
-.cm-confirm-star { display: flex; align-items: center; gap: 6px; margin-bottom: 10px; cursor: pointer; }
+.cm-confirm p { margin: 0; }
+.cm-confirm-star { display: flex; align-items: center; gap: 6px; cursor: pointer; }
 .cm-confirm-star[hidden] { display: none; }
 .cm-confirm-buttons { justify-content: flex-end; }
 
@@ -1558,7 +1558,9 @@ dialog.share-dialog { width: min(600px, calc(100% - 32px)); }
 .share-panel .settings-note { margin: 0; }
 /* コード・リンクは 1 語が長いので、どこでも折り返して全部見せる */
 .share-wrap { overflow-wrap: anywhere; word-break: break-all; }
-.read-summary { margin: 0; min-height: 3em; white-space: pre-line; color: var(--muted); font-size: 12px; line-height: 1.5; }
+/* 読み取った内容は 4 行ぶんの場所を先に取る (読み取りが済んでも下のボタンが動かないように)。1 行ずつ … で切り、5 行目からは中でスクロール */
+.read-summary { margin: 0; height: 72px; overflow-y: auto; color: var(--muted); font-size: 12px; line-height: 18px; }
+.read-summary > div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .read-summary.share-error { color: #ff8a80; }
 .share-preview { width: 100%; aspect-ratio: 16 / 9; background: #000; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
 .share-preview img { display: block; width: 100%; height: 100%; object-fit: contain; }
@@ -1590,7 +1592,13 @@ dialog.share-dialog { width: min(600px, calc(100% - 32px)); }
 .read-buttons { justify-content: flex-end; }
 .read-buttons .primary-action, .dga-buttons .primary-action { order: 1; }
 .share-feed { justify-content: flex-end; }
-.share-status { color: var(--muted); font-size: 12px; }
+/* 状態の文は、空のときも 1 行ぶんの場所を取り、長い文は折り返さず … で切る (全文は乗せると出る。デザインガイド 3 章) */
+.share-status { display: block; min-height: 18px; line-height: 18px; color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pack-row .share-status, .share-buttons .share-status { flex: 1 1 0; min-width: 0; }
+/* 「元に戻す」付きの知らせは、文だけを … で切り、ボタンはいつも見えて押せるようにする */
+.fav-error:has(> .fav-restore), .share-status:has(> .fav-restore) { display: flex; align-items: center; gap: 4px; }
+.fav-error > .note-ok, .share-status > .note-ok { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fav-error > .fav-restore, .share-status > .fav-restore { flex: none; }
 .share-error { color: #ff8a80; }
 /* 赤い知らせ欄に出す、うまくいったときの文 (okNote)。赤はエラーだけにする (デザインガイド 7 章) */
 .fav-error .note-ok, .share-error .note-ok { color: var(--muted); }
@@ -1965,7 +1973,9 @@ a.info-channel:hover, a.info-channel:focus-visible { text-decoration: underline;
 .info-load { display: flex; gap: 4px; min-width: 0; }
 .info-load .url-input { flex: 1 1 auto; min-width: 0; height: 24px; font-size: 12px; }
 .info-load button { flex: none; height: 24px; padding: 0 8px; font-size: 12px; }
-.info-error { margin-top: 3px; color: #ff8a80; font-size: 11px; } /* エラーはどこでも同じ赤 (デザインガイド 7 章) */
+/* 読み込みの文は入力の右に並べ、行の高さを変えない (デザインガイド 3 章)。エラーはどこでも同じ赤 (7 章)、読み込み中は灰色 */
+.info-error { flex: 0 1 auto; max-width: 45%; align-self: center; color: #ff8a80; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.info-error.is-loading { color: var(--muted); }
 .info-ops button.close:disabled { opacity: .35; cursor: default; }
 .info-ops button:disabled { opacity: .35; cursor: default; }
 /* 表の下の ＋ (空き枠を足す) */
