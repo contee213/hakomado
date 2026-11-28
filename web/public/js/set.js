@@ -27,7 +27,7 @@ const SET_VIEW = (() => {
 
   function render(s) {
     document.title = `${titleOf(s)} | ${t('titleSet')}`;
-    $('setPreview').replaceChildren(layoutPreview(s.layoutId, s.ids, { big: true }));
+    $('setPreview').replaceChildren(layoutPreview(s.layoutId, cellIds(s), { big: true }));
     $('name').textContent = titleOf(s);
     $('meta').textContent = [t('count', s.ids.length), s.layoutName, s.movie ? t('moviePlay') : s.offsets ? t('syncPlay') : '', s.author, timeAgo(s.createdAt)]
       .filter(Boolean)
@@ -68,6 +68,10 @@ const SET_VIEW = (() => {
           ),
         );
       }),
+      // 説明付きの空き枠 (開いた人が、ここに自分で本編などを入れる。HAKO-49)
+      ...(s.notes || []).map((n) =>
+        el('li', { class: 'note' }, el('span', { class: 'thumb note', text: '📝' }), el('div', {}, el('p', { text: n.text }), el('p', { class: 'sub', text: t('noteTile') }))),
+      ),
     );
 
     // X でログインした人の投稿なら (own)、合言葉なしで消せる

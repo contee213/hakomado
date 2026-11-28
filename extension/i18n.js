@@ -554,6 +554,9 @@ const MESSAGES = {
   timerScanWork: ['{0} 本目 {1}〜', 'Title {0} {1}–'],
   timerScanWorksTitle: ['画面のタイマーから見つけた作品。選ぶと、その作品の 0:00 を本編の位置にして移る', 'Titles found from the on-screen timer. Pick one to move to its 0:00'],
   readMovie: ['🎬 同時視聴 (本編でそろえる)', '🎬 Watch-along (aligned on the movie)'],
+  readNotes: ['説明付きの空き枠 {0}', '{0} empty tile(s) with a note'],
+  shareNoteTile: ['{0} の枠 ({1})', 'Tile {0} ({1})'],
+  shareNotePlaceholder: ['説明 (例: ここに Prime Video 等の作品の URL を入れてください)', 'Note (e.g. Put the URL of the movie on Prime Video etc. here)'],
   packConfirm: [
     'チャンネルパック「{0}」を読み込みますか？\n{1} 件を追加します (登録済みの {2} 件はそのまま)',
     'Import the channel pack “{0}”?\n{1} channels will be added ({2} you already have stay as they are)',
@@ -1180,6 +1183,7 @@ const HTML_EN = {
   'share.h': '🔗 Share',
   'share.sourceLabel': 'What to share',
   'share.nameLabel': 'Name',
+  'share.notesHead': 'URL tiles and file tiles are not included as they are. If you write a note, each one is included as an empty tile showing that note on the receiver’s screen',
   'share.namePlaceholder': 'Optional (the image shows “Hakomado viewing set”)',
   'share.tabImage': '🖼 Image',
   'share.tabText': '📝 Text',

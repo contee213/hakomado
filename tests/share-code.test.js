@@ -526,3 +526,23 @@ test('🎬 見つけた区間: 形の違う「~w」は無視して本編の位�
   assert.deepEqual(r.ids, ids);
   assert.deepEqual(r.plans, [null, null, { w: [[7, 0]], k: 1 }]);
 });
+
+test('説明付きの空き枠 (~e・hke=) を入れて読める。説明の「"」と改行は空白にし、60 文字で切る (HAKO-49)', () => {
+  const get = setup();
+  const notes = [{ k: 2, text: 'ここにPrime Video等のコマンドーのURLを入れてください' }];
+  const code = get('formatShareCode')('u2x2', [A, B], [], 0, 'コマンドー', [10, 20], -1, null, notes);
+  assert.equal(code, `#Hakomado u2x2.${A}${B} "コマンドー" ~!10,20 ~e 2="ここにPrime Video等のコマンドーのURLを入れてください"`);
+  const r = plain(get('parseShareCode')(code));
+  assert.deepEqual(r.ids, [A, B]);
+  assert.deepEqual(r.notes, notes);
+  const link = get('formatShareLink')('u2x2', [A, B], [], 0, '', '', false, [10, 20], -1, null, notes);
+  assert.match(link, /&hke=2:%E3%81%93/);
+  assert.deepEqual(plain(get('parseShareLink')(link)).notes, notes);
+  // 同期のセットにも付けられる。説明を整える。全部で 16 枠まで
+  const c2 = get('formatShareCode')('u2x2', [A], [1.5], 0, '', null, -1, null, [{ k: 0, text: 'a"b\nc' }, { k: 0, text: 'dup' }, { k: 3, text: 'x'.repeat(80) }]);
+  assert.equal(c2, `#Hakomado u2x2.${A}~1.5 ~e 0="a b c",3="${'x'.repeat(60)}"`);
+  const many = Array.from({ length: 16 }, (_, k) => ({ k, text: 'n' }));
+  assert.equal(plain(get('parseShareCode')(get('formatShareCode')('u4x4', [A, B], [], 0, '', null, -1, null, many))).notes.length, 14);
+  // 無ければ notes は付かない
+  assert.equal(plain(get('parseShareCode')(`#Hakomado u2x2.${A}`)).notes, undefined);
+});

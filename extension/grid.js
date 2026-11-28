@@ -106,7 +106,9 @@ function newTileState() {
   //   content/web-player.js が中の動画プレイヤーを操作する。YouTube 用の機能 (チャット・同期・共有など) は使えない
   // file = ファイルの枠 (パソコンの動画ファイルを枠にドロップしたもの)。ファイルの持ち手 (LocalFiles) の ID。
   //   label にファイル名を入れる。枠の操作・見た目は URL の枠と同じ (isWebTile)
-  return { input: '', videoId: null, web: '', file: '', chat: false, danmaku: null, muted: true, auto: false, queue: false, fill: false, label: '', pan: 0, gain: 1, delay: 0, speed: 1, short: false, corner: 'br' };
+  // note = 説明付きの空き枠の説明 (共有画面で URL の枠・ファイルの枠に書くと、コードに説明付きの空き枠として入る。
+  //   受け取った空き枠の上に出す。中身を入れても消さず、✕ で空き枠に戻すとまた出る。HAKO-49)
+  return { input: '', videoId: null, web: '', file: '', chat: false, danmaku: null, muted: true, auto: false, queue: false, fill: false, label: '', pan: 0, gain: 1, delay: 0, speed: 1, short: false, corner: 'br', note: '' };
 }
 
 /**
@@ -236,6 +238,7 @@ function applySession(saved = {}) {
       if ('delay' in picked) picked.delay = clampDelay(picked.delay);
       if ('speed' in picked) picked.speed = clampSpeed(picked.speed);
       if ('corner' in picked && !CORNERS.includes(picked.corner)) delete picked.corner;
+      if ('note' in picked) picked.note = shareNote(picked.note);
       // 以前の版は弾幕の初期値が「表示」だったので、そのときの true は自動 (メイン枠だけ) として扱う
       if (!saved.dmAuto && picked.danmaku === true) picked.danmaku = null;
       // あとで見るの再生中かどうかは保存しない (開き直したら、ふつうの枠として扱う)
@@ -1592,6 +1595,9 @@ function renderTile(i, { reloadPlayer = false, reloadChat = false } = {}) {
   el.classList.toggle('is-empty', !tileFilled(t));
   el.classList.toggle('is-web', isWebTile(t));
   el.querySelector('.url-input').value = t.input;
+  const noteEl = el.querySelector('.empty-note');
+  noteEl.textContent = t.note ? `📝 ${t.note}` : '';
+  noteEl.hidden = !t.note;
   updateSlotButtons();
 
   const twitch = isTwitchId(t.videoId);
@@ -2664,7 +2670,7 @@ function onBarAction(i, act, e) {
       // 自動再生 ON の間に自分で閉じた配信は入れ直さない
       if (t.videoId) autoDismissed.add(t.videoId);
       if (t.videoId) WatchHistory.removed(t.videoId, 'closed');
-      state.tiles[i] = newTileState();
+      state.tiles[i] = { ...newTileState(), note: t.note }; // 説明付きの空き枠に戻す (説明はまた出す)
       views[i].danmaku.clear();
       renderTile(i);
       // 自動再生の「最近の動画」の枠を閉じた: 1 分ごとの確認を待たずに次の動画を入れる (最後まで再生したときと同じ。
@@ -4181,9 +4187,20 @@ const SHARE_MAX = MAX_TILES;
 /** 表示中の枠のうち、配信の入っている枠 (並び順。空き枠は詰める)。Twitch の枠も入る (コードの「~t」) */
 const shareTiles = () => visibleIndexes().filter((i) => state.tiles[i].videoId);
 
+/**
+ * 説明付きの空き枠 [{k: 並びでの位置, text}]。動画の入っていない表示中の枠 (URL の枠・ファイルの枠・空き枠) で、説明を書いたもの。
+ * 位置は、配信の入った枠 (shareTiles) と合わせた並びで数える
+ */
+function tileNotes() {
+  return visibleIndexes()
+    .filter((i) => state.tiles[i].videoId || state.tiles[i].note)
+    .flatMap((i, k) => (state.tiles[i].videoId ? [] : [{ k, text: state.tiles[i].note }]));
+}
+
 /** 今の枠を共有セットにする (同期中か、ずれを決めた動画があれば同期再生として、基準とずれも入れる) */
 function tilesShareSet(name = '') {
   const items = tileEntries();
+  const notes = tileNotes();
   const refTile = Sync.refIfOn();
   if (Sync.isMovie()) {
     // 本編の位置と、画面のタイマーから見つけた区間・選んでいる作品 (w・k。HAKO-49)
@@ -4194,10 +4211,10 @@ function tilesShareSet(name = '') {
     // 「本編にした」印 (1 本だけのとき。本編の枠の決め方 mainOf と同じ)。プレミア公開でない本編も、受け取った側で本編の枠になるように
     const marked = items.filter((h) => MovieAnchors.isMain(h.videoId));
     const main = marked.length === 1 ? marked[0].videoId : null;
-    return { name, items: withAnchor, sync: false, movie: true, main, layoutId: state.layoutId, ref: refTile != null ? state.tiles[refTile].videoId : null };
+    return { name, items: withAnchor, sync: false, movie: true, main, notes, layoutId: state.layoutId, ref: refTile != null ? state.tiles[refTile].videoId : null };
   }
   const sync = Sync.isOn() || items.some((x) => x.offset);
-  return { name, items, sync, layoutId: state.layoutId, ref: sync && refTile != null ? state.tiles[refTile].videoId : null };
+  return { name, items, sync, notes, layoutId: state.layoutId, ref: sync && refTile != null ? state.tiles[refTile].videoId : null };
 }
 
 
@@ -4217,12 +4234,12 @@ async function parseIncoming(text, onProgress) {
       return { videoId, anchor: code.movie[j], ...(pl ? { w: pl.w, k: pl.k } : {}) };
     });
     const main = code.main != null ? code.ids[code.main] : null;
-    return { name: code.name, items, sync: false, movie: true, main, layoutId: code.layoutId, ref: code.ids[code.ref], bad: 0, tooMany: false };
+    return { name: code.name, items, sync: false, movie: true, main, notes: code.notes || [], layoutId: code.layoutId, ref: code.ids[code.ref], bad: 0, tooMany: false };
   }
   if (code) {
     const sync = !!code.offsets;
     const items = code.ids.map((videoId, k) => (sync ? { videoId, offset: code.offsets[k] } : { videoId }));
-    return { name: code.name, items, sync, layoutId: code.layoutId, ref: sync ? code.ids[code.ref] : null, bad: 0, tooMany: false };
+    return { name: code.name, items, sync, notes: code.notes || [], layoutId: code.layoutId, ref: sync ? code.ids[code.ref] : null, bad: 0, tooMany: false };
   }
   const { items, ref, hasOffsets, meta, bad, tooMany } = await parseVideoLines(text, Playlists.MAX_ITEMS, onProgress);
   const sync = hasOffsets || !!ref || metaOn(meta.sync);
@@ -4329,6 +4346,7 @@ function shareSetCode(pl, format = formatShareCode) {
     pl.movie ? items.map((h) => h.anchor ?? null) : null,
     pl.movie && pl.main ? ids.indexOf(pl.main) : -1,
     pl.movie ? items.map((h) => (Array.isArray(h.w) && h.w.length ? { w: h.w, k: h.k ?? null } : null)) : null,
+    pl.notes || null,
   );
 }
 
@@ -4358,6 +4376,7 @@ async function applyShareSet(set) {
     offsets: set.sync ? items.map((h) => h.offset || 0) : null,
     anchors: set.movie ? items.map((h) => h.anchor ?? null) : null,
     plans: set.movie ? items.map((h) => (Array.isArray(h.w) && h.w.length ? { w: h.w, k: h.k ?? null } : null)) : null,
+    notes: set.notes || [],
     main: set.movie && ids.includes(set.main) ? set.main : null,
     ref: Math.max(0, ids.indexOf(set.ref)),
     labels: items.map((h) => h.label || ''),
@@ -4369,7 +4388,7 @@ async function applyShareSet(set) {
  * offsets (動画ごとの同期のずれ) があれば記録し、アーカイブだと分かりしだい ref 番目の動画を基準に同期を始める。
  * main (🎬 本編モードで「本編にした」動画) があれば、その動画に「本編にした」印を付ける
  */
-async function applyViewingSet(ids, layoutId, { offsets = null, anchors = null, plans = null, main = null, ref = 0, labels = [], resumeAt = null } = {}) {
+async function applyViewingSet(ids, layoutId, { offsets = null, anchors = null, plans = null, notes = [], main = null, ref = 0, labels = [], resumeAt = null } = {}) {
   playlistSyncSession = null;
   if (state.autoMode) await setAutoMode(false); // 自動再生が枠を入れ替えないように
   stopQueue();
@@ -4387,8 +4406,21 @@ async function applyViewingSet(ids, layoutId, { offsets = null, anchors = null, 
     setTileVideo(i, id, videoUrlOf(id));
     if (labels[k]) state.tiles[i].label = labels[k].slice(0, 80); // URL の行の後ろの「# …」を枠の名前にする
   }
-  // 使わない枠は空にする (隠れても再生し続けないように)
+  // 説明付きの空き枠 (共有コードの「~e」): 空いている枠に説明を付けて、書かれた位置に並べる
+  const noteTiles = new Map();
+  for (const n of notes.slice(0, Math.max(0, MAX_TILES - ids.length))) {
+    const i = TileSlots.freeTiles(state.tiles, used)[0];
+    if (i == null) break;
+    used.add(i);
+    if (state.tiles[i].videoId) WatchHistory.removed(state.tiles[i].videoId, 'replaced');
+    state.tiles[i] = { ...newTileState(), note: n.text };
+    views[i].danmaku.clear();
+    renderTile(i, { reloadPlayer: true, reloadChat: true });
+    noteTiles.set(n.k, i);
+  }
+  // 使わない枠は空にする (隠れても再生し続けないように)。前の説明も消す
   state.tiles.forEach((t, j) => {
+    if (!used.has(j) && !tileFilled(t) && t.note) t.note = '';
     if (!used.has(j) && tileFilled(t)) {
       if (t.videoId) WatchHistory.removed(t.videoId, 'replaced');
       state.tiles[j] = newTileState();
@@ -4396,10 +4428,15 @@ async function applyViewingSet(ids, layoutId, { offsets = null, anchors = null, 
       renderTile(j, { reloadPlayer: true, reloadChat: true });
     }
   });
-  const fixed = LAYOUTS.find((l) => l.id === layoutIdOf(layoutId) && l.slots.length >= ids.length);
-  state.layoutId = (fixed || chooseLayoutFor(ids.length)).id;
+  const total = ids.length + noteTiles.size;
+  const fixed = LAYOUTS.find((l) => l.id === layoutIdOf(layoutId) && l.slots.length >= total);
+  state.layoutId = (fixed || chooseLayoutFor(total)).id;
   if (state.layout.anchor) state.anchor = state.layout.anchor;
-  state.order = [...assigned, ...state.order.filter((j) => !assigned.includes(j))];
+  // 並び: 説明付きの空き枠は書かれた位置に、配信の枠は残りの位置に順に
+  const rest = [...assigned];
+  const placed = Array.from({ length: total }, (_, p) => (noteTiles.has(p) ? noteTiles.get(p) : rest.shift())).filter((j) => j != null);
+  placed.push(...rest, ...[...noteTiles.values()].filter((j) => !placed.includes(j)));
+  state.order = [...placed, ...state.order.filter((j) => !placed.includes(j))];
   if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
   const refK = (offsets || anchors) && ref < ids.length ? ref : 0;
   setAudioSet([assigned[refK]]); // 音は先頭 (メイン) の枠。同期のずれ付き・本編モードなら基準の枠
@@ -4585,10 +4622,10 @@ async function renderShareImage(set, { labels = false, author = '' } = {}) {
   const filled = syncItems(set);
   const title = shareName(set.name) || `${SHARE_TAG} ${tr('shareImageTitle')}`;
   // QR にはコードと同じ中身のリンクを入れる (スマホのカメラで読むと YouTube で開ける)。
-  const code = shareSetCode(set, (l, ids, o, r, n, mv, mk, pw) => {
+  const code = shareSetCode(set, (l, ids, o, r, n, mv, mk, pw, ne) => {
     // 見つけた区間が多くて QR が細かくなりすぎるなら、QR には入れない (コード・ALT には入る)
-    const full = formatShareLink(l, ids, o, r, n, title, false, mv, mk, pw);
-    return full.length <= 1200 ? full : formatShareLink(l, ids, o, r, n, title, false, mv, mk);
+    const full = formatShareLink(l, ids, o, r, n, title, false, mv, mk, pw, ne);
+    return full.length <= 1200 ? full : formatShareLink(l, ids, o, r, n, title, false, mv, mk, null, ne);
   });
   const canvas = document.createElement('canvas');
   canvas.width = SHARE_W;
@@ -4927,6 +4964,45 @@ function setupShare() {
     nameEl.value = source === 'tiles' ? shareTilesName : (await Playlists.get(source))?.name || '';
   };
 
+  /**
+   * 説明付きの空き枠の欄: 今の枠を共有するとき、動画の入っていない表示中の枠 (URL の枠・ファイルの枠と、説明の付いた空き枠) ごとに
+   * 説明の入力欄を出す。書くとその枠に覚え (state.tiles[i].note)、コードに説明付きの空き枠として入る (HAKO-49)
+   */
+  const notesBox = document.getElementById('shareNotes');
+  const fillNotes = () => {
+    const rows = source === 'tiles' ? visibleIndexes().filter((i) => !state.tiles[i].videoId && (isWebTile(state.tiles[i]) || state.tiles[i].note)) : [];
+    notesBox.hidden = !rows.length;
+    notesBox.querySelector('.share-notes-rows').replaceChildren(
+      ...rows.map((i) => {
+        const row = document.createElement('label');
+        row.className = 'share-note-row';
+        const head = document.createElement('span');
+        const no = visibleIndexes().indexOf(i) + 1;
+        const what = tileName(i) || tr('slot', no);
+        head.textContent = tr('shareNoteTile', no, what);
+        head.title = what;
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.maxLength = SHARE_NOTE_MAX;
+        input.spellcheck = false;
+        input.placeholder = tr('shareNotePlaceholder');
+        input.value = state.tiles[i].note;
+        input.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') e.preventDefault();
+        });
+        input.addEventListener('input', () => {
+          state.tiles[i].note = shareNote(input.value);
+          renderTile(i);
+          save();
+          clearTimeout(nameTimer);
+          nameTimer = setTimeout(refresh, 300);
+        });
+        row.append(head, input);
+        return row;
+      }),
+    );
+  };
+
   /** 共有するものを読み直して、各形式を作り直す */
   const refresh = async () => {
     const seq = ++refreshSeq;
@@ -4944,7 +5020,7 @@ function setupShare() {
     textEl.value = set ? playlistText(set) : '';
     // リンクは画像の QR と同じ中身。DM・チャットなどに貼るので名前も % にする (日本語でリンクが切れるアプリがある)
     const title = set ? shareName(set.name) || `${SHARE_TAG} ${tr('shareImageTitle')}` : '';
-    linkEl.value = set ? shareSetCode(set, (l, ids, o, r, nm, mv, mk, pw) => formatShareLink(l, ids, o, r, nm, title, true, mv, mk, pw)) : '';
+    linkEl.value = set ? shareSetCode(set, (l, ids, o, r, nm, mv, mk, pw, ne) => formatShareLink(l, ids, o, r, nm, title, true, mv, mk, pw, ne)) : '';
     document.getElementById('shareNoteImage').textContent = tr('shareNoteImage', count(SHARE_MAX));
     document.getElementById('shareNoteText').textContent = tr('shareNoteText', count(Infinity));
     document.getElementById('shareNoteLink').textContent = tr('shareNoteLink', count(SHARE_MAX));
@@ -5014,6 +5090,7 @@ function setupShare() {
     restorePrefs();
     await fillSources();
     await fillName();
+    fillNotes();
     clearImage();
     setStatus('');
     filled = true;
@@ -5027,6 +5104,7 @@ function setupShare() {
   sourceEl.addEventListener('change', async () => {
     source = sourceEl.value;
     await fillName();
+    fillNotes();
     clearImage();
     await refresh();
   });
@@ -5068,7 +5146,7 @@ function setupShare() {
     const blob = imageBlob;
     const title = shareName(set.name) || `${SHARE_TAG} ${tr('shareImageTitle')}`;
     // X の本文に入れるリンクは名前も % にする (X は URL の途中の日本語でリンクを切る)
-    const url = formatXPostUrl(`${title} #${SHARE_TAG}`, shareSetCode(set, (l, ids, o, r, n, mv, mk, pw) => formatShareLink(l, ids, o, r, n, title, true, mv, mk, pw)));
+    const url = formatXPostUrl(`${title} #${SHARE_TAG}`, shareSetCode(set, (l, ids, o, r, n, mv, mk, pw, ne) => formatShareLink(l, ids, o, r, n, title, true, mv, mk, pw, ne)));
     const allowed = await asked;
     // 入れられなかったときのために、画像はいつもクリップボードにも入れておく
     let copied = false;
@@ -5176,6 +5254,7 @@ function setupRead() {
     if (layout) parts.push(tr('readLayout', layout.name));
     if (set.sync && Sync.built) parts.push(tr(set.items.some((h) => h.offset) ? 'readSyncOffsets' : 'readSync'));
     if (set.movie) parts.push(tr('readMovie'));
+    if (set.notes?.length) parts.push(tr('readNotes', set.notes.length));
     const notes = [];
     if (set.bad) notes.push(tr('shareBadLines', set.bad));
     if (set.tooMany) notes.push(tr('plTooMany', Playlists.MAX_ITEMS));
