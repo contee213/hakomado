@@ -5299,7 +5299,7 @@ function setupRead() {
     const notes = [];
     if (set.bad) notes.push(tr('shareBadLines', set.bad));
     if (set.tooMany) notes.push(tr('plTooMany', Playlists.MAX_ITEMS));
-    if (set.items.length > SHARE_MAX) notes.push(tr(set.sync ? 'readOverSync' : 'readOverTiles', SHARE_MAX));
+    if (set.items.length > SHARE_MAX) notes.push(tr(set.sync && Sync.enabled() ? 'readOverSync' : 'readOverTiles', SHARE_MAX)); // ⏱ アーカイブ同期が OFF なら同期の話はしない
     const name = saveName(set);
     if (name && (await Playlists.list()).some((p) => p.name === name)) notes.push(tr('readReplace', name));
     return [parts.join(' / '), ...notes].join('\n');
@@ -7682,7 +7682,7 @@ function updateSelMarks() {
   document.getElementById('favSelBar').classList.toggle('idle', none);
   document.getElementById('favSelClear').disabled = none;
   document.getElementById('favSelLoad').disabled = none;
-  // 📺 チャンネルで選べるのは配信中・予定だけなので、⏱ 開いて同期は出さない
+  // 📺 チャンネルの一覧では ⏱ 開いて同期は出さない (配信中・予定を選ぶ所。「最近 ⌄」のカードも選べるが、同期はライブラリから)
   const syncBtn = document.getElementById('favSelSync');
   // 実験的な機能 (⏱ アーカイブ同期) が OFF なら出さない
   syncBtn.hidden = favMode === 'all' || !Sync.enabled();
