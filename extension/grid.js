@@ -4241,9 +4241,13 @@ async function parseIncoming(text, onProgress) {
     const items = code.ids.map((videoId, k) => (sync ? { videoId, offset: code.offsets[k] } : { videoId }));
     return { name: code.name, items, sync, notes: code.notes || [], layoutId: code.layoutId, ref: sync ? code.ids[code.ref] : null, bad: 0, tooMany: false };
   }
-  const { items, ref, hasOffsets, meta, bad, tooMany } = await parseVideoLines(text, Playlists.MAX_ITEMS, onProgress);
+  const { items, notes, ref, hasOffsets, meta, bad, tooMany } = await parseVideoLines(text, Playlists.MAX_ITEMS, onProgress);
+  // 🎬 同時視聴 (「# movie=on」か、本編の位置のある行がある。HAKO-49)
+  if (metaOn(meta.movie) || items.some((h) => h.anchor != null)) {
+    return { name: meta.playlist || '', items, sync: false, movie: true, main: null, notes, layoutId: meta.layout || null, ref: ref || items[0]?.videoId || null, bad, tooMany };
+  }
   const sync = hasOffsets || !!ref || metaOn(meta.sync);
-  return { name: meta.playlist || '', items, sync, layoutId: meta.layout || null, ref, bad, tooMany };
+  return { name: meta.playlist || '', items, sync, notes, layoutId: meta.layout || null, ref, bad, tooMany };
 }
 
 /**
@@ -4303,18 +4307,24 @@ function playlistText(pl) {
   if (pl.name) lines.push(`# playlist=${pl.name}`);
   if (pl.sync) lines.push('# sync=on');
   if (pl.layoutId) lines.push(`# layout=${pl.layoutId}`);
+  if (pl.movie) lines.push('# movie=on'); // 🎬 同時視聴 (配信の行に本編の位置・見つけた区間。HAKO-49)
   const first = pl.items[0]?.videoId;
+  const out = [];
   for (const h of pl.items) {
     const parts = [videoUrlOf(h.videoId)];
-    const isRef = pl.sync && pl.ref && h.videoId === pl.ref && h.videoId !== first;
+    const isRef = (pl.sync || pl.movie) && pl.ref && h.videoId === pl.ref && h.videoId !== first;
     // ずれは決めてあれば 0 でも書く (受け取った側で「決めていない」にならないように)
     const o = h.offset ?? SyncOffsets.get(h.videoId);
     if (pl.sync && (h.offset != null || o || isRef)) parts.push(`~${isRef ? '*' : ''}${o}`);
+    const mt = pl.movie ? movieLineTail(h.anchor, h.w, isRef) : '';
+    if (mt) parts.push(mt);
     const l = lineLabel(h);
     if (l) parts.push(`# ${l}`);
-    lines.push(parts.join('  '));
+    out.push(parts.join('  '));
   }
-  return lines.join('\n');
+  // 説明付きの空き枠は、枠の並びでの位置に「[空き枠]  # 説明」の行で入れる (英語の表示なら「[empty]」。読むときはどちらも読む)
+  for (const n of [...(pl.notes || [])].sort((a, b) => a.k - b.k)) out.splice(Math.min(n.k, out.length), 0, `${tr('noteLine')}  # ${n.text}`);
+  return [...lines, ...out].join('\n');
 }
 
 /** 同期再生で一度に並べる分 (同期再生の再生リストは 16 本までなので全部。順に再生の再生リストをコードにするときは先頭から 16 本) */

@@ -546,3 +546,28 @@ test('説明付きの空き枠 (~e・hke=) を入れて読める。説明の「"
   // 無ければ notes は付かない
   assert.equal(plain(get('parseShareCode')(`#Hakomado u2x2.${A}`)).notes, undefined);
 });
+
+test('1 行 1 本のテキストの 🎬: 本編の位置 (~!)・見つけた区間 (~w)・説明付きの空き枠 ([空き枠] / [empty]) を読む (HAKO-49)', async () => {
+  const get = setup();
+  const text = [
+    '# playlist=無職転生 5〜6 話',
+    '# movie=on',
+    `https://www.youtube.com/watch?v=${A}  ~!59:35.24  ~w 10:08.54,10:40=0:20,34:56.65,59:35.24  # 兎田ぺこら`,
+    '[空き枠]  # ここに 5 話を入れてください',
+    `${B}  ~!*1:02:03  # 基準`,
+    '[empty]  # second note',
+    '[空き枠]',
+  ].join('\n');
+  const r = plain(await get('parseVideoLines')(text, 200));
+  assert.equal(r.meta.movie, 'on');
+  assert.deepEqual(r.items[0], { videoId: A, label: '兎田ぺこら', anchor: 3575.24, w: [[608.54, 0], [640, 20], [2096.65, 0], [3575.24, 0]], k: 3 });
+  assert.deepEqual(r.items[1], { videoId: B, label: '基準', anchor: 3723 });
+  assert.equal(r.ref, B);
+  assert.deepEqual(r.notes, [{ k: 1, text: 'ここに 5 話を入れてください' }, { k: 3, text: 'second note' }], '説明の無い空き枠の行は飛ばす');
+  assert.equal(r.bad, 0);
+  // 書き出し
+  const tail = get('movieLineTail');
+  assert.equal(tail(3575.24, [[608.54, 0], [640, 20], [2096.65, 0]], false), '~!59:35.24  ~w 10:08.54,10:40=0:20,34:56.65');
+  assert.equal(tail(3723, null, true), '~!*1:02:03');
+  assert.equal(tail(null, null), '');
+});

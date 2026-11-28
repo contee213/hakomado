@@ -220,8 +220,8 @@ const MESSAGES = {
     'Includes: {0}, the layout, sync offsets and the name (drawn on the image and kept in the QR) / Not included: tile names. Attach it to a post on X or elsewhere, and others can open the same arrangement just by pasting the image into Hakomado',
   ],
   shareNoteText: [
-    '入るもの: 全部 ({0}・名前・同期再生・レイアウト・補正・枠の名前)。Hakomado に貼ると元どおりに戻ります。AI チャットに渡して直してもらうこともできます',
-    'Includes: everything ({0}, the name, sync setting, layout, offsets and tile names). Pasting it into Hakomado restores it as it was. You can also hand it to an AI chat to edit',
+    '入るもの: 全部 ({0}・名前・同期再生・レイアウト・補正・🎬 の本編の位置と作品の始まり・説明付きの空き枠・枠の名前)。Hakomado に貼ると元どおりに戻ります。AI チャットに渡して直してもらうこともできます',
+    'Includes: everything ({0}, the name, sync setting, layout, offsets, 🎬 movie positions and work starts, empty tiles with notes, and tile names). Pasting it into Hakomado restores it as it was. You can also hand it to an AI chat to edit',
   ],
   shareNoteLink: [
     '入るもの: {0}・レイアウト・同期の補正・名前 (画像の QR と同じ) / 入らないもの: 枠の名前。DM などで直接送るときに。Hakomado が入っていれば開くだけで同じ並びになり、入っていない人も YouTube の再生リストとして見られます',
@@ -555,6 +555,7 @@ const MESSAGES = {
   timerScanWorksTitle: ['画面のタイマーから見つけた作品。選ぶと、その作品の 0:00 を本編の位置にして移る', 'Titles found from the on-screen timer. Pick one to move to its 0:00'],
   readMovie: ['🎬 同時視聴 (本編でそろえる)', '🎬 Watch-along (aligned on the movie)'],
   readNotes: ['説明付きの空き枠 {0}', '{0} empty tile(s) with a note'],
+  noteLine: ['[空き枠]', '[empty]'],
   shareNoteTile: ['{0} の枠 ({1})', 'Tile {0} ({1})'],
   shareNotePlaceholder: ['説明 (例: ここに Prime Video 等の作品の URL を入れてください)', 'Note (e.g. Put the URL of the movie on Prime Video etc. here)'],
   packConfirm: [

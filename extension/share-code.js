@@ -2,7 +2,7 @@
 // 画面 (DOM) に触らない関数だけをここに置く (grid.js から切り出し。tests/ から読み込んで試せるように)。
 // 読み込む順: grid.html で grid.js より前。background.js も importScripts で読む (右クリックのメニューで videoIdFromUrl を使う)。
 // parseVideoLines は呼ばれたときに grid.js の resolveVideoId と favorites.js の Favorites を使う
-/* exported SHARE_TAG, SHARE_CODE_RE, shareName, shareNote, SHARE_NOTE_MAX, videoIdFromUrl, TWITCH_ID_RE, twitchIdFromUrl, twitchName, formatShareCode, parseShareCode, formatShareLink, parseShareLink, formatXPostUrl, parseWatchVideosLink, youtubePlaylistId, parseVideoLines, metaOn */
+/* exported SHARE_TAG, SHARE_CODE_RE, shareName, shareNote, SHARE_NOTE_MAX, movieLineTail, videoIdFromUrl, TWITCH_ID_RE, twitchIdFromUrl, twitchName, formatShareCode, parseShareCode, formatShareLink, parseShareLink, formatXPostUrl, parseWatchVideosLink, youtubePlaylistId, parseVideoLines, metaOn */
 /* global resolveVideoId, Favorites */
 'use strict';
 
@@ -119,6 +119,48 @@ function cleanNotes(notes, others = 0) {
   }
   return out.sort((a, b) => a.k - b.k).slice(0, Math.max(0, 16 - others));
 }
+// ---- 1 行 1 本のテキストでの 🎬 同時視聴 (HAKO-49)
+// 「# movie=on」の行で 🎬 のセット。配信の行の後ろに「~!<本編の 0:00 の再生位置>」(「~!*…」なら基準)、
+// 見つけた区間があれば「~w <区間>,<区間>,…」(区間は「<再生位置>」= 作品の始まり、「<再生位置>=<タイマーの値>」= 途中から動き出した所)。
+// 位置・値は「時:分:秒.xx」「分:秒.xx」か秒。「[空き枠]  # <説明>」(英語の表示では「[empty]」。どちらも読む) の行は、その位置に説明付きの空き枠を置く
+const NOTE_LINE_RE = /^\[(?:空き枠|empty)\]$/i;
+/** 秒 → 「1:02:03.45」「2:03.45」(小数が無ければ付けない) */
+function clockOf(sec) {
+  const v = Math.round(Math.max(0, Number(sec)) * 100) / 100;
+  const whole = Math.floor(v);
+  const frac = Math.round((v - whole) * 100);
+  const h = Math.floor(whole / 3600), m = Math.floor(whole / 60) % 60, s = whole % 60;
+  const p2 = (n) => String(n).padStart(2, '0');
+  return `${h ? `${h}:${p2(m)}` : m}:${p2(s)}${frac ? `.${p2(frac)}` : ''}`;
+}
+/** 「1:02:03.45」「2:03.45」「123.45」→ 秒 (読めなければ null) */
+function secOf(text) {
+  const m = String(text).match(/^(?:(?:(\d{1,3}):)?(\d{1,2}):)?(\d{1,6}(?:\.\d{1,3})?)$/);
+  if (!m) return null;
+  const v = Number(m[1] || 0) * 3600 + Number(m[2] || 0) * 60 + Number(m[3]);
+  return Number.isFinite(v) ? Math.round(v * 100) / 100 : null;
+}
+/** 配信の行の後ろに付ける「~!…  ~w …」(本編の位置が無ければ '') */
+function movieLineTail(anchor, w, isRef = false) {
+  if (!Number.isFinite(anchor)) return '';
+  const parts = [`~!${isRef ? '*' : ''}${clockOf(anchor)}`];
+  const ws = Array.isArray(w) ? w.filter((p) => Array.isArray(p) && p[0] >= 0 && p[1] >= 0) : [];
+  if (ws.length) parts.push(`~w ${ws.map((p, i) => (i === 0 || p[1] === 0 ? clockOf(p[0]) : `${clockOf(p[0])}=${clockOf(p[1])}`)).join(',')}`);
+  return parts.join('  ');
+}
+/** 「~w」の中身を区間の並びにする (読めなければ null) */
+function sectionsOf(text) {
+  const out = [];
+  for (const part of String(text).split(',')) {
+    const [a, b] = part.split('=');
+    const at = secOf(a);
+    const v = b == null ? 0 : secOf(b);
+    if (at == null || v == null) return null;
+    out.push([at, v]);
+  }
+  return out.length ? out : null;
+}
+
 /** 「~e」の中身を読む */
 function readNotes(text) {
   const out = [];
@@ -510,18 +552,41 @@ async function parseVideoLines(text, max, onProgress) {
       continue;
     }
     let rest = s.slice(t.length);
+    // 説明付きの空き枠の行 (「[空き枠]  # 説明」)
+    if (NOTE_LINE_RE.test(t)) {
+      const text = shareNote(rest.match(/^\s+#\s*(.*)$/)?.[1] || '');
+      if (text) tokens.push({ note: text });
+      continue;
+    }
     const off = rest.match(/^\s+~(\*?)([-+]?\d+(?:\.\d+)?)?(?=\s|$)/);
     if (off) rest = rest.slice(off[0].length);
+    // 🎬 の本編の位置 (「~!…」) と見つけた区間 (「~w …」)
+    const mv = rest.match(/^\s+~!(\*?)([\d:.]+)(?=\s|$)/);
+    if (mv) rest = rest.slice(mv[0].length);
+    const wv = rest.match(/^\s+~w\s+([\d:.=,]+)(?=\s|$)/);
+    if (wv) rest = rest.slice(wv[0].length);
     const label = (rest.match(/^\s+#\s*(.*)$/)?.[1] || '').replace(/\s+/g, ' ').trim();
-    tokens.push({ t, label, offset: off ? Number(off[2]) || 0 : null, ref: !!off?.[1] });
+    tokens.push({
+      t,
+      label,
+      offset: off ? Number(off[2]) || 0 : null,
+      ref: !!off?.[1] || !!mv?.[1],
+      anchor: mv ? secOf(mv[2]) : null,
+      w: wv ? sectionsOf(wv[1]) : null,
+    });
   }
   const items = [];
+  const notes = []; // 説明付きの空き枠 [{k: 枠の並びでの位置, text}]
   let ref = null;
   let hasOffsets = false;
   let bad = 0;
   let k = 0;
   for (; k < tokens.length && items.length < max; k++) {
     onProgress?.(k + 1, tokens.length);
+    if (tokens[k].note) {
+      if (items.length + notes.length < 16) notes.push({ k: items.length + notes.length, text: tokens[k].note });
+      continue;
+    }
     try {
       const id = await resolveVideoId(tokens[k].t);
       const { label, offset } = tokens[k];
@@ -533,12 +598,20 @@ async function parseVideoLines(text, max, onProgress) {
         h.offset = offset;
       }
       if (tokens[k].ref && !ref) ref = id;
+      if (tokens[k].anchor != null) h.anchor = tokens[k].anchor;
+      if (tokens[k].w) {
+        h.w = tokens[k].w;
+        // 選んでいる作品: 本編の位置が、ある作品の 0:00 (始まりの再生位置 − タイマーの値) と同じなら、その作品
+        const starts = h.w.filter((p, i) => i === 0 || p[1] === 0);
+        const n = starts.findIndex((p) => h.anchor != null && Math.abs(p[0] - p[1] - h.anchor) < 0.02);
+        h.k = n >= 0 ? n + 1 : null;
+      }
       items.push(h);
     } catch {
       bad++;
     }
   }
-  return { items, ref, hasOffsets, meta, bad, tooMany: k < tokens.length };
+  return { items, notes, ref, hasOffsets, meta, bad, tooMany: k < tokens.length };
 }
 
 /** 「# sync=…」の値が ON か */
