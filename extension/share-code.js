@@ -87,8 +87,42 @@ const SHARE_NAME_MAX = 40; // 再生リストの名前と同じ
 // (例: 「~!754.23,*,-3,*0」= 1 本目が本編、2 本目が基準)。本編の位置を読む以前の版は動画の数までしか読まないので、無視される
 // いちばん最後の「 ~t …」は Twitch の枠 (下の「Twitch の枠」の節)。以前の版はここを無視して、YouTube の動画だけを詰めて読む。
 // Twitch の枠だけのセットは YouTube の動画 ID が 0 本 (「u2x2. ~t …」)。以前の版では読めない
+// さらに後ろの「 ~w …」は、🎬 同時視聴で配信の画面のタイマーから見つけた区間と選んでいる作品 (下の「見つけた区間」の節。HAKO-49)。
+// 以前の版はここを無視して、本編の位置 (「~!」) だけで読む
 const SHARE_CODE_RE =
-  /#?Hakomado\s+([a-z0-9-]{1,24})\.((?:[A-Za-z0-9_-]{11}){0,16})(?:~([-+*\d.,]{1,240}))?(?![A-Za-z0-9_-])(?: "([^"\r\n]{1,40})")?(?: ~!([-*\d.,]{1,240}))?(?: ~t ([a-z0-9_:=,]{3,600}))?/i;
+  /#?Hakomado\s+([a-z0-9-]{1,24})\.((?:[A-Za-z0-9_-]{11}){0,16})(?:~([-+*\d.,]{1,240}))?(?![A-Za-z0-9_-])(?: "([^"\r\n]{1,40})")?(?: ~!([-*\d.,]{1,240}))?(?: ~t ([a-z0-9_:=,]{3,600}))?(?: ~w ([\d.=:_,]{3,1500}))?/i;
+
+// ---- 見つけた区間 (コードの最後の「 ~w …」・リンクの hkw=。HAKO-49)
+// 動画ごとに「<YouTube の動画の番号>=<選んでいる作品 (1 から。選んでいなければ 0)>:<再生位置>_<タイマーの値>:<再生位置>_<タイマーの値>…」を「,」で並べる
+// (例: 「0=2:608.54_0:640_20:2096.65_0」= 1 本目の動画は 2 本目の作品を選んでいて、区間は 3 つ)。
+// 再生位置・値は秒 (0.01 秒単位)。区間は movie-anchors.js の w と同じ (値が 0 か最初の区間が作品の始まり)。区間の無い動画は書かない
+const SHARE_W_RE = /^\d{1,2}=\d{1,3}(?::\d{1,6}(?:\.\d{1,2})?_\d{1,6}(?:\.\d{1,2})?){1,200}(?:,\d{1,2}=\d{1,3}(?::\d{1,6}(?:\.\d{1,2})?_\d{1,6}(?:\.\d{1,2})?){1,200}){0,15}$/;
+const r2 = (v) => Math.round(Number(v) * 100) / 100;
+/** 動画ごとの {w, k} (無ければ null) の並びを「~w」の中身にする (区間のある動画が無ければ '') */
+function planTail(plans) {
+  if (!plans) return '';
+  return plans
+    .map((pl, y) => {
+      const w = Array.isArray(pl?.w) ? pl.w.filter((p) => Array.isArray(p) && Number(p[0]) >= 0 && Number(p[1]) >= 0) : [];
+      if (!w.length) return '';
+      const k = Number.isInteger(pl.k) && pl.k > 0 ? pl.k : 0;
+      return `${y}=${k}:${w.slice(0, 200).map((p) => `${r2(p[0])}_${r2(p[1])}`).join(':')}`;
+    })
+    .filter(Boolean)
+    .join(',');
+}
+/** 「~w」の中身を読む: YouTube の動画の番号 → {w, k} (k は選んでいなければ null)。形が違えば空 */
+function readPlans(text) {
+  const out = new Map();
+  if (!text || !SHARE_W_RE.test(text)) return out;
+  for (const part of text.split(',')) {
+    const [head, ...pairs] = part.split(':');
+    const [y, k] = head.split('=').map(Number);
+    if (out.has(y)) continue;
+    out.set(y, { w: pairs.map((q) => q.split('_').map(Number)), k: k > 0 ? k : null });
+  }
+  return out;
+}
 
 // ---- Twitch の枠 (コードの最後の「 ~t …」・リンクの hkt=)
 // 「<枠の番号>=<名前>」(チャンネルのライブ) か「<枠の番号>=v:<数字>」(VOD) を「,」で並べる。
@@ -102,7 +136,7 @@ const isTwitchShareId = (id) => typeof id === 'string' && TWITCH_ID_RE.test(id);
  * offs・movie・refK・mainK は全部の並びでの番号・値。返すものは YouTube の動画だけの並びでの番号・値
  * (基準・本編にした動画が Twitch の枠なら、基準は先頭・本編にした動画は無し)
  */
-function splitShare(ids, offs = [], refK = 0, movie = null, mainK = -1) {
+function splitShare(ids, offs = [], refK = 0, movie = null, mainK = -1, plans = null) {
   const keep = [];
   ids.forEach((id, k) => !isTwitchShareId(id) && keep.push(k));
   const pos = new Map(keep.map((k, j) => [k, j]));
@@ -112,6 +146,7 @@ function splitShare(ids, offs = [], refK = 0, movie = null, mainK = -1) {
     ref: pos.get(refK) ?? 0,
     movie: movie ? keep.map((k) => movie[k] ?? null) : null,
     main: pos.get(mainK) ?? -1,
+    plans: plans ? keep.map((k) => plans[k] ?? null) : null,
     tw: ids.flatMap((id, k) => (isTwitchShareId(id) ? [`${k}=${id.slice(3)}`] : [])).join(','),
   };
 }
@@ -145,6 +180,7 @@ function mergeTwitch(r, twText) {
     offsets: r.offsets ? out.map((e) => (e.y == null ? 0 : r.offsets[e.y])) : null,
     ref: Math.max(0, at(r.ref)),
   };
+  if (r.plans) merged.plans = out.map((e) => (e.y == null ? null : r.plans[e.y]));
   if (r.movie) {
     merged.movie = out.map((e) => (e.y == null ? null : r.movie[e.y]));
     merged.main = r.main != null && at(r.main) >= 0 ? at(r.main) : null;
@@ -171,12 +207,13 @@ const shareName = (s) =>
  * movie = 動画ごとの本編の位置 (秒。決めていなければ null) を渡すと「🎬 本編」モードのコードにする
  * (ずれの「~…」の代わりに、名前の後ろに「 ~!…」を付ける。基準は refK。mainK = 使う人が「本編にした」動画の番号 (無ければ -1))
  */
-function formatShareCode(layoutId, ids, offs = [], refK = 0, name = '', movie = null, mainK = -1) {
-  const s = splitShare(ids, offs, refK, movie, mainK);
+function formatShareCode(layoutId, ids, offs = [], refK = 0, name = '', movie = null, mainK = -1, plans = null) {
+  const s = splitShare(ids, offs, refK, movie, mainK, plans);
   const tail = movie ? '' : shareTail(s.ids, s.offs, s.ref);
   const mt = movie ? movieTail(s.ids, s.movie, s.ref, s.main) : '';
+  const wt = movie ? planTail(s.plans) : '';
   const n = shareName(name);
-  return `#${SHARE_TAG} ${layoutId}.${s.ids.join('')}${tail ? `~${tail}` : ''}${n ? ` "${n}"` : ''}${mt ? ` ~!${mt}` : ''}${s.tw ? ` ~t ${s.tw}` : ''}`;
+  return `#${SHARE_TAG} ${layoutId}.${s.ids.join('')}${tail ? `~${tail}` : ''}${n ? ` "${n}"` : ''}${mt ? ` ~!${mt}` : ''}${s.tw ? ` ~t ${s.tw}` : ''}${wt ? ` ~w ${wt}` : ''}`;
 }
 
 /**
@@ -233,10 +270,11 @@ function shareTail(ids, offs = [], refK = 0) {
  * - hkl・hks・hakomado は YouTube には無視される。hakomado= はいつも最後に付ける: 取り込みのルールの目印。
  *   最後なので、貼られた文で後ろに文字が続くと値にくっつく。読むときは最初の 1 文字だけを見る
  */
-function formatShareLink(layoutId, ids, offs = [], refK = 0, name = '', fallback = '', ascii = false, movie = null, mainK = -1) {
-  const s = splitShare(ids, offs, refK, movie, mainK);
+function formatShareLink(layoutId, ids, offs = [], refK = 0, name = '', fallback = '', ascii = false, movie = null, mainK = -1, plans = null) {
+  const s = splitShare(ids, offs, refK, movie, mainK, plans);
   const tail = movie ? '' : shareTail(s.ids, s.offs, s.ref);
   const mt = movie ? movieTail(s.ids, s.movie, s.ref, s.main) : '';
+  const wt = movie ? planTail(s.plans) : '';
   const title = shareName(name) || fallback;
   const pct = (c) => `%${c.charCodeAt(0).toString(16).toUpperCase().padStart(2, '0')}`;
   const enc = ascii
@@ -244,7 +282,7 @@ function formatShareLink(layoutId, ids, offs = [], refK = 0, name = '', fallback
     : title.replace(/[\s%&#+'<>"]/g, pct);
   const named = shareName(name) ? '1' : '0';
   // Twitch の枠は hkt= (コードの「~t」と同じ中身。「=」「:」は値の中でもそのまま使える)。YouTube には無視される
-  return `https://www.youtube.com/watch_videos?video_ids=${s.ids.join(',')}&hkl=${layoutId}${tail ? `&hks=${tail}` : ''}${mt ? `&hkm=${mt}` : ''}${s.tw ? `&hkt=${s.tw}` : ''}${title ? `&title=${enc}` : ''}&hakomado=${named}`;
+  return `https://www.youtube.com/watch_videos?video_ids=${s.ids.join(',')}&hkl=${layoutId}${tail ? `&hks=${tail}` : ''}${mt ? `&hkm=${mt}` : ''}${s.tw ? `&hkt=${s.tw}` : ''}${wt ? `&hkw=${wt}` : ''}${title ? `&title=${enc}` : ''}&hakomado=${named}`;
 }
 
 /**
@@ -274,15 +312,23 @@ function parseShareCode(text) {
   const tw = code[6] && SHARE_TW_RE.test(code[6]) ? code[6] : '';
   const list = code[2].match(/.{11}/g) || [];
   if (!list.length && !tw) return null;
-  return mergeTwitch(shareBase(list, code[3], code[5], { layoutId: code[1], name: (code[4] || '').trim() }), tw);
+  return mergeTwitch(shareBase(list, code[3], code[5], { layoutId: code[1], name: (code[4] || '').trim() }, code[7]), tw);
 }
 
 /** YouTube の動画だけの並び・ずれ・本編の位置を読む (コードとリンクで共通) */
-function shareBase(list, tail, movieText, extra) {
+function shareBase(list, tail, movieText, extra, planText = '') {
   const base = { ...shareIds(list, tail), ...extra, movie: null };
   if (!movieText) return base;
   const m = movieIds(list, movieText);
-  return { ...base, offsets: null, ref: m.ref, movie: m.anchors, main: m.main };
+  const out = { ...base, offsets: null, ref: m.ref, movie: m.anchors, main: m.main };
+  // 見つけた区間 (同じ動画が 2 回あれば 1 回目の分)
+  const got = readPlans(planText);
+  if (got.size) {
+    const first = [];
+    list.forEach((id, y) => !first.some((f) => f.id === id) && first.push({ id, y }));
+    out.plans = first.map((f) => got.get(f.y) ?? null);
+  }
+  return out;
 }
 
 /** 動画の並びとずれ (「,」区切り) を読む。同じ動画が 2 回あれば 1 回目だけ (ずれも 1 回目のもの) */
@@ -323,6 +369,7 @@ function parseShareLink(text) {
   const list = ids ? ids.split(',') : [];
   const mt = p.get('hkm');
   const tw = p.get('hkt');
+  const wt = p.get('hkw');
   if (!/^[a-z0-9-]{1,24}$/i.test(layoutId) || (tail != null && !/^[-+*\d.,]{1,240}$/.test(tail))) return null;
   if (mt != null && !/^[-*\d.,]{1,240}$/.test(mt)) return null;
   if (tw != null && !SHARE_TW_RE.test(tw)) return null;
@@ -330,7 +377,7 @@ function parseShareLink(text) {
   if (!list.length && !tw) return null;
   // 名前は hakomado= が 1 (最初の 1 文字。後ろに貼られた文がくっついていても) のときの title= だけ。0 なら title= は仮の名前
   const named = (p.get('hakomado') || '').startsWith('1');
-  return mergeTwitch(shareBase(list, tail, mt, { layoutId, name: named ? shareName(p.get('title')) : '' }), tw || '');
+  return mergeTwitch(shareBase(list, tail, mt, { layoutId, name: named ? shareName(p.get('title')) : '' }, wt || ''), tw || '');
 }
 
 /**

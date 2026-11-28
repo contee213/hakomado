@@ -4173,7 +4173,7 @@ const SHARE_MAX = MAX_TILES;
 /**
  * 共有セット: 共有するもの (今の枠 / 再生リスト) と、読み込んだものの共通の形
  * movie = 🎬 本編モード (items の anchor = 本編の位置。sync は false)。main = 本編モードで、使う人が 🎬 で「本編にした」動画 (無ければ null)
- * @typedef {{name: string, items: {videoId: string, label?: string, channel?: string, offset?: number, anchor?: number|null}[],
+ * @typedef {{name: string, items: {videoId: string, label?: string, channel?: string, offset?: number, anchor?: number|null, w?: number[][], k?: number|null}[],
  *   sync: boolean, movie?: boolean, main?: string|null, layoutId: string|null, ref: string|null}} ShareSet
  */
 // コードの読み書き (formatShareCode / parseShareCode / shareName)・取り込み用リンク・1 行 1 本のテキストの読み取りは share-code.js
@@ -4186,7 +4186,11 @@ function tilesShareSet(name = '') {
   const items = tileEntries();
   const refTile = Sync.refIfOn();
   if (Sync.isMovie()) {
-    const withAnchor = items.map((h) => ({ ...h, anchor: MovieAnchors.get(h.videoId) }));
+    // 本編の位置と、画面のタイマーから見つけた区間・選んでいる作品 (w・k。HAKO-49)
+    const withAnchor = items.map((h) => {
+      const sec = MovieAnchors.sections(h.videoId);
+      return { ...h, anchor: MovieAnchors.get(h.videoId), ...(sec ? { w: sec.w, k: sec.k } : {}) };
+    });
     // 「本編にした」印 (1 本だけのとき。本編の枠の決め方 mainOf と同じ)。プレミア公開でない本編も、受け取った側で本編の枠になるように
     const marked = items.filter((h) => MovieAnchors.isMain(h.videoId));
     const main = marked.length === 1 ? marked[0].videoId : null;
@@ -4208,7 +4212,10 @@ function tilesShareSet(name = '') {
 async function parseIncoming(text, onProgress) {
   const code = parseShareCode(text) || parseShareLink(text);
   if (code?.movie) {
-    const items = code.ids.map((videoId, k) => ({ videoId, anchor: code.movie[k] }));
+    const items = code.ids.map((videoId, j) => {
+      const pl = code.plans?.[j];
+      return { videoId, anchor: code.movie[j], ...(pl ? { w: pl.w, k: pl.k } : {}) };
+    });
     const main = code.main != null ? code.ids[code.main] : null;
     return { name: code.name, items, sync: false, movie: true, main, layoutId: code.layoutId, ref: code.ids[code.ref], bad: 0, tooMany: false };
   }
@@ -4321,6 +4328,7 @@ function shareSetCode(pl, format = formatShareCode) {
     pl.name,
     pl.movie ? items.map((h) => h.anchor ?? null) : null,
     pl.movie && pl.main ? ids.indexOf(pl.main) : -1,
+    pl.movie ? items.map((h) => (Array.isArray(h.w) && h.w.length ? { w: h.w, k: h.k ?? null } : null)) : null,
   );
 }
 
@@ -4349,6 +4357,7 @@ async function applyShareSet(set) {
   await applyViewingSet(ids, set.layoutId, {
     offsets: set.sync ? items.map((h) => h.offset || 0) : null,
     anchors: set.movie ? items.map((h) => h.anchor ?? null) : null,
+    plans: set.movie ? items.map((h) => (Array.isArray(h.w) && h.w.length ? { w: h.w, k: h.k ?? null } : null)) : null,
     main: set.movie && ids.includes(set.main) ? set.main : null,
     ref: Math.max(0, ids.indexOf(set.ref)),
     labels: items.map((h) => h.label || ''),
@@ -4360,7 +4369,7 @@ async function applyShareSet(set) {
  * offsets (動画ごとの同期のずれ) があれば記録し、アーカイブだと分かりしだい ref 番目の動画を基準に同期を始める。
  * main (🎬 本編モードで「本編にした」動画) があれば、その動画に「本編にした」印を付ける
  */
-async function applyViewingSet(ids, layoutId, { offsets = null, anchors = null, main = null, ref = 0, labels = [], resumeAt = null } = {}) {
+async function applyViewingSet(ids, layoutId, { offsets = null, anchors = null, plans = null, main = null, ref = 0, labels = [], resumeAt = null } = {}) {
   playlistSyncSession = null;
   if (state.autoMode) await setAutoMode(false); // 自動再生が枠を入れ替えないように
   stopQueue();
@@ -4397,6 +4406,8 @@ async function applyViewingSet(ids, layoutId, { offsets = null, anchors = null, 
   if (offsets) offsets.forEach((o, k) => SyncOffsets.set(ids[k], o));
   // 🎬 本編モード: 本編の位置を記録して、本編モードで同期を始める (決めていない動画の位置は消さない)
   if (anchors) anchors.forEach((a, k) => a != null && MovieAnchors.set(ids[k], a));
+  // 見つけた区間と選んでいる作品 (HAKO-49): 受け取った側で調べ直さずに、離席の間・次の作品も合わせられるように (本編の位置は選んでいる作品の 0:00 になる)
+  if (plans) plans.forEach((p, k) => p && MovieAnchors.setSections(ids[k], p.w, p.k));
   // 「本編にした」印: 渡された動画に付け、セットのほかの動画からは外す (2 本に付いていると本編の枠が決まらないため)。
   // 印の入っていないコード (以前の版で作ったものなど) では、こちらで付けた印をそのままにする
   if (anchors && main) for (const id of ids) if (id === main || MovieAnchors.isMain(id)) MovieAnchors.setMain(id, id === main);
@@ -4574,7 +4585,11 @@ async function renderShareImage(set, { labels = false, author = '' } = {}) {
   const filled = syncItems(set);
   const title = shareName(set.name) || `${SHARE_TAG} ${tr('shareImageTitle')}`;
   // QR にはコードと同じ中身のリンクを入れる (スマホのカメラで読むと YouTube で開ける)。
-  const code = shareSetCode(set, (l, ids, o, r, n, mv, mk) => formatShareLink(l, ids, o, r, n, title, false, mv, mk));
+  const code = shareSetCode(set, (l, ids, o, r, n, mv, mk, pw) => {
+    // 見つけた区間が多くて QR が細かくなりすぎるなら、QR には入れない (コード・ALT には入る)
+    const full = formatShareLink(l, ids, o, r, n, title, false, mv, mk, pw);
+    return full.length <= 1200 ? full : formatShareLink(l, ids, o, r, n, title, false, mv, mk);
+  });
   const canvas = document.createElement('canvas');
   canvas.width = SHARE_W;
   canvas.height = SHARE_H;
@@ -4929,7 +4944,7 @@ function setupShare() {
     textEl.value = set ? playlistText(set) : '';
     // リンクは画像の QR と同じ中身。DM・チャットなどに貼るので名前も % にする (日本語でリンクが切れるアプリがある)
     const title = set ? shareName(set.name) || `${SHARE_TAG} ${tr('shareImageTitle')}` : '';
-    linkEl.value = set ? shareSetCode(set, (l, ids, o, r, nm, mv, mk) => formatShareLink(l, ids, o, r, nm, title, true, mv, mk)) : '';
+    linkEl.value = set ? shareSetCode(set, (l, ids, o, r, nm, mv, mk, pw) => formatShareLink(l, ids, o, r, nm, title, true, mv, mk, pw)) : '';
     document.getElementById('shareNoteImage').textContent = tr('shareNoteImage', count(SHARE_MAX));
     document.getElementById('shareNoteText').textContent = tr('shareNoteText', count(Infinity));
     document.getElementById('shareNoteLink').textContent = tr('shareNoteLink', count(SHARE_MAX));
@@ -5053,7 +5068,7 @@ function setupShare() {
     const blob = imageBlob;
     const title = shareName(set.name) || `${SHARE_TAG} ${tr('shareImageTitle')}`;
     // X の本文に入れるリンクは名前も % にする (X は URL の途中の日本語でリンクを切る)
-    const url = formatXPostUrl(`${title} #${SHARE_TAG}`, shareSetCode(set, (l, ids, o, r, n, mv, mk) => formatShareLink(l, ids, o, r, n, title, true, mv, mk)));
+    const url = formatXPostUrl(`${title} #${SHARE_TAG}`, shareSetCode(set, (l, ids, o, r, n, mv, mk, pw) => formatShareLink(l, ids, o, r, n, title, true, mv, mk, pw)));
     const allowed = await asked;
     // 入れられなかったときのために、画像はいつもクリップボードにも入れておく
     let copied = false;

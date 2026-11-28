@@ -22,7 +22,7 @@ before(async () => {
 test('コードを読む: レイアウト・動画・ずれ・基準・名前', () => {
   const r = core.parseSubmission(`見てね #Hakomado u2x2.${A}${B}${C}~0,*1.5,-2 "箱企画"`);
   assert.equal(r.ok, true);
-  assert.deepEqual({ ...r.set }, { layoutId: 'u2x2', ids: [A, B, C], offsets: [0, 1.5, -2], ref: 1, name: '箱企画', movie: null, main: null });
+  assert.deepEqual({ ...r.set }, { layoutId: 'u2x2', ids: [A, B, C], offsets: [0, 1.5, -2], ref: 1, name: '箱企画', movie: null, main: null, plans: null });
 });
 
 test('取り込み用リンクも読める (コードと同じ中身)', () => {
@@ -62,7 +62,7 @@ test('動画の並びから作る (API・MCP): URL と ID を読み、レイア�
 test('動画の並びから作る: ずれと基準 (小数 1 桁に丸める)', () => {
   const r = core.buildSubmission({ videos: [A, B], layoutId: 'tl-pip1', offsets: [0, 2.25], ref: 1 });
   assert.equal(r.ok, true);
-  assert.deepEqual({ ...r.set, ids: [...r.set.ids], offsets: [...r.set.offsets] }, { layoutId: 'tl-pip1', ids: [A, B], offsets: [0, 2.3], ref: 1, name: '', movie: null, main: null });
+  assert.deepEqual({ ...r.set, ids: [...r.set.ids], offsets: [...r.set.offsets] }, { layoutId: 'tl-pip1', ids: [A, B], offsets: [0, 2.3], ref: 1, name: '', movie: null, main: null, plans: null });
 });
 
 test('動画の並びから作る: 読めないものは種類ごとのエラー', () => {
@@ -189,7 +189,7 @@ test('同じセットのまとめ方: 公開は名前を除いて、限定公開
 test('🎬 本編モードのセット: 読む・同じセットの判定・D1 の列 ({movie}) から戻す', () => {
   const r = core.parseSubmission(`#Hakomado u2x2.${A}${B} "コマンドー" ~!754.2,*`);
   assert.equal(r.ok, true);
-  assert.deepEqual({ ...r.set, ids: [...r.set.ids], movie: [...r.set.movie] }, { layoutId: 'u2x2', ids: [A, B], offsets: null, ref: 1, name: 'コマンドー', movie: [754.2, null], main: null });
+  assert.deepEqual({ ...r.set, ids: [...r.set.ids], movie: [...r.set.movie] }, { layoutId: 'u2x2', ids: [A, B], offsets: null, ref: 1, name: 'コマンドー', movie: [754.2, null], main: null, plans: null });
   const plainSet = core.parseSubmission(`#Hakomado u2x2.${A}${B}`).set;
   assert.notEqual(core.canonical(r.set), core.canonical(plainSet), '本編の位置が違えば別のセット');
   assert.equal(core.offsetsColumn(r.set), JSON.stringify({ movie: [754.2, null] }));
@@ -313,4 +313,20 @@ test('Twitch の枠入りのセット: コード・リンク・動画の並び (
   // Twitch だけのセット
   assert.deepEqual([...core.parseSubmission('#Hakomado u1x2. ~t 0=lofigirl,1=shroud').set.ids], ['tw:lofigirl', 'tw:shroud']);
   assert.deepEqual(core.buildSubmission({ videos: ['https://www.twitch.tv/directory'] }), { ok: false, error: 'bad_video' });
+});
+
+test('🎬 見つけた区間 (~w): 読む・D1 の列 ({movie, plans}) に入れて戻す・コードとリンクに出す (HAKO-49)', () => {
+  const code = `#Hakomado u2x2.${A}${B} "無職転生 1〜4 話" ~!608.54,592.9 ~w 0=1:608.54_0:640_20:2096.65_0,1=1:592.9_0`;
+  const r = core.parseSubmission(code);
+  assert.equal(r.ok, true);
+  assert.equal(r.set.plans.length, 2);
+  assert.deepEqual([...r.set.plans[0].w].map((p) => [...p]), [[608.54, 0], [640, 20], [2096.65, 0]]);
+  const noPlans = core.parseSubmission(`#Hakomado u2x2.${A}${B} "無職転生 1〜4 話" ~!608.54,592.9`).set;
+  assert.equal(noPlans.plans, null);
+  assert.notEqual(core.canonical(r.set), core.canonical(noPlans), '区間が違えば別のセット');
+  const col = core.offsetsColumn(r.set);
+  assert.match(col, /"plans":\[/);
+  const s = core.rowToSet({ id: 'abcdEFGH', layout: 'u2x2', ids: JSON.stringify([A, B]), offsets: col, ref: 0, name: '無職転生 1〜4 話', author: '', videos: '[{},{}]', opens: 0, created_at: 1 });
+  assert.equal(s.code, code, 'Feed のコードから読んだ拡張機能にも区間が届く');
+  assert.match(s.link, /&hkw=0=1:608\.54_0:640_20:2096\.65_0,1=1:592\.9_0&/);
 });
