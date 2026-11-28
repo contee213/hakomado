@@ -908,6 +908,11 @@ const WaveStrip = (() => {
    */
   function bindRowDrag(label, g, i) {
     let d = null;
+    let ghost = null; // カーソルに付ける影 (デザインガイド 2 章)
+    const dropGhost = () => {
+      ghost?.remove();
+      ghost = null;
+    };
     label.addEventListener('pointerdown', (e) => {
       if (e.button !== 0 || e.target.closest('button, select, input')) return;
       d = { y0: e.clientY, moved: false, pointerId: e.pointerId };
@@ -918,15 +923,19 @@ const WaveStrip = (() => {
       if (!d.moved) {
         d.moved = true;
         capture(label, e);
-        label.closest('.wv-row')?.classList.add('is-dragging');
+        const row = label.closest('.wv-row');
+        row?.classList.add('is-dragging');
         document.body.classList.add('wave-resizing'); // 枠の iframe にマウスを取られないように
+        if (row) ghost = makeDragGhost(row, e.clientX, e.clientY, label.querySelector('.wv-name')?.textContent || '');
       }
+      ghost?.move(e.clientX, e.clientY);
       paintDrop(dropAt(e.clientX, e.clientY, i));
     });
     const end = (e) => {
       if (!d) return;
       const moved = d.moved;
       d = null;
+      dropGhost();
       label.closest('.wv-row')?.classList.remove('is-dragging');
       document.body.classList.remove('wave-resizing');
       paintDrop(null);
@@ -952,6 +961,7 @@ const WaveStrip = (() => {
     label.addEventListener('pointerup', end);
     label.addEventListener('pointercancel', () => {
       d = null;
+      dropGhost();
       label.closest('.wv-row')?.classList.remove('is-dragging');
       document.body.classList.remove('wave-resizing');
       paintDrop(null);

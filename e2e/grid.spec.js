@@ -1860,6 +1860,42 @@ test.describe('枠の入れ替え', () => {
   });
 });
 
+test.describe('一覧のドラッグ (HAKO-62)', () => {
+  test('再生リストの並べ替え: 影は 240px までに縮めてダイアログの中に出し、落とし先の行を塗る。離すと並びが変わり、影が消える', async ({ openGrid }) => {
+    const page = await openGrid();
+    await skipTour(page);
+    const ids = ['aaaaaaaaaaa', 'bbbbbbbbbbb', 'ccccccccccc'];
+    const id = await page.evaluate(async (ids) => (await Playlists.create('並べ替え', ids.map((videoId, k) => ({ videoId, title: `${k + 1} 本目` })))).playlist.id, ids);
+    await page.locator('#openFavorites').click();
+    await page.locator('[data-favtab="playlists"]').click();
+    await page.locator('#plSelect').selectOption(id);
+    const rows = page.locator('#favList li.pl-row');
+    await expect(rows).toHaveCount(3);
+    const r0 = await rows.nth(0).boundingBox();
+    expect(r0.width).toBeGreaterThan(240); // 縮める幅の行で確かめる
+    const grip = await rows.nth(0).locator('.pl-grip').boundingBox();
+    const from = { x: grip.x + grip.width / 2, y: grip.y + grip.height / 2 };
+    await page.mouse.move(from.x, from.y);
+    await page.mouse.down();
+    await page.mouse.move(from.x + 10, from.y + 10, { steps: 5 });
+    const target = await rows.nth(2).boundingBox();
+    const to = { x: target.x + target.width / 2, y: target.y + target.height / 2 };
+    await page.mouse.move(to.x, to.y, { steps: 10 });
+    await page.mouse.move(to.x, to.y);
+    const ghost = page.locator('#favorites .drag-ghost');
+    await expect(ghost).toHaveCount(1);
+    const g = await ghost.boundingBox();
+    expect(g.width).toBeLessThanOrEqual(240.5);
+    await expect(rows.nth(2)).toHaveClass(/\bpl-drop\b/);
+    await expect(rows.nth(2)).toHaveCSS('background-color', 'rgba(138, 180, 255, 0.35)');
+    await page.mouse.up();
+    await expect(page.locator('.drag-ghost')).toHaveCount(0);
+    await expect
+      .poll(() => page.evaluate(async (id) => (await Playlists.get(id)).items.map((x) => x.videoId), id))
+      .toEqual(['bbbbbbbbbbb', 'ccccccccccc', 'aaaaaaaaaaa']);
+  });
+});
+
 test.describe('自動再生の最大枠数', () => {
   test('増やしたら、1 分ごとの確認を待たずに空いた分を足す', async ({ openGrid }) => {
     const page = await openGrid();
