@@ -9,6 +9,7 @@
 // ほかの同期のファイルの <script> を消す。Chrome ウェブストアと GitHub のリリースの ZIP はこれで作る (.github/workflows/release.yml)。
 // 補正を覚える仕組み (sync-offsets.js・movie-anchors.js) は残す (共有コード・再生リスト・バックアップの補正を消さないため)。
 // content/mix.js も残す (枠の音の遅延・左右・音量の経路と同じファイルで、分けられないため。親が頼まなければ音の記録はしない)。
+// 動画ごとの波形 (waves.js) も残す (🎚 音量バランスが、保存してある波形から大きさを出すため。HAKO-54)。
 // 作ったあと、抜いたファイルの名前がどこからも参照されていないか、grid.html が読むファイルがそろっているかを確かめ、だめなら止める
 'use strict';
 
@@ -19,7 +20,8 @@ const ROOT = path.resolve(__dirname, '..');
 const EXT = path.join(ROOT, 'extension');
 
 /** リリース版で抜く、アーカイブ同期だけが使うファイル (extension/ からの相対) */
-const SYNC_FILES = ['sync.js', 'sync-groups.js', 'audio-align.js', 'audio-align-worker.js', 'waves.js', 'wave-strip.js'];
+// 波形 (waves.js) は 🎚 音量バランスも使うので残す (HAKO-54)
+const SYNC_FILES = ['sync.js', 'sync-groups.js', 'audio-align.js', 'audio-align-worker.js', 'wave-strip.js'];
 /** 同期入りのときに抜く、リリース版だけが使うファイル */
 const OFF_FILES = ['sync-off.js'];
 

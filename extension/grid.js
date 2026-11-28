@@ -3353,9 +3353,12 @@ window.addEventListener('message', (e) => {
     // 枠の中で左右・音量の経路を作れなかった (AudioContext が動かない)
     if (data.ok === false) showToast(i, tr('mixBlocked'));
   } else if (data.hakomado === 'level') {
-    VolumeBalance.onLevel(i, data); // 🎚 音量バランスの「大きさをそろえる」: 1 秒ぶんの音の大きさ
+    VolumeBalance.onLevel(i, data); // 🎚 音量バランスが頼んだ音の記録を、枠の中で始められなかった
   } else if (data.hakomado === 'envChunk') {
-    AudioSync.chunk(i, data); // ✨ 自動補正と 〰 波形: 枠の音の大きさの記録 (sync.js)
+    // 枠の音の大きさの記録 (✨ 自動補正・🎚 音量バランスのどちらが頼んだものでも、枠の中では 1 つの記録)。
+    // ✨ の計算 (sync.js) に渡し、動画の波形 (〰 と音量バランスが使う。保存する) には VolumeBalance.chunk が 1 回だけ足す
+    AudioSync.chunk(i, data);
+    VolumeBalance.chunk(i, data);
   } else if (data.hakomado === 'measure') {
     if (data.ok === false) AudioSync.blocked(i);
   } else if (data.hakomado === 'live') {

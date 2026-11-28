@@ -1,7 +1,8 @@
 // 🎚 音量バランス (volume-balance.js。HAKO-54) の計算の確かめ:
 // - 保存した値の読み方 (normalize)
 // - 主役のときのほかの枠の割合 (主役がミュートなら下げない)
-// - 「大きさをそろえる」: 真ん中の大きさに合わせ、1 秒に 1 dB までしか動かさない。無音・話の合間・ミュートの枠は数えない
+// - 「大きさをそろえる」: 真ん中の大きさに合わせ、1 秒に 1 dB までしか動かさない。無音・話の合間は数えない
+// - 同じ音を二度取らない: 保存してある波形が足りていれば測らない。届いた記録は波形に 1 回だけ足す。ライブはこの画面の間だけ覚える
 'use strict';
 
 const { test } = require('node:test');
@@ -9,14 +10,36 @@ const assert = require('node:assert/strict');
 const vm = require('node:vm');
 const { readExt } = require('./helpers/load');
 
-/** grid.js の代わりを用意して volume-balance.js を読み込む。tick は setInterval から取り出して手で回す */
-function load(tiles) {
+const STEP = 0.1;
+/** dB → 波形の 1 バイト (waves.js の quantize と同じ並べ方) */
+const q = (db) => 1 + Math.round(Math.max(0, Math.min(1, (db + 60) / 60)) * 254);
+/** dB の大きさが sec 秒続く波形 */
+const wave = (db, sec) => new Uint8Array(Math.round(sec / STEP)).fill(q(db));
+
+/** grid.js・waves.js の代わりを用意して volume-balance.js を読み込む。tick は setInterval から取り出して手で回す */
+function load(tiles, { kinds = [], waves = {} } = {}) {
   const posted = [];
+  const fed = [];
+  const listeners = [];
   let tick = null;
+  const Waves = {
+    get: (id) => waves[id] || null,
+    ensure: async (id) => waves[id] || (waves[id] = new Uint8Array(0)),
+    onChange: (f) => listeners.push(f),
+    feed: async (id, d) => {
+      fed.push(id);
+      waves[id] = Uint8Array.from([...(waves[id] || []), ...d.vals]);
+      listeners.forEach((f) => f(id));
+    },
+    // 記録 → 0.1 秒ごとの [合計, 個数] (ここでは記録に 0.1 秒ごとの大きさをそのまま持たせる)
+    stepsOf: (d) => new Map((d.levels || []).map((x, k) => [k, [x, 1]])),
+  };
   const ctx = {
-    MAX_TILES: 16,
+    MAX_TILES: tiles.length,
     state: { tiles, volume: null },
     views: tiles.map(() => ({ player: {} })),
+    Waves,
+    tileKind: (i) => kinds[i] || 'archive',
     isVisible: () => true,
     visibleIndexes: () => tiles.map((_, i) => i),
     tileFilled: (t) => !!(t.videoId || t.web),
@@ -24,37 +47,36 @@ function load(tiles) {
     save: () => {},
     tr: (k) => k,
     document: { getElementById: () => null },
-    performance: { now: () => 0 },
     setInterval: (fn) => {
       tick = fn;
       return 1;
     },
     clearInterval: () => {},
-    Math,
-    Number,
-    Map,
-    String,
   };
   vm.createContext(ctx);
   vm.runInContext(`${readExt('volume-balance.js')}\n;this.VB = VolumeBalance;`, ctx, { filename: 'volume-balance.js' });
   const VB = ctx.VB;
   ctx.state.volume = VB.normalize({});
-  return { VB, ctx, posted, runTick: () => tick?.() };
+  return { VB, ctx, posted, fed, waves, runTick: () => tick?.() };
 }
 
 const tile = (over = {}) => ({ videoId: 'aaaaaaaaaaa', web: '', muted: false, gain: 1, pan: 0, delay: 0, ...over });
-const ms = (db) => 10 ** (db / 10);
+const db = (g) => 20 * Math.log10(g);
+const turnOn = (VB, ctx) => {
+  ctx.state.volume.auto = true;
+  VB.refresh(); // 1 秒ごとの見直しを始める
+};
 
 test('保存した値: 知らない形は初期値、割合は 0〜1 の 5% 刻み、主役は枠の番号だけ', () => {
   const { VB } = load([tile()]);
   assert.deepEqual({ ...VB.normalize(undefined) }, { auto: false, focus: null, duck: 0.3 });
-  assert.deepEqual({ ...VB.normalize({ auto: true, focus: 3, duck: 0.42 }) }, { auto: true, focus: 3, duck: 0.4 });
+  assert.deepEqual({ ...VB.normalize({ auto: true, focus: 0, duck: 0.42 }) }, { auto: true, focus: 0, duck: 0.4 });
   assert.deepEqual({ ...VB.normalize({ auto: 'yes', focus: 99, duck: 5 }) }, { auto: false, focus: null, duck: 1 });
-  assert.equal(VB.normalize({ focus: '2' }).focus, null);
+  assert.equal(VB.normalize({ focus: '0' }).focus, null);
 });
 
 test('主役: ほかの音を出している枠を割合まで下げ、主役がミュートなら下げない', () => {
-  const tiles = [tile({ gain: 1.5 }), tile({ gain: 0.8 }), tile({ muted: true })];
+  const tiles = [tile({ gain: 1.5 }), tile({ gain: 0.8, videoId: 'bbbbbbbbbbb' }), tile({ muted: true, videoId: 'ccccccccccc' })];
   const { VB, ctx } = load(tiles);
   ctx.state.volume.focus = 0;
   ctx.state.volume.duck = 0.5;
@@ -64,54 +86,75 @@ test('主役: ほかの音を出している枠を割合まで下げ、主役が
   assert.equal(VB.gainOf(1), 0.8);
 });
 
-test('大きさをそろえる: 真ん中の大きさへ 1 秒に 1 dB ずつ近づけ、上限で止まる', () => {
+test('保存してある波形が足りていれば測らず、真ん中の大きさへ 1 秒に 1 dB ずつ近づける', async () => {
   const tiles = [tile(), tile({ videoId: 'bbbbbbbbbbb' }), tile({ videoId: 'ccccccccccc' })];
-  const { VB, ctx, runTick } = load(tiles);
-  ctx.state.volume.auto = true;
-  VB.refresh(); // 1 秒ごとの見直しを始める
-  const levels = [-20, -26, -32]; // 真ん中は -26 dB → 0 番は −6 dB、2 番は +6 dB にしたい
-  for (let s = 0; s < 3; s++) levels.forEach((db, i) => VB.onLevel(i, { ok: true, ms: ms(db) }));
+  const waves = { aaaaaaaaaaa: wave(-20, 90), bbbbbbbbbbb: wave(-26, 90), ccccccccccc: wave(-32, 90) };
+  const { VB, ctx, runTick } = load(tiles, { waves });
+  turnOn(VB, ctx);
+  for (let i = 0; i < 3; i++) assert.equal(VB.levelOn(i), false, '波形が 60 秒ぶん以上あるので、枠では測らない');
   runTick();
-  const db = (g) => 20 * Math.log10(g);
-  assert.ok(Math.abs(db(VB.gainOf(0)) + 1) < 1e-9, '1 秒目は 1 dB だけ下げる');
-  assert.ok(Math.abs(db(VB.gainOf(1))) < 1e-9, '真ん中の枠はそのまま');
-  assert.ok(Math.abs(db(VB.gainOf(2)) - 1) < 1e-9);
+  assert.ok(Math.abs(db(VB.gainOf(0)) + 1) < 0.05, '1 秒目は 1 dB だけ下げる');
+  assert.ok(Math.abs(db(VB.gainOf(1))) < 0.05, '真ん中の枠はそのまま');
+  assert.ok(Math.abs(db(VB.gainOf(2)) - 1) < 0.05);
   for (let s = 0; s < 10; s++) runTick();
-  assert.ok(Math.abs(db(VB.gainOf(0)) + 6) < 1e-6);
-  assert.ok(Math.abs(db(VB.gainOf(2)) - 6) < 1e-6);
+  assert.ok(Math.abs(db(VB.gainOf(0)) + 6) < 0.2);
+  assert.ok(Math.abs(db(VB.gainOf(2)) - 6) < 0.2);
   // OFF にすると、つまみの値だけに戻る
   ctx.state.volume.auto = false;
   assert.equal(VB.gainOf(0), 1);
 });
 
-test('大きさをそろえる: 無音・話の合間は数えず、音を出している枠が 1 つなら倍率は 1、ミュートの枠は測らない', () => {
-  const tiles = [tile(), tile({ videoId: 'bbbbbbbbbbb', muted: true })];
-  const { VB, ctx, runTick } = load(tiles);
-  ctx.state.volume.auto = true;
-  VB.refresh();
-  for (let s = 0; s < 5; s++) VB.onLevel(0, { ok: true, ms: ms(-30) });
-  VB.onLevel(0, { ok: true, ms: ms(-70) }); // 無音
-  VB.onLevel(0, { ok: true, ms: ms(-52) }); // 話の合間 (今より 20 dB 以上小さい)
-  for (let s = 0; s < 5; s++) runTick();
-  assert.equal(VB.gainOf(0), 1);
-  assert.equal(VB.levelOn(0), true);
-  assert.equal(VB.levelOn(1), false);
-  // URL の枠は音量を変えられないので測らない
-  tiles[1] = { videoId: null, web: 'https://example.com/', muted: false, gain: 1, pan: 0, delay: 0 };
-  assert.equal(VB.levelOn(1), false);
+test('波形が足りない動画だけ枠で記録を頼み、届いた記録は波形に 1 回だけ足す。足りたら頼むのをやめる', async () => {
+  const tiles = [tile(), tile({ videoId: 'bbbbbbbbbbb' })];
+  const waves = { aaaaaaaaaaa: wave(-20, 90), bbbbbbbbbbb: wave(-30, 10) };
+  const { VB, ctx, posted, fed, runTick } = load(tiles, { waves });
+  turnOn(VB, ctx);
+  assert.equal(VB.levelOn(0), false);
+  assert.equal(VB.levelOn(1), true);
+  VB.chunk(1, { vals: wave(-30, 55) });
+  assert.deepEqual(fed, ['bbbbbbbbbbb'], '波形に足すのは 1 回だけ');
+  posted.length = 0;
+  runTick();
+  assert.equal(VB.levelOn(1), false, '65 秒ぶんになったので、もう測らない');
+  assert.ok(posted.some((m) => m.hakomado === 'mix' && m.level === false), '枠に記録をやめるよう知らせる');
 });
 
-test('大きさをそろえる: 別の動画にしたら、その枠は 1 から測り直す', () => {
-  const tiles = [tile(), tile({ videoId: 'bbbbbbbbbbb' })];
-  const { VB, ctx, runTick } = load(tiles);
-  ctx.state.volume.auto = true;
-  VB.refresh();
-  for (let s = 0; s < 3; s++) {
-    VB.onLevel(0, { ok: true, ms: ms(-10) });
-    VB.onLevel(1, { ok: true, ms: ms(-30) });
-  }
+test('無音・話の合間は数えず、音を出している枠が 1 つなら倍率は 1。ミュートの枠には記録を頼まない', () => {
+  // 半分は -20 dB、残りは無音 (-70 dB) と話の合間 (-45 dB = 真ん中より 25 dB 小さい)
+  const mixed = Uint8Array.from([...wave(-20, 40), ...wave(-70, 20), ...wave(-45, 10)]);
+  const tiles = [tile(), tile({ videoId: 'bbbbbbbbbbb', muted: true })];
+  const { VB, ctx, runTick } = load(tiles, { waves: { aaaaaaaaaaa: mixed, bbbbbbbbbbb: wave(-40, 90) } });
+  turnOn(VB, ctx);
   for (let s = 0; s < 5; s++) runTick();
-  assert.notEqual(VB.gainOf(0), 1);
-  tiles[0].videoId = 'ddddddddddd';
+  assert.equal(VB.gainOf(0), 1, 'ほかに音を出している枠が無い');
+  assert.equal(VB.levelOn(0), true, '音のあるところは 40 秒ぶん (無音・合間を除く) なので、まだ足りない');
+  assert.equal(VB.levelOn(1), false);
+  tiles[1].muted = false;
+  for (let s = 0; s < 20; s++) runTick();
+  assert.ok(Math.abs(db(VB.gainOf(0)) + 10) < 0.2, '-20 dB と -40 dB の真ん中 (-30 dB) へ');
+});
+
+test('ライブ・Twitch は波形に置かず、この画面の間だけ覚えて聞き続ける。別の動画にしたら倍率を 1 から', () => {
+  const tiles = [tile({ videoId: 'livelive001' }), tile({ videoId: 'tw:somebody' })];
+  const { VB, ctx, fed, runTick } = load(tiles, { kinds: ['live', 'live'] });
+  turnOn(VB, ctx);
+  assert.equal(VB.levelOn(0), true);
+  const lv = (dbv) => 10 ** (dbv / 20);
+  VB.chunk(0, { levels: Array(50).fill(lv(-15)) });
+  VB.chunk(1, { levels: Array(50).fill(lv(-35)) });
+  assert.deepEqual(fed, [], 'ライブは波形に足さない');
+  for (let s = 0; s < 15; s++) runTick();
+  assert.ok(Math.abs(db(VB.gainOf(0)) + 10) < 0.2);
+  assert.ok(Math.abs(db(VB.gainOf(1)) - 10) < 0.2);
+  assert.equal(VB.levelOn(0), true, 'ライブは聞き続ける');
+  tiles[0].videoId = 'livelive002';
+  assert.equal(VB.gainOf(0), 1);
+});
+
+test('URL の枠は音量を変えられないので、記録を頼まない', () => {
+  const tiles = [{ videoId: null, web: 'https://example.com/', muted: false, gain: 1, pan: 0, delay: 0 }];
+  const { VB, ctx } = load(tiles, { kinds: ['web'] });
+  turnOn(VB, ctx);
+  assert.equal(VB.levelOn(0), false);
   assert.equal(VB.gainOf(0), 1);
 });
