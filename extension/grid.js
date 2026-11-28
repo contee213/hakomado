@@ -2336,11 +2336,27 @@ chrome.permissions.onRemoved.addListener(() => {
   });
 });
 
-window.addEventListener('message', (e) => {
+/** URL の枠の中からの知らせが、許可したサイト (content/web-player.js を入れたサイト) からか */
+async function webOriginAllowed(origin) {
+  try {
+    return /^https:\/\//.test(origin) && (await chrome.permissions.contains({ origins: [`${origin}/*`] }));
+  } catch {
+    return false;
+  }
+}
+
+window.addEventListener('message', async (e) => {
   const d = e.data;
   if (!d || d.hakomadoWeb !== 'state' || !e.source) return;
-  const i = views.findIndex((v) => v.player?.dataset.web && isInsideFrame(v.player, e.source));
+  const find = () => views.findIndex((v) => v.player?.dataset.web && isInsideFrame(v.player, e.source));
+  let i = find();
   if (i < 0) return;
+  // 初めての送り元は、許可したサイトからかを確かめる (枠の中の広告などの iframe が知らせを送って、操作の宛先を取らないように)
+  if (views[i].player.webTarget?.win !== e.source) {
+    if (!(await webOriginAllowed(e.origin))) return;
+    i = find();
+    if (i < 0) return;
+  }
   const v = views[i];
   const first = !v.player.webTarget || v.player.webTarget.win !== e.source;
   v.player.webTarget = { win: e.source, origin: e.origin };
