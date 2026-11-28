@@ -9,8 +9,8 @@
 | ファイル | 画面 |
 | --- | --- |
 | [00-entry.md](00-entry.md) | 入口: ツールバーのアイコン・右クリックのメニュー・ショートカット・取り込み用リンク |
-| [01-multiview-toolbar.md](01-multiview-toolbar.md) | マルチビュー画面の上部バー・同期の時刻バー・同期の調整の帯・速度メニュー・自動再生の進み具合 |
-| [02-multiview-tile.md](02-multiview-tile.md) | マルチビュー画面の枠 (空き枠・動画の入った枠・枠のバー) |
+| [01-multiview-toolbar.md](01-multiview-toolbar.md) | マルチビュー画面の上部バー・同期の時刻バー・同期の調整の帯・速度メニュー・音量バランス・自動再生の進み具合・全体のお知らせ・枠の並び |
+| [02-multiview-tile.md](02-multiview-tile.md) | マルチビュー画面の枠 (空き枠・動画の入った枠・枠のバー・枠の状況・音の左右・音量・遅延のパネル・枠の中の YouTube ページ) |
 | [03-dialogs.md](03-dialogs.md) | 起動画面・共有 / 読み込む・再生リストに入れる・登録チャンネル・レイアウト・通知・枠の情報 |
 | [04-channels-library.md](04-channels-library.md) | 📺 チャンネル・⚙ チャンネルの管理・📚 ライブラリ (最近の動画・視聴履歴・あとで見る・再生リスト) |
 | [05-settings-help.md](05-settings-help.md) | 設定・使い方・使い方ツアー |
