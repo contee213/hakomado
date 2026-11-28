@@ -9204,7 +9204,6 @@ function setFavMode(mode, { render = true } = {}) {
   // ⚙ 管理 と、チャンネルが無いときの足し方は 📺 チャンネルだけ
   document.getElementById('favManage').hidden = favMode !== 'all';
   if (favMode !== 'all') document.getElementById('favEmptyActions').hidden = true;
-  document.getElementById('historyClear').hidden = favMode !== 'history';
   // 絞り込み欄の案内は、そのタブで実際に当てるものを書く (デザインガイド 9 章)
   const FILTER_HINT = { all: 'filterChannels', archive: 'filterArchive', saved: 'filterVideos', history: 'filterVideos', playlists: 'filterPlaylist' };
   document.getElementById('favFilter').placeholder = tr(FILTER_HINT[favMode]);
@@ -9229,6 +9228,7 @@ function setFavMode(mode, { render = true } = {}) {
 async function renderFavPane() {
   if (isVideoMode()) await renderVideoList();
   else renderFavorites(await Favorites.list());
+  updateSelMarks(); // 下の帯を出すかは、描き終えた一覧に ☐ があるかで決める (再生リストのタブは ☐ が無いので出さない)
 }
 
 const REASON_KEYS = { ended: 'reasonEnded', closed: 'reasonClosed', members: 'reasonMembers', replaced: 'reasonReplaced' };
@@ -9268,7 +9268,6 @@ async function renderVideoList() {
       ? tr('kindNoMatch')
       : tr(saved ? 'savedEmpty' : 'historyEmpty');
   if (saved) document.getElementById('savedCount').textContent = tr('savedCount', all.length, SavedVideos.MAX);
-  else document.getElementById('historyClear').hidden = all.length === 0;
   updateSelMarks();
 }
 
@@ -9924,12 +9923,25 @@ function updateSelMarks() {
     if (box) box.checked = on;
   }
   favListEl.classList.toggle('selecting', favSel.size > 0);
-  document.getElementById('favSelBar').hidden = !favSel.size;
-  if (!favSel.size) return;
-  document.getElementById('favSelSync').hidden = selArchives() < 2;
+  // 帯は ☐ で選べる一覧を出している間いつも出す (選ぶ前から何ができるか分かり、一覧が帯の線で終わって見切れに見えない。
+  // 選んだ瞬間に一覧の高さも変わらない。HAKO-33)。何も選んでいなければ案内を出し、ボタンは押せなくする
+  const selectable = favSel.size > 0 || !!favListEl.querySelector('[data-sel]');
+  document.getElementById('favSelBar').hidden = !selectable;
+  if (!selectable) return;
+  const none = !favSel.size;
+  document.getElementById('favSelBar').classList.toggle('idle', none);
+  document.getElementById('favSelClear').disabled = none;
+  document.getElementById('favSelLoad').disabled = none;
+  // 📺 チャンネルで選べるのは配信中・予定だけなので、⏱ 開いて同期は出さない
+  const syncBtn = document.getElementById('favSelSync');
+  syncBtn.hidden = favMode === 'all';
+  syncBtn.disabled = selArchives() < 2;
   const room = selRoom();
-  document.getElementById('favSelCount').textContent =
-    favSel.size > room ? tr('selCountOver', favSel.size, room) : tr('selCount', favSel.size);
+  document.getElementById('favSelCount').textContent = none
+    ? tr(favMode === 'all' ? 'selNoneLive' : 'selNone')
+    : favSel.size > room
+      ? tr('selCountOver', favSel.size, room)
+      : tr('selCount', favSel.size);
 }
 
 /**
@@ -13122,12 +13134,6 @@ function setupFavorites() {
   // ライブラリのタブ (最近の配信 / 視聴履歴 / あとで見る)
   for (const b of document.querySelectorAll('[data-favtab]')) b.addEventListener('click', () => setFavMode(b.dataset.favtab));
   setFavMode('all', { render: false });
-  document.getElementById('historyClear').addEventListener('click', async () => {
-    const n = (await WatchHistory.list()).length;
-    if (!n || !confirm(tr('historyClearConfirm', n))) return;
-    await WatchHistory.clear();
-    renderVideoList();
-  });
 
 }
 
