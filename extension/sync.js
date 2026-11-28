@@ -461,6 +461,7 @@ const Sync = (() => {
       guessFromOverlap(list);
     }
     if (G.init) initClock(G);
+    if (movie) featurePlayed(G, list);
     // 時計を基準の枠に合わせる (基準の枠が配信の時間帯の中で、知らせが新しく、広告中でないとき)
     const rs = views[ref].ss;
     let playing = !pausedAll && !G.paused;
@@ -793,6 +794,29 @@ const Sync = (() => {
       return { R: stop.v * 1000, playing: false };
     }
     return { R, playing };
+  }
+  /**
+   * 使う人が本編の枠 (Prime Video など) で自分で再生した (止まっていたか、今出てきた本編の枠が動いている。こちらの指示ではない) →
+   * グループが止まっていれば、グループごと再生する (止まっているグループに合わせて、本編の枠を止め直さない)
+   */
+  function featurePlayed(G, list) {
+    const fi = list.find(featureTile);
+    if (fi == null) {
+      G.fwas = undefined;
+      return;
+    }
+    const w = views[fi].web;
+    const was = G.fwas;
+    G.fwas = w.paused;
+    if (w.paused || was === false || now() - (w.at || 0) > 3000) return;
+    if (now() - (sent.get(fi)?.cmdAt || 0) < 3000 && sent.get(fi)?.cmd === 'play') return;
+    if (!G.paused && G.clock.playing) return;
+    G.paused = false;
+    G.startAt = null;
+    // 時計を本編の枠の位置で動かし、少しの間は基準の枠 (止まっている配信) の様子で止め直さない
+    setClock(G, posOf(fi) * 1000, !pausedAll);
+    G.holdUntil = now() + 2500;
+    for (const i of membersOf(G.g)) if (i !== fi && !waiting.has(i)) postToFrame(views[i].player, { hakomado: 'playback', play: !pausedAll });
   }
   /** 待ち合わせた配信の作品を次に進めて、本編の枠を頭から一緒に再生する */
   function advance(G, tiles, go) {
