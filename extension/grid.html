@@ -24,9 +24,9 @@
     <button id="fitFill" class="toggle icon-only" type="button" aria-pressed="false" data-i18n-title="fit.fillTitle" title="ストレッチ: 余白なしで画面を埋める。映像は枠に合わせて拡大し、はみ出た端は切れる (縦長の動画は切らずに収める)。OFF (標準) はどの枠も 16:9 ちょうどの大きさにし、画面と比率が合わない分は外側の余白になる"><span class="tb-icon">⤢</span></button>
     <button id="autoMode" class="toggle" type="button" aria-pressed="false" data-i18n-title="auto.title" title="自動再生 (L): 配信中のチャンネルを並べ、始まった・終わった配信に合わせて枠を増減する"><span class="tb-icon"><svg class="helm" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="4.3" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="8" cy="8" r="1.4"/><path d="M7.25 0.6h1.5v14.8h-1.5z M0.6 7.25h14.8v1.5H0.6z"/><path transform="rotate(45 8 8)" d="M7.25 0.6h1.5v14.8h-1.5z M0.6 7.25h14.8v1.5H0.6z"/></svg></span><span class="tb-label" data-i18n="auto.label">自動再生</span><span id="liveCount" class="live-count" hidden></span><span id="autoProgressBar" class="auto-progress-bar" hidden></span></button>
     <button id="cruise" class="toggle" type="button" aria-pressed="false" data-i18n-title="cruise.title" title="クルーズ (C): 一定時間ごとに、メイン枠と音声を次の配信へ回す"><span class="tb-icon"><svg class="ship" viewBox="0 0 16 16" aria-hidden="true"><path d="M9 2.5h2v2.5H9z"/><path d="M4.5 5h8v2h-8z"/><path d="M3.5 7.5h10v2h-10z"/><path d="M1 10h14l-2.4 3.5H3.4z"/></svg></span><span class="tb-label" data-i18n="cruise.label">クルーズ</span><i class="cruise-progress" aria-hidden="true"></i></button>
-    <button id="pauseAll" class="toggle" type="button" aria-pressed="false" data-i18n-title="pauseAll.title" title="一時停止 (Space): 全部の枠をまとめて一時停止 / 再開する。再開するとき、ライブ配信は最新の位置に戻ります"><span class="tb-icon">⏸</span><span class="tb-label" data-i18n="pauseAll.label">一時停止</span></button>
-    <button id="repeatAll" class="toggle" type="button" aria-pressed="false" data-i18n-title="repeat.title" title="繰り返し (R): 動画・アーカイブが最後まで行ったら、最初から再生し直す (ライブ配信と、あとで見るの順の再生の枠は除く。自動再生の枠も繰り返し、次の動画に入れ替えない)"><span class="tb-icon"><svg class="repeat" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 7.5V6.2A2.2 2.2 0 0 1 4.7 4H11" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M10.2 1.6 13.4 4l-3.2 2.4z"/><path d="M13.5 8.5v1.3A2.2 2.2 0 0 1 11.3 12H5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M5.8 9.6 2.6 12l3.2 2.4z"/></svg></span><span class="tb-label" data-i18n="repeat.label">繰り返し</span></button>
-    <button id="speedAll" class="speed-all" type="button" data-i18n-title="speedAll.title" title="全部の枠の再生速度をまとめて変える (同期しているグループはグループごと。ライブ配信は等速のまま)"><span class="tb-icon"><svg class="gauge" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.2A7 7 0 0 0 1 9.2c0 1.6.55 3.1 1.5 4.3l1.2-.95A5.4 5.4 0 0 1 2.6 9.2a5.4 5.4 0 0 1 10.8 0c0 1.25-.42 2.4-1.12 3.35l1.2.95A7 7 0 0 0 8 2.2z"/><path d="M11.9 4.6 8.9 8.4a1.5 1.5 0 1 1-1.2-.95z"/></svg></span><span class="tb-label">1×</span></button>
+    <button id="pauseAll" class="toggle" type="button" aria-pressed="false" data-i18n-title="pauseAll.title" title="一時停止 (Space): 全部の枠をまとめて一時停止 / 再開する。再開するとき、配信中の枠は最新の位置に戻ります"><span class="tb-icon">⏸</span><span class="tb-label" data-i18n="pauseAll.label">一時停止</span></button>
+    <button id="repeatAll" class="toggle" type="button" aria-pressed="false" data-i18n-title="repeat.title" title="繰り返し (R): 動画・アーカイブが最後まで行ったら、最初から再生し直す (配信中の枠と、あとで見るの順の再生の枠は除く。自動再生の枠も繰り返し、次の動画に入れ替えない)"><span class="tb-icon"><svg class="repeat" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 7.5V6.2A2.2 2.2 0 0 1 4.7 4H11" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M10.2 1.6 13.4 4l-3.2 2.4z"/><path d="M13.5 8.5v1.3A2.2 2.2 0 0 1 11.3 12H5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M5.8 9.6 2.6 12l3.2 2.4z"/></svg></span><span class="tb-label" data-i18n="repeat.label">繰り返し</span></button>
+    <button id="speedAll" class="speed-all" type="button" data-i18n-title="speedAll.title" title="全部の枠の再生速度をまとめて変える (同期しているグループはグループごと。配信中の枠は等速のまま)"><span class="tb-icon"><svg class="gauge" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.2A7 7 0 0 0 1 9.2c0 1.6.55 3.1 1.5 4.3l1.2-.95A5.4 5.4 0 0 1 2.6 9.2a5.4 5.4 0 0 1 10.8 0c0 1.25-.42 2.4-1.12 3.35l1.2.95A7 7 0 0 0 8 2.2z"/><path d="M11.9 4.6 8.9 8.4a1.5 1.5 0 1 1-1.2-.95z"/></svg></span><span class="tb-label">1×</span></button>
     <button id="nowPlaying" class="now-playing" type="button" data-i18n="nowPlaying">🔇 ミュート中</button>
     <button id="audioAll" class="toggle" type="button" aria-pressed="false" data-i18n-title="audioAll.title" title="全部の音 (A): 全部の枠の音を出す ⇄ 全部ミュート"><span class="tb-icon"><svg class="speakers" viewBox="0 0 16 16" aria-hidden="true"><path d="M1 5.6h2.4L6.6 3v10L3.4 10.4H1z"/><path d="M8.6 5.4a3.4 3.4 0 0 1 0 5.2M10.6 3.4a6.2 6.2 0 0 1 0 9.2M12.6 1.6a8.8 8.8 0 0 1 0 12.8" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg></span><span class="tb-label" data-i18n="audioAll.label">全部の音</span></button>
     <button id="openVolume" class="vol-open" type="button" data-i18n-title="volume.title" title="音量 (V): 枠の音量を並べて見比べる・大きさを自動でそろえる・主役を決める"><span class="tb-icon"><svg class="faders" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.6 1.5h1.4v13H2.6zM7.3 1.5h1.4v13H7.3zM12 1.5h1.4v13H12z"/><rect x="1" y="8.6" width="4.6" height="2.6" rx=".8"/><rect x="5.7" y="3.8" width="4.6" height="2.6" rx=".8"/><rect x="10.4" y="6.6" width="4.6" height="2.6" rx=".8"/></svg></span><span class="tb-label" data-i18n="volume.label">音量</span></button>
@@ -41,7 +41,7 @@
     <button id="openNotices" type="button" data-i18n-title="notice.title" title="通知 (チャンネルの配信開始)"><span class="tb-icon">🔔</span><span class="tb-label" data-i18n="notice.label">通知</span><span id="noticeBadge" class="notice-badge" hidden></span></button>
     <button id="openChannels" type="button" data-i18n-title="ch.title" title="チャンネル (F): 配信中・配信予定と、チャンネルの追加・ピックアップ"><span class="tb-icon">📺</span><span class="tb-label" data-i18n="ch.label">チャンネル</span></button>
     <button id="openFavorites" type="button" data-i18n-title="fav.title" title="ライブラリ (B): 最近の動画・視聴履歴・あとで見る"><span class="tb-icon">📚</span><span class="tb-label" data-i18n="fav.label">ライブラリ</span></button>
-    <button id="openInfo" class="icon-only" type="button" data-i18n-title="info.title" title="枠の情報 (I): 各枠の種類 (ライブ・アーカイブ・動画)・配信の時間・視聴者数・再生数を一覧で見る。音の左右・📌 ピックアップ・📃 再生リスト・チャンネル登録もここで">ℹ️</button>
+    <button id="openInfo" class="icon-only" type="button" data-i18n-title="info.title" title="枠の情報 (I): 各枠の種類 (配信中・アーカイブ・動画)・配信の時間・視聴者数・再生数を一覧で見る。音の左右・📌 ピックアップ・📃 再生リスト・チャンネル登録もここで">ℹ️</button>
     <button id="openShare" class="icon-only" type="button" data-i18n-title="share.title" title="共有: 今の枠や再生リストを、画像・リンク・テキストにして人に渡す">🔗</button>
     <button id="openRead" class="icon-only" type="button" data-i18n-title="read.title" title="読み込む: 共有された画像・コード・テキスト・リンクや URL を、枠に並べるか再生リストとして保存する">📥</button>
     <button id="tileBars" class="icon-only toggle on" type="button" aria-pressed="true" data-i18n-title="tileBars.title" title="枠のバー (H): 各枠の操作バーを出す / 隠す。隠すと Twitch の枠の上の黒い帯も無くなり、映像が枠いっぱいになります">▭</button>
@@ -147,7 +147,7 @@
         <div class="settings-col">
         <p class="settings-note" data-i18n="hl.note">音が出ている枠に付ける線の見た目</p>
           <div class="hl-swatches" id="hlSwatches"></div>
-          <p class="settings-note" data-i18n="hl.liveNote">ライブ配信中の枠に付ける線の色 (音が出ている枠は、音の線を優先します)</p>
+          <p class="settings-note" data-i18n="hl.liveNote">配信中の枠に付ける線の色 (音が出ている枠は、音の線を優先します)</p>
           <div class="hl-swatches" id="liveSwatches"></div>
         </div>
         <div class="settings-col">
@@ -217,7 +217,7 @@
         </label>
         <p class="settings-note" data-i18n="auto.maxTilesNote">重いときは減らしてください</p>
         <label class="check"><input type="checkbox" id="autoPickupMain"> <span data-i18n="auto.pickupMain">ピックアップ (📌) の配信をメイン枠に優先して置く</span></label>
-        <p class="settings-note" data-i18n="auto.pickupMainNote">ピックアップのライブ配信を大きいメイン枠に入れます</p>
+        <p class="settings-note" data-i18n="auto.pickupMainNote">配信中のピックアップを大きいメイン枠に入れます</p>
         </div>
         <div class="settings-col">
         <label><span data-i18n="auto.prestart">配信予定の枠を用意する</span> <output id="prestartMinOut"></output>
@@ -232,7 +232,7 @@
         </label>
         <p class="settings-note" data-i18n="auto.feedNote">配信予定が出ている配信は、開始の前後にいつも確かめます。長くすると、予定を出さずに始めた配信に気づくのが遅れます</p>
         <label class="check"><input type="checkbox" id="autoArchive"> <span data-i18n="auto.archive">配信中が無いときは、最近の動画を流す</span></label>
-        <p class="settings-note" data-i18n="auto.archiveNote">ライブが無いときに、最近の動画を 4 枠流します</p>
+        <p class="settings-note" data-i18n="auto.archiveNote">配信中が無いときに、最近の動画を 4 枠流します</p>
         <label class="check sub-check"><input type="checkbox" id="autoArchiveVideos"> <span data-i18n="auto.archiveVideos">動画 (プレミア公開・MV など) も流す</span></label>
         <label class="check sub-check"><input type="checkbox" id="autoArchiveShorts"> <span data-i18n="auto.archiveShorts">ショートも流す</span></label>
         <label><span data-i18n="auto.cruise">クルーズの間隔</span> <output id="cruiseSecOut"></output>
@@ -325,10 +325,10 @@
               <li>配信の入った枠にマウスを乗せると、操作バーが出ます。左端の ⠿ をドラッグすると、枠を入れ替えます (音が出ている枠は <kbd>Shift</kbd> + 矢印キーでも動かせます)</li>
               <li>枠のバー: 音のボタン (この枠の音を出す) / 🎚 音の左右・音量・遅延 / 1× 再生速度 / 💬 チャット欄 / ≋ 弾幕 / 🔖 あとで見る / 👍 高評価 / ⟳ 読み込み直し / ⛶ その枠だけ全画面 / ✕ 閉じる</li>
               <li>「ℹ️ 枠の情報」(<kbd>I</kbd>) の各行: 音の左右 (L / C / R) / 📌 ピックアップ / 🔖 あとで見る / 📃 再生リストに入れる / チャンネル登録 / 👍 高評価。タイトルを押すと、その動画を YouTube の新しいタブで開きます</li>
-              <li>🎚 では、その枠の音を左・真ん中・右から聞こえるようにしたり、音量 (0〜200%) を変えたりできます。左右は「ℹ️ 枠の情報」の L / C / R でも変えられます。ライブ配信では「音の遅延」で、その枠の音だけを遅らせられます (映像はそのまま。コラボで、ほかの枠より声が先に聞こえるときに)</li>
+              <li>🎚 では、その枠の音を左・真ん中・右から聞こえるようにしたり、音量 (0〜200%) を変えたりできます。左右は「ℹ️ 枠の情報」の L / C / R でも変えられます。配信中の枠では「音の遅延」で、その枠の音だけを遅らせられます (映像はそのまま。コラボで、ほかの枠より声が先に聞こえるときに)</li>
               <li>「⛶」(<kbd>Shift</kbd> + <kbd>F</kbd>) で、分割したまま全画面にします。上端にマウスを寄せるとバーが出ます</li>
-              <li>「🔁 繰り返し」(<kbd>R</kbd>) を ON にすると、全部の枠の動画・アーカイブが最後まで行ったら最初から再生し直します (ライブ配信と、あとで見るの順の再生の枠は除く)。自動再生の枠も繰り返し、次の動画に入れ替えません</li>
-              <li>「ℹ️」(<kbd>I</kbd>) で、各枠の種類 (ライブ・アーカイブ・動画)・配信の時間・今の視聴者数・再生数・アーカイブ同期できるかを一覧で見られます</li>
+              <li>「繰り返し」(<kbd>R</kbd>) を ON にすると、全部の枠の動画・アーカイブが最後まで行ったら最初から再生し直します (配信中の枠と、あとで見るの順の再生の枠は除く)。自動再生の枠も繰り返し、次の動画に入れ替えません</li>
+              <li>「ℹ️」(<kbd>I</kbd>) で、各枠の種類 (配信中・アーカイブ・動画)・配信の時間・今の視聴者数・再生数・アーカイブ同期できるかを一覧で見られます</li>
             </ul>
           </section>
           <section class="help-page" data-help-page="auto" role="tabpanel" data-i18n-html="helpPage.auto" hidden>
@@ -344,9 +344,9 @@
               <li><b>プレミア公開の動画・ショートも配信として扱う</b>: 時間指定で公開される動画・ショートも、配信と同じように枠に入れて知らせるか。外すと公開予定の確認が減って軽くなります</li>
               <li><b>メンバーになっていないメンバー限定配信は再生しない</b>: ログイン中のアカウントで見られるかを、枠に入れる前に確かめます</li>
               <li><b>自動再生の最大枠数</b>: 配信中のものが多くても、この数までしか再生しません。増やすと、すぐに空いた分を足します (減らしても、表示中の枠は消さず、終わったものから減っていきます)。回線が細いときや、パソコンが重いときは減らしてください</li>
-              <li><b>ピックアップ (📌) の配信をメイン枠に優先して置く</b>: ピックアップのライブ配信を大きいメイン枠に入れ、ほかはサブ枠に回します。最大枠数に届いたときも、ピックアップを先に入れます。メイン枠の無い均等レイアウトと、クルーズ中は並べ替えません</li>
+              <li><b>ピックアップ (📌) の配信をメイン枠に優先して置く</b>: 配信中のピックアップを大きいメイン枠に入れ、ほかはサブ枠に回します。最大枠数に届いたときも、ピックアップを先に入れます。メイン枠の無い均等レイアウトと、クルーズ中は並べ替えません</li>
               <li><b>配信予定の枠を用意する</b>: 開始前から枠を作り、最初から見られるようにします。配信中のものが 1 つも無いときは、次に始まる配信予定と、その開始から 1 時間以内に始まる予定を出します</li>
-              <li><b>配信中が無いときは、最近の動画を流す</b>: 深夜などライブが 1 本も無いときに、チャンネルの最近終わった配信や公開された動画を 4 枠流します (ピックアップが先、一度見たものは除く。動画・ショートも流すかは設定で選べます)。ライブが始まったら片付けます</li>
+              <li><b>配信中が無いときは、最近の動画を流す</b>: 深夜など配信中が 1 本も無いときに、チャンネルの最近終わった配信や公開された動画を 4 枠流します (ピックアップが先、一度見たものは除く。動画・ショートも流すかは設定で選べます)。配信が始まったら片付けます</li>
             </ul>
           </section>
           <section class="help-page" data-help-page="cruise" role="tabpanel" data-i18n-html="helpPage.cruise" hidden>
@@ -391,19 +391,19 @@
               <li><b>種類の絞り込み</b>: 一覧の上の「🔴 配信 / 🎬 動画 / 📱 ショート」で、出す種類を選べます (いくつでも。最近の動画・視聴履歴・あとで見るで共通)</li>
               <li><b>あとで見る</b>: 枠のバーや一覧の 🔖 で入れます。「▶ 今の枠で順に再生」で今ある枠に順に入れ、最後まで見た枠には次が入ります。最後まで見たものは消えます</li>
               <li><b>再生リスト</b>: 名前を付けた並び (30 個・1 つに 200 本まで)。「＋ 新規」「▦ 今の枠から作る」「📥 読み込む」で作り、URL の欄や、「ℹ️ 枠の情報」・一覧の 📃 で足します。⠿ で並べ替え、行の名前は枠に出す名前になります</li>
-              <li><b>Twitch のライブ</b>: 共有・あとで見る・再生リストに入れると、その配信の録画 (VOD) になります。後から開いても同じ配信を最初から見られます。チャンネルが録画を残さない設定のときは入れられません (共有ではチャンネルのままになり、後から開くとそのときの配信になります)</li>
+              <li><b>Twitch の配信中の枠</b>: 共有・あとで見る・再生リストに入れると、その配信の録画 (VOD) になります。後から開いても同じ配信を最初から見られます。チャンネルが録画を残さない設定のときは入れられません (共有ではチャンネルのままになり、後から開くとそのときの配信になります)</li>
               <li>「▶ 順に再生」は今の枠に上から入れて、見終わった枠に次を入れます (最後まで見たものに ✓ を付け、次は続きから)。「⏱ まとめて同期再生」は全部を一度に並べて、アーカイブを同じ瞬間にそろえます (16 本まで)</li>
             </ul>
           </section>
           <section class="help-page" data-help-page="sync" role="tabpanel" data-i18n-html="helpPage.sync" hidden>
             <ul>
-              <li>上のバーの「⏱ アーカイブ同期」を押すと、配信の時間帯が重なるアーカイブを、配信していた実際の時刻でそろえて再生します。アーカイブが 2 本そろっていないときは薄く出ていて、押すと使えない理由 (ライブ配信中・ふつうの動画など) が出ます</li>
+              <li>上のバーの「⏱ アーカイブ同期」を押すと、配信の時間帯が重なるアーカイブを、配信していた実際の時刻でそろえて再生します。アーカイブが 2 本そろっていないときは薄く出ていて、押すと使えない理由 (配信中・ふつうの動画など) が出ます</li>
               <li>時間帯が重なるアーカイブどうしを自動でグループにまとめるので、別々のコラボの A・B と C・D を別々にそろえられます (4 組まで。枠に色と番号が出ます)。グループは、同期の調整の帯で行を上下にドラッグして、ほかのグループや「同期しない」へ移せます。帯の見出しの「自動で分け直す」で、手で決めたグループを全部やめて自動に戻せます</li>
               <li>同期の調整は、画面の下の帯で行います (同期を始めると出ます。上のバーの ☰ で出す / しまう)。グループごとに、見出しの上の段にそろえ方 (🕒 コラボ配信 / 🎬 同時視聴)・✨ 自動補正・⏸・つまみ・再生速度・グループの音・波形の取得率、下の段に ✨ の様子があります。枠ごとの行に、基準 (🔒。🎬 同時視聴のグループでは ◉)・その配信の経過時間・補正・⏸ 止めて待つ・↶ 元に戻すと、配信全編の音の大きさの波形が並びます。波形を見比べて、山がそろうように合わせます。調整しないグループは ▾ でたためます</li>
               <li>✨ 自動補正は、グループの枠の音 (コラボの通話の声) を最大 180 秒聞いて、各枠の補正を求めます。35 秒を過ぎると、枠ごとにここまでで一番よかった値が途中の結果として出ます。どの枠も ◎ になったら切り上げを提案するので「ここで決める」で終えられ、180 秒まで聞いたときは一番よかった値を採ります。結果は各行の波形の「✨ −1.61 ◎」と水色の点線 (入れたあとの位置) で確かめ、「試す」で入れて聞き比べてから「決める」で終えます (「試す前に戻す」で ✨ の前に戻せます。2 枠のときは、中間と、片方ずつの声がそろう値の 3 つから試せます)。いくつものグループを同時に測れます。◎ 確か / ○ たぶん / △ 怪しい。決まらなかったり △ が多ければ、話している場面で「測り直す」を押してください</li>
-              <li>🕒 コラボ配信は、同じ時間に配信していた各視点を、配信していた時刻でそろえます。🎬 同時視聴は、同じ本編を見ていた配信を、本編の同じ場面でそろえます (時間のずれた配信も。グループの見出しで切り替え)。🎬 同時視聴にすると、帯の目盛りが本編の時刻になり、本編の位置が決まった枠の波形が本編の時刻にそろって並びます。本編 (プレミア公開) の枠 (行に「🎬 本編」) の 0:00 が本編 0:00 で、ほかの枠の本編の位置は配信の時刻から見当を付けます。各枠の本編の位置は、同時視聴の配信のタイマーなどを見て「⏲ 画面タイマー」で決めます (0.01 秒単位。✨ 自動補正はコラボ配信だけです。同時視聴の配信には本編の音が入っていないことが多いため)。本編の枠が無いときは、各枠で「🚩 開始位置」か「⏲ 画面タイマー」で決めます。プレミア公開でない本編 (ライブのアーカイブなど) は、🎬 同時視聴のときに行の 🎬 で本編にできます。どのグループにも入らない、別の日の配信も、🎬 同時視聴の本編のグループに入ります。同時視聴の配信のタイマーなどを見て「⏲ 画面タイマー」に入れると、欄を押した瞬間の位置で決まります (欄を押している間は、その枠を同期から外すので、タイマーが見える所まで枠の中で動かせます)。同じ時間に配信していた枠どうしは、片方の本編の位置が決まると、もう片方の見当 (行に「≈」) も付きます</li>
+              <li>🕒 コラボ配信は、同じ時間に配信していた各視点を、配信していた時刻でそろえます。🎬 同時視聴は、同じ本編を見ていた配信を、本編の同じ場面でそろえます (時間のずれた配信も。グループの見出しで切り替え)。🎬 同時視聴にすると、帯の目盛りが本編の時刻になり、本編の位置が決まった枠の波形が本編の時刻にそろって並びます。本編 (プレミア公開) の枠 (行に「🎬 本編」) の 0:00 が本編 0:00 で、ほかの枠の本編の位置は配信の時刻から見当を付けます。各枠の本編の位置は、同時視聴の配信のタイマーなどを見て「⏲ 画面タイマー」で決めます (0.01 秒単位。✨ 自動補正はコラボ配信だけです。同時視聴の配信には本編の音が入っていないことが多いため)。本編の枠が無いときは、各枠で「🚩 開始位置」か「⏲ 画面タイマー」で決めます。プレミア公開でない本編 (配信のアーカイブなど) は、🎬 同時視聴のときに行の 🎬 で本編にできます。どのグループにも入らない、別の日の配信も、🎬 同時視聴の本編のグループに入ります。同時視聴の配信のタイマーなどを見て「⏲ 画面タイマー」に入れると、欄を押した瞬間の位置で決まります (欄を押している間は、その枠を同期から外すので、タイマーが見える所まで枠の中で動かせます)。同じ時間に配信していた枠どうしは、片方の本編の位置が決まると、もう片方の見当 (行に「≈」) も付きます</li>
               <li>合わせるのは基準でない枠です。基準の枠 (行の頭が 🔒) の補正はいつも 0 で、基準を変えると、そろい方はそのままで補正をほかの枠に移します。補正は、行の波形を横にドラッグするか、行を選んで ← → で動かします (0.1 秒。Shift で 0.01 秒、Ctrl で 1 秒)。補正の数字を押すと入力欄になります。⏸ はこの枠だけ止めて待ち、▶ でそこに合わせます。行の ✓ は設定した補正どおりの位置で再生中、↻ はその位置へ寄せている途中です (声が合っているかは、聞いて確かめます)。↶ でその枠の補正をひとつずつ前に戻せ、グループ全部は目盛りの左の「↺ 実際の時刻に戻す」で戻せます。補正は動画ごとに覚え、再生リストや共有するコードにも入ります</li>
-              <li>再生速度: 同期しているグループの枠は、1 枠だけでは速度を変えられません。グループのどの枠で変えても (枠の 1× ボタン・<kbd>&lt;</kbd> <kbd>&gt;</kbd> キー・プレイヤーの ⚙)、グループ全部の速度になり、同期の時計もその速さで進みます。ライブ配信の入ったグループは等速のままです</li>
+              <li>再生速度: 同期しているグループの枠は、1 枠だけでは速度を変えられません。グループのどの枠で変えても (枠の 1× ボタン・<kbd>&lt;</kbd> <kbd>&gt;</kbd> キー・プレイヤーの ⚙)、グループ全部の速度になり、同期の時計もその速さで進みます。配信中の枠の入ったグループは等速のままです</li>
               <li>基準の選び方: 主に音を聞く枠を基準にすると、その音がいちばん自然に聞こえます (ほかの枠は合わせるために少し速さを変えたり飛んだりします)。1 本だけ補正が大きくなる枠があれば、その枠は基準にしないほうが、ほかの動画の補正が小さく済みます (補正は動画ごとに覚えるので、ほかの組み合わせでもそのまま使えます)</li>
             </ul>
           </section>
@@ -421,7 +421,7 @@
             <ul>
               <li><b>弾幕</b>: 各枠のライブチャットを画面に流します。枠の ≋ で枠ごとに ON / OFF (決めていなければメイン枠だけ)。<kbd>D</kbd> で全部を一時的に消せます。文字の大きさ・速さ・行数などは 設定 → 弾幕</li>
               <li><b>チャット欄</b>: 枠の 💬 で開きます。幅・文字の大きさ・アイコンを隠すかは 設定 → チャット欄 (開いているチャット欄にすぐ反映)</li>
-              <li><b>枠の線</b>: 音が出ている枠と、ライブ配信中の枠に付ける線の見た目 (両方のときは音の線が優先)。設定 → 枠の線</li>
+              <li><b>枠の線</b>: 音が出ている枠と、配信中の枠に付ける線の見た目 (両方のときは音の線が優先)。設定 → 枠の線</li>
             </ul>
           </section>
           <section class="help-page" data-help-page="backup" role="tabpanel" data-i18n-html="helpPage.backup" hidden>
@@ -441,10 +441,10 @@
               <tr><th><kbd>M</kbd></th><td data-i18n="key.mute">ミュート ⇄ 直前の状態に戻す</td></tr>
               <tr><th><kbd>A</kbd></th><td data-i18n="key.audioAll">全部の枠の音を出す ⇄ 全部ミュート</td></tr>
               <tr><th><kbd>V</kbd></th><td data-i18n="key.volume">音量バランス (枠の音量を並べて見比べる・大きさをそろえる・主役) を開く ⇄ 閉じる</td></tr>
-              <tr><th><kbd>Space</kbd></th><td data-i18n="key.pause">全部の枠をまとめて一時停止 ⇄ 再開 (ライブ配信は最新の位置から再開)</td></tr>
+              <tr><th><kbd>Space</kbd></th><td data-i18n="key.pause">全部の枠をまとめて一時停止 ⇄ 再開 (配信中の枠は最新の位置から再開)</td></tr>
               <tr><th><kbd>L</kbd></th><td data-i18n="key.auto">自動再生の ON / OFF</td></tr>
               <tr><th><kbd>C</kbd></th><td data-i18n="key.cruise">クルーズの ON / OFF</td></tr>
-              <tr><th><kbd>R</kbd></th><td data-i18n="key.repeat">全枠繰り返し再生の ON / OFF</td></tr>
+              <tr><th><kbd>R</kbd></th><td data-i18n="key.repeat">繰り返しの ON / OFF</td></tr>
               <tr><th><kbd>F</kbd></th><td data-i18n="key.fav">チャンネルを開く</td></tr>
               <tr><th><kbd>B</kbd></th><td data-i18n="key.lib">ライブラリを開く</td></tr>
               <tr><th><kbd>I</kbd></th><td data-i18n="key.info">枠の情報を開く</td></tr>
@@ -604,7 +604,7 @@
       <div class="cm-body">
         <div class="cm-main">
           <div class="fav-tools">
-            <input type="search" id="cmFilter" data-i18n-placeholder="fav.filter" placeholder="名前・@チャンネル名で絞り込み" spellcheck="false">
+            <input type="search" id="cmFilter" placeholder="名前・@チャンネル名・グループ・パックで絞り込み" spellcheck="false">
             <span id="cmCount" class="fav-count"></span>
             <button type="button" id="cmSelAll" data-i18n="cm.selAll" data-i18n-title="cm.selAllTitle" title="表示しているチャンネルを全部選ぶ (絞り込んでいれば、絞り込んだものだけ)">表示中をすべて選ぶ</button>
           </div>
@@ -769,7 +769,7 @@
       <!-- 📺 チャンネルが 1 つも無いときだけ出す (足し方) -->
       <div id="favEmptyActions" class="fav-empty-actions" hidden>
         <button type="button" id="favEmptyManage" class="primary-action" data-i18n="cm.open">⚙ チャンネルの管理を開く</button>
-        <button type="button" id="favEmptySubs" data-i18n="cm.emptySubs">📥 登録チャンネルから選ぶ</button>
+        <button type="button" id="favEmptySubs" data-i18n="cm.emptySubs">登録チャンネルから選ぶ</button>
         <button type="button" id="favEmptyRestore" hidden></button>
       </div>
       <!-- 複数選択 (行の ☐ / 🤝 で選ぶ)。☐ のある一覧を出している間はいつも出す (選んでいなければ案内だけ。HAKO-33) -->
@@ -829,7 +829,7 @@
         <!-- 空き枠を 1 つ足す (上部バーの ＋ と同じ) -->
         <button type="button" id="infoAddTile" class="info-add" data-i18n="info.add">＋ 枠を追加</button>
       </div>
-      <p class="info-note" data-i18n="info.note">開いている間、数秒ごとに新しくします。視聴者数はライブ配信中だけ、再生数は枠を開いたときの数です。</p>
+      <p class="info-note" data-i18n="info.note">開いている間、数秒ごとに新しくします。視聴者数は配信中だけ、再生数は枠を開いたときの数です。</p>
     </div>
   </dialog>
 
@@ -870,7 +870,7 @@
         <div class="sync-overlay" hidden></div>
         <!-- 同期グループの色の線・同期の調整の帯で乗せた枠の点線 -->
         <div class="sync-mark" aria-hidden="true"></div>
-        <!-- 音の左右・音量・遅延 (枠のバーの 🎚 で開く。遅延はライブ配信のときだけ。音の左右は「ℹ 枠の情報」でも変えられる) -->
+        <!-- 音の左右・音量・遅延 (枠のバーの 🎚 で開く。遅延は配信中のときだけ。音の左右は「ℹ 枠の情報」でも変えられる) -->
         <div class="mix-panel" hidden>
           <div class="sync-row">
             <span class="mix-label" data-i18n="mix.pan">左右</span>
@@ -885,7 +885,7 @@
           </div>
           <div class="sync-row mix-delay-row" hidden>
             <span class="mix-label" data-i18n="mix.delay">音の遅延</span>
-            <input type="number" class="mix-delay sync-input" min="0" max="60" step="0.01" data-i18n-title="mix.delayTitle" title="この枠の音だけを遅らせる秒数 (映像はそのまま)。ライブ配信で、ほかの枠より声が先に聞こえるときに。Enter で決定" />
+            <input type="number" class="mix-delay sync-input" min="0" max="60" step="0.01" data-i18n-title="mix.delayTitle" title="この枠の音だけを遅らせる秒数 (映像はそのまま)。配信中の枠で、ほかの枠より声が先に聞こえるときに。Enter で決定" />
           </div>
           <div class="sync-row mix-delay-row" hidden>
             <button type="button" data-delay="-1">−1s</button>
@@ -904,7 +904,7 @@
             <button type="submit" data-i18n="tile.load">読み込む</button>
             <button type="button" class="pick-ch" data-i18n="tile.pickCh">📺 チャンネルから選ぶ</button>
             <button type="button" class="pick-fav" data-i18n="tile.pickFav">📚 ライブラリから選ぶ</button>
-            <button type="button" class="pick-any" data-i18n="tile.pickAny" data-i18n-title="tile.pickAnyTitle" title="まだ出ていない配信を 1 本入れる (ピックアップのライブを優先)">🎲 おまかせ</button>
+            <button type="button" class="pick-any" data-i18n="tile.pickAny" data-i18n-title="tile.pickAnyTitle" title="まだ出ていない配信を 1 本入れる (配信中のピックアップを優先)">🎲 おまかせ</button>
           </div>
           <!-- 🎲 おまかせで探している間の進み具合 (大きさを固定して、文字が変わっても周りが動かない) -->
           <div class="pick-progress" role="status" aria-live="polite" hidden>
@@ -920,7 +920,7 @@
         <div class="bar" draggable="true">
           <span class="grip" data-i18n-title="tile.grip" title="ドラッグして他の枠と入れ替え">⠿</span>
           <span class="index"></span>
-          <!-- ライブ配信中の枠の印 (アーカイブ・動画には出さない) -->
+          <!-- 配信中の枠の印 (アーカイブ・動画には出さない) -->
           <span class="live-badge" aria-hidden="true">LIVE</span>
           <!-- アーカイブの同期再生の基準の枠 (ほかの枠がこの枠に合わせる)。グループが 2 つ以上なら、ほかの枠にもグループの番号を出す -->
           <span class="sync-ref-badge" hidden>基準</span>
@@ -929,14 +929,14 @@
           <span class="tile-name"></span>
           <span class="bar-buttons">
             <button type="button" data-act="audio" data-i18n-title="tile.audio" title="この枠だけ鳴らす (1〜9): ほかの枠の音は切る。いくつかの枠の音を一緒に聞くには ℹ️ 枠の情報で">🎧</button>
-            <button type="button" data-act="mix" class="mix-btn" data-i18n-title="tile.mix" title="この枠の音の左右 (L / C / R)・音量・遅延 (ライブ配信のとき)">🎚</button>
+            <button type="button" data-act="mix" class="mix-btn" data-i18n-title="tile.mix" title="音の調整: この枠の音の左右 (左・中央・右)・音量・遅延 (配信中のとき)">🎚</button>
             <button type="button" data-act="speed" class="speed-btn">1×</button>
             <button type="button" data-act="corner" hidden>↘</button>
             <button type="button" data-act="chat" class="toggle" data-i18n-title="tile.chat" title="チャット欄の表示">💬</button>
             <button type="button" data-act="danmaku" class="toggle" data-i18n-title="tile.danmaku" title="この枠の弾幕の表示">≋</button>
             <button type="button" data-act="save" class="toggle" title="この配信をあとで見る">🔖</button>
             <button type="button" data-act="like" class="toggle social" disabled>👍</button>
-            <button type="button" data-act="surf" data-i18n-title="tile.surf" title="別の配信に変える (N): まだ出ていない配信に入れ替える (ピックアップのライブを優先)">🎲</button>
+            <button type="button" data-act="surf" data-i18n-title="tile.surf" title="別の配信に変える (N): まだ出ていない配信に入れ替える (配信中のピックアップを優先)">🎲</button>
             <button type="button" data-act="reload" data-i18n-title="tile.reload" title="再読み込み (映像やチャットの調子が悪いとき)">⟳</button>
             <button type="button" data-act="max" data-i18n-title="tile.max" title="全画面 (Shift+1〜9): この枠を全画面で見る。Esc で戻る">⛶</button>
             <button type="button" data-act="clear" class="close" data-i18n-title="tile.clear" title="この枠を閉じる">✕</button>

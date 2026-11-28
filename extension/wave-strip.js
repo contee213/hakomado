@@ -1113,7 +1113,7 @@ const WaveStrip = (() => {
         if (s.head.mute.textContent !== txt) s.head.mute.textContent = txt;
         s.head.mute.title = tr(on ? 'stripGroupAudioMuteTitle' : 'stripGroupAudioUnmuteTitle', G.g);
         s.head.mute.classList.toggle('on', on);
-        s.head.mute.setAttribute('aria-pressed', String(on));
+        s.head.mute.setAttribute('aria-pressed', String(on)); // ON/OFF を読み上げに伝える (デザインガイド 4 章)
       }
       if (s.head.audio) {
         const a = G.audio;
@@ -1143,9 +1143,11 @@ const WaveStrip = (() => {
           r.off.classList.toggle('is-none', G.movie && t.off == null);
         }
         if (r.main) {
-          const txt = t.main ? '🎬 ' + tr('movieMainTag') : '🎬';
+          // 文字は変えず、色と aria-pressed で ON を出す (デザインガイド 4 章)
+          const txt = '🎬 ' + tr('movieMainTag');
           if (r.main.textContent !== txt) r.main.textContent = txt;
           r.main.classList.toggle('on', t.main);
+          r.main.setAttribute('aria-pressed', String(!!t.main)); // ON/OFF を読み上げに伝える (デザインガイド 4 章)
           r.main.disabled = t.main && !t.mainMarked; // プレミア公開の本編は、やめられない
           r.main.title = tr(t.main ? (t.mainMarked ? 'movieMainUnsetTitle' : 'movieMainTagTitle') : 'movieMakeMainTitle');
         }
@@ -1174,12 +1176,13 @@ const WaveStrip = (() => {
           if (r.audio.textContent !== txt) r.audio.textContent = txt;
           r.audio.title = tr(t.muted ? 'infoAudioOn' : 'infoAudioOff');
           r.audio.classList.toggle('on', !t.muted);
-          r.audio.setAttribute('aria-pressed', String(!t.muted));
+          r.audio.setAttribute('aria-pressed', String(!t.muted)); // ON/OFF を読み上げに伝える (デザインガイド 4 章)
         }
         if (r.wait) {
           r.wait.textContent = t.waiting ? '▶' : '⏸';
           r.wait.title = tr(t.waiting ? 'syncWaitResumeTitle' : 'syncWaitTitle');
           r.wait.classList.toggle('is-waiting', t.waiting);
+          r.wait.setAttribute('aria-pressed', String(!!t.waiting)); // ON/OFF を読み上げに伝える (デザインガイド 4 章)
         }
         if (r.undo) {
           const h = history.get(t.i);

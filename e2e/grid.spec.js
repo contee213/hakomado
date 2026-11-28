@@ -1358,6 +1358,65 @@ test.describe('文が出ても、ボタンと一覧が動かない (HAKO-60)', (
   });
 });
 
+test.describe('色・ボタン・言葉 (HAKO-61)', () => {
+  const ON = 'rgb(41, 169, 255)'; // --on
+  const ON_BG = 'rgb(18, 50, 74)'; // --on-bg
+
+  test('選んだ行と、切り替えの選んでいる方は、ON と同じ青', async ({ openGrid }) => {
+    const page = await openGrid();
+    await skipTour(page);
+    await page.evaluate(() => chrome.storage.local.set({ history: [{ videoId: 'live0000001', title: '雑談配信', label: 'A', kind: 'live', at: Date.now() }] }));
+    await page.locator('#openFavorites').click();
+    await page.locator('[data-favtab="history"]').click();
+    await expect(page.locator('#libKind [data-kind="live"]')).toHaveCSS('background-color', ON_BG);
+    await page.keyboard.press('Escape');
+    await page.locator('#openSettings').click();
+    await page.locator('#settings [data-tab="channels"]').click();
+    await page.locator('#settingsChManage').click();
+    await page.locator('#cmList .cm-item .fav-check').first().check();
+    await expect(page.locator('#cmList .cm-item.selected')).toHaveCSS('outline-color', /0\.1607\d* 0\.6627\d* 1/); // --on (#29a9ff) を薄めた色
+  });
+
+  test('今のレイアウトは ON と同じ青で囲む', async ({ openGrid }) => {
+    const page = await openGrid();
+    await skipTour(page);
+    await page.locator('#openLayout').click();
+    await expect(page.locator('.layout-option.current').first()).toHaveCSS('border-top-color', ON);
+  });
+
+  test('枠のバーの 🎧・🔖 と、枠の情報の ON/OFF のボタンは aria-pressed で状態を伝える。📃 や ✕ には付けない', async ({ openGrid }) => {
+    const page = await openGrid();
+    await skipTour(page);
+    await page.evaluate(() => setTileVideo(0, 'aaaaaaaaaaa', 'https://www.youtube.com/watch?v=aaaaaaaaaaa'));
+    const bar = page.locator('.tile').first().locator('.bar');
+    await expect(bar.locator('[data-act="audio"]')).toHaveAttribute('aria-pressed', /^(true|false)$/);
+    await expect(bar.locator('[data-act="save"]')).toHaveAttribute('aria-pressed', 'false');
+    await page.locator('#openInfo').click();
+    const ops = page.locator('#infoRows tr').first().locator('.info-ops');
+    for (const act of ['danmaku', 'infoAudio', 'fav', 'save']) await expect(ops.locator(`[data-act="${act}"]`)).toHaveAttribute('aria-pressed', /^(true|false)$/);
+    await expect(ops.locator('[data-act="pan"]').first()).toHaveAttribute('aria-pressed', /^(true|false)$/);
+    for (const act of ['playlist', 'clear']) expect(await ops.locator(`[data-act="${act}"]`).getAttribute('aria-pressed')).toBeNull();
+  });
+
+  test('自動再生を準備している間も、ボタンの説明に「自動再生 (L)」が出る', async ({ openGrid }) => {
+    const page = await openGrid();
+    await skipTour(page);
+    await page.evaluate(() => showAutoProgress('テスト', 0.4));
+    await expect(page.locator('#autoMode')).toHaveAttribute('title', /^自動再生 \(L\): 自動再生を準備しています \(40%\)/);
+    await page.evaluate(() => hideAutoProgress());
+    await expect(page.locator('#autoMode')).toHaveAttribute('title', /^自動再生 \(L\): 配信中のチャンネルを並べ/);
+  });
+
+  test('⚙ チャンネルの管理の絞り込みの案内に、グループ・パックで探せることを書く。📺 の空の案内に 📥 を使わない', async ({ openGrid }) => {
+    const page = await openGrid();
+    await skipTour(page);
+    await expect(page.locator('#cmFilter')).toHaveAttribute('placeholder', '名前・@チャンネル名・グループ・パックで絞り込み');
+    await expect(page.locator('#favEmptySubs')).toHaveText('登録チャンネルから選ぶ');
+    // 🎚 の説明は「名前: 説明」。キーを書く場所に L / C / R (自動再生・クルーズ・繰り返しのキー) を書かない
+    expect(await page.locator('.tile .mix-btn').first().getAttribute('title')).toMatch(/^音の調整: (?!.*L \/ C \/ R)/);
+  });
+});
+
 test.describe('チャンネルの管理', () => {
   // 既定のチャンネル (同梱のホロライブ) のうち 2 つ
   const SORA = 'UCp6993wxpyDPHUpavwDFqgg';

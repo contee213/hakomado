@@ -1787,7 +1787,7 @@ function renderTile(i, { reloadPlayer = false, reloadChat = false } = {}) {
   // --- bar state
   const audio = el.querySelector('.bar [data-act="audio"]');
   // 🎧 = この枠だけ鳴らす (音を入れる・切るの 🔊 / 🔇 は枠の情報の側。押すとほかの枠の音は切る)
-  audio.classList.toggle('on', !t.muted);
+  setToggle(audio, !t.muted);
   el.classList.toggle('audible', visible && tileFilled(t) && !t.muted && state.count > 1);
   setToggle(el.querySelector('.bar [data-act="chat"]'), t.chat);
   setToggle(el.querySelector('.bar [data-act="danmaku"]'), tileDanmaku(i));
@@ -1891,7 +1891,7 @@ function updateFavButton(i) {
   // 🔖 (この配信をあとで見るに入れているか)。📌・📃 は「ℹ 枠の情報」にだけある
   const save = views[i].el.querySelector('.bar [data-act="save"]');
   const { saved } = tileMarks(i);
-  save.classList.toggle('on', saved);
+  setToggle(save, saved);
   save.title = tr(saved ? 'tileSaveOff' : 'tileSaveOn');
   TileInfo.update();
 }
@@ -1921,7 +1921,7 @@ chrome.storage.onChanged.addListener((changes, area) => {
 function updateSavedMarks() {
   for (const b of favListEl.querySelectorAll('.fav-star[data-vid]')) {
     const on = savedIds.has(b.dataset.vid);
-    b.classList.toggle('on', on);
+    setToggle(b, on);
     b.title = tr(on ? 'savedOff' : 'savedOn');
   }
 }
@@ -2279,7 +2279,7 @@ function renderMix(i) {
   for (const row of panel.querySelectorAll('.mix-delay-row')) row.hidden = !showDelay;
   const input = panel.querySelector('.mix-delay');
   if (document.activeElement !== input) input.value = t.delay.toFixed(2);
-  for (const b of panel.querySelectorAll('[data-pan]')) b.classList.toggle('on', Number(b.dataset.pan) === t.pan);
+  for (const b of panel.querySelectorAll('[data-pan]')) setToggle(b, Number(b.dataset.pan) === t.pan);
   panel.querySelector('.mix-gain').value = String(Math.round(t.gain * 100));
   panel.querySelector('.mix-gain-value').textContent = `${Math.round(t.gain * 100)}%`;
 }
@@ -2897,7 +2897,8 @@ const TileInfo = (() => {
   function opsCell(i) {
     const c = document.createElement('td');
     c.className = 'info-ops';
-    const btn = (act, { text = '', html = '', title = '', on = false, cls = '' } = {}) => {
+    // on を渡したものは ON/OFF のボタン (aria-pressed で状態を伝える。デザインガイド 4 章)。📃 は画面を開くボタンなので印だけ
+    const btn = (act, { text = '', html = '', title = '', on = null, cls = '' } = {}) => {
       const b = document.createElement('button');
       b.type = 'button';
       b.dataset.act = act;
@@ -2905,7 +2906,8 @@ const TileInfo = (() => {
       if (html) b.innerHTML = html;
       else b.textContent = text;
       b.title = title;
-      b.classList.toggle('on', on);
+      if (on !== null && act !== 'playlist') setToggle(b, !!on);
+      else b.classList.toggle('on', !!on);
       return b;
     };
     const t = state.tiles[i];
@@ -3072,14 +3074,14 @@ const TileInfo = (() => {
     tr_.append(v);
     const ops = document.createElement('td');
     ops.className = 'info-ops';
-    const btn = (act, text, title, { on = false, cls = '' } = {}) => {
+    const btn = (act, text, title, { on = null, cls = '' } = {}) => {
       const b = document.createElement('button');
       b.type = 'button';
       b.dataset.act = act;
       b.textContent = text;
       b.title = title;
       if (cls) b.className = cls;
-      b.classList.toggle('on', on);
+      if (on !== null) setToggle(b, !!on); // ON/OFF のボタンだけ aria-pressed (デザインガイド 4 章)
       return b;
     };
     ops.append(
@@ -3817,10 +3819,9 @@ function setupLayoutPicker() {
     const star = document.createElement('button');
     star.type = 'button';
     star.className = 'layout-fav';
-    star.classList.toggle('on', fav);
+    setToggle(star, fav);
     star.textContent = fav ? '★' : '☆';
     star.title = tr(fav ? 'layoutFavRemove' : 'layoutFavAdd');
-    star.setAttribute('aria-pressed', String(fav));
     star.addEventListener('click', () => {
       toggleLayoutFav(l.id);
       renderTab();
@@ -6579,6 +6580,7 @@ function favItem({ f, st, prev }) {
   arch.textContent = tr(open ? 'archiveBtnOpen' : 'archiveBtn');
   arch.title = tr(open ? 'archiveClose' : 'archiveOpen');
   arch.classList.toggle('on', open);
+  arch.setAttribute('aria-expanded', String(open)); // 開く・閉じるのボタン
   arch.addEventListener('click', async (e) => {
     e.stopPropagation();
     if (archiveOpen.has(f.channelId)) archiveOpen.delete(f.channelId);
@@ -6591,7 +6593,7 @@ function favItem({ f, st, prev }) {
 
   const star = li.querySelector('.fav-star');
   star.textContent = '📌';
-  star.classList.toggle('on', !!f.star);
+  setToggle(star, !!f.star);
   star.title = tr(f.star ? 'starOff' : 'starOn');
   star.addEventListener('click', async (e) => {
     e.stopPropagation();
@@ -6609,12 +6611,13 @@ function favItem({ f, st, prev }) {
   if (!data || data === 'loading' || data === 'error' || !data.length) {
     const p = document.createElement('p');
     p.className = 'fav-arch-msg';
+    p.classList.toggle('is-error', data === 'error');
     p.textContent = tr(!data || data === 'loading' ? 'archiveLoading' : data === 'error' ? 'archiveError' : 'archiveNone');
     sub.append(p);
   } else {
     if (archiveStale.has(f.channelId)) {
       const p = document.createElement('p');
-      p.className = 'fav-arch-msg';
+      p.className = 'fav-arch-msg is-error';
       p.textContent = tr('archiveError');
       sub.append(p);
     }
@@ -7099,7 +7102,7 @@ function videoItem(h, saved, { onRemove, removeTitle, entry } = {}) {
     const on = savedIds.has(h.videoId);
     star.textContent = '🔖';
     star.dataset.vid = h.videoId;
-    star.classList.toggle('on', on);
+    setToggle(star, on);
     star.title = tr(on ? 'savedOff' : 'savedOn');
     star.addEventListener('click', async (e) => {
       e.stopPropagation();
@@ -8631,7 +8634,7 @@ async function renderPlaylistPicker() {
       const li = document.createElement('li');
       const b = document.createElement('button');
       b.type = 'button';
-      b.classList.toggle('on', has);
+      setToggle(b, has);
       b.title = tr(has ? 'plPickRemove' : 'plPickAdd');
       const name = document.createElement('span');
       name.className = 'pl-pick-name-text';
@@ -9045,7 +9048,9 @@ async function renderChannelManage() {
   const ids = new Set(favs.map((f) => f.channelId));
   for (const id of cmSelected) if (!ids.has(id)) cmSelected.delete(id); // もう無いもの
   const q = document.getElementById('cmFilter').value.trim().toLowerCase();
-  const hit = (f) => [f.name, f.nameJa, f.handle, f.group, f.pack].some((s) => String(s ?? '').toLowerCase().includes(q));
+  // パックは、行に出している名前 (同梱のチャンネルは「ホロライブ (同梱版)」、自分で足したものは「自分で追加」) でも当てる
+  const packLabel = (f) => (f.preset ? tr('packBuiltin') : f.pack || tr('cmMine'));
+  const hit = (f) => [f.name, f.nameJa, f.handle, f.group, f.pack, packLabel(f)].some((s) => String(s ?? '').toLowerCase().includes(q));
   cmShown = (q ? favs.filter(hit) : favs)
     .map((f, i) => ({ f, i }))
     .sort((a, b) => cmOrder(a.f) - cmOrder(b.f) || a.i - b.i)
@@ -9095,7 +9100,7 @@ async function renderChannelManage() {
       star.type = 'button';
       star.className = 'fav-star';
       star.textContent = '📌';
-      star.classList.toggle('on', !!f.star);
+      setToggle(star, !!f.star);
       star.title = tr(f.star ? 'starOff' : 'starOn');
       star.addEventListener('click', async () => {
         await Favorites.setStar(f.channelId, !f.star);
@@ -9200,6 +9205,8 @@ function setupChannelManage() {
     // 下の 📺 チャンネルに、足した・外したものを出す
     if (favDialog.open && !isVideoMode()) await refreshFavorites(false);
   });
+  // 案内は、この画面で実際に当てるもの (名前・@チャンネル名・グループ・パック) を書く (デザインガイド 9 章)
+  document.getElementById('cmFilter').placeholder = tr('filterChannelManage');
   document.getElementById('cmFilter').addEventListener('input', () => renderChannelManage());
   document.getElementById('cmSelAll').addEventListener('click', () => {
     for (const f of cmShown) cmSelected.add(f.channelId);
@@ -9343,6 +9350,7 @@ function setupSubscriptions() {
       selected.clear();
       filterEl.value = '';
       status.textContent = r.more ? tr(s.more, subs.length) : '';
+      status.classList.remove('share-error');
       setStatusOf(s, subs.length ? '' : tr(s.empty));
       if (subs.length) {
         render();
@@ -9385,6 +9393,7 @@ function setupSubscriptions() {
       await afterPresetsChanged();
     } catch (e) {
       status.textContent = tr('subsFetchFail', e.message || e);
+      status.classList.add('share-error'); // エラーはどこでも同じ赤 (デザインガイド 7 章)
       addBtn.disabled = false;
     }
   });
@@ -10632,8 +10641,8 @@ function showAutoProgress(text, frac) {
     autoProgressBoxClosed = false;
   }
   bar.style.width = `${pct}%`;
-  btn.title = `${tr('progressHead')} (${pct}%)
-${text}`;
+  btn.title = `${tr('autoName')}: ${tr('progressHead')} (${pct}%)
+${text}`; // 準備中もキーが見えるように「名前 (キー): 説明」の形 (デザインガイド 9 章)
   document.getElementById('autoProgressText').textContent = text;
   box.hidden = autoProgressBoxClosed;
   document.getElementById('autoProgressBoxText').textContent = text;
