@@ -31,7 +31,12 @@ const HakomadoMix = ({ video, adShowing, setMuted, unmuteQuietly, parentOrigin, 
   const MAX_DELAY = 60; // 遅延の上限 (秒)。grid.js の clampDelay と合わせる
   const MAX_GAIN = 4; // 音量の倍率の上限。volume-balance.js の MAX_EFFECTIVE と合わせる
   const sources = new WeakMap(); // video → MediaElementAudioSourceNode
-  const report = (ok) => window.parent.postMessage({ hakomado: 'mix', ok }, parentOrigin);
+  // 音を通せなかった video。ほかの拡張機能などが先に createMediaElementSource していると、2 回目は InvalidStateError になる
+  // (1 つの要素に 1 回だけ。world が違っても要素は同じ)。一度断られた要素には作り直しを試さない (エラーを出し続けないように)
+  const taken = new WeakSet();
+  let mixing = false; // 左右・音量・遅延を使っている (一度でも既定以外にした)
+  // reason: 'taken' = ほかの拡張機能などが、この枠の音をすでに使っている。無ければ、ブラウザが音の処理を止めている
+  const report = (ok, reason) => window.parent.postMessage({ hakomado: 'mix', ok, ...(reason ? { reason } : {}) }, parentOrigin);
 
   async function running() {
     if (!ctx) {
@@ -50,12 +55,19 @@ const HakomadoMix = ({ video, adShowing, setMuted, unmuteQuietly, parentOrigin, 
     return ctx.state === 'running';
   }
 
+  /** 今の動画をつなぐ。音を通せなかったら false (ほかの拡張機能などが、すでにこの動画の音を使っている) */
   function connectVideo() {
     const v = video();
-    if (!v || v === connected) return;
+    if (!v || v === connected) return true;
+    if (taken.has(v)) return false;
     let src = sources.get(v);
     if (!src) {
-      src = ctx.createMediaElementSource(v);
+      try {
+        src = ctx.createMediaElementSource(v);
+      } catch {
+        taken.add(v);
+        return false;
+      }
       sources.set(v, src);
     }
     if (connected) sources.get(connected)?.disconnect();
@@ -63,6 +75,20 @@ const HakomadoMix = ({ video, adShowing, setMuted, unmuteQuietly, parentOrigin, 
     // 測る記録は遅延の前から取る (再生位置 currentTime と合わせるため)
     if (tap && measuring) src.connect(tap);
     connected = v;
+    return true;
+  }
+
+  // つないでいる間の見張り: YouTube が video を差し替えたら、つなぎ直す。
+  // 差し替わった動画の音を通せなかったら、一度だけ知らせる (同じ要素はもう試さないので、エラーも 1 回きり)
+  function reconnect() {
+    const v = video();
+    const fresh = !!v && v !== connected && !taken.has(v);
+    if (connectVideo() || !fresh) return;
+    if (mixing) report(false, 'taken');
+    if (measuring) {
+      stopMeasure();
+      failMeasure('taken');
+    }
   }
 
   // gain は枠の音量 × 🎚 音量バランスの自動の倍率 × 主役の割合 (volume-balance.js の gainOf) なので、上限は MAX_GAIN。
@@ -75,18 +101,27 @@ const HakomadoMix = ({ video, adShowing, setMuted, unmuteQuietly, parentOrigin, 
       levelWant = !!level;
       wantRecord();
     }
-    if (!ctx && pan === 0 && gain === 1 && delay === 0) return; // まだ使っていない枠は、そのまま
-    if (!(await running())) {
+    if (!mixing && pan === 0 && gain === 1 && delay === 0) return; // まだ使っていない枠は、そのまま
+    mixing = true;
+    try {
+      if (!(await running())) {
+        report(false);
+        return;
+      }
+      if (!connectVideo()) {
+        report(false, 'taken');
+        return;
+      }
+      panner.pan.setTargetAtTime(pan, ctx.currentTime, 0.02);
+      gainNode.gain.setTargetAtTime(gain, ctx.currentTime, 0.02);
+      // 遅延は急に変えるとプツッと鳴るので、少しかけて変える (変えている間だけ音の高さが少し揺れる)
+      delayNode.delayTime.setTargetAtTime(delay, ctx.currentTime, 0.05);
+      if (!timer) timer = setInterval(reconnect, 2000);
+      report(true);
+    } catch (e) {
       report(false);
-      return;
+      throw e; // エラーの記録に残す
     }
-    connectVideo();
-    panner.pan.setTargetAtTime(pan, ctx.currentTime, 0.02);
-    gainNode.gain.setTargetAtTime(gain, ctx.currentTime, 0.02);
-    // 遅延は急に変えるとプツッと鳴るので、少しかけて変える (変えている間だけ音の高さが少し揺れる)
-    delayNode.delayTime.setTargetAtTime(delay, ctx.currentTime, 0.05);
-    if (!timer) timer = setInterval(connectVideo, 2000);
-    report(true);
   }
 
   // ---- ✨ 自動補正 (音で合わせる): 測っている間、音の大きさ (1 ミリ秒ごとの |x| の平均) を記録して、1 秒ごとに親へ送る
@@ -199,17 +234,29 @@ const HakomadoMix = ({ video, adShowing, setMuted, unmuteQuietly, parentOrigin, 
     if (want && !measuring) startMeasure(muted);
     else if (!want && measuring) stopMeasure();
   }
+  /** 記録を始められなかったことを、求めた側に知らせる (✨ は measure、音量バランスは level。reason は report と同じ) */
+  function failMeasure(reason) {
+    const extra = reason ? { reason } : {};
+    if (syncWant) window.parent.postMessage({ hakomado: 'measure', ok: false, ...extra }, parentOrigin);
+    if (levelWant) window.parent.postMessage({ hakomado: 'level', ok: false, ...extra }, parentOrigin);
+  }
   async function startMeasure(muted) {
     wantMuted = !!muted;
-    if (typeof MediaStreamTrackProcessor !== 'function' || !(await running())) {
-      // 求めた側に知らせる (✨ は measure、音量バランスは level)
-      if (syncWant) window.parent.postMessage({ hakomado: 'measure', ok: false }, parentOrigin);
-      if (levelWant) window.parent.postMessage({ hakomado: 'level', ok: false }, parentOrigin);
-      return;
+    try {
+      if (typeof MediaStreamTrackProcessor !== 'function' || !(await running())) {
+        failMeasure();
+        return;
+      }
+    } catch (e) {
+      failMeasure();
+      throw e; // エラーの記録に残す
     }
     if (!(syncWant || levelWant)) return; // 待っている間に求めが無くなった
-    connectVideo();
-    if (!timer) timer = setInterval(connectVideo, 2000);
+    if (!connectVideo()) {
+      failMeasure('taken');
+      return;
+    }
+    if (!timer) timer = setInterval(reconnect, 2000);
     if (!tap) tap = new MediaStreamAudioDestinationNode(ctx, { channelCount: 2 });
     closeReader();
     // 測るたびに複製したトラックから読む (止めるときに閉じれば、測っていない間は何も溜まらない)

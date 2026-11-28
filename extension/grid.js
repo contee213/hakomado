@@ -321,11 +321,35 @@ function save() {
   saveTimer = setTimeout(saveNow, 300);
 }
 
+// 保存できなかったことを画面の下のお知らせで知らせる。同じ失敗が続いても、保存できるまでは 1 回だけ出す。
+// エラーはそのまま返す (呼び出し元が待っていれば受け取る。待っていなければエラーの記録に残る)
+const SAVE_FAIL_TEXT = {
+  session: { full: 'sessionStorageFull', other: 'sessionSaveFailed' },
+  settings: { full: 'settingsStorageFull', other: 'settingsSaveFailed' },
+};
+const saveFailing = new Set();
+function watchSave(kind, promise) {
+  return promise.then(
+    (v) => {
+      saveFailing.delete(kind);
+      return v;
+    },
+    (e) => {
+      if (!saveFailing.has(kind)) {
+        saveFailing.add(kind);
+        const msg = String(e?.message || e);
+        notify(/quota/i.test(msg) ? tr(SAVE_FAIL_TEXT[kind].full) : tr(SAVE_FAIL_TEXT[kind].other, msg));
+      }
+      throw e;
+    },
+  );
+}
+
 function saveNow() {
   clearTimeout(saveTimer);
   if (!sessionId) return Promise.resolve();
   broadcastShown();
-  return chrome.storage.local.set({
+  return watchSave('session', chrome.storage.local.set({
     [SESSION_PREFIX + sessionId]: {
       layoutId: state.layoutId,
       anchor: state.anchor,
@@ -341,7 +365,7 @@ function saveNow() {
       audible: audibleTiles(), // 音が出ている枠 (開き直したときに戻す。[] = 全部ミュート)
       updatedAt: Date.now(),
     },
-  });
+  }));
 }
 
 let settingsTimer = 0;
@@ -358,12 +382,15 @@ function saveSettings(key) {
 function writeSettings() {
   const keys = [...dirtySettings];
   dirtySettings.clear();
-  return navigator.locks.request('hakomado-settings', async () => {
-    const { settings: stored = {} } = await chrome.storage.local.get('settings');
-    const next = { ...stored };
-    for (const k of keys) next[k] = state.settings[k];
-    await chrome.storage.local.set({ settings: next });
-  });
+  return watchSave(
+    'settings',
+    navigator.locks.request('hakomado-settings', async () => {
+      const { settings: stored = {} } = await chrome.storage.local.get('settings');
+      const next = { ...stored };
+      for (const k of keys) next[k] = state.settings[k];
+      await chrome.storage.local.set({ settings: next });
+    }),
+  );
 }
 
 /** 共通設定をまとめて差し替えて、画面に反映する (他のタブでの変更・初期値に戻す) */
@@ -391,7 +418,7 @@ function resetSettings() {
   replaceSettings({ layoutFavs: state.settings.layoutFavs }); // お気に入りのレイアウトは設定ではないので残す
   clearTimeout(settingsTimer);
   dirtySettings.clear();
-  chrome.storage.local.set({ settings: state.settings });
+  watchSave('settings', chrome.storage.local.set({ settings: state.settings }));
   // 初期値で OFF になったアドオンの任意の権限は、チェックを外したときと同じに手放す (ON のまま残るアドオンが使うものは残す)
   const stillUsed = new Set(Addons.list().filter((a) => Addons.isOn(a.id)).flatMap((a) => a.origins));
   const release = [
@@ -3376,8 +3403,8 @@ window.addEventListener('message', (e) => {
     views[i].speedSent = clampSpeed(Number(data.r));
     setTileSpeed(i, Number(data.r), { fromPlayer: true });
   } else if (data.hakomado === 'mix') {
-    // 枠の中で左右・音量の経路を作れなかった (AudioContext が動かない)
-    if (data.ok === false) showToast(i, tr('mixBlocked'));
+    // 枠の中で左右・音量の経路を作れなかった (taken = ほかの拡張機能などが枠の音をすでに使っている。ほかは AudioContext が動かない)
+    if (data.ok === false) showToast(i, tr(data.reason === 'taken' ? 'mixTaken' : 'mixBlocked'));
   } else if (data.hakomado === 'pvol') {
     VolumeBalance.onPlayerVolume(i, data.v); // 枠の中のプレイヤーの音量のつまみ (🎚 音量バランスの棒に掛ける)
   } else if (data.hakomado === 'level') {
@@ -3388,7 +3415,7 @@ window.addEventListener('message', (e) => {
     AudioSync.chunk(i, data);
     VolumeBalance.chunk(i, data);
   } else if (data.hakomado === 'measure') {
-    if (data.ok === false) AudioSync.blocked(i);
+    if (data.ok === false) AudioSync.blocked(i, data.reason);
   } else if (data.hakomado === 'live') {
     views[i].el.classList.toggle('is-live', !!data.on);
     applySpeed(i); // ライブは等速
@@ -5910,14 +5937,21 @@ function setupBackup() {
     }
     const c = parsed.counts;
     if (!confirm(tr('backupConfirm', c.channels, c.stars, c.history, c.saved, c.playlists))) return;
+    let playlistsError = null;
     try {
       // まだ書き込んでいない設定の変更は捨てる (読み込んだ設定を上書きしないように)
       clearTimeout(settingsTimer);
       dirtySettings.clear();
-      await Backup.apply(parsed);
+      ({ playlistsError } = await Backup.apply(parsed));
       await saveNow();
     } catch (e) {
       notify(tr('backupFail', e.message));
+      return;
+    }
+    if (playlistsError) {
+      // 再生リストだけ書けなかった: 読み込み直す前に、OK を押すまで閉じない窓で知らせる (すぐ読み込み直すと気づけないため)
+      alert(tr('backupPlaylistsFailed', String(playlistsError?.message || playlistsError)));
+      location.reload();
       return;
     }
     // チャンネル一覧・📌・表示言語などをまとめて反映するため、画面を読み込み直す (枠の中身は視聴セッションから戻る)
@@ -8633,6 +8667,7 @@ async function refreshPlaylistIds() {
 
 // 再生リストを保存できなかったとき (拡張機能の保存の上限に届いたなど) は知らせる (知らせないと、黙って消えたように見える)
 Playlists.onError((e, isQuota) => notify(tr(isQuota ? 'plStorageFull' : 'plWriteFailed', String(e?.message || e))));
+SavedVideos.onError((e, isQuota) => notify(tr(isQuota ? 'savedStorageFull' : 'savedWriteFailed', String(e?.message || e))));
 
 // 他のタブで保存・削除したときも、表示中の一覧と 📃 の表示を直す
 chrome.storage.onChanged.addListener(async (changes, area) => {

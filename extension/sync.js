@@ -2066,13 +2066,17 @@ const AudioSync = (() => {
     tk.marks.push(...marks);
   }
 
-  /** 枠の中で音を処理できなかった (AudioContext が動かない) */
-  function blocked(i) {
+  /**
+   * 枠の中で音を処理できなかった。reason: 'taken' = ほかの拡張機能などが、その枠の音をすでに使っている。
+   * 無ければ AudioContext が動かない (ブラウザが音の処理を止めている)
+   */
+  function blocked(i, reason) {
     const run = runOfTile(i);
     if (!run) return;
     run.blocked.add(i);
-    showToast(i, tr('mixBlocked'));
-    if (i === run.ref || run.tiles.length - run.blocked.size < 2) cancel(run, tr('syncAudioBlocked'));
+    const taken = reason === 'taken';
+    showToast(i, tr(taken ? 'mixTaken' : 'mixBlocked'));
+    if (i === run.ref || run.tiles.length - run.blocked.size < 2) cancel(run, tr(taken ? 'syncAudioTaken' : 'syncAudioBlocked'));
   }
 
   // ---- 結果の候補

@@ -178,3 +178,23 @@ test('読み込んだ内容で置き換える (apply)', async () => {
   assert.deepEqual(plain((await Playlists.list()).map((p) => p.name)), ['P']);
   assert.equal(env.get('localStorage').getItem('hakomado.lang'), 'en');
 });
+
+test('再生リストだけ書けなかったら、ほかは置き換えたまま playlistsError を返す (再生リストの onError は呼ばない。HAKO-58)', async () => {
+  const { Backup, Playlists, env } = setup();
+  const local = env.chrome.storage.local;
+  const set = local.set.bind(local);
+  local.set = async (items) => {
+    if (Object.keys(items).some((k) => k.startsWith('playlist'))) throw new Error('QUOTA_BYTES quota exceeded');
+    return set(items);
+  };
+  const notified = [];
+  Playlists.onError((e) => notified.push(e));
+  const parsed = Backup.parse(file({ favorites: [{ channelId: ch(1), name: 'A' }], playlists: [{ id: 'p1', name: 'P', items: [{ videoId: vid(2) }] }] }), DEFAULTS);
+  const r = await Backup.apply(parsed);
+  assert.match(String(r.playlistsError?.message), /quota/);
+  assert.deepEqual(local._dump().favorites, [{ channelId: ch(1), name: 'A' }], 'ほかは置き換わっている');
+  assert.equal(notified.length, 0, '知らせるのは画面 (バックアップの読み込み) の側');
+  // 書けたときは playlistsError が無い
+  local.set = set;
+  assert.equal((await Backup.apply(parsed)).playlistsError, null);
+});

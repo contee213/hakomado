@@ -70,8 +70,10 @@ const Playlists = (() => {
 
   // 読み書きの順番待ち (あとで見ると同じく、このタブの中は promise の列、タブ間はロック)
   let chain = Promise.resolve();
-  function mutate(fn) {
+  // rethrow = 書けなかったら、知らせずに呼び出し元へエラーを返す (呼び出し元が自分で知らせる。バックアップの読み込み)
+  function mutate(fn, { rethrow = false } = {}) {
     let result;
+    let failed = null;
     const run = async () => {
       const { all, legacy } = await readAll();
       const before = all.map((p) => structuredClone(p));
@@ -85,10 +87,15 @@ const Playlists = (() => {
       .then(() => navigator.locks.request('hakomado-playlists', run))
       .catch((e) => {
         console.warn('hakomado: 再生リストの書き込みに失敗', e);
+        failed = e;
+        if (rethrow) return;
         const isQuota = /quota/i.test(String(e?.message || e));
         for (const fn of errorListeners) fn(e, isQuota);
       });
-    return chain.then(() => result);
+    return chain.then(() => {
+      if (rethrow && failed) throw failed;
+      return result;
+    });
   }
 
   /**
@@ -186,9 +193,10 @@ const Playlists = (() => {
   }
 
   /** バックアップから戻すとき: 全部を置き換える (30 個まで) */
+  /** 全部を置き換える (バックアップの読み込み)。書けなかったら reject する (知らせるのは呼び出し元) */
   function replaceAll(lists) {
     const next = (Array.isArray(lists) ? lists : []).map(clean).filter(Boolean).slice(0, MAX_LISTS);
-    return mutate(() => ({ next }));
+    return mutate(() => ({ next }), { rethrow: true });
   }
 
   async function get(id) {
