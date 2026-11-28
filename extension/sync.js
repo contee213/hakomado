@@ -290,7 +290,7 @@ const Sync = (() => {
     if (!G || i === G.ref || !fits(G, i) || (isMovie(G) && !liveTile(i) && membersOf(G.g).some(liveTile))) return;
     G.ref = i;
     G.userRef = user;
-    G.stop = G.wait = G.fprev = G.feat = null;
+    G.stop = G.wait = G.fprev = G.feat = G.done = null;
     if (G === primary()) playlistRefChanged(state.tiles[i].videoId);
     G.holdUntil = 0;
     forceSeek.delete(i);
@@ -519,24 +519,40 @@ const Sync = (() => {
         drift.delete(i);
         continue;
       }
-      // 配信のタイマーが止まっている間 (本編の枠は止めて待つ) は、配信だけを流す。次の作品の始まりに着いたら、本編の枠を待つ
-      if (G.stop && i === G.stop.tile) {
+      // 待ち合わせ (誰かのタイマーが止まっている間・作品の始まり・次の話): まだ着いていない配信は流し、着いた配信はそこで待つ
+      const gate = G.stop?.tiles.get(i);
+      if (gate) {
+        const p = posOf(i);
+        const ss = views[i].ss;
         overlay(i, '');
         rate(i, 1);
-        const ss = views[i].ss;
-        if (!pausedAll && !G.paused) {
+        if (p != null && p < gate.until - 0.05 && !pausedAll && !G.paused) {
           if (ss && ss.ps !== 1 && ss.ps !== 3) cmd(i, 'play');
-        } else if (ss && (ss.ps === 1 || ss.ps === 3)) cmd(i, 'pause');
+        } else {
+          if (ss && (ss.ps === 1 || ss.ps === 3)) cmd(i, 'pause');
+          if (p != null && p > gate.until + 0.5) seek(i, gate.until);
+        }
         drift.set(i, 'ok');
         continue;
       }
-      if (G.wait && i === G.wait.tile) {
-        overlay(i, tr('movieNextEpisode', G.wait.next));
+      // 本編の枠より先に、次の作品の始まりに着いた配信: そこで本編の枠を待つ
+      const wt = G.wait?.get(i);
+      if (wt) {
+        overlay(i, tr('movieNextEpisode', wt.next));
         rate(i, 1);
         const ss = views[i].ss;
         if (ss && (ss.ps === 1 || ss.ps === 3)) cmd(i, 'pause');
-        if (Math.abs((posOf(i) ?? G.wait.at) - G.wait.at) > 0.5) seek(i, G.wait.at);
+        if (Math.abs((posOf(i) ?? wt.at) - wt.at) > 0.5) seek(i, wt.at);
         drift.set(i, 'ok');
+        continue;
+      }
+      // 作品が尽きた配信 (次の話に進んだのに、この配信には続きが無い): 止めて、ほかを待たせない
+      if (G.done?.get(i) != null) {
+        overlay(i, tr('movieArchiveDone'));
+        rate(i, 1);
+        const ss = views[i].ss;
+        if (ss && (ss.ps === 1 || ss.ps === 3)) cmd(i, 'pause');
+        drift.delete(i);
         continue;
       }
       if (movie && featureTile(i) && i !== ref) {
@@ -645,92 +661,134 @@ const Sync = (() => {
   }
 
   /**
-   * 本編の動画の枠が基準の 🎬 グループで、配信の画面のタイマーが止まっている間と作品の変わり目を扱う (HAKO-49 STEP3)。
-   * - 本編が、配信のタイマーが止まった値に着いた → 本編の枠を止めて、配信だけを流す (G.stop)。配信のタイマーが動き出す所に着いたら、本編を再生する
-   * - 本編の枠が終わり近くから頭に戻った (次の話に進んだ) → 頭で止めて待たせ、配信を次の作品の始まりまで流す。着いたら作品を進めて一緒に再生する
-   * - 本編の枠より先に、配信が次の作品の始まりに着いた → 配信をそこで止めて、本編の枠を次の話にしてもらう (G.wait)
-   * - 本編の枠が作品の頭で止まっていて、配信がまだ作品の始まりより前 → 配信を流して、タイマーが動き出したら本編を再生する
+   * 本編の動画の枠が基準の 🎬 グループで、配信の画面のタイマーが止まっている間と作品の変わり目を扱う (HAKO-49 STEP3・STEP5)。
+   * 見つけた作品を選んでいる配信が何本あっても、友達と集まって見るように全員がそろうのを待つ:
+   * - 誰かの配信で、本編がタイマーの止まった値に着いた → 本編の枠とほかの配信を止め、その配信だけを流す。タイマーが動き出す所に着いたら、みんなで再生する
+   * - 本編の枠が終わり近くから頭に戻った (次の話に進んだ) → 頭で止めて待たせ、どの配信も次の作品の始まりまで流す。全員が着いたら作品を進めて一緒に再生する。
+   *   続きの無い配信は待たずに止める (G.done)
+   * - 本編の枠より先に、次の作品の始まりに着いた配信 → その配信だけ止めて、本編の枠を次の話にしてもらう (G.wait)
+   * - 本編の枠が作品の頭で止まっていて、まだ作品の始まりより前の配信がある → その配信の前置きを流して待ち、全員のタイマーが動き出したら再生する
+   * G.stop = {v: 待つ間の本編の時刻 (秒), seen, tiles: 枠 → {until: 着く再生位置, next: 着いたら選ぶ作品 (無ければ null)}}。
    * 使う人が本編の枠で自分で再生したら、待つのをやめて配信が追いかける。時計の時刻と動いているかを返す
    */
   function movieFlow(G, list, ref, R, playing) {
-    const arch = isMovie(G) && featureTile(ref) ? list.find((i) => i !== ref && planOf(i)) : undefined;
-    if (arch == null) {
+    const archs = isMovie(G) && featureTile(ref) ? list.filter((i) => i !== ref && planOf(i)) : [];
+    if (G.done) for (const [i, vid] of G.done) if (!list.includes(i) || vidOf(i) !== vid) G.done.delete(i); // 枠を外した・別の配信にした
+    const live = archs.filter((i) => G.done?.get(i) == null);
+    if (!live.length) {
       G.stop = G.wait = G.fprev = null;
       return { R, playing };
     }
-    const pl = planOf(arch);
     const w = views[ref].web;
     const fp = posOf(ref);
-    const p = posOf(arch);
     const go = !pausedAll && !G.paused;
     const prev = G.fprev;
     G.fprev = { t: fp, d: w.d };
-    if (G.stop?.tile !== arch) G.stop = null;
-    if (G.wait?.tile !== arch) G.wait = null;
+    if (G.stop) {
+      for (const i of [...G.stop.tiles.keys()]) if (!live.includes(i)) G.stop.tiles.delete(i);
+      if (!G.stop.tiles.size) G.stop = null;
+    }
+    if (G.wait) {
+      for (const i of [...G.wait.keys()]) if (!live.includes(i)) G.wait.delete(i);
+      if (!G.wait.size) G.wait = null;
+    }
     // 本編の枠が終わり近くから頭に戻った (次の話に進んだ・使う人が次の話にした)。つまみで動かした直後は除く
     const jumped = prev && now() > G.holdUntil && prev.t >= prev.d - 120 && fp <= 10 && prev.t - fp > Math.min(60, prev.d / 2);
-    if (jumped && pl.next != null) {
-      if (G.wait || (p != null && p >= pl.next - 0.5)) return advance(G, arch, pl.k + 1, go);
-      G.stop = { tile: arch, until: pl.next, v: 0, next: pl.k + 1, seen: false };
+    if (jumped) {
+      const tiles = new Map();
+      for (const i of live) {
+        const pl = planOf(i);
+        if (pl.next != null) tiles.set(i, { until: pl.next, next: pl.k + 1 });
+        else (G.done ??= new Map()).set(i, vidOf(i)); // この配信には続きが無い
+      }
+      G.wait = null;
+      G.stop = tiles.size ? { v: 0, seen: false, tiles } : null;
       seek(ref, 0);
+      if (!tiles.size) return { R: 0, playing: false };
     }
     if (G.stop) {
       const st = G.stop;
       if (w.paused) st.seen = true;
-      if (p != null && p >= st.until - 0.05) {
-        // 配信のタイマーが動き出した
-        if (st.next) return advance(G, arch, st.next, go);
+      const all = [...st.tiles].every(([i, g]) => {
+        const p = posOf(i);
+        return p != null && p >= g.until - 0.05;
+      });
+      // 使う人が本編の枠で再生した → 待つのをやめる (配信が追いかける)
+      const user = st.seen && !w.paused && now() - (sent.get(ref)?.cmdAt || 0) > 3000;
+      if (all || user) {
+        if ([...st.tiles.values()].some((g) => g.next)) return advance(G, st.tiles, all ? go : true);
         G.stop = null;
+        if (user) return { R, playing };
         G.holdUntil = now() + 2000; // 本編の枠を再生させる (featureTile の枝)
         setClock(G, st.v * 1000, go);
         return { R: st.v * 1000, playing: go };
-      }
-      // 使う人が本編の枠で再生した → 待つのをやめる (配信が追いかける)
-      if (st.seen && !w.paused && now() - (sent.get(ref)?.cmdAt || 0) > 3000) {
-        G.stop = null;
-        return { R, playing };
       }
       return { R: st.v * 1000, playing: false };
     }
     if (G.wait) {
       // 本編の枠を戻した (次の作品の始まりより前へ) → 待つのをやめる
-      if (MovieAnchors.toArchive(pl.secs, R / 1000) < G.wait.at - 1) G.wait = null;
-      return { R, playing };
+      for (const [i, wt] of [...G.wait]) if (MovieAnchors.toArchive(planOf(i).secs, R / 1000) < wt.at - 1) G.wait.delete(i);
+      if (!G.wait.size) G.wait = null;
     }
-    // 本編の枠が作品の頭で止まっていて、配信がまだ作品の始まり (タイマーが動き出す所) より前 → 配信は流して待ち、
-    // タイマーが動き出したら本編を再生する (配信の前置きを見ながら、タイマーに合わせて本編を始める使い方)
-    const [at0, v0] = pl.secs[0];
-    if (w.paused && Math.abs(fp - v0) <= 2 && p != null && p < at0 - 0.5 && now() > G.holdUntil) {
-      G.stop = { tile: arch, until: at0, v: v0, next: null, seen: true };
-      return { R: v0 * 1000, playing: false };
-    }
-    if (!playing || now() < G.holdUntil || p == null) return { R, playing };
-    const t = R / 1000;
-    // 配信が次の作品の始まりに着く → そこで本編の枠を待つ
-    if (pl.next != null && MovieAnchors.toArchive(pl.secs, t) >= pl.next - 0.3) {
-      G.wait = { tile: arch, at: pl.next, next: pl.k + 1 };
-      return { R, playing };
-    }
-    // 本編が、配信のタイマーが止まった値に着いた (配信も止まる直前まで来ている) → 本編の枠を止めて、配信だけを流す
-    for (let x = 1; x < pl.secs.length; x++) {
-      const [at, v] = pl.secs[x];
-      const end = pl.secs[x - 1][0] + (v - pl.secs[x - 1][1]); // 1 つ前の区間でタイマーが止まった再生位置
-      if (t >= v - 0.3 && t < v + 3 && p >= end - 3 && p < at - 0.5) {
-        G.stop = { tile: arch, until: at, v, next: null, seen: false };
-        if (Math.abs(fp - v) > 0.5) seek(ref, v);
+    // 本編の枠が作品の頭で止まっていて、作品の始まり (タイマーが動き出す所) より前の配信がある → その配信は流して待ち、
+    // 全員のタイマーが動き出したら本編を再生する (配信の前置きを見ながら、タイマーに合わせて本編を始める使い方)
+    if (w.paused && now() > G.holdUntil) {
+      const tiles = new Map();
+      let v = null;
+      for (const i of live) {
+        const [at0, v0] = planOf(i).secs[0];
+        const p = posOf(i);
+        if (Math.abs(fp - v0) <= 2 && p != null && p < at0 - 0.5) {
+          tiles.set(i, { until: at0, next: null });
+          v ??= v0;
+        }
+      }
+      if (tiles.size) {
+        G.stop = { v, seen: true, tiles };
         return { R: v * 1000, playing: false };
       }
     }
+    if (!playing || now() < G.holdUntil) return { R, playing };
+    const t = R / 1000;
+    let stop = null;
+    for (const i of live) {
+      const pl = planOf(i);
+      const p = posOf(i);
+      if (p == null || G.wait?.has(i)) continue;
+      // 次の作品の始まりに着く → そこで本編の枠を待つ
+      if (pl.next != null && MovieAnchors.toArchive(pl.secs, t) >= pl.next - 0.3) {
+        (G.wait ??= new Map()).set(i, { at: pl.next, next: pl.k + 1 });
+        continue;
+      }
+      // 本編が、この配信のタイマーが止まった値に着いた (配信も止まる直前まで来ている) → みんなで止めて、この配信だけを流す
+      for (let x = 1; x < pl.secs.length; x++) {
+        const [at, v] = pl.secs[x];
+        const end = pl.secs[x - 1][0] + (v - pl.secs[x - 1][1]); // 1 つ前の区間でタイマーが止まった再生位置
+        if (t >= v - 0.3 && t < v + 3 && p >= end - 3 && p < at - 0.5) {
+          stop ??= { v, seen: false, tiles: new Map() };
+          stop.tiles.set(i, { until: at, next: null });
+          break;
+        }
+      }
+    }
+    if (stop) {
+      G.stop = stop;
+      if (Math.abs(fp - stop.v) > 0.5) seek(ref, stop.v);
+      return { R: stop.v * 1000, playing: false };
+    }
     return { R, playing };
   }
-  /** 作品 n に進めて、本編の枠を頭から一緒に再生する */
-  function advance(G, arch, n, go) {
-    MovieAnchors.select(vidOf(arch), n);
+  /** 待ち合わせた配信の作品を次に進めて、本編の枠を頭から一緒に再生する */
+  function advance(G, tiles, go) {
+    for (const [i, g] of tiles) {
+      if (!g.next) continue;
+      MovieAnchors.select(vidOf(i), g.next);
+      forceSeek.add(i);
+    }
     G.stop = G.wait = null;
     G.fprev = null;
     G.holdUntil = now() + 4000; // 本編の枠を 0:00 へ動かして再生させる (featureTile の枝)
     for (const i of membersOf(G.g)) sent.delete(i);
-    forceSeek.add(arch);
     setClock(G, 0, go);
     return { R: 0, playing: go };
   }
@@ -870,7 +928,7 @@ const Sync = (() => {
   }
   /** グループ全部を、時計の時刻 R へ動かす (基準の枠が追いつくまで、時計は基準の枠に合わせない) */
   function seekGroup(G, R) {
-    G.stop = G.wait = G.fprev = G.feat = null; // タイマーが止まっている間・次の話を待つのをやめる
+    G.stop = G.wait = G.fprev = G.feat = G.done = null; // タイマーが止まっている間・次の話を待つのをやめる
     setClock(G, R, !pausedAll && !G.paused);
     G.holdUntil = now() + 4000;
     for (const i of membersOf(G.g)) sent.delete(i);

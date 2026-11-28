@@ -535,6 +535,7 @@ const MESSAGES = {
   ],
   movieLiveRefOnly: ['🎬 ライブは基準にだけできます (動かせないため)', "🎬 A live stream can only be the reference (it can't be moved)"],
   movieNextEpisode: ['🎬 本編の枠を次の話にしてください (配信は {0} 本目の始まりで待っています)', '🎬 Move the movie tile to the next episode (the stream is waiting at work {0})'],
+  movieArchiveDone: ['🎬 この配信はここまでです (続きの作品がありません)', '🎬 This stream ends here (no more works)'],
   movieNextEpisodeLive: ['🎬 本編の枠を次の話にしてください (配信は {0} 本目に進みました)', '🎬 Move the movie tile to the next episode (the stream has moved on to work {0})'],
   movieStartsLater: ['この配信は本編の {0} から始まります', 'This stream joins the movie at {0}'],
   movieAnchorSet: ['本編 0:00 をこの動画の {0} にしました', 'Movie 0:00 set to {0} in this video'],
