@@ -372,7 +372,7 @@ const MESSAGES = {
   stripResetLabel: ['↺ 実際の時刻に戻す', '↺ Back to real time'],
   stripSpeedTitle: ['グループ {0} の再生速度 (0.1× の超低速は YouTube の枠だけのグループで選べます)', 'Playback speed of group {0} (the very slow 0.1× is for groups of YouTube tiles only)'],
   waveZoomInTitle: ['拡大', 'Zoom in'],
-  waveClose: ['波形を閉じる', 'Close the waveform'],
+  waveClose: ['同期の調整の帯を閉じる', 'Close the sync adjustment strip'],
   waveRef: ['基準', 'Reference'],
   waveRulerElapsed: ['経過時刻', 'Elapsed'],
   waveRulerClock: ['配信時刻', 'Clock'],

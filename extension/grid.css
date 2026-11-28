@@ -1651,7 +1651,7 @@ code { font-size: 12px; background: #222228; padding: 0 4px; border-radius: 3px;
 /* グループが 2 つ以上: 印をグループの色にし、基準でない枠にも番号を出す。枠の下端にもグループの色の線 */
 .tile.sync-grouped .sync-ref-badge { background: var(--g); color: #111; }
 .tile.sync-grouped .sync-ref-badge.is-member { background: none; color: var(--g); box-shadow: inset 0 0 0 1px var(--g); }
-/* 枠の印 (.sync-mark): グループの色の下端の線と、調整パネルの行にマウスを乗せた・行を選んだ枠の点線 */
+/* 枠の印 (.sync-mark): グループの色の下端の線と、同期の調整の帯の行にマウスを乗せた・行を選んだ枠の点線 */
 .sync-mark { position: absolute; inset: 0; z-index: 3; pointer-events: none; display: none; }
 .tile.sync-grouped .sync-mark { display: block; border-bottom: 3px solid var(--g); }
 .tile.sync-hl .sync-mark { display: block; border: 2px dashed var(--g, #f5b942); }
@@ -1767,24 +1767,11 @@ code { font-size: 12px; background: #222228; padding: 0 4px; border-radius: 3px;
 .sync-input { width: 6.5em; padding: 1px 4px; background: #000; color: var(--text); border: 1px solid var(--line); border-radius: 6px; font-size: 12px; font-variant-numeric: tabular-nums; }
 /* 使えないとき (同期できるアーカイブが 2 本ない) も出しておき、薄くする。押すと理由が出る */
 #syncToggle.unavailable { opacity: .5; }
-/* 上部バー: グループが 2 つ以上のとき、つまみが動かすグループの番号と色 */
+/* 上部バーの ☰ (同期の調整の帯を出す / しまう) */
 .sync-dock-toggle { flex: none; }
 .sync-dock-toggle.on { color: #fff; border-color: var(--on); background: var(--on-bg); }
 
-/* ---------- 同期の調整パネル (画面の右の列。枠の並びはこの分だけ横に縮む) ---------- */
-/* パネルの中の入力欄・時刻も、パネルの文字に合わせて大きめに */
-/* 浮かぶ小窓: 枠の上に半透明で重ねる。マウスを乗せている・中を操作している間は濃くする。左上は固定で、下へ伸びる */
-/* パネルの中でグループの色を使うのは、見出しの番号の丸だけ (ほかは同じ色にして、✓ などの色とまぎれないように) */
-/* 本編の枠があるときのそろえ方 (切り替えは出さず、文字だけ) */
-/* 図: 各枠の開始のあたりを拡大。横棒 = 配信の実際の開始から右へ、補正の分は水色 (下の .tl-corr)、縦の白線 = 今。左に基準との開始の差、右に状態 */
-/* 目盛り: 棒と同じ横の範囲に、両端の開始の時刻と切れ目の ≈ を、その位置に置く */
-/* 棒は青 (グループの色 = 黄・緑・紫・橙 に使わない色) */
-/* 補正の分: 早めても遅らせても同じ水色 (向きは細い線との位置で分かる)。小さな補正も見えるよう、少なくとも 2px */
-/* 配信が実際に始まった時刻の細い線 (補正を入れると、棒の左端がここから離れる) */
-/* 基準の行の目印: ほかの枠の補正を見比べる時刻 (基準より後に始まった枠の開始) */
-/* ✨ 自動補正の候補: 反映したあとの位置の ◆ と、今の位置からの点線 (途中の結果は薄く) */
-/* たためるグループ: たたんだら見出しだけ */
-/* 状態は図に出すので、行の ✓ / ↻ はたたんだパネル (図が無い) のときだけ */
+/* ---------- ✨ 自動補正 (同期の調整の帯のグループの見出しに出す) ---------- */
 .sync-audio.is-measuring { color: #8fd3ff; border-color: #8fd3ff; }
 /* まだ補正していないグループ: ✨ を目立たせる */
 .sync-audio.is-suggest:not(:disabled) { border-color: #8fd3ff; box-shadow: 0 0 6px #8fd3ff66; }
@@ -1800,8 +1787,6 @@ code { font-size: 12px; background: #222228; padding: 0 4px; border-radius: 3px;
 .dga-suspect { color: #f0c36d; font-size: 12px; }
 .dga-choice { display: flex; flex-direction: column; gap: 2px; }
 .dga-buttons { display: flex; gap: 6px; justify-content: flex-end; }
-/* 🎬 本編の枠 (プレミア公開) の印 */
-/* 本編にする (🎬) */
 /* 設定したずれどおりの位置か (✓) / その位置へ寄せている途中か (↻)。グループの色と混ざらないよう、色ではなく記号で見せる */
 .dr-dot { flex: none; width: 1.1em; text-align: center; color: var(--muted); font-size: 12px; line-height: 1; }
 /* ↻ 寄せている途中 (同期の調整の帯の行。'dr-dot is-' + 状態 で付ける) */
@@ -2020,7 +2005,7 @@ body.grid-fs.wave-open .grid { height: calc(100% - var(--wave-h, 0px)); }
 body.wave-resizing iframe { pointer-events: none; }
 body.wave-resizing { cursor: ns-resize; user-select: none; }
 .wave-strip:focus { outline: none; }
-/* 節 (グループごと)。見出しは同期の調整パネルのグループの見出しと同じ並び */
+/* 節 (グループごと) */
 .wv-body { flex: 1; min-height: 0; overflow-y: auto; }
 .wv-sec { border-top: 1px solid var(--line); }
 .wv-sec-head { display: flex; align-items: center; gap: 6px; height: 32px; padding: 0 8px; background: rgba(255, 255, 255, 0.03); }

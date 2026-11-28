@@ -550,7 +550,7 @@ const WaveStrip = (() => {
     s.head.box = timeMode(G) ? Sync.audioResultEl(G.g) : null;
     // グループの音 (🔊 / 🔇): グループの中に音の出ている枠があれば全部消す・全部消えていれば全部出す
     s.head.mute = G.tiles.length ? mk('button', { type: 'button', class: 'wv-group-audio', onclick: () => (Sync.toggleGroupAudio(G.g), update()) }) : null;
-    // つまみ (上部バーのつまみと同じ。グループの時刻を動かす)。残りの幅を使い、狭ければ縮む (拡大のスライダーの幅までは保つ)
+    // つまみ (グループの時刻を動かす)。残りの幅を使い、狭ければ縮む (拡大のスライダーの幅までは保つ)
     s.head.seek = null;
     if (G.active) {
       const input = mk('input', { type: 'range', class: 'wv-seek', min: 0, max: 1, step: 1, value: 0, title: tr('stripSeekTitle', G.g), 'aria-label': tr('stripSeekTitle', G.g) });
