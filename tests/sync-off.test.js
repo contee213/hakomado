@@ -11,7 +11,7 @@ const os = require('node:os');
 const path = require('node:path');
 const vm = require('node:vm');
 const { readExt, EXT } = require('./helpers/load');
-const { build, SYNC_FILES, OFF_FILES } = require('../tools/build');
+const { build, SYNC_FILES, SYNC_CONTENT_FILES, OFF_FILES } = require('../tools/build');
 
 /** なんでも受け付ける代わり (読み込みの時点で document などに触れても止まらないように) */
 const anything = () => new Proxy(function () {}, { get: (_, k) => (k === Symbol.toPrimitive ? () => 0 : anything()), apply: () => anything(), construct: () => anything() });
@@ -86,7 +86,12 @@ test('リリース版のビルドには同期のファイルが入らず、grid.
     assert.doesNotThrow(() => new vm.Script(joined, { filename: 'grid.html (release, joined)' }));
     // 同期の中身 (Sync の時計など) の文字が入っていない
     assert.ok(!files.filter((f) => f.endsWith('.js')).some((f) => /const Sync = \(\(\) => \{\n  const TICK_MS/.test(fs.readFileSync(path.join(out, f), 'utf8'))));
-    assert.deepEqual(JSON.parse(fs.readFileSync(path.join(out, 'manifest.json'), 'utf8')), JSON.parse(readExt('manifest.json')), 'manifest.json は同じ');
+    // manifest.json は、同期だけが使うページ側のスクリプト (画面のタイマーを読む timer-reader.js) を外しただけ
+    for (const f of SYNC_CONTENT_FILES) assert.ok(!files.includes(f), `${f} が入っている`);
+    const want = JSON.parse(readExt('manifest.json'));
+    for (const c of want.content_scripts) if (c.js) c.js = c.js.filter((f) => !SYNC_CONTENT_FILES.includes(f));
+    assert.deepEqual(JSON.parse(fs.readFileSync(path.join(out, 'manifest.json'), 'utf8')), want, 'manifest.json は timer-reader.js を外しただけ');
+    assert.ok(want.content_scripts.every((c) => !c.js || c.js.length), '中身が空になった content_scripts が無い');
   } finally {
     fs.rmSync(path.dirname(out), { recursive: true, force: true });
   }
@@ -96,8 +101,9 @@ test('同期入りのビルドは extension/ と同じ (sync-off.js だけ抜く
   const { out, files } = build({ experimental: true, out: tmpOut('exp') });
   try {
     assert.ok(!files.includes('sync-off.js'));
-    for (const f of SYNC_FILES) assert.ok(files.includes(f), `${f} が無い`);
+    for (const f of [...SYNC_FILES, ...SYNC_CONTENT_FILES]) assert.ok(files.includes(f), `${f} が無い`);
     assert.equal(fs.readFileSync(path.join(out, 'grid.html'), 'utf8'), readExt('grid.html'));
+    assert.equal(fs.readFileSync(path.join(out, 'manifest.json'), 'utf8'), readExt('manifest.json'));
   } finally {
     fs.rmSync(path.dirname(out), { recursive: true, force: true });
   }

@@ -5,8 +5,8 @@
 //   node tools/build.js --experimental  同期入り: extension/ と同じ中身 (sync-off.js だけ抜く) → dist/hakomado-experimental/
 //   --out <フォルダ>                     作る場所を変える (中身は消してから作る)
 //
-// リリース版では SYNC_FILES を入れず、grid.html の <script src="sync.js"> を sync-off.js (同じ窓口を何もしない形で持つ) に差し替え、
-// ほかの同期のファイルの <script> を消す。Chrome ウェブストアと GitHub のリリースの ZIP はこれで作る (.github/workflows/release.yml)。
+// リリース版では SYNC_FILES・SYNC_CONTENT_FILES を入れず、grid.html の <script src="sync.js"> を sync-off.js (同じ窓口を何もしない形で持つ) に差し替え、
+// ほかの同期のファイルの <script> を消す。manifest.json の content_scripts からも、同期だけが使うページ側のスクリプトを外す。Chrome ウェブストアと GitHub のリリースの ZIP はこれで作る (.github/workflows/release.yml)。
 // 補正を覚える仕組み (sync-offsets.js・movie-anchors.js) は残す (共有コード・再生リスト・バックアップの補正を消さないため)。
 // content/mix.js も残す (枠の音の遅延・左右・音量の経路と同じファイルで、分けられないため。親が頼まなければ音の記録はしない)。
 // 動画ごとの波形 (waves.js) も残す (🎚 音量バランスが、保存してある波形から大きさを出すため。HAKO-54)。
@@ -22,6 +22,9 @@ const EXT = path.join(ROOT, 'extension');
 /** リリース版で抜く、アーカイブ同期だけが使うファイル (extension/ からの相対) */
 // 波形 (waves.js) は 🎚 音量バランスも使うので残す (HAKO-54)
 const SYNC_FILES = ['sync.js', 'sync-groups.js', 'audio-align.js', 'audio-align-worker.js', 'wave-strip.js', 'timer-scan.js'];
+/** リリース版で抜く、同期だけが使うページ側のスクリプト (manifest.json の content_scripts からも外す)。
+ *  画面のタイマーを読む timer-reader.js は、timer-scan.js が開いた視聴ページでだけ動くので、timer-scan.js が無ければ要らない (HAKO-49) */
+const SYNC_CONTENT_FILES = ['content/timer-reader.js'];
 /** 同期入りのときに抜く、リリース版だけが使うファイル */
 const OFF_FILES = ['sync-off.js'];
 
@@ -48,10 +51,20 @@ function stripGridHtml(html) {
   return out;
 }
 
+/** manifest.json を、リリース版の形にする (同期だけが使うページ側のスクリプトを content_scripts から外す) */
+function stripManifest(text) {
+  const m = JSON.parse(text);
+  for (const f of SYNC_CONTENT_FILES) {
+    if (!m.content_scripts?.some((c) => c.js?.includes(f))) throw new Error(`manifest.json の content_scripts に ${f} がありません`);
+  }
+  for (const c of m.content_scripts) if (c.js) c.js = c.js.filter((f) => !SYNC_CONTENT_FILES.includes(f));
+  return JSON.stringify(m, null, 2) + '\n';
+}
+
 /** dist の中身を確かめる。問題があれば Error */
 function verify(out, { experimental }) {
   const files = listFiles(out);
-  const gone = experimental ? OFF_FILES : SYNC_FILES;
+  const gone = experimental ? OFF_FILES : [...SYNC_FILES, ...SYNC_CONTENT_FILES];
   for (const f of gone) if (files.includes(f)) throw new Error(`${f} が入っています`);
   const html = fs.readFileSync(path.join(out, 'grid.html'), 'utf8');
   const scripts = [...html.matchAll(/<script src="([^"]+)"/g)].map((m) => m[1]);
@@ -74,19 +87,20 @@ function build({ experimental = false, out } = {}) {
   out = path.resolve(out || path.join(ROOT, 'dist', experimental ? 'hakomado-experimental' : 'hakomado'));
   if (out === EXT || EXT.startsWith(out + path.sep)) throw new Error(`作る場所が extension/ と重なっています: ${out}`);
   fs.rmSync(out, { recursive: true, force: true });
-  const skip = new Set(experimental ? OFF_FILES : SYNC_FILES);
+  const skip = new Set(experimental ? OFF_FILES : [...SYNC_FILES, ...SYNC_CONTENT_FILES]);
   for (const f of listFiles(EXT)) {
     if (skip.has(f)) continue;
     const dest = path.join(out, f);
     fs.mkdirSync(path.dirname(dest), { recursive: true });
     if (f === 'grid.html' && !experimental) fs.writeFileSync(dest, stripGridHtml(fs.readFileSync(path.join(EXT, f), 'utf8')));
+    else if (f === 'manifest.json' && !experimental) fs.writeFileSync(dest, stripManifest(fs.readFileSync(path.join(EXT, f), 'utf8')));
     else fs.copyFileSync(path.join(EXT, f), dest);
   }
   const { files } = verify(out, { experimental });
   return { out, files };
 }
 
-module.exports = { build, stripGridHtml, SYNC_FILES, OFF_FILES };
+module.exports = { build, stripGridHtml, stripManifest, SYNC_FILES, SYNC_CONTENT_FILES, OFF_FILES };
 
 if (require.main === module) {
   const args = process.argv.slice(2);
