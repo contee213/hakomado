@@ -489,7 +489,7 @@ const MESSAGES = {
   syncAudioUntryTitle: ['✨ の前の補正に戻します (結果は残るので、もう一度試せます)', 'Go back to the offsets before ✨ (the result stays, so you can try again)'],
   stripRegroupLabel: ['自動で分け直す', 'Regroup automatically'],
   stripRegroupTitle: ['手で決めたグループ (行のドラッグで移した枠) を全部やめて、時間帯が重なる枠を自動でまとめ直します', 'Undo every group you set by hand (rows you dragged) and group tiles whose times overlap automatically again'],
-  stripSeekTitle: ['グループ {0} の全部の枠を、この時刻に動かす (上部バーのつまみと同じ)', 'Move every tile in group {0} to this time (same as the slider in the top bar)'],
+  stripSeekTitle: ['グループ {0} の全部の枠を、この時刻に動かす', 'Move every tile in group {0} to this time'],
   syncAudioCloseTitle: ['結果・知らせを使わずに消します (波形の点線も消えます)', 'Dismiss the result or notice without using it (the dotted outlines go away too)'],
   waveScrollTitle: ['見ている範囲 (白い線が今の再生位置)。つまみをドラッグすると、再生位置を変えずに見る範囲だけ動きます。地を押すと、そこを真ん中にします', 'The part you are viewing (the white line is the playback position). Drag the handle to move the view without changing playback; click the track to center there'],
   stripGroupAudioOnLabel: ['🔊 グループの音', '🔊 Group sound'],

@@ -1189,7 +1189,7 @@ function setTileFile(i, file, handlePromise) {
   const id = LocalFiles.newId();
   const name = file.name.slice(0, 200);
   const anyAudible = state.tiles.some((t, j) => j !== i && isVisible(j) && tileFilled(t) && !t.muted);
-  state.tiles[i] = { ...newTileState(), input: name, label: name, file: id, muted: anyAudible };
+  state.tiles[i] = { ...newTileState(), input: name, label: name, file: id, muted: anyAudible, note: state.tiles[i].note || '' }; // 説明は中身を入れても残す
   views[i].droppedFile = { id, file };
   renderTile(i, { reloadPlayer: true, reloadChat: true });
   save();
@@ -1214,7 +1214,7 @@ function setTileWeb(i, href) {
   if (prev) WatchHistory.removed(prev, 'replaced');
   views[i].danmaku.clear();
   const anyAudible = state.tiles.some((t, j) => j !== i && isVisible(j) && tileFilled(t) && !t.muted);
-  state.tiles[i] = { ...newTileState(), input: href, web: href, muted: anyAudible };
+  state.tiles[i] = { ...newTileState(), input: href, web: href, muted: anyAudible, note: state.tiles[i].note || '' }; // 説明は中身を入れても残す
   renderTile(i, { reloadPlayer: true, reloadChat: true });
   save();
 }
@@ -2756,7 +2756,7 @@ async function toggleFullscreen(i) {
     await document.exitFullscreen().catch(() => {});
     return;
   }
-  if (!state.tiles[i].videoId) return;
+  if (!tileFilled(state.tiles[i])) return; // URL の枠・ファイルの枠も全画面にできる
   // 別の枠が全画面中なら、その状態 (音声の復元先) を引き継いだまま切り替える
   if (!isTileFullscreen()) fullscreenAudioBefore = audibleTiles();
   try {
@@ -2784,7 +2784,7 @@ document.addEventListener('fullscreenchange', () => {
   const now = audibleTiles();
   if (!(now.length === 1 && now[0] === fsTile)) return;
   if (before.length === 0) muteAll();
-  else setAudioSet(before.filter((j) => isVisible(j) && state.tiles[j].videoId));
+  else setAudioSet(before.filter((j) => isVisible(j) && tileFilled(state.tiles[j])));
 });
 
 // ---------------------------------------------------------------- chat messages → danmaku
@@ -2811,10 +2811,10 @@ window.addEventListener('message', (e) => {
 // ⏱ アーカイブの同期再生 (Sync) と ✨ 自動補正 (AudioSync) は sync.js (リリース版は何もしない sync-off.js。HAKO-51)
 
 /**
- * 再生リストを同期再生の形で扱うか。リリース版 (同期のコードが無い。Sync.built = false) では、同期にしてある再生リストも
- * ふつうの順の再生として出して再生する (同期の選択・説明を出さない。保存の値 sync と補正はそのまま残す。HAKO-51)
+ * 再生リストを同期再生の形で扱うか。⏱ アーカイブ同期が OFF のとき (リリース版は同期のコードが無いので、いつも OFF) は、
+ * 同期にしてある再生リストもふつうの順の再生として出して再生する (同期の選択・説明を出さない。保存の値 sync と補正はそのまま残す。HAKO-50・HAKO-51)
  */
-const plSynced = (pl) => !!pl?.sync && Sync.built;
+const plSynced = (pl) => !!pl?.sync && Sync.enabled();
 
 // ---------------------------------------------------------------- ℹ 枠の情報
 // 表示中の枠ごとに、種類 (ライブ・配信前・アーカイブ・動画)・チャンネル・タイトル・配信の時間や公開日・
@@ -5292,7 +5292,7 @@ function setupRead() {
     parts.push(tr('readCount', set.items.length));
     const layout = set.layoutId && LAYOUTS.find((l) => l.id === layoutIdOf(set.layoutId));
     if (layout) parts.push(tr('readLayout', layout.name));
-    if (set.sync && Sync.built) parts.push(tr(set.items.some((h) => h.offset) ? 'readSyncOffsets' : 'readSync'));
+    if (set.sync && Sync.enabled()) parts.push(tr(set.items.some((h) => h.offset) ? 'readSyncOffsets' : 'readSync'));
     if (set.movie) parts.push(tr('readMovie'));
     if (set.notes?.length) parts.push(tr('readNotes', set.notes.length));
     const notes = [];
@@ -5466,7 +5466,7 @@ function setupRead() {
       shareTilesName = set.name; // 共有画面にも同じ名前を出す
       const n = Math.min(set.items.length, SHARE_MAX);
       const notes = [set.bad ? tr('shareBadLines', set.bad) : '', set.items.length > SHARE_MAX ? tr('shareTooMany') : ''].filter(Boolean);
-      notify([tr(set.sync && Sync.built ? 'shareLoadedSync' : 'shareLoaded', n), ...notes].join(' / '));
+      notify([tr(set.sync && Sync.enabled() ? 'shareLoadedSync' : 'shareLoaded', n), ...notes].join(' / '));
       reset();
       dialog.close();
       if (favDialog.open) favDialog.close(); // ライブラリから開いたときは、並べた枠が見えるように
@@ -7278,11 +7278,12 @@ const CollabAI = (() => {
   const answers = new Map(); // 組 → 'together' | 'separate'
   const queue = new Map(); // 組 → {a, b}
   let busy = false;
+  let broken = false; // 聞くのに失敗した (この画面を開いている間は聞かない。設定を入れ直したら試し直す)
   let progress = null; // ダウンロードの進み具合 (0〜1)。ダウンロード中でなければ null
 
   const keyOf = (a, b) => [a.id, b.id].sort().join('|');
   const has = () => typeof self.LanguageModel !== 'undefined';
-  const on = () => !!state.settings.aiCollab && avail === 'available';
+  const on = () => !!state.settings.aiCollab && avail === 'available' && !broken;
 
   /** 使えるかを確かめ、設定の欄を出す / 隠す */
   async function init() {
@@ -7314,7 +7315,8 @@ const CollabAI = (() => {
   /** 設定を ON / OFF にした (押したときに呼ぶ。モデルが無ければ、ここでダウンロードを始める) */
   async function setOn(v) {
     state.settings.aiCollab = v;
-    onSettingChanged('aiCollab');
+    broken = false;
+    saveSettings('aiCollab'); // onSettingChanged は setupToolbar の中だけにある
     paint();
     if (!v || !has()) return;
     if (avail !== 'available') {
@@ -7377,10 +7379,11 @@ const CollabAI = (() => {
     } catch (e) {
       console.warn('hakomado: 組み込み AI に聞けませんでした', e);
       queue.clear();
+      broken = true; // 描き直すたびに同じ組を聞き直して、失敗し続けないように
     } finally {
       busy = false;
     }
-    renderFavPane();
+    if (favDialog.open) renderFavPane();
   }
 
   return { init, setOn, answer, flush, paint };
@@ -10085,6 +10088,7 @@ function placeAutoLives(started, { keep, audibleBefore, isPickKept = () => false
       label: l.f.name,
       videoId: l.st.videoId,
       auto: true,
+      note: state.tiles[i].note, // 説明付きの空き枠の説明は、中身を入れても残す
     });
     views[i].danmaku.clear();
     return i;
@@ -10398,7 +10402,7 @@ async function refillArchives({ lock = true, cached = false, onProgress = null }
           busy.add(f.name);
           shown.add(v.videoId);
           added++;
-          Object.assign(state.tiles[i], { ...newTileState(), input: videoInput(v), videoId: v.videoId, label: f.name, fill: true, short: v.list === 'UUSH' }); // = isShortHint(videoInput(v))
+          Object.assign(state.tiles[i], { ...newTileState(), input: videoInput(v), videoId: v.videoId, label: f.name, fill: true, short: v.list === 'UUSH', note: state.tiles[i].note }); // short = isShortHint(videoInput(v))。説明は残す
           views[i].danmaku.clear();
           renderTile(i, { reloadPlayer: true, reloadChat: true });
           fills.push(i);
