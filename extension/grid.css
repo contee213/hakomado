@@ -2029,7 +2029,7 @@ body.wave-resizing { cursor: ns-resize; user-select: none; }
 /* 基準の行: 罫線から右に半透明の覆い (触れない) */
 /* 🎬 同時視聴のグループ: 罫線の右に 🎬 の列 (本編の印・🚩 開始位置・⏲ 画面タイマー・✕) を足す (HAKO-47) */
 .wave-strip { --wv-mw: 0px; }
-.wv-sec.is-movie { --wv-mw: 268px; }
+.wv-sec.is-movie { --wv-mw: 392px; }
 .wv-movie-col { display: flex; align-items: center; gap: 4px; width: var(--wv-mw); box-sizing: border-box; flex: none; padding: 0 6px; border-right: 1px solid var(--line); overflow: hidden; white-space: nowrap; }
 .wv-movie-col button { flex: none; font-size: 11px; min-height: 22px; padding: 0 6px; }
 .wv-movie-col .wv-main { width: 58px; padding: 0 !important; }
@@ -2058,3 +2058,11 @@ body.wave-resizing { cursor: ns-resize; user-select: none; }
 /* 下見用のプレイヤー (見えない場所に置く。操作も読み上げもしない) */
 .wave-scan-box { position: fixed; left: -4000px; top: 0; width: 320px; pointer-events: none; }
 .wave-scan-box iframe { display: block; width: 320px; height: 180px; border: 0; }
+/* 画面のタイマーを探す用のプレイヤー (画面の外。HAKO-49) */
+.timer-scan-box { position: fixed; left: -4000px; top: 0; width: 640px; pointer-events: none; }
+.timer-scan-box iframe { display: block; width: 640px; height: 360px; border: 0; }
+/* 🎬 の列の 🔍 (探す・探している秒数・作品の一覧) */
+.wv-scan { display: flex; align-items: center; flex: none; width: 118px; }
+.wv-scan .wv-scan-btn { width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.wv-scan .wv-scan-btn.is-busy { color: var(--muted); }
+.wv-scan .wv-works { width: 100%; font-size: 11px; min-height: 22px; }

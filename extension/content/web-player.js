@@ -35,7 +35,8 @@
     for (const v of collect(document, [])) {
       const r = v.getBoundingClientRect();
       const area = Math.max(0, r.width) * Math.max(0, r.height);
-      const score = area * (v.readyState > 0 ? 4 : 1) * (v.paused ? 1 : 2);
+      // 端を切って埋める背景の飾り (object-fit: cover。作品のページの上の予告など) は、ほかに動画があればそちらを選ぶ
+      const score = area * (v.readyState > 0 ? 4 : 1) * (v.paused ? 1 : 2) * (getComputedStyle(v).objectFit === 'cover' ? 1 / 16 : 1);
       if (score > bestScore) {
         best = v;
         bestScore = score;
@@ -122,12 +123,30 @@ html:has([${FILL}]), html:has([${FILL}]) body { overflow: hidden !important; bac
     for (let a = el.parentElement; a; a = a.parentElement) a.setAttribute(FILL_ANC, '');
   }
 
+  /** 画面に固定された要素 (position: fixed) の中にあるか。そうしたプレイヤーは自分で画面いっぱいに広がる */
+  function inFixed(el) {
+    for (let e = el; e && e !== document.documentElement; e = e.parentElement) {
+      if (getComputedStyle(e).position === 'fixed') return true;
+    }
+    return false;
+  }
+
   function updateZoom(v) {
-    // 大きめの動画 (おすすめの小さな試聴などは除く) があれば、その部分を拡大して映す
-    if (v && v.isConnected) {
+    // 画面に固定されたプレイヤー (Prime Video の再生画面など) は拡大しない。html に変形をかけると、固定された要素が
+    // 画面でなくページ全体の大きさに引き伸ばされ (高さ 4000px 超)、映像が縦長の真ん中に小さく置かれ、サイトの操作ボタンも枠の外に出るため
+    if (v && v.isConnected && inFixed(v)) {
+      setZoom(null);
+      setFill(null);
+      return;
+    }
+    // 大きめの動画 (おすすめの小さな試聴などは除く) で、映像があり (読み込まれていないものは除く)、端を切って埋める背景の飾り
+    // (object-fit: cover。作品のページの上の予告など。プレイヤーは映像を切らずに収める) でないものがあれば、その部分を拡大して映す。
+    // 背景の飾りに合わせると、その帯だけを映して、下の再生のボタンを切り落としてしまう
+    if (v && v.isConnected && v.videoWidth > 0 && getComputedStyle(v).objectFit !== 'cover') {
       // 拡大はページの左上を基準にするので、拡大している間にサイトがスクロールしたら戻してから測る
       if (zoom && (scrollX || scrollY)) scrollTo(0, 0);
-      const r = rawRect(v);
+      // 要素でなく、映像が映っている部分に合わせる (要素が縦に長いと、余白ごと収めて映像が小さくなる)
+      const r = WebSite.pictureRect(rawRect(v), v.videoWidth, v.videoHeight, getComputedStyle(v).objectFit);
       if (WebSite.bigEnough(r, innerWidth, innerHeight)) {
         setFill(null);
         setZoom(r);
@@ -182,6 +201,7 @@ html:has([${FILL}]), html:has([${FILL}]) body { overflow: hidden !important; bac
         rate: v.playbackRate,
         w: v.videoWidth,
         h: v.videoHeight,
+        bg: getComputedStyle(v).objectFit === 'cover', // 背景の飾りの動画 (作品のページの上の予告など)
       },
       EXT_ORIGIN,
     );

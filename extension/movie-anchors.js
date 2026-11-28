@@ -7,15 +7,44 @@
 // - guess: 配信の時刻などから見当を付けた値 (使う人が決めた値ではない)。同じ時間に配信していた枠の本編の位置が決まったら、
 //   そこから付け直してよい
 // - main: 使う人が「この動画を本編にする」と決めた (プレミア公開でなくても本編の枠として扱う)
+// 画面のタイマーから見つけた区間 (HAKO-49) も持つ:
+// - w: 配信の画面のタイマーが動き出した所の並び [[動き出した再生位置 (秒), そのときのタイマーの値 (秒)], ...] (再生位置の順)。
+//   値が 0 (か最初の 1 つ) なら新しい作品の始まり、それ以外は同じ作品の続き。作品 n の 0:00 = 動き出した位置 − 値
+// - k: 今選んでいる作品 (1 から)。選んだ作品の 0:00 を s にも入れる (s だけ読む同期・共有コード・前の版はそのまま使える)
 /* exported MovieAnchors */
 'use strict';
 
 const MovieAnchors = (() => {
+  // ---- 区間での読み替え (secs = 1 つの作品の区間の並び [[動き出した再生位置, そのときのタイマーの値], ...]、再生位置の順)
+  // 区間 j は、動き出した位置から、次の区間の値 (= タイマーが止まった値) に届くまで進む。そこから次の区間が動き出すまでは
+  // タイマーが止まっている (配信者の離席など)
+
+  /** 本編の時刻 t (秒) に当たる配信の再生位置。値が t 以下で一番遅い区間から数える (最初の区間より前は最初の区間から) */
+  function toArchive(secs, t) {
+    let j = 0;
+    for (let x = 1; x < secs.length; x++) if (secs[x][1] <= t) j = x;
+    return secs[j][0] + (t - secs[j][1]);
+  }
+  /**
+   * 配信の再生位置 p (秒) に当たる本編の時刻 {t, stop}。stop = タイマーが止まっている所なら {until: 次に動き出す再生位置, v: 止まった値}。
+   * 止まっている間の本編の時刻は、止まった値のまま
+   */
+  function toMovie(secs, p) {
+    let j = 0;
+    for (let x = 1; x < secs.length; x++) if (secs[x][0] <= p) j = x;
+    let t = secs[j][1] + (p - secs[j][0]);
+    const nx = secs[j + 1];
+    if (nx && t >= nx[1]) return { t: nx[1], stop: { until: nx[0], v: nx[1] } };
+    if (nx) t = Math.min(t, nx[1]);
+    return { t, stop: null };
+  }
+
   const KEY = 'movieAnchors';
   const MAX = 1000; // 覚えておく動画の数 (古く決めたものから忘れる)
   const LIMIT = 7 * 86400; // 1 週間分まで (長い配信でも入るように)
   const ID_RE = /^[A-Za-z0-9_-]{11}$/;
-  let cache = {}; // videoId -> {s?: 秒, at: 決めた時刻, g?: 1 (見当), m?: 1 (本編にした)}
+  const MAX_W = 200; // 1 本の動画で覚える区間の数
+  let cache = {}; // videoId -> {s?: 秒, at: 決めた時刻, g?: 1 (見当), m?: 1 (本編にした), w?: [[秒, 秒], ...], k?: 作品の番号}
   const listeners = new Set();
 
   const clean = (v) => Math.round(Math.max(-LIMIT, Math.min(LIMIT, Number(v))) * 100) / 100; // 0.01 秒単位 (✨ 自動補正・± 0.01 で合わせられるように)
@@ -29,8 +58,29 @@ const MovieAnchors = (() => {
       if (e.g) out.g = 1;
     }
     if (e.m) out.m = 1;
-    return 's' in out || out.m ? out : null;
+    const w = cleanW(e.w);
+    if (w.length) {
+      out.w = w;
+      const n = startsOf(w).length;
+      if (Number.isInteger(e.k) && e.k >= 1 && e.k <= n) out.k = e.k;
+    }
+    return 's' in out || out.m || out.w ? out : null;
   }
+  /** 区間の並びを正しい形に (数の組だけ・再生位置は 0 以上・値は 0 以上・再生位置の順・同じ位置は 1 つ) */
+  function cleanW(w) {
+    if (!Array.isArray(w)) return [];
+    const out = [];
+    for (const p of w) {
+      if (!Array.isArray(p) || p.length < 2) continue;
+      const a = Number(p[0]), v = Number(p[1]);
+      if (!Number.isFinite(a) || !Number.isFinite(v) || a < 0 || v < 0 || a > LIMIT || v > LIMIT) continue;
+      out.push([clean(a), clean(v)]);
+    }
+    out.sort((x, y) => x[0] - y[0]);
+    return out.filter((p, i) => i === 0 || p[0] !== out[i - 1][0]).slice(0, MAX_W);
+  }
+  /** 作品の始まりの区間 (最初の区間と、値が 0 の区間) */
+  const startsOf = (w) => w.filter((p, i) => i === 0 || p[1] === 0);
 
   function adopt(raw) {
     const next = {};
@@ -54,6 +104,24 @@ const MovieAnchors = (() => {
   const isGuess = (id) => !!(id && cache[id]?.g && 's' in cache[id]);
   /** 使う人が「本編にする」と決めた動画か */
   const isMain = (id) => !!(id && cache[id]?.m);
+  /** 画面のタイマーから見つけた作品の一覧 [{n: 何本目 (1 から), at: 動き出した再生位置, zero: その作品の 0:00 の再生位置}] */
+  const works = (id) => (id && cache[id]?.w ? startsOf(cache[id].w).map((p, j) => ({ n: j + 1, at: p[0], zero: clean(p[0] - p[1]) })) : []);
+  /** 今選んでいる作品の番号 (無ければ null) */
+  const selected = (id) => (id && cache[id]?.k) || null;
+
+  /**
+   * 今選んでいる作品の区間 {secs: [[動き出した再生位置, そのときのタイマーの値], ...], next: 次の作品の始まりの再生位置 (無ければ null), k}。
+   * 区間を見つけていない・作品を選んでいない (手で本編の位置を決めた) なら null (本編の位置 s だけで読み替える)
+   */
+  function plan(id) {
+    const e = id && cache[id];
+    if (!e?.w || !e.k) return null;
+    const starts = e.w.map((p, i) => i).filter((i) => i === 0 || e.w[i][1] === 0);
+    const from = starts[e.k - 1];
+    if (from == null) return null;
+    const to = starts[e.k] ?? e.w.length;
+    return { secs: e.w.slice(from, to), next: e.w[to]?.[0] ?? null, k: e.k };
+  }
 
   /** 書き込み (fn で 1 件を書き換える)。タブ間でロックを取って、読んでから書く */
   function write(id, fn) {
@@ -80,7 +148,8 @@ const MovieAnchors = (() => {
   const set = (id, v, { guess = false } = {}) =>
     write(id, (e) => {
       const ok = v != null && Number.isFinite(Number(v));
-      const { s, g, ...rest } = e;
+      // 手で決め直したら、選んでいた作品の印は外す (見つけた区間 w は残す)
+      const { s, g, k, ...rest } = e;
       return ok ? { ...rest, s: Number(v), ...(guess ? { g: 1 } : {}) } : rest;
     });
   const remove = (id) => set(id, null);
@@ -91,11 +160,35 @@ const MovieAnchors = (() => {
       return on ? { ...rest, m: 1 } : rest;
     });
 
+  /** 画面のタイマーから見つけた区間の並びを記録する (今までの分に足す)。本編の位置が未定なら 1 本目の 0:00 を入れて選ぶ */
+  const addSections = (id, list) =>
+    write(id, (e) => {
+      const w = cleanW([...(e.w || []), ...list]);
+      if (!w.length) return e;
+      const out = { ...e, w };
+      if (!Number.isFinite(e.s) || e.g) {
+        const first = w[0];
+        const { g, ...rest } = out;
+        return { ...rest, s: clean(first[0] - first[1]), k: 1 };
+      }
+      return out;
+    });
+  /** 作品 n を選ぶ (その作品の 0:00 を本編の位置にする)。選べたら 0:00 の位置を返す */
+  function select(id, n) {
+    const wk = works(id).find((x) => x.n === n);
+    if (!wk) return null;
+    write(id, (e) => {
+      const { g, ...rest } = e;
+      return { ...rest, s: wk.zero, k: n };
+    });
+    return wk.zero;
+  }
+
   /** ほかのタブで変わったとき (変わった動画 ID の一覧を渡す) */
   function onChange(fn) {
     listeners.add(fn);
   }
-  const sig = (e) => (e ? [e.s, e.g, e.m].join() : '');
+  const sig = (e) => (e ? [e.s, e.g, e.m, e.k, JSON.stringify(e.w || '')].join() : '');
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== 'local' || !changes[KEY]) return;
     const next = adopt(changes[KEY].newValue);
@@ -104,5 +197,5 @@ const MovieAnchors = (() => {
     if (ids.length) for (const fn of listeners) fn(ids);
   });
 
-  return { KEY, load, get, isGuess, isMain, set, remove, setMain, onChange };
+  return { KEY, load, get, isGuess, isMain, set, remove, setMain, works, selected, plan, addSections, select, onChange, toArchive, toMovie };
 })();
