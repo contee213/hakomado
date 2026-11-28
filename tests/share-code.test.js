@@ -527,6 +527,19 @@ test('🎬 見つけた区間: 形の違う「~w」は無視して本編の位�
   assert.deepEqual(r.plans, [null, null, { w: [[7, 0]], k: 1 }]);
 });
 
+test('🎬 見つけた区間が長すぎても、「~w」を読める長さに収め、後ろの説明付きの空き枠も消さない', () => {
+  const get = setup();
+  // 2 本の動画に、作品の始まり 3 つと続きの区間 57 つずつ (そのままだと 1500 文字を超える)
+  const many = () => Array.from({ length: 60 }, (_, j) => [1000 + j * 61.25, j % 20 === 0 ? 0 : 100 + j * 7.5]);
+  const code = get('formatShareCode')('u2x2', [A, B], [], 0, '', [10, 20], -1, [{ w: many(), k: 2 }, { w: many(), k: 1 }], [{ k: 2, text: 'ここに入れてください' }]);
+  const wt = code.match(/ ~w (\S+)/)[1];
+  assert.ok(wt.length <= 1500, `~w が ${wt.length} 文字`);
+  const r = plain(get('parseShareCode')(code));
+  assert.ok(r.plans?.length === 2, '区間を読める');
+  for (const pl of r.plans) assert.deepEqual(pl.w.filter((p) => p[1] === 0).map((p) => p[0]), [1000, 2225, 3450], '作品の始まりは残す');
+  assert.deepEqual(r.notes, [{ k: 2, text: 'ここに入れてください' }], '説明付きの空き枠も読める');
+});
+
 test('説明付きの空き枠 (~e・hke=) を入れて読める。説明の「"」と改行は空白にし、60 文字で切る (HAKO-49)', () => {
   const get = setup();
   const notes = [{ k: 2, text: 'ここにPrime Video等のコマンドーのURLを入れてください' }];

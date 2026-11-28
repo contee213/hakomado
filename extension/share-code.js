@@ -176,18 +176,32 @@ function readNotes(text) {
 // 再生位置・値は秒 (0.01 秒単位)。区間は movie-anchors.js の w と同じ (値が 0 か最初の区間が作品の始まり)。区間の無い動画は書かない
 const SHARE_W_RE = /^\d{1,2}=\d{1,3}(?::\d{1,6}(?:\.\d{1,2})?_\d{1,6}(?:\.\d{1,2})?){1,200}(?:,\d{1,2}=\d{1,3}(?::\d{1,6}(?:\.\d{1,2})?_\d{1,6}(?:\.\d{1,2})?){1,200}){0,15}$/;
 const r2 = (v) => Math.round(Number(v) * 100) / 100;
-/** 動画ごとの {w, k} (無ければ null) の並びを「~w」の中身にする (区間のある動画が無ければ '') */
+/** 「~w」の中身の長さの上限 (SHARE_CODE_RE の「~w」と同じ。超えるとコードの「~w」から後ろが読めなくなる) */
+const PLAN_MAX = 1500;
+/**
+ * 動画ごとの {w, k} (無ければ null) の並びを「~w」の中身にする (区間のある動画が無ければ '')。
+ * PLAN_MAX を超えるときは、区間のいちばん多い動画から、作品の途中からの区間 (続き) を後ろから間引く。
+ * それでも長ければ、後ろの作品の始まりも落とす (区間と説明付きの空き枠がまとめて読めなくなるよりよい)
+ */
 function planTail(plans) {
   if (!plans) return '';
-  return plans
+  const rows = plans
     .map((pl, y) => {
-      const w = Array.isArray(pl?.w) ? pl.w.filter((p) => Array.isArray(p) && Number(p[0]) >= 0 && Number(p[1]) >= 0) : [];
-      if (!w.length) return '';
-      const k = Number.isInteger(pl.k) && pl.k > 0 ? pl.k : 0;
-      return `${y}=${k}:${w.slice(0, 200).map((p) => `${r2(p[0])}_${r2(p[1])}`).join(':')}`;
+      const w = Array.isArray(pl?.w) ? pl.w.filter((p) => Array.isArray(p) && Number(p[0]) >= 0 && Number(p[1]) >= 0).slice(0, 200) : [];
+      return w.length ? { y, k: Number.isInteger(pl.k) && pl.k > 0 ? pl.k : 0, w } : null;
     })
-    .filter(Boolean)
-    .join(',');
+    .filter(Boolean);
+  const text = () => rows.map((r) => `${r.y}=${r.k}:${r.w.map((p) => `${r2(p[0])}_${r2(p[1])}`).join(':')}`).join(',');
+  let out = text();
+  while (out.length > PLAN_MAX && rows.length) {
+    const r = rows.reduce((a, b) => (b.w.length > a.w.length ? b : a));
+    let j = r.w.findLastIndex((p, i) => i > 0 && Number(p[1]) !== 0);
+    if (j < 0) j = r.w.length - 1;
+    if (j <= 0) rows.splice(rows.indexOf(r), 1);
+    else r.w.splice(j, 1);
+    out = text();
+  }
+  return out;
 }
 /** 「~w」の中身を読む: YouTube の動画の番号 → {w, k} (k は選んでいなければ null)。形が違えば空 */
 function readPlans(text) {
