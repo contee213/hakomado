@@ -488,6 +488,22 @@ const Sync = (() => {
         if (rs.ps === 2) playing = false; // 基準の枠の中で一時停止した → グループ全部止める
       }
     }
+    // 🎬 の視聴セットを開いた直後: 基準の枠も含めて、どの枠も本編の時刻 startAt.R で止めて待つ。全部そろったら、ふだんどおり
+    // (そのあとは、止まっている基準の枠を再生するか、⏸ で再開すれば一緒に始まる)
+    if (G.startAt) {
+      const done = list.every((i) => {
+        if (!views[i].ss || anchor(i) == null || featureTile(i) || liveTile(i)) return true;
+        const p = posOf(i);
+        return views[i].ss.ps === 2 && p != null && Math.abs(p - targetOf(G, i, G.startAt.R)) < 0.5;
+      });
+      if (done || now() > G.startAt.until) {
+        G.startAt = null;
+        G.holdUntil = 0;
+      } else {
+        R = G.startAt.R;
+        playing = false;
+      }
+    }
     ({ R, playing } = movieFlow(G, list, ref, R, playing));
     const hold = archFlow(G, list, ref, R);
     if (hold.R != null) R = hold.R;
@@ -928,19 +944,23 @@ const Sync = (() => {
   }
   /** グループ全部を、時計の時刻 R へ動かす (基準の枠が追いつくまで、時計は基準の枠に合わせない) */
   function seekGroup(G, R) {
-    G.stop = G.wait = G.fprev = G.feat = G.done = null; // タイマーが止まっている間・次の話を待つのをやめる
+    G.stop = G.wait = G.fprev = G.feat = G.done = G.startAt = null; // タイマーが止まっている間・次の話を待つのをやめる
     setClock(G, R, !pausedAll && !G.paused);
     G.holdUntil = now() + 4000;
     for (const i of membersOf(G.g)) sent.delete(i);
     tick();
   }
 
-  /** グループの一時停止 / 再開 (パネルの ⏸)。止めて待っている枠は止めたまま */
+  /**
+   * グループの一時停止 / 再開 (帯の ⏸ / ▶)。止めて待っている枠は止めたまま。
+   * 帯の出し方 (動いていれば ⏸、止まっていれば ▶) に合わせ、基準の枠が止まっているだけで止まっているグループも、押せば再生する
+   */
   function togglePauseGroup(G) {
-    G.paused = !G.paused;
+    const resume = G.paused || !G.clock.playing;
+    G.paused = !resume;
     for (const i of membersOf(G.g)) {
-      if (!G.paused && waiting.has(i)) continue;
-      postToFrame(views[i].player, { hakomado: 'playback', play: !G.paused && !pausedAll });
+      if (resume && waiting.has(i)) continue;
+      postToFrame(views[i].player, { hakomado: 'playback', play: resume && !pausedAll });
     }
     tick();
   }
@@ -1266,6 +1286,13 @@ const Sync = (() => {
       if (m === 'time' && isMovie(G)) setMode(G, 'time');
       setReference(ref);
       if (at && !isMovie(G)) seekGroup(G, at);
+      // 🎬 の視聴セットを開いた: どの枠も本編の時刻 at (0:00 = 配信のタイマーが動き出す所) で止めて待つ (▶ を押せば一緒に始まる)
+      if (at != null && isMovie(G)) {
+        seekGroup(G, at);
+        G.init = false;
+        G.startAt = { R: at, until: now() + 30000 }; // 基準の枠も含めて、全部の枠がそこで止まるまで (tickGroup)
+        G.holdUntil = G.startAt.until;
+      }
       then?.(G.g);
     }, 0);
   }

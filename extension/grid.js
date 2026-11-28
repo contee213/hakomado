@@ -4403,7 +4403,7 @@ async function applyViewingSet(ids, layoutId, { offsets = null, anchors = null, 
   renderAll();
   save();
   if (offsets) Sync.startWhenReady(assigned, assigned[refK], { at: resumeAt });
-  else if (anchors) Sync.startWhenReady(assigned, assigned[refK], { mode: 'movie' });
+  else if (anchors) Sync.startWhenReady(assigned, assigned[refK], { mode: 'movie', at: 0 }); // 本編の 0:00 で止めて待つ
 }
 
 // ---- 共有画像
