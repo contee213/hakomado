@@ -10,6 +10,7 @@
 | No | 項目名 | 種類 | 要素 | 内容・動作 | 値・初期値 | キー | 備考 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | 1 | 枠 N / メイン N | 表示 | `.empty-title` | 枠の番号 (表示順)。メインの枠は「メイン N」 | `tr('slot')` / `tr('slotMain')` | | `buildTiles` で作り、`layout` で番号を付け直す |
+| 1a | 📝 説明 | 表示 | `.empty-note` | 説明付きの空き枠の説明 (共有コードで受け取ったもの。例「📝 ここにPrime Video等のコマンドーのURLを入れてください」)。黄色の枠で大きく出す | 説明が無ければ hidden | | `renderTile`。中身を入れると空き枠ごと隠れ、✕ で空き枠に戻すとまた出る。説明は共有画面で書く (HAKO-49) |
 | 2 | URL / 動画 ID / @チャンネル名 を貼り付け | 入力 (1 行) | `.url-input` | 読み込む URL などを入れる。YouTube の URL・動画 ID・@チャンネル名・チャンネルの URL (ライブを探す)・Twitch の URL・ほかのサイトの https の URL (URL の枠) を受け付ける | 初期値は枠の入力 (`state.tiles[i].input`)。maxlength なし (URL の枠は 2048 文字まで) | Enter で読み込む | `loadInput`・`resolveVideoId`。spellcheck なし |
 | 3 | 読み込む | ボタン | `.empty-actions [type="submit"]` | 入力を読み込んで枠に入れる。Twitch の URL は twitch.tv の権限を聞いてから、ほかのサイトはサイトの許可を聞いてから入れる | | | `loadInput`・`loadWebInput`・`grantWebSite` |
 | 4 | 📺 チャンネルから選ぶ | ボタン | `.pick-ch` | チャンネル一覧 (ダイアログ) を、この枠に入れる先として開く | | | `openFavorites(i, 'channels')` |

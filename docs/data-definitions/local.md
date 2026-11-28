@@ -180,6 +180,7 @@
 | `speed` | number | 1 | 再生速度 (0.1〜4、0.05 刻み。0.25 より遅いのは、同期の調整の帯のグループの速度で 0.1× にしたときだけ) |
 | `short` | boolean | false | ショートとして縦長で見せる |
 | `corner` | string | `'br'` | ストレッチで残す角 |
+| `note` | string | `''` | 説明付きの空き枠の説明 (60 文字まで。「"」・改行は空白)。共有画面で URL の枠・ファイルの枠に書くと、コードに説明付きの空き枠として入る。受け取ったら空き枠の上に出す。中身を入れても消さず、✕ で空き枠に戻すとまた出る (HAKO-49) |
 
 `muted` は保存しない (`audible` で戻す)。**前の版から:** 今は無いメイン + サブのレイアウト (`m<メイン数>s<サブ数>`。例 `m2s4r`) が `layoutId` に入っていれば、メインの数と枠数の近いレイアウトに置き換えて読む (`savedLayoutId`)。`audible` が無い版のセッションは、1 番の枠だけ音を出す。視聴セッションに分ける前の版は、`layoutId` `order` `fit` `autoMode` `danmakuAll` `tiles` を `chrome.storage.local` の最上位のキーに置いていた。あれば視聴セッション 1 つに移して消す (`migrateLegacyStorage`)。枠に `syncOffset` があれば動画のずれ (`syncOffsets`) に移す。`dmAuto` が無い版の `danmaku: true` は null (自動) として読む。
 

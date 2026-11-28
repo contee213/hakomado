@@ -184,6 +184,27 @@ const MovieAnchors = (() => {
     return wk.zero;
   }
 
+  /** 見つけた区間と選んでいる作品 {w, k} (共有コードに入れる。区間が無ければ null) */
+  const sections = (id) => (id && cache[id]?.w ? { w: cache[id].w.map((p) => [...p]), k: cache[id].k || null } : null);
+  /**
+   * 共有コードで受け取った区間と作品を記録する (今までの区間は置き換える)。作品を選んでいれば、その作品の 0:00 を本編の位置にする。
+   * 区間が正しくなければ何もしない
+   */
+  const setSections = (id, w, k) =>
+    write(id, (e) => {
+      const cw = cleanW(w);
+      if (!cw.length) return e;
+      const st = startsOf(cw);
+      const n = Number.isInteger(k) && k >= 1 && k <= st.length ? k : null;
+      const { g, k: _k, ...rest } = e;
+      const out = { ...rest, w: cw };
+      if (n) {
+        out.k = n;
+        out.s = clean(st[n - 1][0] - st[n - 1][1]);
+      }
+      return out;
+    });
+
   /** ほかのタブで変わったとき (変わった動画 ID の一覧を渡す) */
   function onChange(fn) {
     listeners.add(fn);
@@ -197,5 +218,5 @@ const MovieAnchors = (() => {
     if (ids.length) for (const fn of listeners) fn(ids);
   });
 
-  return { KEY, load, get, isGuess, isMain, set, remove, setMain, works, selected, plan, addSections, select, onChange, toArchive, toMovie };
+  return { KEY, load, get, isGuess, isMain, set, remove, setMain, works, selected, plan, addSections, select, sections, setSections, onChange, toArchive, toMovie };
 })();

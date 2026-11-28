@@ -180,3 +180,22 @@ test('区間での読み替え: 選んでいる作品の区間と次の作品の
   assert.equal(M.plan(vid(1)), null, '手で決め直したら区間は使わない');
   assert.equal(M.plan(vid(2)), null);
 });
+
+test('共有コードの区間: 受け取った区間で置き換え、選んだ作品の 0:00 を本編の位置にする。読み出しは写し (HAKO-49 STEP6)', async () => {
+  const { M } = setup({ movieAnchors: { [vid(1)]: { s: 99, g: 1, w: [[50, 0]], k: 1, at: 1 } } });
+  await M.load();
+  await M.setSections(vid(1), [[2096.65, 0], [608.54, 0], [640, 20]], 2);
+  assert.equal(M.get(vid(1)), 2096.65, '2 本目の作品の 0:00');
+  assert.equal(M.isGuess(vid(1)), false);
+  const sec = M.sections(vid(1));
+  assert.deepEqual(plain(sec), { w: [[608.54, 0], [640, 20], [2096.65, 0]], k: 2 });
+  sec.w[0][0] = 1;
+  assert.equal(M.sections(vid(1)).w[0][0], 608.54, '読み出したものを変えても中は変わらない');
+  // 作品の番号がおかしければ選ばない (位置はそのまま)。区間が空なら何もしない
+  await M.setSections(vid(1), [[10, 0]], 5);
+  assert.deepEqual(plain(M.sections(vid(1))), { w: [[10, 0]], k: null });
+  assert.equal(M.get(vid(1)), 2096.65);
+  await M.setSections(vid(1), [], 1);
+  assert.deepEqual(plain(M.sections(vid(1)).w), [[10, 0]]);
+  assert.equal(M.sections(vid(2)), null);
+});
