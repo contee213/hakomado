@@ -32,7 +32,7 @@
 | `packCatalogImported` | 「パックを探す」から読み込んだパック | 一時 | `packs.js` | [local.md#packcatalogimported](data-definitions/local.md#packcatalogimported) |
 | `updateCheck` | 新しい版の確認結果 | 取得 | `update-check.js` | [local.md#updatecheck](data-definitions/local.md#updatecheck) |
 | `updateNotified` | お知らせを出した版 | 一時 | `update-check.js` | [local.md#updatecheck](data-definitions/local.md#updatecheck) |
-| `ui:<名前>` | 画面の小さな覚え (絞り込み・最後の再生リスト・共有画像の設定・同期パネルの置き方) | 設定 | `ui-prefs.js` | [local.md#ui](data-definitions/local.md#ui) |
+| `ui:<名前>` | 画面の小さな覚え (絞り込み・最後の再生リスト・共有画像の設定・〰 波形の帯の高さと目盛り) | 設定 | `ui-prefs.js` | [local.md#ui](data-definitions/local.md#ui) |
 | `tourPending` | 使い方ツアーを出す印 | 一時 | `background.js` | [local.md#tourpending](data-definitions/local.md#tourpending) |
 | `videoStates` | 動画ごとの状態 | 取得 | `favorites.js` | [local.md#videostates](data-definitions/local.md#videostates) |
 | `fetchBackoff` | 制限 (429) を受けたときの待ち時間 | 一時 | `favorites.js` | [local.md#fetchbackoff](data-definitions/local.md#fetchbackoff) |
@@ -42,7 +42,7 @@
 | キー | 中身 | 種類 | 書くところ | 詳細 |
 | --- | --- | --- | --- | --- |
 | `gridTabs` | 開いているマルチビュー画面のタブ | 一時 | `background.js` | [other.md#gridtabs](data-definitions/other.md#gridtabs) |
-| `timerScanMiss` | 画面のタイマーが見つからなかった配信 (🎬) | 一時 | `timer-scan.js` | [other.md#timerscanmiss](data-definitions/other.md#timerscanmiss) |
+| `timerScanMiss` | 画面のタイマーが見つからなかった配信・最後まで調べるかを聞いている配信 (🎬) | 一時 | `timer-scan.js` | [other.md#timerscanmiss](data-definitions/other.md#timerscanmiss) |
 | `statusShared` | 配信予定のアドオンの結果・最後に取りに行った時刻 | 取得 | `favorites.js` | [other.md#statusshared](data-definitions/other.md#statusshared) |
 | `twvod:<番号>` | Twitch の VOD の開始時刻・題名 | 取得 | `favorites.js` | [other.md#twvod](data-definitions/other.md#twvod) |
 

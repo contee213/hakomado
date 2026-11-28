@@ -267,7 +267,7 @@ const Tour = (() => {
       const list = document.createElement('ul');
       list.className = 'tour-uses';
       for (const [t, d, only] of step.uses) {
-        if (only === 'sync' && !Sync.built) continue;
+        if (only === 'sync' && !Sync.enabled()) continue; // ⏱ アーカイブ同期が OFF (リリース版はいつも) なら ⏱ ボタンも無いので出さない
         const li = document.createElement('li');
         const b = document.createElement('b');
         b.textContent = tr(t);

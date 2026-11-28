@@ -5,7 +5,7 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { load } = require('./helpers/load');
 
-const W = load(['idb-cache.js', 'waves.js']).get('Waves');
+const W = load(['idb-cache.js', 'waves.js'], { globals: { Float32Array } }).get('Waves'); // 記録の形の確かめ (instanceof) が、テストで作った配列にも効くように
 
 /** 音の記録 1 回分を作る: start 秒から rate 倍速で n ビン (1 ビン = per サンプル)。印は 4096 サンプルごとと最後 */
 function chunk({ start, rate = 1, n, sr = 48000, per = 48, total0 = 0, level = () => 0.1 }) {
@@ -65,4 +65,16 @@ test('記録のある割合と、最初の抜け (短い抜けは数えない)',
   assert.ok(Math.abs(W.coverage(vals, 0, 100) - 0.799) < 0.01);
   assert.equal(W.coverage(vals, 50, 100), 1);
   assert.equal(W.firstGap(new Uint8Array(0), 0, 10), 0);
+});
+
+test('枠から届いた音の記録は、形と大きさを確かめてから使う', () => {
+  const ok = { sr: 48000, per: 48, bins: new Float32Array(100), marks: [[4800, 0.1, 1]] };
+  assert.equal(W.validChunk(ok), true);
+  assert.equal(W.validChunk({ ...ok, sr: 1e9 }), false, 'ありえないサンプリング周波数');
+  assert.equal(W.validChunk({ ...ok, per: 0.5 }), false);
+  assert.equal(W.validChunk({ ...ok, bins: [0, 1] }), false, 'Float32Array でない');
+  assert.equal(W.validChunk({ ...ok, bins: new Float32Array(300000) }), false, '大きすぎる');
+  assert.equal(W.validChunk({ ...ok, marks: [] }), false);
+  assert.equal(W.validChunk({ ...ok, marks: [['x', 1]] }), false);
+  assert.equal(W.validChunk(null), false);
 });

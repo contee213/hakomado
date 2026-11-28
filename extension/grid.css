@@ -818,7 +818,8 @@ dialog.fav-dialog.tour-preview {
   border-top: 1px solid var(--line);
   background: color-mix(in srgb, var(--accent) 12%, var(--bg));
 }
-.fav-selcount { font-size: 13px; font-weight: 700; }
+/* 案内と件数の出し入れで帯の高さが変わらないよう、1 行に収めて溢れは … にする (全文は title。デザインガイド 3 章) */
+.fav-selcount { flex: 0 1 auto; min-width: 0; font-size: 13px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* 何も選んでいないとき: 案内だけ。帯の色は付けず、文字も控えめに (HAKO-33) */
 .fav-selbar.idle { background: transparent; }
 .fav-selbar.idle .fav-selcount { font-weight: 400; color: var(--muted); }
@@ -906,11 +907,12 @@ dialog.cm-confirm { width: min(440px, calc(100% - 32px)); }
 .sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 
 /* 自動再生ボタンの中の、登録チャンネルで配信中の件数 (赤い点 + 数。0 件は灰色) */
-.live-count { display: inline-flex; align-items: center; gap: 3px; margin-left: 5px; font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; }
+/* 件数が初めて分かったとき・桁が増えたときに、右のボタンが動かないよう、2 桁ぶんの場所をいつも取っておく */
+.live-count { display: inline-flex; align-items: center; gap: 3px; margin-left: 5px; min-width: calc(9px + 2ch); font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .live-count::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
 .live-count.zero { color: var(--muted); }
 .live-count.zero::before { background: var(--muted); }
-.live-count[hidden] { display: none; }
+.live-count[hidden] { display: inline-flex; visibility: hidden; }
 
 /* ---------- 通知 (上部バーのボタンと一覧)。一覧は右上に固定 (中身の数で位置が動かない) ---------- */
 #openNotices { position: relative; }
@@ -1042,6 +1044,9 @@ dialog.layout-dialog { width: min(760px, calc(100% - 32px)); }
 /* 操作バーのボタン以外と、枠の上 2 割 (配信を入れた枠だけ) はつかんで入れ替えられる */
 .bar { cursor: grab; }
 .bar button { cursor: pointer; }
+/* 🎲 で別の配信を探している間 (押せない間) は、🎲 を回して進み具合を見せる */
+.bar [data-act="surf"].busy { animation: spin 1s linear infinite; opacity: 1; }
+@media (prefers-reduced-motion: reduce) { .bar [data-act="surf"].busy { animation: none; } }
 .drag-zone {
   position: absolute;
   top: 0;
@@ -1646,7 +1651,7 @@ code { font-size: 12px; background: #222228; padding: 0 4px; border-radius: 3px;
 /* グループが 2 つ以上: 印をグループの色にし、基準でない枠にも番号を出す。枠の下端にもグループの色の線 */
 .tile.sync-grouped .sync-ref-badge { background: var(--g); color: #111; }
 .tile.sync-grouped .sync-ref-badge.is-member { background: none; color: var(--g); box-shadow: inset 0 0 0 1px var(--g); }
-/* 枠の印 (.sync-mark): グループの色の下端の線と、調整パネルの行にマウスを乗せた・行を選んだ枠の点線 */
+/* 枠の印 (.sync-mark): グループの色の下端の線と、同期の調整の帯の行にマウスを乗せた・行を選んだ枠の点線 */
 .sync-mark { position: absolute; inset: 0; z-index: 3; pointer-events: none; display: none; }
 .tile.sync-grouped .sync-mark { display: block; border-bottom: 3px solid var(--g); }
 .tile.sync-hl .sync-mark { display: block; border: 2px dashed var(--g, #f5b942); }
@@ -1762,24 +1767,11 @@ code { font-size: 12px; background: #222228; padding: 0 4px; border-radius: 3px;
 .sync-input { width: 6.5em; padding: 1px 4px; background: #000; color: var(--text); border: 1px solid var(--line); border-radius: 6px; font-size: 12px; font-variant-numeric: tabular-nums; }
 /* 使えないとき (同期できるアーカイブが 2 本ない) も出しておき、薄くする。押すと理由が出る */
 #syncToggle.unavailable { opacity: .5; }
-/* 上部バー: グループが 2 つ以上のとき、つまみが動かすグループの番号と色 */
+/* 上部バーの ☰ (同期の調整の帯を出す / しまう) */
 .sync-dock-toggle { flex: none; }
 .sync-dock-toggle.on { color: #fff; border-color: var(--on); background: var(--on-bg); }
 
-/* ---------- 同期の調整パネル (画面の右の列。枠の並びはこの分だけ横に縮む) ---------- */
-/* パネルの中の入力欄・時刻も、パネルの文字に合わせて大きめに */
-/* 浮かぶ小窓: 枠の上に半透明で重ねる。マウスを乗せている・中を操作している間は濃くする。左上は固定で、下へ伸びる */
-/* パネルの中でグループの色を使うのは、見出しの番号の丸だけ (ほかは同じ色にして、✓ などの色とまぎれないように) */
-/* 本編の枠があるときのそろえ方 (切り替えは出さず、文字だけ) */
-/* 図: 各枠の開始のあたりを拡大。横棒 = 配信の実際の開始から右へ、補正の分は水色 (下の .tl-corr)、縦の白線 = 今。左に基準との開始の差、右に状態 */
-/* 目盛り: 棒と同じ横の範囲に、両端の開始の時刻と切れ目の ≈ を、その位置に置く */
-/* 棒は青 (グループの色 = 黄・緑・紫・橙 に使わない色) */
-/* 補正の分: 早めても遅らせても同じ水色 (向きは細い線との位置で分かる)。小さな補正も見えるよう、少なくとも 2px */
-/* 配信が実際に始まった時刻の細い線 (補正を入れると、棒の左端がここから離れる) */
-/* 基準の行の目印: ほかの枠の補正を見比べる時刻 (基準より後に始まった枠の開始) */
-/* ✨ 自動補正の候補: 反映したあとの位置の ◆ と、今の位置からの点線 (途中の結果は薄く) */
-/* たためるグループ: たたんだら見出しだけ */
-/* 状態は図に出すので、行の ✓ / ↻ はたたんだパネル (図が無い) のときだけ */
+/* ---------- ✨ 自動補正 (同期の調整の帯のグループの見出しに出す) ---------- */
 .sync-audio.is-measuring { color: #8fd3ff; border-color: #8fd3ff; }
 /* まだ補正していないグループ: ✨ を目立たせる */
 .sync-audio.is-suggest:not(:disabled) { border-color: #8fd3ff; box-shadow: 0 0 6px #8fd3ff66; }
@@ -1795,8 +1787,6 @@ code { font-size: 12px; background: #222228; padding: 0 4px; border-radius: 3px;
 .dga-suspect { color: #f0c36d; font-size: 12px; }
 .dga-choice { display: flex; flex-direction: column; gap: 2px; }
 .dga-buttons { display: flex; gap: 6px; justify-content: flex-end; }
-/* 🎬 本編の枠 (プレミア公開) の印 */
-/* 本編にする (🎬) */
 /* 設定したずれどおりの位置か (✓) / その位置へ寄せている途中か (↻)。グループの色と混ざらないよう、色ではなく記号で見せる */
 .dr-dot { flex: none; width: 1.1em; text-align: center; color: var(--muted); font-size: 12px; line-height: 1; }
 /* ↻ 寄せている途中 (同期の調整の帯の行。'dr-dot is-' + 状態 で付ける) */
@@ -2015,7 +2005,7 @@ body.grid-fs.wave-open .grid { height: calc(100% - var(--wave-h, 0px)); }
 body.wave-resizing iframe { pointer-events: none; }
 body.wave-resizing { cursor: ns-resize; user-select: none; }
 .wave-strip:focus { outline: none; }
-/* 節 (グループごと)。見出しは同期の調整パネルのグループの見出しと同じ並び */
+/* 節 (グループごと) */
 .wv-body { flex: 1; min-height: 0; overflow-y: auto; }
 .wv-sec { border-top: 1px solid var(--line); }
 .wv-sec-head { display: flex; align-items: center; gap: 6px; height: 32px; padding: 0 8px; background: rgba(255, 255, 255, 0.03); }

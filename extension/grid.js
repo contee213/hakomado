@@ -1189,7 +1189,7 @@ function setTileFile(i, file, handlePromise) {
   const id = LocalFiles.newId();
   const name = file.name.slice(0, 200);
   const anyAudible = state.tiles.some((t, j) => j !== i && isVisible(j) && tileFilled(t) && !t.muted);
-  state.tiles[i] = { ...newTileState(), input: name, label: name, file: id, muted: anyAudible };
+  state.tiles[i] = { ...newTileState(), input: name, label: name, file: id, muted: anyAudible, note: state.tiles[i].note || '' }; // 説明は中身を入れても残す
   views[i].droppedFile = { id, file };
   renderTile(i, { reloadPlayer: true, reloadChat: true });
   save();
@@ -1214,7 +1214,7 @@ function setTileWeb(i, href) {
   if (prev) WatchHistory.removed(prev, 'replaced');
   views[i].danmaku.clear();
   const anyAudible = state.tiles.some((t, j) => j !== i && isVisible(j) && tileFilled(t) && !t.muted);
-  state.tiles[i] = { ...newTileState(), input: href, web: href, muted: anyAudible };
+  state.tiles[i] = { ...newTileState(), input: href, web: href, muted: anyAudible, note: state.tiles[i].note || '' }; // 説明は中身を入れても残す
   renderTile(i, { reloadPlayer: true, reloadChat: true });
   save();
 }
@@ -2030,8 +2030,9 @@ function setToggle(btn, on) {
 function applyAudio(i) {
   const t = state.tiles[i];
   postToFrame(views[i].player, { hakomado: 'audio', muted: t.muted });
-  // 音量は、枠の音量 × 🎚 音量バランスの自動の倍率 × 主役のときの割合 (volume-balance.js)。level = 音の大きさを測るか
-  postToFrame(views[i].player, { hakomado: 'mix', pan: t.pan, gain: VolumeBalance.gainOf(i), delay: t.delay, level: VolumeBalance.levelOn(i) });
+  // 音の左右・音量・遅延・音の大きさを測るか (音量は、枠の音量 × 🎚 音量バランスの自動の倍率 × 主役のときの割合 × 全体の音量)。
+  // 送った「測るか」を覚えておくため、volume-balance.js から送る (枠の動画が変わったときも、測り直しを頼み忘れないように)
+  VolumeBalance.apply(i);
 }
 
 // ---- 再生速度 (枠のバーの速度ボタン・上部バーの ⏩・< > キー・枠の中のプレイヤーの ⚙)
@@ -2247,7 +2248,7 @@ function renderMix(i) {
   if (!t.videoId) panel.hidden = true;
   if (panel.hidden) return;
   // 遅延の行はライブ配信のときだけ出す (アーカイブは ⏱ の同期で映像ごと合わせる)。0 以外なら戻せるように出したままにする
-  const showDelay = el.classList.contains('is-live') || t.delay !== 0;
+  const showDelay = isLiveTile(i) || t.delay !== 0; // Twitch のチャンネルの枠 (is-live を付けない) もライブ
   for (const row of panel.querySelectorAll('.mix-delay-row')) row.hidden = !showDelay;
   const input = panel.querySelector('.mix-delay');
   if (document.activeElement !== input) input.value = t.delay.toFixed(2);
@@ -2336,11 +2337,27 @@ chrome.permissions.onRemoved.addListener(() => {
   });
 });
 
-window.addEventListener('message', (e) => {
+/** URL の枠の中からの知らせが、許可したサイト (content/web-player.js を入れたサイト) からか */
+async function webOriginAllowed(origin) {
+  try {
+    return /^https:\/\//.test(origin) && (await chrome.permissions.contains({ origins: [`${origin}/*`] }));
+  } catch {
+    return false;
+  }
+}
+
+window.addEventListener('message', async (e) => {
   const d = e.data;
   if (!d || d.hakomadoWeb !== 'state' || !e.source) return;
-  const i = views.findIndex((v) => v.player?.dataset.web && isInsideFrame(v.player, e.source));
+  const find = () => views.findIndex((v) => v.player?.dataset.web && isInsideFrame(v.player, e.source));
+  let i = find();
   if (i < 0) return;
+  // 初めての送り元は、許可したサイトからかを確かめる (枠の中の広告などの iframe が知らせを送って、操作の宛先を取らないように)
+  if (views[i].player.webTarget?.win !== e.source) {
+    if (!(await webOriginAllowed(e.origin))) return;
+    i = find();
+    if (i < 0) return;
+  }
   const v = views[i];
   const first = !v.player.webTarget || v.player.webTarget.win !== e.source;
   v.player.webTarget = { win: e.source, origin: e.origin };
@@ -2740,7 +2757,7 @@ async function toggleFullscreen(i) {
     await document.exitFullscreen().catch(() => {});
     return;
   }
-  if (!state.tiles[i].videoId) return;
+  if (!tileFilled(state.tiles[i])) return; // URL の枠・ファイルの枠も全画面にできる
   // 別の枠が全画面中なら、その状態 (音声の復元先) を引き継いだまま切り替える
   if (!isTileFullscreen()) fullscreenAudioBefore = audibleTiles();
   try {
@@ -2768,7 +2785,7 @@ document.addEventListener('fullscreenchange', () => {
   const now = audibleTiles();
   if (!(now.length === 1 && now[0] === fsTile)) return;
   if (before.length === 0) muteAll();
-  else setAudioSet(before.filter((j) => isVisible(j) && state.tiles[j].videoId));
+  else setAudioSet(before.filter((j) => isVisible(j) && tileFilled(state.tiles[j])));
 });
 
 // ---------------------------------------------------------------- chat messages → danmaku
@@ -2795,10 +2812,10 @@ window.addEventListener('message', (e) => {
 // ⏱ アーカイブの同期再生 (Sync) と ✨ 自動補正 (AudioSync) は sync.js (リリース版は何もしない sync-off.js。HAKO-51)
 
 /**
- * 再生リストを同期再生の形で扱うか。リリース版 (同期のコードが無い。Sync.built = false) では、同期にしてある再生リストも
- * ふつうの順の再生として出して再生する (同期の選択・説明を出さない。保存の値 sync と補正はそのまま残す。HAKO-51)
+ * 再生リストを同期再生の形で扱うか。⏱ アーカイブ同期が OFF のとき (リリース版は同期のコードが無いので、いつも OFF) は、
+ * 同期にしてある再生リストもふつうの順の再生として出して再生する (同期の選択・説明を出さない。保存の値 sync と補正はそのまま残す。HAKO-50・HAKO-51)
  */
-const plSynced = (pl) => !!pl?.sync && Sync.built;
+const plSynced = (pl) => !!pl?.sync && Sync.enabled();
 
 // ---------------------------------------------------------------- ℹ 枠の情報
 // 表示中の枠ごとに、種類 (ライブ・配信前・アーカイブ・動画)・チャンネル・タイトル・配信の時間や公開日・
@@ -5276,13 +5293,13 @@ function setupRead() {
     parts.push(tr('readCount', set.items.length));
     const layout = set.layoutId && LAYOUTS.find((l) => l.id === layoutIdOf(set.layoutId));
     if (layout) parts.push(tr('readLayout', layout.name));
-    if (set.sync && Sync.built) parts.push(tr(set.items.some((h) => h.offset) ? 'readSyncOffsets' : 'readSync'));
+    if (set.sync && Sync.enabled()) parts.push(tr(set.items.some((h) => h.offset) ? 'readSyncOffsets' : 'readSync'));
     if (set.movie) parts.push(tr('readMovie'));
     if (set.notes?.length) parts.push(tr('readNotes', set.notes.length));
     const notes = [];
     if (set.bad) notes.push(tr('shareBadLines', set.bad));
     if (set.tooMany) notes.push(tr('plTooMany', Playlists.MAX_ITEMS));
-    if (set.items.length > SHARE_MAX) notes.push(tr(set.sync ? 'readOverSync' : 'readOverTiles', SHARE_MAX));
+    if (set.items.length > SHARE_MAX) notes.push(tr(set.sync && Sync.enabled() ? 'readOverSync' : 'readOverTiles', SHARE_MAX)); // ⏱ アーカイブ同期が OFF なら同期の話はしない
     const name = saveName(set);
     if (name && (await Playlists.list()).some((p) => p.name === name)) notes.push(tr('readReplace', name));
     return [parts.join(' / '), ...notes].join('\n');
@@ -5450,7 +5467,7 @@ function setupRead() {
       shareTilesName = set.name; // 共有画面にも同じ名前を出す
       const n = Math.min(set.items.length, SHARE_MAX);
       const notes = [set.bad ? tr('shareBadLines', set.bad) : '', set.items.length > SHARE_MAX ? tr('shareTooMany') : ''].filter(Boolean);
-      notify([tr(set.sync && Sync.built ? 'shareLoadedSync' : 'shareLoaded', n), ...notes].join(' / '));
+      notify([tr(set.sync && Sync.enabled() ? 'shareLoadedSync' : 'shareLoaded', n), ...notes].join(' / '));
       reset();
       dialog.close();
       if (favDialog.open) favDialog.close(); // ライブラリから開いたときは、並べた枠が見えるように
@@ -7262,11 +7279,12 @@ const CollabAI = (() => {
   const answers = new Map(); // 組 → 'together' | 'separate'
   const queue = new Map(); // 組 → {a, b}
   let busy = false;
+  let broken = false; // 聞くのに失敗した (この画面を開いている間は聞かない。設定を入れ直したら試し直す)
   let progress = null; // ダウンロードの進み具合 (0〜1)。ダウンロード中でなければ null
 
   const keyOf = (a, b) => [a.id, b.id].sort().join('|');
   const has = () => typeof self.LanguageModel !== 'undefined';
-  const on = () => !!state.settings.aiCollab && avail === 'available';
+  const on = () => !!state.settings.aiCollab && avail === 'available' && !broken;
 
   /** 使えるかを確かめ、設定の欄を出す / 隠す */
   async function init() {
@@ -7298,7 +7316,8 @@ const CollabAI = (() => {
   /** 設定を ON / OFF にした (押したときに呼ぶ。モデルが無ければ、ここでダウンロードを始める) */
   async function setOn(v) {
     state.settings.aiCollab = v;
-    onSettingChanged('aiCollab');
+    broken = false;
+    saveSettings('aiCollab'); // onSettingChanged は setupToolbar の中だけにある
     paint();
     if (!v || !has()) return;
     if (avail !== 'available') {
@@ -7361,10 +7380,11 @@ const CollabAI = (() => {
     } catch (e) {
       console.warn('hakomado: 組み込み AI に聞けませんでした', e);
       queue.clear();
+      broken = true; // 描き直すたびに同じ組を聞き直して、失敗し続けないように
     } finally {
       busy = false;
     }
-    renderFavPane();
+    if (favDialog.open) renderFavPane();
   }
 
   return { init, setOn, answer, flush, paint };
@@ -7662,17 +7682,19 @@ function updateSelMarks() {
   document.getElementById('favSelBar').classList.toggle('idle', none);
   document.getElementById('favSelClear').disabled = none;
   document.getElementById('favSelLoad').disabled = none;
-  // 📺 チャンネルで選べるのは配信中・予定だけなので、⏱ 開いて同期は出さない
+  // 📺 チャンネルの一覧では ⏱ 開いて同期は出さない (配信中・予定を選ぶ所。「最近 ⌄」のカードも選べるが、同期はライブラリから)
   const syncBtn = document.getElementById('favSelSync');
   // 実験的な機能 (⏱ アーカイブ同期) が OFF なら出さない
   syncBtn.hidden = favMode === 'all' || !Sync.enabled();
   syncBtn.disabled = selArchives() < 2;
   const room = selRoom();
-  document.getElementById('favSelCount').textContent = none
+  const count = document.getElementById('favSelCount');
+  count.textContent = none
     ? tr(syncBtn.hidden ? 'selNoneLive' : 'selNone') // ⏱ 開いて同期が無ければ、まとめて枠に入れることだけ案内する
     : favSel.size > room
       ? tr('selCountOver', favSel.size, room)
       : tr('selCount', favSel.size);
+  count.title = count.textContent; // 狭くて … になったときに全文を見られるように
 }
 
 /**
@@ -9887,10 +9909,14 @@ async function queueNextNow(i) {
 //   配信状況は自動再生を ON にした最初の 1 回と同じ速いやり方 (quick) で取る
 let pickBusy = false;
 async function pickAnything(i, { replace = false } = {}) {
-  if (pickBusy) return;
+  if (pickBusy) {
+    if (replace) showToast(i, tr('pickSearching')); // N キーをもう一度押したとき、探している最中だと分かるように
+    return;
+  }
   pickBusy = true;
   const btn = views[i].el.querySelector(replace ? '[data-act="surf"]' : '.pick-any');
   btn.disabled = true;
+  if (replace) btn.classList.add('busy'); // 入れ替えるときの進み具合は 🎲 で見せる (枠の中は中身があるので使わない)
   const before = state.tiles[i].videoId;
   // 探している間に枠の中身が変わった (閉じた・ほかのものを入れた) ら入れない
   const stillSame = () => state.tiles[i].videoId === before;
@@ -9953,6 +9979,7 @@ async function pickAnything(i, { replace = false } = {}) {
     progress.hide();
     pickBusy = false;
     btn.disabled = false;
+    btn.classList.remove('busy');
   }
 }
 
@@ -10069,6 +10096,7 @@ function placeAutoLives(started, { keep, audibleBefore, isPickKept = () => false
       label: l.f.name,
       videoId: l.st.videoId,
       auto: true,
+      note: state.tiles[i].note, // 説明付きの空き枠の説明は、中身を入れても残す
     });
     views[i].danmaku.clear();
     return i;
@@ -10382,7 +10410,7 @@ async function refillArchives({ lock = true, cached = false, onProgress = null }
           busy.add(f.name);
           shown.add(v.videoId);
           added++;
-          Object.assign(state.tiles[i], { ...newTileState(), input: videoInput(v), videoId: v.videoId, label: f.name, fill: true, short: v.list === 'UUSH' }); // = isShortHint(videoInput(v))
+          Object.assign(state.tiles[i], { ...newTileState(), input: videoInput(v), videoId: v.videoId, label: f.name, fill: true, short: v.list === 'UUSH', note: state.tiles[i].note }); // short = isShortHint(videoInput(v))。説明は残す
           views[i].danmaku.clear();
           renderTile(i, { reloadPlayer: true, reloadChat: true });
           fills.push(i);

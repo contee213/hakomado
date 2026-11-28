@@ -26,6 +26,9 @@ test('いろいろな人がサイトを置くドメインは、ほかの人の�
   assert.equal(WebSite.siteDomain('someone.github.io'), 'someone.github.io');
   assert.equal(WebSite.siteDomain('a.b.pages.dev'), 'a.b.pages.dev');
   assert.equal(WebSite.siteDomain('d1234.cloudfront.net'), 'd1234.cloudfront.net');
+  assert.equal(WebSite.siteDomain('bucket.s3.amazonaws.com'), 'bucket.s3.amazonaws.com', 'S3 などの置き場所をまとめて許可しない');
+  assert.equal(WebSite.siteDomain('x.azurewebsites.net'), 'x.azurewebsites.net');
+  assert.equal(WebSite.siteDomain('pub-1.r2.dev'), 'pub-1.r2.dev');
   assert.equal(WebSite.siteDomain('192.168.0.1'), '192.168.0.1');
 });
 

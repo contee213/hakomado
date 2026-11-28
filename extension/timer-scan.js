@@ -4,7 +4,9 @@
 // - 画質は 240p に固定する (通信量が 1080p の約 10 分の 1)。タイマーらしい所があったのに読めなかったときだけ、360p で 1 度だけ試し直す
 // - 調べるのは 1 本ずつ順に (YouTube に負担をかけないため。短い間にシークを繰り返すと 503 が返る)
 // - 見つからなかった配信は chrome.storage.session に覚えて、自動では二度調べない (Chrome を閉じると消える)
-// - 題・概要欄に同時視聴らしい言葉があるのに、まばらに見て見つからなかったときは「最後まで詳しく調べますか？」と聞く (状態 'ask')
+// - 題・概要欄に同時視聴らしい言葉があるのに、まばらに見て見つからなかったときは「最後まで詳しく調べますか？」と聞く (状態 'ask')。
+//   聞いている状態も chrome.storage.session に覚え、開き直しても自動ではまばらに見直さない
+// - 使う人がやめた配信は、この画面では自動で調べ直さない。同期をやめた・帯を閉じたときは、順番待ちも含めて全部やめる (cancelAll)
 /* exported TimerScan */
 'use strict';
 
@@ -19,20 +21,26 @@ const TimerScan = (() => {
   const states = new Map(); // vid -> {status: 'queued' | 'scanning' | 'ask' | 'none' | 'done', t0, full}
   const queue = []; // [{vid, full}]
   let cur = null; // {vid, box, frame, quality, full, lastAt, found}
-  let miss = {}; // vid -> {at, q} 見つからなかった配信
-  const listeners = new Set();
+  let miss = {}; // vid -> {at, ask?} 見つからなかった配信 (ask = 最後まで調べるかを聞いている)
+  const stopped = new Set(); // 使う人がやめた配信 (この画面では自動で調べ直さない)
 
+  const readMiss = (o) => (o?.[MISS_KEY] && typeof o[MISS_KEY] === 'object' ? o[MISS_KEY] : {});
   chrome.storage.session
     ?.get(MISS_KEY)
-    .then((o) => {
-      miss = o?.[MISS_KEY] && typeof o[MISS_KEY] === 'object' ? o[MISS_KEY] : {};
-      for (const fn of listeners) fn(null);
-    })
+    .then((o) => (miss = { ...readMiss(o), ...miss }))
     .catch(() => {});
 
-  const emit = (vid) => {
-    for (const fn of listeners) fn(vid);
-  };
+  /** 見つからなかった配信を覚える (ほかのタブが覚えた分を消さないよう、読み直して足す) */
+  async function remember(vid, entry) {
+    miss = { ...miss, [vid]: entry };
+    try {
+      const saved = readMiss(await chrome.storage.session?.get(MISS_KEY));
+      miss = { ...saved, ...miss };
+      await chrome.storage.session?.set({ [MISS_KEY]: miss });
+    } catch {
+      /* 覚えられなくても、この画面では覚えている */
+    }
+  }
 
   /** 題に同時視聴らしい言葉があるか (自動で探し始めるかの見当) */
   const hinted = (title) => HINT_RE.test(String(title || ''));
@@ -41,21 +49,21 @@ const TimerScan = (() => {
   function stateOf(vid) {
     const st = states.get(vid);
     if (st) return { status: st.status, sec: st.t0 ? Math.floor((performance.now() - st.t0) / 1000) : 0 };
-    return miss[vid] ? { status: 'none', sec: 0 } : null;
+    return miss[vid] ? { status: miss[vid].ask ? 'ask' : 'none', sec: 0 } : null;
   }
 
   /** vid を調べる。auto = 自動で始めるとき (見つからなかった配信・調べた配信は調べ直さない)。full = まばらに見ずに最後まで */
   function request(vid, { auto = false, full = false } = {}) {
     if (!vid) return;
     if (cur?.vid === vid || queue.some((q) => q.vid === vid)) return;
-    if (auto && (miss[vid] || states.has(vid))) return;
+    if (auto && (miss[vid] || states.has(vid) || stopped.has(vid))) return;
+    stopped.delete(vid);
     states.set(vid, { status: 'queued', t0: 0, full });
     queue.push({ vid, full });
-    emit(vid);
     pump();
   }
 
-  /** やめる (調べている途中・順番待ち) */
+  /** やめる (調べている途中・順番待ち)。やめた配信は、この画面では自動で調べ直さない */
   function cancel(vid) {
     const qi = queue.findIndex((q) => q.vid === vid);
     if (qi >= 0) queue.splice(qi, 1);
@@ -63,9 +71,23 @@ const TimerScan = (() => {
       cur.box.remove();
       cur = null;
     }
+    if (states.get(vid)?.status === 'queued' || states.get(vid)?.status === 'scanning') stopped.add(vid);
     states.delete(vid);
-    emit(vid);
     pump();
+  }
+
+  /** 全部やめる (同期をやめた・帯を閉じた・⏱ アーカイブ同期を OFF にした)。見つけた区間はそのまま */
+  function cancelAll() {
+    for (const q of queue.splice(0)) {
+      stopped.add(q.vid);
+      states.delete(q.vid);
+    }
+    if (cur) {
+      stopped.add(cur.vid);
+      states.delete(cur.vid);
+      cur.box.remove();
+      cur = null;
+    }
   }
 
   function pump() {
@@ -92,7 +114,6 @@ const TimerScan = (() => {
     st.status = 'scanning';
     if (!st.t0) st.t0 = performance.now();
     states.set(vid, st);
-    emit(vid);
   }
 
   /** 探し終えた。result: 'found' | 'none' | 'ask' */
@@ -100,12 +121,11 @@ const TimerScan = (() => {
     const { vid } = cur;
     cur.box.remove();
     cur = null;
-    if (result === 'none') {
-      miss = { ...miss, [vid]: { at: Date.now() } };
-      chrome.storage.session?.set({ [MISS_KEY]: miss }).catch(() => {});
+    if (result === 'found') states.set(vid, { status: 'done', t0: 0 });
+    else {
+      remember(vid, result === 'ask' ? { at: Date.now(), ask: true } : { at: Date.now() });
       states.delete(vid);
-    } else states.set(vid, { status: result === 'found' ? 'done' : 'ask', t0: 0 });
-    emit(vid);
+    }
     pump();
   }
 
@@ -121,7 +141,6 @@ const TimerScan = (() => {
       if (Number.isFinite(tick) && Number.isFinite(v)) {
         cur.found++;
         MovieAnchors.addSections(cur.vid, [[tick - 1, v]]);
-        emit(cur.vid);
       }
     } else if (d.ev === 'done') {
       // 240p で、タイマーらしい所があったのに数字が読めなかった → 360p で 1 度だけ試し直す
@@ -136,11 +155,10 @@ const TimerScan = (() => {
     }
   });
 
-  // 知らせが長く来なければ (視聴ページが開けない・止まった) あきらめる
+  // 知らせが長く来なければ (視聴ページが開けない・止まった) あきらめる (帯は 0.5 秒ごとに stateOf を読み直すので、知らせは要らない)
   setInterval(() => {
     if (cur && performance.now() - cur.lastAt > IDLE_MS) finish(cur.found ? 'found' : 'none');
-    if (cur) emit(cur.vid); // 探している秒数を出し直す
   }, 1000);
 
-  return { request, cancel, stateOf, hinted, onChange: (fn) => listeners.add(fn) };
+  return { request, cancel, cancelAll, stateOf, hinted };
 })();

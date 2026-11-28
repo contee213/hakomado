@@ -50,6 +50,15 @@ const Waves = (() => {
     return out;
   }
 
+  /** 枠から届いた音の記録が、扱える形か (大きすぎる・形の違う記録で重くならないように。AudioSync.chunk と同じ確かめ方) */
+  function validChunk(d) {
+    const sr = Number(d?.sr);
+    const per = Number(d?.per);
+    if (!(sr >= 8000 && sr <= 192000) || !Number.isInteger(per) || per < 1 || per > 1000) return false;
+    if (!(d.bins instanceof Float32Array) || d.bins.length > 200000 || !Array.isArray(d.marks) || !d.marks.length || d.marks.length > 20000) return false;
+    return d.marks.every((m) => Array.isArray(m) && Number.isFinite(m[0]) && Number.isFinite(m[1]));
+  }
+
   /** vals の [from, to) 秒のうち、記録のある割合 (0〜1) */
   function coverage(vals, from, to, step = STEP) {
     const a = Math.max(0, Math.floor(from / step));
@@ -141,16 +150,38 @@ const Waves = (() => {
     for (const f of listeners) f(id);
   }
 
-  /** 変わった分を保存する (末尾のまだ無いところは切って持つ) */
+  /** 保存してある波形 saved のうち、この画面でまだ無いところを w に足す (足したら true) */
+  function adopt(w, saved) {
+    let changed = false;
+    if (saved.length > w.vals.length) grow(w, saved.length);
+    for (let k = 0; k < saved.length; k++) {
+      if (!w.vals[k] && saved[k]) {
+        w.vals[k] = saved[k];
+        changed = true;
+      }
+    }
+    return changed;
+  }
+
+  /**
+   * 変わった分を保存する (末尾のまだ無いところは切って持つ)。丸ごと書くので、ほかのタブが同じ動画に足した分を先に取り込む
+   * (読んでから書くまでの間に割り込まれないよう、タブをまたいで 1 つずつ)
+   */
   async function save() {
     saveTimer = 0;
     for (const [id, w] of mem) {
       if (!w.dirty) continue;
       w.dirty = false;
-      let end = w.vals.length;
-      while (end > 0 && !w.vals[end - 1]) end--;
-      try {
+      const write = async () => {
+        const saved = await IdbCache.getWave(id);
+        if (saved?.vals instanceof Uint8Array && adopt(w, saved.vals)) for (const f of listeners) f(id);
+        let end = w.vals.length;
+        while (end > 0 && !w.vals[end - 1]) end--;
         await IdbCache.putWave(id, w.vals.slice(0, end));
+      };
+      try {
+        if (typeof navigator !== 'undefined' && navigator.locks) await navigator.locks.request('hakomado-wave', write);
+        else await write();
       } catch (e) {
         console.warn('hakomado: 波形を保存できませんでした', e);
       }
@@ -164,6 +195,7 @@ const Waves = (() => {
     STEP,
     quantize,
     stepsOf,
+    validChunk,
     coverage,
     firstGap,
     ensure,

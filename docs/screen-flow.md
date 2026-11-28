@@ -31,7 +31,9 @@ flowchart LR
   C(["取り込み用リンク<br>youtube.com/watch_videos?…&hakomado="]) --> C1["declarativeNetRequest で<br>/hakomado_import へ付け替え"]
   C1 --> C2["content/import.js が知らせる"] --> C3["background がタブを<br>grid.html#import=… に"] --> G
   D(["初めてインストール"]) --> D1["tourPending を立てる"] -. "次に開いたとき" .-> G
-  K(["Alt+Shift+S"]) --> K1["開いている画面へ screenshot"] --> E4((("スクショ")))
+  K(["Alt+Shift+S"]) --> K1{"押したのは<br>マルチビュー画面のタブ?"}
+  K1 -- "はい" --> K2["そのタブへ screenshot"] --> E4((("スクショ")))
+  K1 -. "いいえ" .-> K3((("何もしない")))
 ```
 
 ## 2. 起動と起動画面 — ロゴで戻れるループ
@@ -102,7 +104,7 @@ flowchart LR
   MAIN -- "📖 (? キー)" --> HELP[["使い方"]]
   SH <-- "タブ切替" --> RD
   CH -- "⚙ 管理 / 空の案内" --> CM[["チャンネルの管理<br>足す・まとめて外す・パック"]]
-  SET -- "チャンネル ›<br>⚙ チャンネルの管理を開く" --> CM
+  SET -- "チャンネル ›<br>チャンネルの管理を開く" --> CM
   CM -- "登録チャンネルから選ぶ" --> SUBS[["登録チャンネル"]]
   CM -- "Twitch のフォロー →<br>フォローから選ぶ<br>(Twitch のアプリの登録が済んでから。<br>先に Twitch のログインの窓)" --> SUBS
   CM -- "選んだチャンネルを外す" --> CMC[["外す前の確かめ<br>📌 付きは既定で残す"]]

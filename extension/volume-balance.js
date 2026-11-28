@@ -176,6 +176,7 @@ const VolumeBalance = (() => {
     return !!st && st.sec < ENOUGH_SEC; // 波形を読み込み中なら、読めるまで待つ
   }
 
+  /** 枠に音の左右・音量・遅延・記録を頼むかを送る (送った level を覚える。枠を読み込んだときも grid.js の applyAudio からここを通る) */
   function apply(i) {
     const t = state.tiles[i];
     if (!t.videoId) return;
@@ -192,7 +193,7 @@ const VolumeBalance = (() => {
    * YouTube のアーカイブ・動画は、その動画の波形 (〰 と同じ。保存する) に、ライブ・Twitch はこの画面の間だけ覚える
    */
   function chunk(i, d) {
-    if (!state.tiles[i]?.videoId || !hasWaves()) return;
+    if (!state.tiles[i]?.videoId || !hasWaves() || !Waves.validChunk(d)) return;
     rec(i).blocked = false;
     const w = waveId(i);
     if (w) {
@@ -201,8 +202,20 @@ const VolumeBalance = (() => {
     }
     const m = memId(i);
     if (!m) return;
+    // ライブは再生位置を見ずに、届いた順に 0.1 秒ずつまとめる (24 時間を超える配信は、波形の再生位置の範囲を超えるため)
     const list = liveSteps.get(m) || [];
-    for (const [s, n] of Waves.stepsOf(d).values()) if (n > 0 && s > 0) list.push(binOf(toDb(s / n)));
+    const n = Math.max(1, Math.round((STEP_SEC * Number(d.sr)) / Number(d.per)));
+    for (let j = 0; j + n <= d.bins.length; j += n) {
+      let sum = 0;
+      let cnt = 0;
+      for (let k = j; k < j + n; k++) {
+        if (Number.isFinite(d.bins[k])) {
+          sum += d.bins[k];
+          cnt++;
+        }
+      }
+      if (cnt && sum > 0) list.push(binOf(toDb(sum / cnt)));
+    }
     const keep = LIVE_KEEP_SEC / STEP_SEC;
     if (list.length > keep) list.splice(0, list.length - keep);
     liveSteps.set(m, list);
@@ -211,7 +224,7 @@ const VolumeBalance = (() => {
 
   /** 枠の中で音の記録を始められなかった (ブラウザが音の処理を止めているなど) */
   function onLevel(i, data) {
-    if (data.ok !== false || !conf().auto) return;
+    if (data.ok !== false || !(conf().auto || panelOpen())) return; // パネルを開いているだけのときも「測れません」を出す
     const r = rec(i);
     if (!r.blocked) {
       r.blocked = true;
@@ -521,5 +534,5 @@ const VolumeBalance = (() => {
     }
   }
 
-  return { normalize, gainOf, levelOn, chunk, onLevel, onPlayerVolume, refresh, setup, toggle };
+  return { normalize, gainOf, levelOn, apply, chunk, onLevel, onPlayerVolume, refresh, setup, toggle };
 })();

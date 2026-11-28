@@ -36,7 +36,7 @@ const LocalFiles = (() => {
     return new Promise((resolve, reject) => {
       const tx = d.transaction(STORE, mode);
       const req = fn(tx.objectStore(STORE));
-      tx.oncomplete = () => resolve(req?.result);
+      tx.oncomplete = () => resolve(Array.isArray(req) ? req.map((r) => r.result) : req?.result);
       tx.onerror = () => reject(tx.error);
       tx.onabort = () => reject(tx.error);
     });
@@ -50,7 +50,7 @@ const LocalFiles = (() => {
 
   /** 使われていない持ち手を消す (keep = まだどこかの視聴セッションが使っている ID。覚えてから 10 分以内のものは残す) */
   async function prune(keep, now = Date.now()) {
-    const [ids, rows] = await Promise.all([run('readonly', (s) => s.getAllKeys()), run('readonly', (s) => s.getAll())]);
+    const [ids, rows] = await run('readonly', (s) => [s.getAllKeys(), s.getAll()]); // 同じトランザクションで読む (組がずれないように)
     for (let k = 0; k < ids.length; k++) {
       if (!keep.has(ids[k]) && !(now - (rows[k]?.at || 0) < KEEP_NEW_MS)) await remove(ids[k]);
     }
