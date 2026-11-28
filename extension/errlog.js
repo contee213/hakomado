@@ -169,12 +169,20 @@ const ErrLog = (() => {
   const isNetworkError = (e) => e instanceof TypeError && /fetch|network/i.test(e.message);
 
   /**
-   * 取得の失敗を知らせる。通信できなかっただけ (isNetworkError) のときは警告にしない
-   * (次の確認でやり直すので不具合ではない。警告にすると chrome://extensions のエラーにも残る)
+   * 待てば直る取得の失敗: 通信できなかった・時間切れ (TimeoutError)・相手のサーバーの一時的な不調 (500 番台。
+   * 応答の番号は Error の status に入れて投げる)・取得の制限で休んでいる (RateLimitedError)
+   */
+  const isTransientFetchError = (e) =>
+    isNetworkError(e) || ['TimeoutError', 'RateLimitedError'].includes(e?.name) || (e?.status >= 500 && e?.status < 600);
+
+  /**
+   * 取得の失敗を知らせる。待てば直る失敗 (isTransientFetchError) のときは警告にしない
+   * (次の確認・⟳ 更新でやり直せるので不具合ではない。警告にすると chrome://extensions のエラーと不具合の報告の記録に
+   * チャンネルの数だけ残り、本当の不具合の記録を押し出す。HAKO-67)
    */
   function warnFetch(msg, ...args) {
     const e = args[args.length - 1];
-    if (isNetworkError(e)) console.info(msg, '(通信できなかったので、あとでやり直します)', ...args);
+    if (isTransientFetchError(e)) console.info(msg, '(一時的な失敗なので、警告にはしません)', ...args);
     else console.warn(msg, ...args);
   }
 

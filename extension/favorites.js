@@ -80,7 +80,12 @@ const Favorites = (() => {
     });
   }
 
-  class RateLimitedError extends Error {}
+  class RateLimitedError extends Error {
+    name = 'RateLimitedError'; // ErrLog.warnFetch が一時的な失敗と見分ける
+  }
+
+  /** 応答が失敗 (ok でない) のときに投げるもの。status は ErrLog.warnFetch が 500 番台 (一時的) を見分けるのに使う */
+  const httpError = (res) => Object.assign(new Error(tr('fetchFail', res.status)), { status: res.status });
 
   /** fetchText の opts から、fetch に渡すもの (この中だけで使う項目を除く) */
   const fetchInit = ({ until, allow404, ...init }) => init;
@@ -135,7 +140,7 @@ const Favorites = (() => {
           throw new RateLimitedError(tr('rateLimited'));
         }
         if (res.status === 404 && opts.allow404) return null;
-        if (!res.ok) throw new Error(tr('fetchFail', res.status));
+        if (!res.ok) throw httpError(res);
         const text = await readBody(res, { until: opts.until });
         if (bo[backoffKey]) await updateBackoff((v) => delete v[backoffKey]);
         return text;
@@ -381,7 +386,7 @@ const Favorites = (() => {
     const url = `https://static-cdn.jtvnw.net/previews-ttv/live_user_${encodeURIComponent(login)}-80x45.jpg`;
     const res = await fetch(url, withTimeout({ credentials: 'omit', cache: 'no-store' }));
     res.body?.cancel().catch(() => {});
-    if (!res.ok) throw new Error(tr('fetchFail', res.status));
+    if (!res.ok) throw httpError(res);
     return !/\/404_preview/.test(res.url);
   }
 
@@ -771,7 +776,7 @@ const Favorites = (() => {
   // ------------------------------------------------------------ YouTube
   async function getHtml(url, opts = {}) {
     const res = await fetch(url, withTimeout(opts));
-    if (!res.ok) throw new Error(tr('fetchFail', res.status));
+    if (!res.ok) throw httpError(res);
     return res.text();
   }
 
@@ -1097,7 +1102,7 @@ const Favorites = (() => {
           premieres.push(...(await fetchFeed(fav.channelId, { maxAge: Math.max(maxFeedAge, FEED_PREMIERE_MS), list, cacheOnly: peek })));
         } catch (e) {
           if (e instanceof RateLimitedError) throw e;
-          console.warn('hakomado: プレミア公開の確認に失敗', list, fav.channelId, e);
+          ErrLog.warnFetch('hakomado: プレミア公開の確認に失敗', list, fav.channelId, e);
         }
       }
     }

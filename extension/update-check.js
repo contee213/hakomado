@@ -35,7 +35,7 @@ const UpdateCheck = (() => {
     });
     // 404 = まだリリースが 1 つも無い (失敗ではないので記録しない)
     if (res.status === 404) return null;
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    if (!res.ok) throw Object.assign(new Error(`HTTP ${res.status}`), { status: res.status }); // status: 500 番台は一時的な失敗 (ErrLog.warnFetch)
     const json = await res.json();
     const latest = String(json?.tag_name || '').match(/^v?(\d+(?:\.\d+){0,3})$/)?.[1];
     if (!latest) throw new Error('no version');
