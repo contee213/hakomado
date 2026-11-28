@@ -31,8 +31,8 @@ function load(tiles, { kinds = [], waves = {} } = {}) {
       waves[id] = Uint8Array.from([...(waves[id] || []), ...d.vals]);
       listeners.forEach((f) => f(id));
     },
-    // 記録 → 0.1 秒ごとの [合計, 個数] (ここでは記録に 0.1 秒ごとの大きさをそのまま持たせる)
-    stepsOf: (d) => new Map((d.levels || []).map((x, k) => [k, [x, 1]])),
+    // 形の確かめは waves.js のものを使わず、テストの記録 (アーカイブは vals、ライブは本物の形) を通す
+    validChunk: (d) => !!(d?.vals || d?.bins),
   };
   const ctx = {
     MAX_TILES: tiles.length,
@@ -149,8 +149,10 @@ test('ライブ・Twitch は波形に置かず、この画面の間だけ覚え�
   turnOn(VB, ctx);
   assert.equal(VB.levelOn(0), true);
   const lv = (dbv) => 10 ** (dbv / 20);
-  VB.chunk(0, { levels: Array(50).fill(lv(-15)) });
-  VB.chunk(1, { levels: Array(50).fill(lv(-35)) });
+  // 枠から届く本物の形: 48000 Hz で 48 サンプルごとの大きさ (0.1 秒 = 100 個)。再生位置は 24 時間を超えていても数える
+  const live = (dbv) => ({ sr: 48000, per: 48, bins: new Float32Array(50 * 100).fill(lv(dbv)), marks: [[5000 * 48, 90000, 1]] });
+  VB.chunk(0, live(-15));
+  VB.chunk(1, live(-35));
   assert.deepEqual(fed, [], 'ライブは波形に足さない');
   for (let s = 0; s < 15; s++) runTick();
   assert.ok(Math.abs(db(VB.gainOf(0)) + 10) < 0.2);

@@ -50,6 +50,15 @@ const Waves = (() => {
     return out;
   }
 
+  /** 枠から届いた音の記録が、扱える形か (大きすぎる・形の違う記録で重くならないように。AudioSync.chunk と同じ確かめ方) */
+  function validChunk(d) {
+    const sr = Number(d?.sr);
+    const per = Number(d?.per);
+    if (!(sr >= 8000 && sr <= 192000) || !Number.isInteger(per) || per < 1 || per > 1000) return false;
+    if (!(d.bins instanceof Float32Array) || d.bins.length > 200000 || !Array.isArray(d.marks) || !d.marks.length || d.marks.length > 20000) return false;
+    return d.marks.every((m) => Array.isArray(m) && Number.isFinite(m[0]) && Number.isFinite(m[1]));
+  }
+
   /** vals の [from, to) 秒のうち、記録のある割合 (0〜1) */
   function coverage(vals, from, to, step = STEP) {
     const a = Math.max(0, Math.floor(from / step));
@@ -186,6 +195,7 @@ const Waves = (() => {
     STEP,
     quantize,
     stepsOf,
+    validChunk,
     coverage,
     firstGap,
     ensure,

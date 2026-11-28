@@ -605,8 +605,8 @@ const MESSAGES = {
     'Playback speed of group {0} (while archive sync is on, every tile in the group plays at the same speed)',
   ],
   speedGroupLocked: [
-    'ライブ配信の入った同期グループは、等速のままです (ライブは速度を変えられないため)',
-    'A sync group with a live stream stays at normal speed (live streams can’t change speed)',
+    'ライブ配信か、サイトの本編の動画の枠が入った同期グループは、等速のままです (速度を変えられないため)',
+    'A sync group with a live stream or a site’s feature video stays at normal speed (their speed can’t be changed)',
   ],
   speedLive: ['ライブ配信は等速で再生します (速度は変えられません)', 'Live streams play at normal speed (the speed can’t be changed)'],
   speedToast: ['再生速度 {0}', 'Speed {0}'],

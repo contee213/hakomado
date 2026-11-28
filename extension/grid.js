@@ -2030,8 +2030,9 @@ function setToggle(btn, on) {
 function applyAudio(i) {
   const t = state.tiles[i];
   postToFrame(views[i].player, { hakomado: 'audio', muted: t.muted });
-  // 音量は、枠の音量 × 🎚 音量バランスの自動の倍率 × 主役のときの割合 (volume-balance.js)。level = 音の大きさを測るか
-  postToFrame(views[i].player, { hakomado: 'mix', pan: t.pan, gain: VolumeBalance.gainOf(i), delay: t.delay, level: VolumeBalance.levelOn(i) });
+  // 音の左右・音量・遅延・音の大きさを測るか (音量は、枠の音量 × 🎚 音量バランスの自動の倍率 × 主役のときの割合 × 全体の音量)。
+  // 送った「測るか」を覚えておくため、volume-balance.js から送る (枠の動画が変わったときも、測り直しを頼み忘れないように)
+  VolumeBalance.apply(i);
 }
 
 // ---- 再生速度 (枠のバーの速度ボタン・上部バーの ⏩・< > キー・枠の中のプレイヤーの ⚙)

@@ -349,6 +349,7 @@ const WaveStrip = (() => {
   function close() {
     if (!shown) return;
     stopScan();
+    TimerScan.cancelAll(); // 閉じたあとは止めるボタンが無いので、タイマー探しもやめる
     clearInterval(timer);
     timer = 0;
     shown = false;

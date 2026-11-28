@@ -397,7 +397,7 @@ const Sync = (() => {
    * ライブの入ったグループ (🎬 本編モード) は等速のまま (ライブは速さを変えられないため)
    */
   function groupSpeed(G, list, ref) {
-    if (list.some(liveTile) || list.some(featureTile)) G.speed = 1; // 本編の動画の枠の入ったグループも等速 (サイトの速さに頼らない)
+    if (speedFixed(list)) G.speed = 1; // 本編の動画の枠の入ったグループも等速 (サイトの速さに頼らない)
     else if (G.speed == null) G.speed = clampSpeed(state.tiles[ref]?.speed ?? 1);
     let changed = false;
     for (const i of list) {
@@ -410,17 +410,19 @@ const Sync = (() => {
     }
     if (changed) speedChanged();
   }
-  /** 同期しているグループの枠なら、そのグループ ({g, tiles, locked}。locked = ライブが入っていて速さを変えられない) */
+  /** 速さを変えられないグループか (ライブか、本編の動画の枠が入っていると等速のまま: groupSpeed) */
+  const speedFixed = (tiles) => tiles.some((i) => liveTile(i) || featureTile(i));
+  /** 同期しているグループの枠なら、そのグループ ({g, tiles, locked}。locked = 速さを変えられない) */
   function speedGroupOf(i) {
     const G = on ? groupOfTile(i) : null;
     if (!G || !active(G)) return null;
     const tiles = membersOf(G.g);
-    return { g: G.g, tiles, locked: tiles.some(liveTile) };
+    return { g: G.g, tiles, locked: speedFixed(tiles) };
   }
   /** 枠 i のグループの速度を変える (時計は今の時刻から新しい速さで進める) */
   function setGroupSpeed(i, r) {
     const G = on ? groupOfTile(i) : null;
-    if (!G || !active(G) || membersOf(G.g).some(liveTile)) return;
+    if (!G || !active(G) || speedFixed(membersOf(G.g))) return;
     setClock(G, nowR(G), G.clock.playing);
     G.speed = clampSpeed(r);
     tick();
@@ -1075,6 +1077,7 @@ const Sync = (() => {
 
   function stop() {
     on = false;
+    if (typeof TimerScan !== 'undefined') TimerScan.cancelAll(); // 画面の外で開いているタイマー探しもやめる (OFF にしたときも、ここを通る)
     groups.clear();
     manual.clear();
     assigned = { groups: new Map(), excluded: new Map() };
@@ -1656,7 +1659,7 @@ const Sync = (() => {
             note,
             canReset: tiles.some((i) => movable(i) && off(i) !== 0),
             speed: G.speed ?? 1,
-            speedLocked: tiles.some(liveTile),
+            speedLocked: speedFixed(tiles),
             // ✨ 自動補正 (パネルのグループの ✨ と同じ): 文字・測っているか・目立たせるか・一番初めの候補の目印
             audio: (() => {
               const a = AudioSync.progressText(G.g);
