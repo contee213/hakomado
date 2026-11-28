@@ -819,6 +819,10 @@ dialog.fav-dialog.tour-preview {
   background: color-mix(in srgb, var(--accent) 12%, var(--bg));
 }
 .fav-selcount { font-size: 13px; font-weight: 700; }
+/* 何も選んでいないとき: 案内だけ。帯の色は付けず、文字も控えめに (HAKO-33) */
+.fav-selbar.idle { background: transparent; }
+.fav-selbar.idle .fav-selcount { font-weight: 400; color: var(--muted); }
+.fav-selbar button:disabled { opacity: .35; cursor: default; }
 .fav-error:empty { display: none; }
 
 /* 📺 チャンネルが 1 つも無いときの足し方 (空の案内のすぐ下) */
@@ -826,8 +830,8 @@ dialog.fav-dialog.tour-preview {
 .fav-empty-actions { display: flex; flex-wrap: wrap; align-items: flex-start; align-content: flex-start; gap: 8px; padding: 0 14px 16px; }
 .fav-empty:has(+ .fav-empty-actions:not([hidden])) { flex: none; }
 .fav-empty-actions:not([hidden]) { flex: 1; }
-/* 📺 チャンネル・ライブラリの下の帯は、出すもの (知らせ・視聴履歴を全部消す) があるときだけ */
-#favorites .fav-foot:has(> .fav-error:empty):not(:has(> button:not([hidden]))) { display: none; }
+/* 📺 チャンネル・ライブラリの下の帯は、出すもの (知らせ) があるときだけ */
+#favorites .fav-foot:has(> .fav-error:empty) { display: none; }
 
 /* ---------- ⚙ チャンネルの管理 ---------- */
 /* 左に一覧 (☐ で選んでまとめて外す・足す)、右にチャンネルパックと登録チャンネル。狭ければ縦に並べる */

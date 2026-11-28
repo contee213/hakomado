@@ -649,10 +649,15 @@ test.describe('ライブラリの複数選択', () => {
     const collab = page.locator('#favList .fav-collab');
     await expect(collab).toHaveCount(2);
     await expect(collab.first()).toHaveText('🤝 2');
-    await collab.first().click();
+    // 下の帯は選ぶ前から出ていて、案内だけでボタンは押せない (HAKO-33)
     await expect(page.locator('#favSelBar')).toBeVisible();
+    await expect(page.locator('#favSelCount')).toHaveText('☐ で選ぶと、まとめて枠に入れたり、開いて同期したりできます');
+    await expect(page.locator('#favSelLoad')).toBeDisabled();
+    await expect(page.locator('#favSelClear')).toBeDisabled();
+    await expect(page.locator('#favSelSync')).toBeDisabled();
+    await collab.first().click();
     await expect(page.locator('#favSelCount')).toHaveText('2 本を選択中');
-    await expect(page.locator('#favSelSync')).toBeVisible(); // アーカイブを 2 本以上選ぶと「⏱ 開いて同期」が出る
+    await expect(page.locator('#favSelSync')).toBeEnabled(); // アーカイブを 2 本以上選ぶと「⏱ 開いて同期」が押せる
     // 選んでいる間は、行のクリックも選ぶ (枠には入れない)
     await page.locator('#favList .fav-item[data-sel="ccccccccccc"] .fav-title').click();
     await expect(page.locator('#favSelCount')).toHaveText('3 本を選択中');
@@ -662,16 +667,17 @@ test.describe('ライブラリの複数選択', () => {
     for (const h of HISTORY) expect(ids).toContain(h.videoId);
   });
 
-  test('⏱ 開いて同期: 1 本だけのときは出さず、押すと選んだ配信を枠に入れる', async ({ openGrid }) => {
+  test('⏱ 開いて同期: 1 本だけのときは押せず、押すと選んだ配信を枠に入れる', async ({ openGrid }) => {
     const page = await openGrid();
     await skipTour(page);
     await enableSync(page);
     await openHistory(page);
     await page.locator('#favList .fav-item[data-sel="aaaaaaaaaa1"] .fav-title').click({ modifiers: ['Control'] });
     await expect(page.locator('#favSelCount')).toHaveText('1 本を選択中');
-    await expect(page.locator('#favSelSync')).toBeHidden();
+    await expect(page.locator('#favSelSync')).toBeDisabled();
+    await expect(page.locator('#favSelLoad')).toBeEnabled();
     await page.locator('#favList .fav-item[data-sel="bbbbbbbbbb2"] .fav-title').click({ modifiers: ['Control'] });
-    await expect(page.locator('#favSelSync')).toBeVisible();
+    await expect(page.locator('#favSelSync')).toBeEnabled();
     await page.locator('#favSelSync').click();
     await expect(page.locator('#favorites')).toBeHidden();
     const ids = await visibleTiles(page).locator('.url-input').evaluateAll((els) => els.map((e) => e.value).join(' '));

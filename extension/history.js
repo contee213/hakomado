@@ -104,12 +104,7 @@ const WatchHistory = (() => {
     return mutate((list) => list.filter((h) => h.videoId !== videoId));
   }
 
-  /** 全部消す */
-  function clear() {
-    return mutate(() => []);
-  }
-
-  return { KEY, list, opened, update, removed, remove, clear };
+  return { KEY, list, opened, update, removed, remove };
 })();
 
 // hakomado: あとで見る (ライブラリの「🔖 あとで見る」タブ)。枠のバーの 🔖 や視聴履歴から、自分で選んだものを入れる。

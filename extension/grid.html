@@ -767,17 +767,16 @@
         <button type="button" id="favEmptySubs" data-i18n="cm.emptySubs">📥 登録チャンネルから選ぶ</button>
         <button type="button" id="favEmptyRestore" hidden></button>
       </div>
-      <!-- 複数選択 (行の ☐ / 🤝 で選ぶ) をしている間だけ出す -->
+      <!-- 複数選択 (行の ☐ / 🤝 で選ぶ)。☐ のある一覧を出している間はいつも出す (選んでいなければ案内だけ。HAKO-33) -->
       <div id="favSelBar" class="fav-selbar" hidden>
         <span id="favSelCount" class="fav-selcount"></span>
         <span class="spacer"></span>
         <button type="button" id="favSelClear" data-i18n="sel.clear">選択を外す</button>
-        <button type="button" id="favSelSync" data-i18n="sel.sync" data-i18n-title="sel.syncTitle" title="選んだアーカイブを空いている枠に入れ、⏱ アーカイブ同期を ON にし、再生が始まったら ✨ 自動補正で音のずれを測る (コラボの組を見るとき)" hidden>⏱ 開いて同期</button>
+        <button type="button" id="favSelSync" data-i18n="sel.sync" data-i18n-title="sel.syncTitle" title="選んだアーカイブを空いている枠に入れ、⏱ アーカイブ同期を ON にし、再生が始まったら ✨ 自動補正で音のずれを測る (コラボの組を見るとき。アーカイブを 2 本以上選ぶと押せる)">⏱ 開いて同期</button>
         <button type="button" id="favSelLoad" class="primary-action" data-i18n="sel.load" data-i18n-title="sel.loadTitle" title="選んだ配信を、空いている枠に選んだ順に入れる (足りなければ 16 枠まで枠を足す。もう枠にある配信は飛ばす)">▦ まとめて枠に入れる</button>
       </div>
 
       <footer class="fav-foot">
-        <button type="button" id="historyClear" class="fav-restore" data-i18n="fav.historyClear" hidden>視聴履歴を全部消す</button>
         <div id="favError" class="fav-error"></div>
       </footer>
     </div>
