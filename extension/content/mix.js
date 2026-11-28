@@ -6,6 +6,7 @@
 //   setMuted(m)      プレイヤーの消音を m にする (測り終わったとき)
 //   unmuteQuietly()  プレイヤーの消音を外す (止まっていても再生し直さない。測っている間)
 //   parentOrigin     親 (マルチビュー画面) のオリジン
+//   playerVolume()   プレイヤーの音量のつまみ (0〜1。YouTube の音量の自動調整は含まない)。省略時は動画要素の音量
 /* exported HakomadoMix */
 'use strict';
 
@@ -19,7 +20,7 @@
 // - 消音・音量・再生速度はプレイヤー (video 要素) 側の操作のまま効く (経路は video の出力のあとにつなぐ)
 // - YouTube は video 要素を差し替えることがあるので、つないでいる間は見張って、差し替わったらつなぎ直す
 // - ✨ 自動補正 (親の同期再生。音で合わせる) で測っている間は、音の大きさ (包絡) を記録して親に送る (下の measure)
-const HakomadoMix = ({ video, adShowing, setMuted, unmuteQuietly, parentOrigin }) => {
+const HakomadoMix = ({ video, adShowing, setMuted, unmuteQuietly, parentOrigin, playerVolume = () => video()?.volume ?? 1 }) => {
   let ctx = null;
   let panner = null;
   let gainNode = null;
@@ -122,9 +123,12 @@ const HakomadoMix = ({ video, adShowing, setMuted, unmuteQuietly, parentOrigin }
     markedAt = total;
   }
   /** @param {AudioData} data */
+  // 記録する大きさは、プレイヤーの音量のつまみで割り戻した「つまみ 100% のときの大きさ」にする
+  // (つまみを下げて見ていても、動画ごとの波形が同じ大きさで残るように。🎚 音量バランスは、つまみをあとから掛ける)
   function onAudio(data) {
     const v = connected;
-    if (!measuring || !v || v.paused || v.seeking || adShowing()) {
+    const pv = playerVolume();
+    if (!measuring || !v || v.paused || v.seeking || adShowing() || !(pv > 0.01)) {
       markNow(); // 抜けの前までの分は、抜ける前の再生位置で印を付けておく
       return;
     }
@@ -139,7 +143,7 @@ const HakomadoMix = ({ video, adShowing, setMuted, unmuteQuietly, parentOrigin }
     for (let k = 0; k < n; k++) {
       acc += Math.abs(a[k]) + Math.abs(b[k]);
       if (++cnt === per) {
-        bins.push(acc / (2 * per));
+        bins.push(acc / (2 * per) / pv);
         acc = 0;
         cnt = 0;
       }
@@ -256,12 +260,22 @@ const HakomadoMix = ({ video, adShowing, setMuted, unmuteQuietly, parentOrigin }
     return true;
   }
 
+  // プレイヤーの音量のつまみが変わったら親に知らせる (🎚 音量バランスの「聞こえる大きさ」に掛ける)
+  let sentPv = -1;
+  const pvTimer = setInterval(() => {
+    const pv = Math.round(Math.max(0, Math.min(1, Number(playerVolume()) || 0)) * 100) / 100;
+    if (pv === sentPv || !video()) return;
+    sentPv = pv;
+    window.parent.postMessage({ hakomado: 'pvol', v: pv }, parentOrigin);
+  }, 1000);
+
   // 枠を読み直す・閉じるときは片付ける (「戻る」で元に戻せるように残すとき (persisted) は閉じない)
   window.addEventListener('pagehide', (e) => {
     if (e.persisted) return;
     clearInterval(timer);
     clearInterval(guard);
     clearInterval(flushTimer);
+    clearInterval(pvTimer);
     ctx?.close().catch(() => {});
   });
   /** ✨ 自動補正からの測る / やめる (音量バランスが求めている間は、やめても記録は続ける) */

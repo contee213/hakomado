@@ -3352,6 +3352,8 @@ window.addEventListener('message', (e) => {
   } else if (data.hakomado === 'mix') {
     // 枠の中で左右・音量の経路を作れなかった (AudioContext が動かない)
     if (data.ok === false) showToast(i, tr('mixBlocked'));
+  } else if (data.hakomado === 'pvol') {
+    VolumeBalance.onPlayerVolume(i, data.v); // 枠の中のプレイヤーの音量のつまみ (🎚 音量バランスの棒に掛ける)
   } else if (data.hakomado === 'level') {
     VolumeBalance.onLevel(i, data); // 🎚 音量バランスが頼んだ音の記録を、枠の中で始められなかった
   } else if (data.hakomado === 'envChunk') {

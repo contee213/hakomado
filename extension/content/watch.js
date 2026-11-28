@@ -208,7 +208,15 @@
   setCorner(params.get('hakomado_corner'));
 
   // ---- 枠ごとの音の遅延・左右 (パン)・音量と、✨ 自動補正のための音の記録 (content/mix.js。Twitch の枠と共通)
+  // プレイヤーの音量のつまみ (0〜1)。ページ側 (watch-main.js) がプレイヤーの API から知らせる。
+  // 動画要素の音量には YouTube の音量の自動調整が掛かっているので使わない (分かるまでは動画要素の音量)
+  let playerVol = null;
+  document.addEventListener('hakomado:player-volume', (e) => {
+    const v = Number(e.detail);
+    if (Number.isFinite(v)) playerVol = Math.max(0, Math.min(1, v / 100));
+  });
   const Mix = HakomadoMix({
+    playerVolume: () => playerVol ?? document.querySelector('#movie_player video')?.volume ?? 1,
     video: () => document.querySelector('#movie_player video'),
     adShowing: () => !!document.querySelector('#movie_player.ad-showing, #movie_player.ad-interrupting'),
     setMuted,

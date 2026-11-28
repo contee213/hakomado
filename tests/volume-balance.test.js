@@ -69,9 +69,9 @@ const turnOn = (VB, ctx) => {
 
 test('保存した値: 知らない形は初期値、割合は 0〜1 の 5% 刻み、主役は枠の番号だけ', () => {
   const { VB } = load([tile()]);
-  assert.deepEqual({ ...VB.normalize(undefined) }, { auto: false, focus: null, duck: 0.3 });
-  assert.deepEqual({ ...VB.normalize({ auto: true, focus: 0, duck: 0.42 }) }, { auto: true, focus: 0, duck: 0.4 });
-  assert.deepEqual({ ...VB.normalize({ auto: 'yes', focus: 99, duck: 5 }) }, { auto: false, focus: null, duck: 1 });
+  assert.deepEqual({ ...VB.normalize(undefined) }, { auto: false, focus: null, duck: 0.3, master: 1 });
+  assert.deepEqual({ ...VB.normalize({ auto: true, focus: 0, duck: 0.42, master: 1.52 }) }, { auto: true, focus: 0, duck: 0.4, master: 1.5 });
+  assert.deepEqual({ ...VB.normalize({ auto: 'yes', focus: 99, duck: 5, master: 9 }) }, { auto: false, focus: null, duck: 1, master: 2 });
   assert.equal(VB.normalize({ focus: '0' }).focus, null);
 });
 
@@ -84,6 +84,15 @@ test('主役: ほかの音を出している枠を割合まで下げ、主役が
   assert.equal(VB.gainOf(1), 0.4);
   tiles[0].muted = true;
   assert.equal(VB.gainOf(1), 0.8);
+});
+
+test('全体の音量: そろえた倍率・主役の割合のうえに、全部の枠へ同じだけ掛ける', () => {
+  const tiles = [tile({ gain: 1.2 }), tile({ videoId: 'bbbbbbbbbbb' })];
+  const { VB, ctx } = load(tiles);
+  ctx.state.volume.focus = 0;
+  ctx.state.volume.master = 0.5;
+  assert.equal(VB.gainOf(0), 0.6);
+  assert.equal(VB.gainOf(1), 0.15);
 });
 
 test('保存してある波形が足りていれば測らず、真ん中の大きさへ 1 秒に 1 dB ずつ近づける', async () => {

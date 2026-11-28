@@ -598,9 +598,19 @@ const MESSAGES = {
   volHead: ['音量バランス', 'Volume balance'],
   volAuto: ['大きさをそろえる', 'Even out loudness'],
   volAutoTitle: [
-    '大きさをそろえる: ON の間、音を出している枠の聞こえる大きさを聞き続けてそろえます (つまみは、ほかの枠と比べた大きさになります)',
-    'Even out loudness: while on, keeps listening to the tiles playing audio and evens out how loud they sound (the sliders then set loudness relative to the other tiles)',
+    '大きさをそろえる: ON の間、音を出している枠の聞こえる大きさをそろえ続けます。そろった大きさが各枠の 100% になります',
+    'Even out loudness: while on, keeps the tiles playing audio at the same loudness. That even loudness is 100% on each tile',
   ],
+  volMaster: ['全体の音量', 'Overall volume'],
+  volMasterTitle: [
+    '全体の音量: 全部の枠の音を、今のバランスのまま大きく / 小さくする',
+    'Overall volume: turns all tiles up or down together, keeping their balance',
+  ],
+  volMutedUnknown: ['ミュート中 (音を出すと測ります)', 'Muted (measured once it plays audio)'],
+  volMutedNote: ['ミュート中', 'Muted'],
+  volDuckNote: ['★ のため {0}%', '{0}% because of ★'],
+  volPlayerNote: ['プレイヤーの音量 {0}%', 'Player volume {0}%'],
+  volHeardTitle: ['聞こえる大きさ {0} dB', 'Loudness {0} dB'],
   volDuck: ['ほかの枠', 'Other tiles'],
   volDuckTitle: [
     '主役 (★) が音を出している間、ほかの音を出している枠をこの割合にする',
@@ -611,7 +621,10 @@ const MESSAGES = {
   volStarOffTitle: ['主役を外す', 'Stop making this the main tile'],
   volMuteTitle: ['この枠の音を切る (ほかの枠はそのまま)', 'Mute this tile (the others stay as they are)'],
   volUnmuteTitle: ['この枠の音を出す (ほかの枠はそのまま)', 'Play audio from this tile (the others stay as they are)'],
-  volGainTitle: ['この枠の音量 (100% = 元のまま)。枠の 🎚 の音量と同じ値です', 'This tile’s volume (100% = unchanged). Same value as the tile’s 🎚 volume'],
+  volGainTitle: [
+    'この枠の音量。「大きさをそろえる」が ON なら、そろった大きさが 100% です。枠の 🎚 の音量と同じ値です',
+    'This tile’s volume. With “Even out loudness” on, 100% is the even loudness. Same value as the tile’s 🎚 volume',
+  ],
   volNoMix: ['この枠では音量を変えられません', 'The volume can’t be changed in this tile'],
   volMeasuring: ['測っています…', 'Measuring…'],
   volBlocked: ['測れません', 'Can’t measure'],

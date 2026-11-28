@@ -53,7 +53,13 @@ const VolumeBalance = (() => {
     const o = v && typeof v === 'object' ? v : {};
     const duck = Number(o.duck);
     const focus = Number.isInteger(o.focus) && o.focus >= 0 && o.focus < MAX_TILES ? o.focus : null;
-    return { auto: o.auto === true, focus, duck: Number.isFinite(duck) ? Math.max(0, Math.min(1, Math.round(duck * 20) / 20)) : DEFAULT_DUCK };
+    const master = Number(o.master);
+    return {
+      auto: o.auto === true,
+      focus,
+      duck: Number.isFinite(duck) ? Math.max(0, Math.min(1, Math.round(duck * 20) / 20)) : DEFAULT_DUCK,
+      master: Number.isFinite(master) ? Math.max(0, Math.min(2, Math.round(master * 20) / 20)) : 1,
+    };
   }
 
   const conf = () => state.volume;
@@ -153,13 +159,17 @@ const VolumeBalance = (() => {
     return conf().duck;
   }
 
-  /** 枠に送る実際の音量 */
+  /** 枠に送る実際の音量 = 枠のつまみ × そろえる倍率 × 主役のときの割合 × 全体の音量 */
   function gainOf(i) {
-    return Math.min(MAX_EFFECTIVE, state.tiles[i].gain * autoOf(i) * duckOf(i));
+    return Math.min(MAX_EFFECTIVE, state.tiles[i].gain * autoOf(i) * duckOf(i) * (conf().master ?? 1));
   }
-  /** 枠の中で音の記録を頼むか: 「大きさをそろえる」が ON で音を出していて、その動画の大きさがまだ足りないときだけ */
+  const panelOpen = () => !!el?.matches(':popover-open');
+  /**
+   * 枠の中で音の記録を頼むか: 「大きさをそろえる」が ON かパネルを開いていて、音を出していて、
+   * その動画の大きさがまだ足りないときだけ (パネルを開いている間は、棒を出すために測る)
+   */
   function levelOn(i) {
-    if (!conf().auto || !mixable(i) || !audible(i)) return false;
+    if (!(conf().auto || panelOpen()) || !mixable(i) || !audible(i)) return false;
     if (memId(i)) return true; // ライブ・Twitch は、いつも新しい音なので聞き続ける
     if (!waveId(i)) return false; // 種類がまだ分からない
     const st = statOf(i);
@@ -211,8 +221,13 @@ const VolumeBalance = (() => {
 
   /** 1 秒ごと: 自動の倍率を、そろえたい値へ少しずつ近づける。記録を頼むかが変わった枠には知らせ直す */
   function tick() {
-    if (!conf().auto) return;
-    const list = visibleIndexes().filter((i) => mixable(i) && audible(i) && ready(i));
+    if (!conf().auto && !panelOpen()) {
+      clearInterval(timer);
+      timer = 0;
+      for (let i = 0; i < MAX_TILES; i++) if (sentLevel.get(i)) apply(i); // パネルを閉じた: 測るのをやめる
+      return;
+    }
+    const list = conf().auto ? visibleIndexes().filter((i) => mixable(i) && audible(i) && ready(i)) : [];
     let target = null;
     if (list.length >= 2) {
       const dbs = list.map((i) => statOf(i).db).sort((a, b) => a - b);
@@ -233,15 +248,16 @@ const VolumeBalance = (() => {
     for (let i = 0; i < MAX_TILES; i++) {
       if (state.tiles[i].videoId && (sentLevel.get(i) ?? false) !== levelOn(i)) apply(i);
     }
-    if (changed || el?.matches(':popover-open')) render();
+    if (changed || panelOpen()) render();
   }
+  const startTick = () => {
+    if (!timer) timer = setInterval(tick, 1000);
+  };
 
   function setAuto(on) {
     conf().auto = !!on;
-    clearInterval(timer);
-    timer = 0;
-    if (conf().auto) timer = setInterval(tick, 1000);
-    else for (const r of tiles.values()) r.auto = 1;
+    if (!conf().auto) for (const r of tiles.values()) r.auto = 1;
+    startTick();
     applyAll();
     save();
     refresh();
@@ -258,6 +274,12 @@ const VolumeBalance = (() => {
     save();
     refresh();
   }
+  function setMaster(v) {
+    conf().master = Math.max(0, Math.min(2, Math.round(v * 20) / 20));
+    applyAll();
+    save();
+    refresh();
+  }
 
   /** 枠の音・中身・並びが変わったとき (updateNowPlaying から): 主役の見直し・ボタンとパネルの書き換え */
   function refresh() {
@@ -268,13 +290,39 @@ const VolumeBalance = (() => {
       applyAll();
       save();
     }
-    if (c.auto && !timer) timer = setInterval(tick, 1000);
+    if (c.auto) startTick();
     const btn = document.getElementById('openVolume');
-    if (btn) btn.classList.toggle('on', c.auto || c.focus != null);
+    if (btn) btn.classList.toggle('on', c.auto || c.focus != null || (c.master ?? 1) !== 1);
+    render();
+  }
+
+  /** 枠の中のプレイヤーの音量のつまみ (0〜1) が変わった */
+  function onPlayerVolume(i, v) {
+    const n = Number(v);
+    if (!Number.isFinite(n)) return;
+    views[i].pvol = Math.max(0, Math.min(1, n));
     render();
   }
 
   // ---- パネル
+  /** つまみ 1 本 (0〜max%、5% 刻み) と値の表示 */
+  function slider(cls, max, label, title, onInput) {
+    const wrap = document.createElement('label');
+    wrap.className = `vol-slider ${cls}-wrap`;
+    wrap.title = title;
+    const range = document.createElement('input');
+    range.type = 'range';
+    range.className = cls;
+    range.min = '0';
+    range.max = String(max);
+    range.step = '5';
+    range.addEventListener('input', () => onInput(Number(range.value) / 100));
+    const value = document.createElement('span');
+    value.className = `${cls}-value`;
+    wrap.append(label, range, value);
+    return wrap;
+  }
+
   function setup() {
     el = document.getElementById('volumeMenu');
     const head = document.createElement('div');
@@ -288,20 +336,11 @@ const VolumeBalance = (() => {
     auto.textContent = tr('volAuto');
     auto.title = tr('volAutoTitle');
     auto.addEventListener('click', () => setAuto(!conf().auto));
-    const duckWrap = document.createElement('label');
-    duckWrap.className = 'vol-duck-wrap';
-    duckWrap.title = tr('volDuckTitle');
-    const duck = document.createElement('input');
-    duck.type = 'range';
-    duck.className = 'vol-duck';
-    duck.min = '0';
-    duck.max = '100';
-    duck.step = '5';
-    duck.addEventListener('input', () => setDuck(Number(duck.value) / 100));
-    const duckValue = document.createElement('span');
-    duckValue.className = 'vol-duck-value';
-    duckWrap.append(tr('volDuck'), duck, duckValue);
-    top.append(auto, duckWrap);
+    top.append(
+      slider('vol-master', 200, tr('volMaster'), tr('volMasterTitle'), setMaster),
+      auto,
+      slider('vol-duck', 100, tr('volDuck'), tr('volDuckTitle'), setDuck),
+    );
     const rows = document.createElement('div');
     rows.className = 'vol-rows';
     const empty = document.createElement('div');
@@ -324,6 +363,8 @@ const VolumeBalance = (() => {
     el.addEventListener('toggle', (e) => {
       if (e.newState === 'open') {
         rowKey = '';
+        startTick();
+        applyAll(); // 大きさの分からない枠を測り始める
         render();
         return;
       }
@@ -373,20 +414,46 @@ const VolumeBalance = (() => {
     range.step = '5';
     const value = document.createElement('span');
     value.className = 'vol-value';
-    row.append(num, name, star, mute, range, value);
+    // 聞こえる大きさの棒 (全部の行で同じ目盛り) と、その横の説明 (測っています… / ★ のため 30% など)
+    const meter = document.createElement('div');
+    meter.className = 'vol-meter';
+    const bar = document.createElement('span');
+    bar.className = 'vol-bar';
+    const fill = document.createElement('i');
+    fill.className = 'vol-fill';
+    bar.append(fill);
+    const note = document.createElement('span');
+    note.className = 'vol-note';
+    meter.append(bar, note);
+    row.append(num, name, star, mute, range, value, meter);
     return row;
   }
 
+  // 棒の目盛り: BAR_MIN〜BAR_MAX dB を 0〜100% にする
+  const BAR_MIN = -50;
+  const BAR_MAX = -5;
+  /** 枠の聞こえる大きさ (dB) = 動画の大きさ (プレイヤーの音量 100% のとき) × プレイヤーの音量 × gainOf。分からなければ null */
+  function heardDb(i) {
+    const st = statOf(i);
+    if (!st || st.sec < READY_SEC) return null;
+    const g = (views[i].pvol ?? 1) * gainOf(i);
+    return g > 0 ? st.db + toDb(g) : -Infinity;
+  }
+
   function render() {
-    if (!el?.matches(':popover-open')) return;
+    if (!panelOpen()) return;
     const c = conf();
     const auto = el.querySelector('.vol-auto');
     auto.classList.toggle('on', c.auto);
     auto.setAttribute('aria-pressed', String(c.auto));
-    const duck = el.querySelector('.vol-duck');
-    if (document.activeElement !== duck) duck.value = String(pct(c.duck));
-    duck.disabled = c.focus == null;
-    el.querySelector('.vol-duck-value').textContent = `${pct(c.duck)}%`;
+    const sync = (cls, v, disabled = false) => {
+      const range = el.querySelector(`.${cls}`);
+      if (document.activeElement !== range) range.value = String(pct(v));
+      range.disabled = disabled;
+      el.querySelector(`.${cls}-value`).textContent = `${pct(v)}%`;
+    };
+    sync('vol-master', c.master ?? 1);
+    sync('vol-duck', c.duck, c.focus == null);
 
     const list = visibleIndexes().filter((i) => tileFilled(state.tiles[i]));
     const rows = el.querySelector('.vol-rows');
@@ -419,26 +486,40 @@ const VolumeBalance = (() => {
       if (document.activeElement !== range) range.value = String(pct(t.gain));
       range.disabled = !ok;
       range.title = ok ? tr('volGainTitle') : tr('volNoMix');
-      const value = row.querySelector('.vol-value');
-      value.title = '';
-      if (!ok) {
-        value.textContent = '';
-        continue;
+      row.querySelector('.vol-value').textContent = ok ? `${pct(t.gain)}%` : '';
+
+      // 聞こえる大きさの棒と説明
+      const bar = row.querySelector('.vol-bar');
+      const fill = row.querySelector('.vol-fill');
+      const note = row.querySelector('.vol-note');
+      const notes = [];
+      let db = null;
+      bar.title = '';
+      note.title = '';
+      if (!ok) notes.push(tr('volNoMix'));
+      else {
+        db = heardDb(i);
+        if (db == null) {
+          if (t.muted) notes.push(tr('volMutedUnknown'));
+          else if (rec(i).blocked) {
+            notes.push(tr('volBlocked'));
+            note.title = tr('volBlockedTitle');
+          } else notes.push(tr('volMeasuring'));
+        } else {
+          if (Number.isFinite(db)) bar.title = tr('volHeardTitle', db.toFixed(1));
+          if (t.muted) notes.push(tr('volMutedNote'));
+        }
+        // 小さくしている理由は、大きさが分かる前から出す
+        if (!t.muted && duckOf(i) !== 1) notes.push(tr('volDuckNote', pct(c.duck)));
+        const pv = views[i].pvol ?? 1;
+        if (pv < 0.995) notes.push(tr('volPlayerNote', pct(pv)));
       }
-      const r = rec(i);
-      let text = `${pct(t.gain)}%`;
-      if (c.auto && !t.muted && r.blocked && !ready(i)) {
-        text += ` ${tr('volBlocked')}`;
-        value.title = tr('volBlockedTitle');
-      } else if (c.auto && !t.muted && !ready(i)) {
-        text += ` ${tr('volMeasuring')}`;
-      } else {
-        const eff = gainOf(i);
-        if (pct(eff) !== pct(t.gain)) text += ` → ${pct(eff)}%`;
-      }
-      value.textContent = text;
+      const f = db == null || !Number.isFinite(db) ? 0 : Math.max(0, Math.min(1, (db - BAR_MIN) / (BAR_MAX - BAR_MIN)));
+      fill.style.width = `${(f * 100).toFixed(1)}%`;
+      bar.classList.toggle('unknown', db == null);
+      note.textContent = notes.join(' ・ ');
     }
   }
 
-  return { normalize, gainOf, levelOn, chunk, onLevel, refresh, setup, toggle };
+  return { normalize, gainOf, levelOn, chunk, onLevel, onPlayerVolume, refresh, setup, toggle };
 })();

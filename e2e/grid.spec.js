@@ -363,7 +363,9 @@ test.describe('視聴セッション', () => {
     await rows.first().locator('.vol-star').click();
     await expect(rows.first().locator('.vol-star')).toHaveAttribute('aria-pressed', 'true');
     await expect(menu.locator('.vol-duck')).toBeEnabled();
-    await expect(rows.nth(1).locator('.vol-value')).toHaveText('150% → 45%');
+    // つまみの横はつまみの値だけ。下がっている理由は棒の横に出す
+    await expect(rows.nth(1).locator('.vol-value')).toHaveText('150%');
+    await expect(rows.nth(1).locator('.vol-note')).toContainText('★ のため 30%');
     await expect(open).toHaveClass(/\bon\b/);
 
     // 大きさをそろえる: ON にすると、まだ測れていない枠は「測っています…」
@@ -373,7 +375,17 @@ test.describe('視聴セッション', () => {
       .poll(() =>
         page.evaluate(async () => Object.entries(await chrome.storage.local.get(null)).find(([k]) => k.startsWith('session:'))?.[1].volume),
       )
-      .toEqual({ auto: true, focus: 0, duck: 0.3 });
+      .toEqual({ auto: true, focus: 0, duck: 0.3, master: 1 });
+
+    // 全体の音量: 全部の枠をまとめて上げ下げする (視聴セッションに残る)
+    await menu.locator('.vol-master').fill('150');
+    await expect(menu.locator('.vol-master-value')).toHaveText('150%');
+    await expect
+      .poll(() =>
+        page.evaluate(async () => Object.entries(await chrome.storage.local.get(null)).find(([k]) => k.startsWith('session:'))?.[1].volume.master),
+      )
+      .toBe(1.5);
+    await expect(open).toHaveClass(/\bon\b/);
 
     // V キーで閉じる ⇄ 開く
     await page.keyboard.press('Escape');
