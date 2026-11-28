@@ -151,7 +151,10 @@ const Backup = (() => {
     };
   }
 
-  /** 確かめた内容で今の内容を置き換える (他のタブには storage.onChanged で伝わる) */
+  /**
+   * 確かめた内容で今の内容を置き換える (他のタブには storage.onChanged で伝わる)。
+   * 再生リストだけ書けなかったときは、ほかは置き換えたまま { playlistsError } を返す (画面が使う人に知らせる)
+   */
   // 他のタブが同じ項目を読んでから書くまでの途中に割り込まないよう、それぞれの書き込みと同じロックを取ってから置き換える
   // 再生リストは Playlists.replaceAll が自分のロックを取って置き換える (ここで同じロックを取ると、待ち合って止まる)
   const LOCKS = ['hakomado-favorites', 'hakomado-history', 'hakomado-saved', 'hakomado-settings'];
@@ -159,8 +162,14 @@ const Backup = (() => {
     const { playlists, ...rest } = data;
     const run = (i) => (i < LOCKS.length ? navigator.locks.request(LOCKS[i], () => run(i + 1)) : chrome.storage.local.set(rest));
     await run(0);
-    await Playlists.replaceAll(playlists);
+    let playlistsError = null;
+    try {
+      await Playlists.replaceAll(playlists);
+    } catch (e) {
+      playlistsError = e;
+    }
     if (lang) setLangPref(lang);
+    return { playlistsError };
   }
 
   return { download, parse, apply };

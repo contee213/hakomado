@@ -177,6 +177,10 @@ const MESSAGES = {
     'This file was exported by a newer version of Hakomado. Update the extension, then import it again',
   ],
   backupFail: ['書き出し / 読み込みに失敗しました: {0}', 'Export / import failed: {0}'],
+  backupPlaylistsFailed: [
+    '再生リストのほかは読み込みました。再生リストは保存できませんでした ({0})。OK を押すと画面を読み込み直します',
+    'Imported everything except playlists. Couldn’t save the playlists ({0}). Press OK to reload the page',
+  ],
   backupImported: ['読み込みました。画面を読み込み直します', 'Imported. Reloading the page'],
   updateLink: ['新しいバージョン {0} があります', 'Version {0} is available'],
   updateNotice: ['Hakomado の新しいバージョン {0} が出ています (設定画面の下から開けます)', 'Hakomado {0} is available (open it from the bottom of Settings)'],
@@ -429,6 +433,10 @@ const MESSAGES = {
     '✨ 自動補正: 音を最大 {0} 秒聞いて補正を求めます。そのまま再生しておいてください',
     '✨ Auto-correct: listening for up to {0}s to work out the offsets. Keep it playing',
   ],
+  mixTaken: [
+    'この枠では左右・音量・遅延を変えられませんでした (ほかの拡張機能などが、この枠の音をすでに使っています)。音を変える拡張機能を止めてから、「ℹ️ 枠の情報」の「読み込み直す」を押してください',
+    "Couldn't change left/right, volume or delay in this tile (another extension or similar is already using this tile's sound). Turn off the sound-changing extension, then press “Reload” in “ℹ️ Tile info”",
+  ],
   syncAudioMeasuring: ['✨ {0}/{1}秒', '✨ {0}/{1}s'],
   syncAudioAnalyzing: ['✨ 計算中…', '✨ Working…'],
   syncAudioNeedPlay: ['✨ 再生しながら測ります。再生してから押してください', '✨ It measures while playing. Start playback first'],
@@ -436,6 +444,10 @@ const MESSAGES = {
   syncAudioBlocked: [
     '✨ 枠の音を処理できなかったので、やめました (ブラウザが音の処理を止めています)。枠をクリックしてから、もう一度試してください',
     "✨ Stopped: couldn't process the tiles' sound (the browser is holding back audio processing). Click a tile and try again",
+  ],
+  syncAudioTaken: [
+    '✨ 枠の音を処理できなかったので、やめました (ほかの拡張機能などが、枠の音をすでに使っています)。音を変える拡張機能を止めてから、枠を読み込み直してください',
+    "✨ Stopped: couldn't process the tiles' sound (another extension or similar is already using it). Turn off the sound-changing extension, then reload the tiles",
   ],
   syncAudioShort: ['✨ 測れた時間が短すぎました。もう一度試してください', '✨ Not enough was recorded. Try again'],
   syncAudioWeak: [
@@ -643,6 +655,10 @@ const MESSAGES = {
     'この枠の音量。「大きさをそろえる」が ON なら、そろった大きさが 100% です。枠の 🎚 の音量と同じ値です',
     'This tile’s volume. With “Even out loudness” on, 100% is the even loudness. Same value as the tile’s 🎚 volume',
   ],
+  volTakenTitle: [
+    'ほかの拡張機能などが、この枠の音をすでに使っているため測れません。音を変える拡張機能を止めてから、枠を読み込み直してください',
+    'Can’t measure because another extension or similar is already using this tile’s sound. Turn off the sound-changing extension, then reload the tile',
+  ],
   volNoMix: ['この枠では音量を変えられません', 'The volume can’t be changed in this tile'],
   volMeasuring: ['測っています…', 'Measuring…'],
   volBlocked: ['測れません', 'Can’t measure'],
@@ -725,6 +741,12 @@ const MESSAGES = {
   savedCount: ['{0} / {1} 件', '{0} / {1}'],
   savedOn: ['あとで見る', 'Watch later'],
   savedOff: ['あとで見るから外す', 'Remove from Watch later'],
+  savedStorageFull: ['🔖 あとで見るに入れられませんでした。拡張機能の保存できる量がいっぱいです。使っていない再生リストや、あとで見るを削除してください', 'Couldn’t add to 🔖 Watch later: the extension’s storage is full. Delete playlists or Watch later items you no longer use'],
+  savedWriteFailed: ['🔖 あとで見るに入れられませんでした ({0})', 'Couldn’t add to 🔖 Watch later ({0})'],
+  sessionStorageFull: ['枠の並びを保存できませんでした。拡張機能の保存できる量がいっぱいです。使っていない再生リストや、あとで見るを削除してください', 'Couldn’t save the tile arrangement: the extension’s storage is full. Delete playlists or Watch later items you no longer use'],
+  sessionSaveFailed: ['枠の並びを保存できませんでした ({0})', 'Couldn’t save the tile arrangement ({0})'],
+  settingsStorageFull: ['設定を保存できませんでした。拡張機能の保存できる量がいっぱいです。使っていない再生リストや、あとで見るを削除してください', 'Couldn’t save the settings: the extension’s storage is full. Delete playlists or Watch later items you no longer use'],
+  settingsSaveFailed: ['設定を保存できませんでした ({0})', 'Couldn’t save the settings ({0})'],
   savedAdded: ['🔖 あとで見るに入れました', '🔖 Added to Watch later'],
   savedRemoved: ['あとで見るから外しました', 'Removed from Watch later'],
   savedFull: ['あとで見るがいっぱい ({0} 件) です。ライブラリの「あとで見る」から不要なものを外してください', 'Watch later is full ({0}). Remove some from "Watch later" in the library'],

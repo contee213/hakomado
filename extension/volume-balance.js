@@ -226,8 +226,9 @@ const VolumeBalance = (() => {
   function onLevel(i, data) {
     if (data.ok !== false || !(conf().auto || panelOpen())) return; // パネルを開いているだけのときも「測れません」を出す
     const r = rec(i);
-    if (!r.blocked) {
-      r.blocked = true;
+    const why = data.reason === 'taken' ? 'taken' : true; // taken = ほかの拡張機能などが、この枠の音をすでに使っている
+    if (r.blocked !== why) {
+      r.blocked = why;
       render();
     }
   }
@@ -516,7 +517,7 @@ const VolumeBalance = (() => {
           if (t.muted) notes.push(tr('volMutedUnknown'));
           else if (rec(i).blocked) {
             notes.push(tr('volBlocked'));
-            note.title = tr('volBlockedTitle');
+            note.title = tr(rec(i).blocked === 'taken' ? 'volTakenTitle' : 'volBlockedTitle');
           } else notes.push(tr('volMeasuring'));
         } else {
           if (Number.isFinite(db)) bar.title = tr('volHeardTitle', db.toFixed(1));

@@ -119,18 +119,33 @@ const SavedVideos = (() => {
 
   // 読み書きの順番待ち (履歴と同じく、このタブの中は promise の列、タブ間はロック)
   let chain = Promise.resolve();
+  const errorListeners = [];
   function mutate(fn) {
     let result;
+    let intended; // 書こうとしたこと (書けなかったときに知らせるか決める)
     const run = async () => {
       const r = fn(await list());
       if (!r) return;
-      result = r.result;
+      intended = r.result;
       if (r.next) await chrome.storage.local.set({ [KEY]: r.next });
+      // 結果は書けてから返す (書けなかったときは undefined。「入れました」と出さないように)
+      result = r.result;
     };
     chain = chain
       .then(() => navigator.locks.request('hakomado-saved', run))
-      .catch((e) => console.warn('hakomado: 保存の書き込みに失敗', e));
+      .catch((e) => {
+        console.warn('hakomado: 保存の書き込みに失敗', e);
+        // 入れようとして入れられなかったときだけ、画面に知らせる (タイトルを足す・外すの失敗は記録だけ)
+        if (intended !== 'saved') return;
+        const isQuota = /quota/i.test(String(e?.message || e));
+        for (const l of errorListeners) l(e, isQuota);
+      });
     return chain.then(() => result);
+  }
+
+  /** 入れようとして書き込めなかったときに呼ぶ (e, isQuota) */
+  function onError(fn) {
+    errorListeners.push(fn);
   }
 
   /** 保存した新しい順の一覧 */
@@ -186,5 +201,5 @@ const SavedVideos = (() => {
     return mutate((list) => ({ next: list.filter((h) => h.videoId !== videoId) }));
   }
 
-  return { KEY, MAX, list, toggle, add, update, remove };
+  return { KEY, MAX, list, toggle, add, update, remove, onError };
 })();
