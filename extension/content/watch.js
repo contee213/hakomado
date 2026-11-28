@@ -223,7 +223,7 @@
     } else if (e.data?.hakomado === 'measure') {
       Mix.measure(!!e.data.on, !!e.data.muted);
     } else if (e.data?.hakomado === 'mix') {
-      Mix.set(e.data.pan, e.data.gain, e.data.delay);
+      Mix.set(e.data.pan, e.data.gain, e.data.delay, e.data.level);
     } else if (e.data?.hakomado === 'fill') {
       document.documentElement.classList.toggle('hakomado-fill', !!e.data.on);
     } else if (e.data?.hakomado === 'corner') {

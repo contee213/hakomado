@@ -1,4 +1,4 @@
-// hakomado: 枠の中のプレイヤーの音の経路 (遅延・左右・音量) と、✨ 自動補正のための音の記録。
+// hakomado: 枠の中のプレイヤーの音の経路 (遅延・左右・音量)、✨ 自動補正のための音の記録と、🎚 音量バランスのための音の大きさ。
 // YouTube の枠 (content/watch.js) と Twitch の枠 (content/twitch-player.js) で共通。同じ content script の中で先に読み込む。
 // プレイヤーごとに違うところ (動画要素の見つけ方・広告中か・プレイヤーの消音の操作) は呼ぶ側から渡す:
 //   video()          今の動画要素
@@ -28,6 +28,7 @@ const HakomadoMix = ({ video, adShowing, setMuted, unmuteQuietly, parentOrigin }
   let connected = null; // 今つないでいる video
   let timer = 0;
   const MAX_DELAY = 60; // 遅延の上限 (秒)。grid.js の clampDelay と合わせる
+  const MAX_GAIN = 4; // 音量の倍率の上限。volume-balance.js の MAX_EFFECTIVE と合わせる
   const sources = new WeakMap(); // video → MediaElementAudioSourceNode
   const report = (ok) => window.parent.postMessage({ hakomado: 'mix', ok }, parentOrigin);
 
@@ -60,25 +61,96 @@ const HakomadoMix = ({ video, adShowing, setMuted, unmuteQuietly, parentOrigin }
     src.connect(delayNode);
     // 測る記録は遅延の前から取る (再生位置 currentTime と合わせるため)
     if (tap && measuring) src.connect(tap);
+    if (meter && metering && !measuring) src.connect(meter);
     connected = v;
   }
 
-  async function set(pan, gain, delay) {
+  // gain は枠の音量 × 🎚 音量バランスの自動の倍率 × 主役の割合 (grid.js の effectiveGain) なので、上限は MAX_GAIN
+  async function set(pan, gain, delay, level) {
     pan = Math.max(-1, Math.min(1, Number(pan) || 0));
-    gain = Math.max(0, Math.min(2, Number.isFinite(Number(gain)) ? Number(gain) : 1));
+    gain = Math.max(0, Math.min(MAX_GAIN, Number.isFinite(Number(gain)) ? Number(gain) : 1));
     delay = Math.max(0, Math.min(MAX_DELAY, Number(delay) || 0));
-    if (!ctx && pan === 0 && gain === 1 && delay === 0) return; // まだ使っていない枠は、そのまま
+    level = !!level;
+    if (!ctx && pan === 0 && gain === 1 && delay === 0 && !level) return; // まだ使っていない枠は、そのまま
     if (!(await running())) {
       report(false);
+      if (level) window.parent.postMessage({ hakomado: 'level', ok: false }, parentOrigin);
       return;
     }
     connectVideo();
+    setMetering(level);
     panner.pan.setTargetAtTime(pan, ctx.currentTime, 0.02);
     gainNode.gain.setTargetAtTime(gain, ctx.currentTime, 0.02);
     // 遅延は急に変えるとプツッと鳴るので、少しかけて変える (変えている間だけ音の高さが少し揺れる)
     delayNode.delayTime.setTargetAtTime(delay, ctx.currentTime, 0.05);
     if (!timer) timer = setInterval(connectVideo, 2000);
     report(true);
+  }
+
+  // ---- 🎚 音量バランスの「大きさをそろえる」(grid.js の VolumeBalance): ON の間、音の大きさ (2 乗の平均) を 1 秒ごとに親へ送る
+  // - 測るのは経路の頭 (遅延・左右・音量の前)。プレイヤーの消音・音量は効いたあとの音 (= この枠がそのまま出す大きさ)
+  // - 消音中・止まっている・シーク中・広告中は送らない (無音を「小さい」と数えないように)
+  // - AnalyserNode は出力につながなくても動く。読むのは 250 ミリ秒ごと (2048 サンプル ≒ 43 ミリ秒ぶんを 4 回 / 秒)
+  // - ✨ 自動補正・〰 波形で音を記録している (measuring) 間は AnalyserNode を外し、記録と同じ音 (onAudio) から大きさも取る
+  //   (同じ枠の音を 2 か所で取らない)。記録の間はプレイヤーの消音を外しているので、消音は親の求め (wantMuted) で見る
+  let meter = null;
+  let metering = false;
+  let meterTimer = 0;
+  let meterBuf = null;
+  let meterSum = 0;
+  let meterCnt = 0;
+  let meterTicks = 0;
+  let tapSq = 0; // 記録している間の、2 乗の和とサンプル数 (onAudio が足す)
+  let tapN = 0;
+  function readMeter() {
+    const v = connected;
+    meterTicks++;
+    if (measuring) {
+      if (!wantMuted && tapN) {
+        meterSum += tapSq / tapN;
+        meterCnt++;
+      }
+      tapSq = 0;
+      tapN = 0;
+    } else if (v && !v.paused && !v.seeking && !v.muted && !adShowing()) {
+      meter.getFloatTimeDomainData(meterBuf);
+      let sq = 0;
+      for (let k = 0; k < meterBuf.length; k++) sq += meterBuf[k] * meterBuf[k];
+      meterSum += sq / meterBuf.length;
+      meterCnt++;
+    }
+    if (meterTicks < 4) return;
+    if (meterCnt) window.parent.postMessage({ hakomado: 'level', ok: true, ms: meterSum / meterCnt, n: meterCnt }, parentOrigin);
+    meterTicks = 0;
+    meterSum = 0;
+    meterCnt = 0;
+  }
+  function setMetering(on) {
+    if (on === metering) return;
+    metering = on;
+    if (on) {
+      if (!meter) {
+        meter = new AnalyserNode(ctx, { fftSize: 2048 });
+        meterBuf = new Float32Array(meter.fftSize);
+      }
+      if (connected && !measuring) sources.get(connected)?.connect(meter);
+      meterTicks = 0;
+      meterSum = 0;
+      meterCnt = 0;
+      meterTimer = setInterval(readMeter, 250);
+    } else {
+      clearInterval(meterTimer);
+      meterTimer = 0;
+      detachMeter();
+    }
+  }
+  function detachMeter() {
+    if (!meter) return;
+    try {
+      sources.get(connected)?.disconnect(meter);
+    } catch {
+      /* つないでいなかった */
+    }
   }
 
   // ---- ✨ 自動補正 (音で合わせる): 測っている間、音の大きさ (1 ミリ秒ごとの |x| の平均) を記録して、1 秒ごとに親へ送る
@@ -129,6 +201,10 @@ const HakomadoMix = ({ video, adShowing, setMuted, unmuteQuietly, parentOrigin }
     }
     const a = planes[0];
     const b = ch > 1 ? planes[1] : a;
+    if (metering) {
+      for (let k = 0; k < n; k++) tapSq += a[k] * a[k] + b[k] * b[k];
+      tapN += 2 * n;
+    }
     for (let k = 0; k < n; k++) {
       acc += Math.abs(a[k]) + Math.abs(b[k]);
       if (++cnt === per) {
@@ -199,6 +275,9 @@ const HakomadoMix = ({ video, adShowing, setMuted, unmuteQuietly, parentOrigin }
     measuring = true;
     applyMute(); // 先に Web Audio 側で消音してから、プレイヤーの消音を外す
     if (connected) sources.get(connected)?.connect(tap);
+    detachMeter(); // 測っている間の大きさは記録から取る
+    tapSq = 0;
+    tapN = 0;
     pump(reader);
     unmuteQuietly();
     clearInterval(guard);
@@ -221,6 +300,7 @@ const HakomadoMix = ({ video, adShowing, setMuted, unmuteQuietly, parentOrigin }
     } catch {
       /* つないでいなかった */
     }
+    if (metering && meter && connected) sources.get(connected)?.connect(meter);
     setMuted(wantMuted); // プレイヤーの消音に戻してから、Web Audio 側の消音を外す
     applyMute();
   }
@@ -238,6 +318,7 @@ const HakomadoMix = ({ video, adShowing, setMuted, unmuteQuietly, parentOrigin }
     clearInterval(timer);
     clearInterval(guard);
     clearInterval(flushTimer);
+    clearInterval(meterTimer);
     ctx?.close().catch(() => {});
   });
   return { set, measure: (on, muted) => (on ? startMeasure(muted) : stopMeasure()), audio };

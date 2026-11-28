@@ -326,6 +326,71 @@ test.describe('視聴セッション', () => {
       .toBe(true);
   });
 
+  // HAKO-54: 上部バーの 🎚 音量 (V) で、枠の音量を並べて見比べ、主役・大きさをそろえるを決める
+  test('音量バランス: 🎚 音量で開き、枠の音量・主役・大きさをそろえるを変えると、枠の 🎚 と視聴セッションに残る', async ({ openGrid }) => {
+    const page = await openGrid();
+    await skipTour(page);
+    const tiles = visibleTiles(page);
+    for (const [k, id] of [
+      [0, 'dQw4w9WgXcQ'],
+      [1, 'jNQXAC9IVRw'],
+    ]) {
+      const input = tiles.nth(k).locator('.url-input');
+      await input.fill(id);
+      await input.press('Enter');
+    }
+    const open = page.locator('#openVolume');
+    const menu = page.locator('#volumeMenu');
+    await open.click();
+    await expect(menu).toBeVisible();
+    const rows = menu.locator('.vol-row');
+    await expect(rows).toHaveCount(2);
+    await expect(rows.first().locator('.vol-num')).toHaveText('1');
+
+    // 音量のつまみ = 枠の 🎚 の音量
+    await rows.nth(1).locator('.vol-gain').fill('150');
+    await expect(rows.nth(1).locator('.vol-value')).toHaveText('150%');
+    await tiles.nth(1).hover();
+    await tiles.nth(1).locator('.bar [data-act="mix"]').click();
+    await expect(tiles.nth(1).locator('.mix-gain-value')).toHaveText('150%');
+
+    // 🔊 で 2 番の音も出し、1 番を主役にすると、2 番は「ほかの枠」の割合 (30%) になる
+    await open.click(); // 開き直す (枠のバーを押したので閉じている)
+    await expect(menu).toBeVisible();
+    await rows.nth(1).locator('.vol-mute').click();
+    await expect(rows.nth(1).locator('.vol-mute')).toHaveText('🔊');
+    await expect(menu.locator('.vol-duck')).toBeDisabled();
+    await rows.first().locator('.vol-star').click();
+    await expect(rows.first().locator('.vol-star')).toHaveAttribute('aria-pressed', 'true');
+    await expect(menu.locator('.vol-duck')).toBeEnabled();
+    await expect(rows.nth(1).locator('.vol-value')).toHaveText('150% → 45%');
+    await expect(open).toHaveClass(/\bon\b/);
+
+    // 大きさをそろえる: ON にすると、まだ測れていない枠は「測っています…」
+    await menu.locator('.vol-auto').click();
+    await expect(menu.locator('.vol-auto')).toHaveAttribute('aria-pressed', 'true');
+    await expect
+      .poll(() =>
+        page.evaluate(async () => Object.entries(await chrome.storage.local.get(null)).find(([k]) => k.startsWith('session:'))?.[1].volume),
+      )
+      .toEqual({ auto: true, focus: 0, duck: 0.3 });
+
+    // V キーで閉じる ⇄ 開く
+    await page.keyboard.press('Escape');
+    await expect(menu).toBeHidden();
+    await page.locator('body').click({ position: { x: 5, y: 300 } });
+    await page.keyboard.press('v');
+    await expect(menu).toBeVisible();
+    if (process.env.E2E_SHOT) await page.screenshot({ path: process.env.E2E_SHOT });
+    await page.keyboard.press('v');
+    await expect(menu).toBeHidden();
+    // 🎚 音量をもう一度押すと閉じる
+    await open.click();
+    await expect(menu).toBeVisible();
+    await open.click();
+    await expect(menu).toBeHidden();
+  });
+
   test('配信を入れた枠は、閉じて開き直すと再開を聞かれる', async ({ openGrid }) => {
     const page = await openGrid();
     await skipTour(page);
