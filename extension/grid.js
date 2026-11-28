@@ -7949,6 +7949,27 @@ function mk(tag, props = {}, ...children) {
   return el;
 }
 
+// ---- ドラッグの影 (デザインガイド 2 章: 影は自分で描き、横幅・高さ 240px までに縮め、つかんだ場所は比で合わせる)
+const DRAG_GHOST_MAX = 240;
+const BLANK_DRAG_IMAGE = Object.assign(new Image(), { src: 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7' });
+/**
+ * src を (x, y) でつかんだ影をカーソルに付ける (枠の並べ替えの影と同じ見た目)。label は影に出す文字。
+ * 戻り値の move(x, y) で動かし、remove() で消す。開いているダイアログの中の一覧なら、影もそのダイアログの中に置く
+ * (ダイアログは最前面の層に出るので、外に置くと後ろに隠れる)
+ */
+function makeDragGhost(src, x, y, label) {
+  const r = src.getBoundingClientRect();
+  const k = Math.min(1, DRAG_GHOST_MAX / r.width, DRAG_GHOST_MAX / r.height);
+  const off = { x: Math.min(Math.max(0, x - r.left), r.width) * k, y: Math.min(Math.max(0, y - r.top), r.height) * k };
+  const ghost = mk('div', { class: 'drag-ghost' }, mk('span', { textContent: label }));
+  ghost.style.width = `${r.width * k}px`;
+  ghost.style.height = `${r.height * k}px`;
+  (src.closest('dialog[open]') || document.body).append(ghost);
+  const move = (cx, cy) => (ghost.style.transform = `translate(${Math.round(cx - off.x)}px, ${Math.round(cy - off.y)}px)`);
+  move(x, y);
+  return { move, remove: () => ghost.remove() };
+}
+
 /**
  * 赤い知らせ欄 (.fav-error・.share-error) に、うまくいったときの文を出すときはこれで包む (赤はエラーだけ。デザインガイド 7 章)。
  * 包んだ文は textContent で上書きされると消えるので、あとからエラーを書いたときは赤に戻る
@@ -8396,6 +8417,8 @@ function playlistRow(pl, x, { refId, draggable }) {
 function setupPlaylistDrag(ol, playlistId) {
   let dragged = null;
   const clearDrop = () => ol.querySelectorAll('.pl-drop').forEach((el) => el.classList.remove('pl-drop'));
+  let ghost = null; // カーソルに付ける影 (ブラウザに描かせると行の幅のままで大きすぎる)
+  const moveGhost = (e) => (e.clientX || e.clientY) && ghost?.move(e.clientX, e.clientY);
   ol.addEventListener('dragstart', (e) => {
     const li = e.target.closest?.('li[data-video-id]');
     if (!li || !li.draggable) return;
@@ -8403,8 +8426,18 @@ function setupPlaylistDrag(ol, playlistId) {
     li.classList.add('pl-dragging');
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', dragged);
+    e.dataTransfer.setDragImage(BLANK_DRAG_IMAGE, 0, 0);
+    const name = li.querySelector('.pl-label');
+    ghost = makeDragGhost(li, e.clientX, e.clientY, [li.querySelector('.pl-num')?.textContent, name?.value || name?.textContent].filter(Boolean).join('  '));
+    window.addEventListener('dragover', moveGhost, true);
   });
+  const endGhost = () => {
+    window.removeEventListener('dragover', moveGhost, true);
+    ghost?.remove();
+    ghost = null;
+  };
   ol.addEventListener('dragend', () => {
+    endGhost();
     dragged = null;
     clearDrop();
     ol.querySelectorAll('.pl-dragging').forEach((el) => el.classList.remove('pl-dragging'));
@@ -8427,6 +8460,7 @@ function setupPlaylistDrag(ol, playlistId) {
     const id = dragged;
     dragged = null;
     clearDrop();
+    endGhost(); // 並べ替えで行が描き直されると dragend が一覧に届かないことがあるので、落とした時点で消す
     await Playlists.move(playlistId, id, to);
   });
 }
