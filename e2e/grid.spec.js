@@ -366,6 +366,14 @@ test.describe('視聴セッション', () => {
     // つまみの横はつまみの値だけ。下がっている理由は棒の横に出す
     await expect(rows.nth(1).locator('.vol-value')).toHaveText('150%');
     await expect(rows.nth(1).locator('.vol-note')).toContainText('★ のため 30%');
+    // 説明が出ても出なくても、行の高さ (= パネルの高さ) は変わらない
+    expect(
+      await menu.evaluate((m) => {
+        const [a, b] = m.querySelectorAll('.vol-row');
+        a.querySelector('.vol-note').textContent = '';
+        return [a.offsetHeight, b.offsetHeight];
+      }),
+    ).toEqual(await menu.evaluate((m) => [0, 1].map(() => m.querySelectorAll('.vol-row')[1].offsetHeight)));
     await expect(open).toHaveClass(/\bon\b/);
 
     // 大きさをそろえる: ON にすると、まだ測れていない枠は「測っています…」

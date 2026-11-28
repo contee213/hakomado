@@ -1724,12 +1724,13 @@ code { font-size: 12px; background: #222228; padding: 0 4px; border-radius: 3px;
 .vol-star:disabled, .vol-gain:disabled { opacity: .35; cursor: default; }
 .vol-gain { width: 110px; }
 .vol-value { color: var(--muted); white-space: nowrap; text-align: right; }
-.vol-meter { grid-column: 2 / -1; display: flex; align-items: center; gap: 8px; min-width: 0; }
+/* 説明の文字が有っても無くても高さを変えない (説明の出し入れでパネルの高さが動かないように) */
+.vol-meter { grid-column: 2 / -1; display: flex; align-items: center; gap: 8px; min-width: 0; height: 16px; }
 .vol-bar { position: relative; flex: 0 0 220px; height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; }
 .vol-fill { position: absolute; inset: 0 auto 0 0; width: 0; border-radius: 3px; background: var(--on); transition: width .4s; }
 .vol-row.muted .vol-fill { opacity: .4; }
 .vol-bar.unknown { opacity: .5; }
-.vol-note { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; color: var(--muted); }
+.vol-note { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; line-height: 16px; color: var(--muted); }
 .vol-empty { padding: 6px 2px; font-size: 12px; color: var(--muted); }
 .vol-empty[hidden] { display: none; }
 .sync-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
