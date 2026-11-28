@@ -41,7 +41,10 @@ const IdbCache = (() => {
     return dbp;
   }
 
-  /** 1 つの store で fn(store) を動かし、終わったら fn が返したリクエストの結果を返す。接続が閉じられていたら、一度だけ開き直す */
+  /**
+   * 1 つの store で fn(store) を動かし、終わったら fn が返したリクエストの結果 (リクエストの配列なら、結果の配列) を返す。
+   * 接続が閉じられていたら、一度だけ開き直す
+   */
   async function run(store, mode, fn) {
     try {
       return await run1(store, mode, fn);
@@ -56,15 +59,15 @@ const IdbCache = (() => {
     return new Promise((resolve, reject) => {
       const tx = d.transaction(store, mode);
       const req = fn(tx.objectStore(store));
-      tx.oncomplete = () => resolve(req?.result);
+      tx.oncomplete = () => resolve(Array.isArray(req) ? req.map((r) => r.result) : req?.result);
       tx.onerror = () => reject(tx.error);
       tx.onabort = () => reject(tx.error);
     });
   }
 
-  /** store の全部 (キー → 値) */
+  /** store の全部 (キー → 値)。キーと値は同じトランザクションで読む (間にほかのタブが書いても、組がずれないように) */
   async function all(store) {
-    const [keys, vals] = await Promise.all([run(store, 'readonly', (s) => s.getAllKeys()), run(store, 'readonly', (s) => s.getAll())]);
+    const [keys, vals] = await run(store, 'readonly', (s) => [s.getAllKeys(), s.getAll()]);
     return new Map(keys.map((k, i) => [k, vals[i]]));
   }
 
@@ -98,7 +101,8 @@ const IdbCache = (() => {
   async function getKv(keys) {
     const list = keys == null ? null : Array.isArray(keys) ? keys : [keys];
     if (list == null) return Object.fromEntries(await all('kv'));
-    const vals = await Promise.all(list.map((k) => run('kv', 'readonly', (s) => s.get(k))));
+    if (!list.length) return {};
+    const vals = await run('kv', 'readonly', (s) => list.map((k) => s.get(k))); // 1 つのトランザクションでまとめて読む
     return Object.fromEntries(list.map((k, i) => [k, vals[i]]).filter(([, v]) => v !== undefined));
   }
   const setKv = (items) =>
