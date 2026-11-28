@@ -20,6 +20,11 @@ const WebSite = (() => {
     'herokuapp.com',
     'blogspot.com',
     'cloudfront.net',
+    'amazonaws.com',
+    'azurewebsites.net',
+    'r2.dev',
+    'onrender.com',
+    'fly.dev',
   ]);
 
   /**
