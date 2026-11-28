@@ -21,8 +21,9 @@ test.describe('リリース版のビルド (同期なし)', () => {
     await skipTour(page);
     // 同期にしてある再生リストも、同期再生としては扱わない
     expect(await page.evaluate(() => plSynced({ sync: true }))).toBe(false);
-    // 同期のコードが入っていない
-    expect(await page.evaluate(() => [typeof WaveStrip, typeof Waves, typeof SyncGroups, typeof AudioAlign])).toEqual(['undefined', 'undefined', 'undefined', 'undefined']);
+    // 同期のコードが入っていない (動画ごとの波形 Waves は 🎚 音量バランスも使うので入れる。HAKO-54)
+    expect(await page.evaluate(() => [typeof WaveStrip, typeof SyncGroups, typeof AudioAlign])).toEqual(['undefined', 'undefined', 'undefined']);
+    expect(await page.evaluate(() => typeof Waves)).toBe('object');
     await expect(page.locator('#syncToggle')).toBeHidden();
     await expect(page.locator('#syncBar')).toBeHidden();
     expect(await page.evaluate(() => [...document.querySelectorAll('[data-help="sync"]')].every((b) => b.hidden))).toBe(true);

@@ -85,6 +85,8 @@ const state = {
   repeatAll: false,
   // 枠のバー (各枠の操作バー) を出すか。OFF なら全部の枠で出さず、Twitch の枠の上の黒い帯も無くして映像を枠いっぱいにする
   tileBars: true,
+  // 🎚 音量バランス (volume-balance.js): auto = 大きさをそろえる / focus = 主役の枠の番号 (null = いない) / duck = 主役のときのほかの枠の割合
+  volume: { auto: false, focus: null, duck: 0.3 },
   danmakuAll: true,
   settings: { ...DEFAULT_SETTINGS },
   // 枠ごとの保存内容。枠数を減らしても全枠分保持しておき、増やしたときに復元する
@@ -214,6 +216,7 @@ function applySession(saved = {}) {
   state.cruise = saved.cruise === true;
   state.repeatAll = saved.repeatAll === true;
   state.tileBars = saved.tileBars !== false;
+  state.volume = VolumeBalance.normalize(saved.volume);
   if (saved.fit === 'fit' || saved.fit === 'fill') state.fit = saved.fit;
   state.anchor = ANCHORS.includes(saved.anchor) ? saved.anchor : 'tl';
   if (Array.isArray(saved.tiles)) {
@@ -332,6 +335,7 @@ function saveNow() {
       cruise: state.cruise,
       repeatAll: state.repeatAll,
       tileBars: state.tileBars,
+      volume: state.volume,
       dmAuto: true, // 枠の danmaku が null (自動) を使う版で保存した印
       tiles: state.tiles.map(({ muted, ...rest }) => rest),
       audible: audibleTiles(), // 音が出ている枠 (開き直したときに戻す。[] = 全部ミュート)
@@ -2026,7 +2030,8 @@ function setToggle(btn, on) {
 function applyAudio(i) {
   const t = state.tiles[i];
   postToFrame(views[i].player, { hakomado: 'audio', muted: t.muted });
-  postToFrame(views[i].player, { hakomado: 'mix', pan: t.pan, gain: t.gain, delay: t.delay });
+  // 音量は、枠の音量 × 🎚 音量バランスの自動の倍率 × 主役のときの割合 (volume-balance.js)。level = 音の大きさを測るか
+  postToFrame(views[i].player, { hakomado: 'mix', pan: t.pan, gain: VolumeBalance.gainOf(i), delay: t.delay, level: VolumeBalance.levelOn(i) });
 }
 
 // ---- 再生速度 (枠のバーの速度ボタン・上部バーの ⏩・< > キー・枠の中のプレイヤーの ⚙)
@@ -2226,6 +2231,7 @@ function setMix(i, { pan, gain, delay } = {}) {
   applyAudio(i);
   renderMix(i);
   TileInfo.update();
+  VolumeBalance.refresh();
   save();
 }
 
@@ -2528,6 +2534,7 @@ function toggleMuteAll() {
 function updateNowPlaying() {
   const btn = document.getElementById('nowPlaying');
   if (!btn || views.length < MAX_TILES) return;
+  VolumeBalance.refresh(); // 🎚 音量バランス: 主役の見直し・ボタンと開いているパネル
   const now = audibleTiles();
   btn.classList.toggle('on', now.length > 0);
   const all = document.getElementById('audioAll');
@@ -3354,8 +3361,15 @@ window.addEventListener('message', (e) => {
   } else if (data.hakomado === 'mix') {
     // 枠の中で左右・音量の経路を作れなかった (AudioContext が動かない)
     if (data.ok === false) showToast(i, tr('mixBlocked'));
+  } else if (data.hakomado === 'pvol') {
+    VolumeBalance.onPlayerVolume(i, data.v); // 枠の中のプレイヤーの音量のつまみ (🎚 音量バランスの棒に掛ける)
+  } else if (data.hakomado === 'level') {
+    VolumeBalance.onLevel(i, data); // 🎚 音量バランスが頼んだ音の記録を、枠の中で始められなかった
   } else if (data.hakomado === 'envChunk') {
-    AudioSync.chunk(i, data); // ✨ 自動補正と 〰 波形: 枠の音の大きさの記録 (sync.js)
+    // 枠の音の大きさの記録 (✨ 自動補正・🎚 音量バランスのどちらが頼んだものでも、枠の中では 1 つの記録)。
+    // ✨ の計算 (sync.js) に渡し、動画の波形 (〰 と音量バランスが使う。保存する) には VolumeBalance.chunk が 1 回だけ足す
+    AudioSync.chunk(i, data);
+    VolumeBalance.chunk(i, data);
   } else if (data.hakomado === 'measure') {
     if (data.ok === false) AudioSync.blocked(i);
   } else if (data.hakomado === 'live') {
@@ -5914,6 +5928,14 @@ function setupToolbar() {
     setRepeatAll(!state.repeatAll);
   });
   SpeedMenu.setup();
+  VolumeBalance.setup();
+  const volBtn = document.getElementById('openVolume');
+  let volWasOpen = false;
+  volBtn.addEventListener('pointerdown', () => (volWasOpen = document.getElementById('volumeMenu').matches(':popover-open')));
+  volBtn.addEventListener('click', (e) => {
+    VolumeBalance.toggle({ wasOpen: e.detail > 0 && volWasOpen }); // e.detail = 0 は Enter・Space で押したとき
+    volWasOpen = false;
+  });
   document.getElementById('speedAll').addEventListener('click', (e) => SpeedMenu.open(e.currentTarget, { kind: 'all' }));
 
   const dialog = document.getElementById('settings');
@@ -6100,6 +6122,8 @@ function setupToolbar() {
     } else if (e.key === 'm' || e.key === 'M') {
       toggleMuteAll();
       notify(tr(audibleTiles().length ? 'keySoundOn' : 'keyMuted'));
+    } else if (e.key === 'v' || e.key === 'V') {
+      VolumeBalance.toggle();
     } else if (e.key === 'a' || e.key === 'A') {
       toggleAudioAll();
       notify(tr(allAudible() ? 'keyAudioAll' : 'keyMuted'));

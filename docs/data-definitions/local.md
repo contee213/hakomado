@@ -155,6 +155,7 @@
 | `fit` | string | ○ | `fit` (16:9 に合わせる) / `fill` (ストレッチ) |
 | `autoMode` `cruise` `repeatAll` | boolean | ○ | 自動再生・クルーズ・全枠繰り返し |
 | `tileBars` | boolean | ○ | 枠のバーを出す |
+| `volume` | object | − | 🎚 音量バランス (HAKO-54): `auto` (boolean。大きさをそろえる)・`focus` (number \| null。主役の枠の番号 0〜15)・`duck` (number 0〜1、0.05 刻み。主役のときのほかの枠の割合、初期値 0.3)・`master` (number 0〜2、0.05 刻み。全体の音量、初期値 1)。前の版には無い (無ければ OFF・主役なし・0.3・1)。形の違う値は初期値にする (`VolumeBalance.normalize`)。自動の倍率は保存しない |
 | `dmAuto` | boolean | ○ | true。枠の `danmaku: null` (自動) を使う版で保存した印 |
 | `tiles` | array of 枠 | ○ | 全部の枠 (枠数を減らしても全枠分)。項目は下 |
 | `audible` | array of number | − | 音が出ている枠の番号 (`[]` = 全部ミュート)。前の版には無い |

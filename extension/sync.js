@@ -1,6 +1,6 @@
 // hakomado: ⏱ アーカイブ同期 (実験的な機能。HAKO-50) の中心: Sync (同期の時計・グループ) と AudioSync (✨ 自動補正)。
 // HAKO-51 で grid.js から分けた。リリース版のビルド (tools/build.js) ではこのファイルを入れず、同じ窓口を何もしない形で持つ
-// sync-off.js に差し替える (同期の帯 wave-strip.js・波形 waves.js・グループ分け sync-groups.js・音の突き合わせ audio-align*.js も抜く)。
+// sync-off.js に差し替える (同期の帯 wave-strip.js・グループ分け sync-groups.js・音の突き合わせ audio-align*.js も抜く。波形 waves.js は 🎚 音量バランスも使うので残す)。
 // grid.js が使う窓口を足したら、sync-off.js にも足す (tests/sync-off.test.js が確かめる)。
 // grid.js の state・views・tr などを使うのは呼ばれてから (読み込みの時点では使わない) なので、grid.js より前に読み込んでよい
 /* global SyncGroups, SyncOffsets, MovieAnchors, AudioAlign, Waves, WaveStrip */
@@ -2311,11 +2311,8 @@ const AudioSync = (() => {
 
   return {
     toggle,
-    /** 枠の中から届いた音の大きさの記録 (envChunk): ✨ 自動補正と、その動画の全編の波形 (〰。HAKO-39) に足す */
-    chunk: (i, d) => {
-      chunk(i, d);
-      if (views[i]?.archive && /^[\w-]{11}$/.test(state.tiles[i].videoId || '')) Waves.feed(state.tiles[i].videoId, d).catch(() => {});
-    },
+    /** 枠の中から届いた音の大きさの記録 (envChunk): ✨ 自動補正に使う (動画の波形へ足すのは grid.js から VolumeBalance.chunk が 1 回だけ) */
+    chunk,
     blocked,
     /** これまでに測り始めた回数 (⏱ 開いて同期で、使う人が自分で押したかを見る) */
     runCount: () => starts,

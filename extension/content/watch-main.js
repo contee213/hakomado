@@ -5,6 +5,7 @@
 //   watch.js → ここ : 'hakomado:set-muted'  detail '1' | '0' | '0q' ('0q' = 消音を外すだけで、止まっていても再生し直さない。
 //                     ✨ 自動補正 (音で合わせる) で、同期が止めている枠の消音を外すため)
 //   ここ → watch.js : 'hakomado:user-audio' detail JSON {muted}  (枠内のプレイヤーで直接操作されたとき)
+//                     'hakomado:player-volume' detail '0'〜'100' (プレイヤーの音量のつまみ。🎚 音量バランス用。HAKO-54)
 (() => {
   'use strict';
 
@@ -45,10 +46,15 @@
   const video = () => document.querySelector('#movie_player video');
 
   let hooked = null;
+  const tellVolume = (v) => {
+    if (Number.isFinite(Number(v))) document.dispatchEvent(new CustomEvent('hakomado:player-volume', { detail: String(Number(v)) }));
+  };
   function hook(p) {
     if (hooked === p) return;
     hooked = p;
+    if (typeof p.getVolume === 'function') tellVolume(p.getVolume());
     p.addEventListener('onVolumeChange', (d) => {
+      tellVolume(d?.volume);
       const muted = !!(d && (d.muted || d.volume === 0));
       if (muted === desired || performance.now() < selfUntil) return;
       if (performance.now() - lastInput > 1500) {

@@ -68,7 +68,7 @@ button:hover, select:hover { border-color: #444450; }
 /* クルーズの船・自動再生の舵輪・速度のメーターは、同じ大きさの単色の絵 */
 /* 枠のバーのチャンネル登録 (人 + の絵) */
 .bar-buttons .sub-icon { display: block; width: 1.1em; height: 1.1em; fill: currentColor; }
-.toolbar .tb-icon .ship, .toolbar .tb-icon .helm, .toolbar .tb-icon .gauge, .toolbar .tb-icon .repeat, .toolbar .tb-icon .speakers { display: block; width: 1.15em; height: 1.15em; margin: 0 -0.075em; fill: currentColor; }
+.toolbar .tb-icon .ship, .toolbar .tb-icon .helm, .toolbar .tb-icon .gauge, .toolbar .tb-icon .repeat, .toolbar .tb-icon .speakers, .toolbar .tb-icon .faders { display: block; width: 1.15em; height: 1.15em; margin: 0 -0.075em; fill: currentColor; }
 .toolbar .icon-only { width: 28px; justify-content: center; padding: 0; }
 /* レイアウト名は長いものもあるので幅を抑えて省略 */
 /* 幅は grid.js がいちばん長いレイアウト名に合わせて固定する (切り替えても後ろのボタンが動かないように) */
@@ -1702,6 +1702,57 @@ code { font-size: 12px; background: #222228; padding: 0 4px; border-radius: 3px;
 .speed-list { display: grid; grid-template-columns: repeat(4, auto); gap: 4px; }
 .speed-list button { min-width: 52px; height: 28px; font-variant-numeric: tabular-nums; }
 .speed-list button[aria-pressed="true"] { color: #fff; border-color: var(--on); background: var(--on-bg); }
+/* 🎚 音量バランス (上部バーの「🎚 音量」の下に出す。volume-balance.js) */
+.toolbar .vol-open.on { color: #fff; border-color: var(--on); background: var(--on-bg); }
+.volume-menu {
+  width: 480px;
+  max-width: calc(100vw - 16px);
+  max-height: calc(100vh - 60px);
+  overflow: auto;
+  padding: 8px;
+  color: var(--text);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, .5);
+}
+@supports (position-area: block-end) {
+  .volume-menu {
+    position-anchor: --volume-anchor;
+    inset: auto;
+    margin: 4px 0;
+    position-area: block-end;
+    position-try-fallbacks: block-end span-inline-start, block-end span-inline-end, flip-block;
+  }
+}
+.vol-head { margin: 0 2px 8px; font-size: 12px; color: var(--muted); }
+.vol-top { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+.vol-auto { height: 26px; padding: 0 10px; }
+.vol-auto.on, .vol-star.on { color: #fff; border-color: var(--on); background: var(--on-bg); }
+.vol-slider { display: flex; align-items: center; gap: 6px; font-size: 12px; white-space: nowrap; }
+.vol-slider input { width: 100px; }
+.vol-slider input:disabled { opacity: .4; }
+.vol-master-value, .vol-duck-value, .vol-value { font-size: 12px; font-variant-numeric: tabular-nums; }
+.vol-master-value, .vol-duck-value { min-width: 3em; }
+.vol-rows { display: grid; gap: 6px; }
+/* 1 段目: 番号・名前・★・🔊・つまみ・値。2 段目: 聞こえる大きさの棒 (全部の行で同じ位置・同じ目盛り) と説明 */
+.vol-row { display: grid; grid-template-columns: 1.6em minmax(0, 1fr) 26px 26px 110px 3.5em; align-items: center; gap: 2px 6px; }
+.vol-row.muted .vol-name, .vol-row.muted .vol-num { opacity: .55; }
+.vol-num { text-align: right; font-variant-numeric: tabular-nums; }
+.vol-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+.vol-star, .vol-mute { width: 26px; height: 24px; padding: 0; }
+.vol-star:disabled, .vol-gain:disabled { opacity: .35; cursor: default; }
+.vol-gain { width: 110px; }
+.vol-value { color: var(--muted); white-space: nowrap; text-align: right; }
+/* 説明の文字が有っても無くても高さを変えない (説明の出し入れでパネルの高さが動かないように) */
+.vol-meter { grid-column: 2 / -1; display: flex; align-items: center; gap: 8px; min-width: 0; height: 16px; }
+.vol-bar { position: relative; flex: 0 0 220px; height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; }
+.vol-fill { position: absolute; inset: 0 auto 0 0; width: 0; border-radius: 3px; background: var(--on); transition: width .4s; }
+.vol-row.muted .vol-fill { opacity: .4; }
+.vol-bar.unknown { opacity: .5; }
+.vol-note { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; line-height: 16px; color: var(--muted); }
+.vol-empty { padding: 6px 2px; font-size: 12px; color: var(--muted); }
+.vol-empty[hidden] { display: none; }
 .sync-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
 .sync-row[hidden] { display: none; }
 .sync-input { width: 6.5em; padding: 1px 4px; background: #000; color: var(--text); border: 1px solid var(--line); border-radius: 6px; font-size: 12px; font-variant-numeric: tabular-nums; }

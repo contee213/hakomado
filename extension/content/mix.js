@@ -1,4 +1,4 @@
-// hakomado: 枠の中のプレイヤーの音の経路 (遅延・左右・音量) と、✨ 自動補正のための音の記録。
+// hakomado: 枠の中のプレイヤーの音の経路 (遅延・左右・音量) と、✨ 自動補正・〰 波形・🎚 音量バランスのための音の記録。
 // YouTube の枠 (content/watch.js) と Twitch の枠 (content/twitch-player.js) で共通。同じ content script の中で先に読み込む。
 // プレイヤーごとに違うところ (動画要素の見つけ方・広告中か・プレイヤーの消音の操作) は呼ぶ側から渡す:
 //   video()          今の動画要素
@@ -6,6 +6,7 @@
 //   setMuted(m)      プレイヤーの消音を m にする (測り終わったとき)
 //   unmuteQuietly()  プレイヤーの消音を外す (止まっていても再生し直さない。測っている間)
 //   parentOrigin     親 (マルチビュー画面) のオリジン
+//   playerVolume()   プレイヤーの音量のつまみ (0〜1。YouTube の音量の自動調整は含まない)。省略時は動画要素の音量
 /* exported HakomadoMix */
 'use strict';
 
@@ -19,7 +20,7 @@
 // - 消音・音量・再生速度はプレイヤー (video 要素) 側の操作のまま効く (経路は video の出力のあとにつなぐ)
 // - YouTube は video 要素を差し替えることがあるので、つないでいる間は見張って、差し替わったらつなぎ直す
 // - ✨ 自動補正 (親の同期再生。音で合わせる) で測っている間は、音の大きさ (包絡) を記録して親に送る (下の measure)
-const HakomadoMix = ({ video, adShowing, setMuted, unmuteQuietly, parentOrigin }) => {
+const HakomadoMix = ({ video, adShowing, setMuted, unmuteQuietly, parentOrigin, playerVolume = () => video()?.volume ?? 1 }) => {
   let ctx = null;
   let panner = null;
   let gainNode = null;
@@ -28,6 +29,7 @@ const HakomadoMix = ({ video, adShowing, setMuted, unmuteQuietly, parentOrigin }
   let connected = null; // 今つないでいる video
   let timer = 0;
   const MAX_DELAY = 60; // 遅延の上限 (秒)。grid.js の clampDelay と合わせる
+  const MAX_GAIN = 4; // 音量の倍率の上限。volume-balance.js の MAX_EFFECTIVE と合わせる
   const sources = new WeakMap(); // video → MediaElementAudioSourceNode
   const report = (ok) => window.parent.postMessage({ hakomado: 'mix', ok }, parentOrigin);
 
@@ -63,10 +65,16 @@ const HakomadoMix = ({ video, adShowing, setMuted, unmuteQuietly, parentOrigin }
     connected = v;
   }
 
-  async function set(pan, gain, delay) {
+  // gain は枠の音量 × 🎚 音量バランスの自動の倍率 × 主役の割合 (volume-balance.js の gainOf) なので、上限は MAX_GAIN。
+  // level = 🎚 音量バランスが、この枠の音の記録を求めている (下の measure と同じ記録を使う。wantRecord)
+  async function set(pan, gain, delay, level) {
     pan = Math.max(-1, Math.min(1, Number(pan) || 0));
-    gain = Math.max(0, Math.min(2, Number.isFinite(Number(gain)) ? Number(gain) : 1));
+    gain = Math.max(0, Math.min(MAX_GAIN, Number.isFinite(Number(gain)) ? Number(gain) : 1));
     delay = Math.max(0, Math.min(MAX_DELAY, Number(delay) || 0));
+    if (levelWant !== !!level) {
+      levelWant = !!level;
+      wantRecord();
+    }
     if (!ctx && pan === 0 && gain === 1 && delay === 0) return; // まだ使っていない枠は、そのまま
     if (!(await running())) {
       report(false);
@@ -115,9 +123,12 @@ const HakomadoMix = ({ video, adShowing, setMuted, unmuteQuietly, parentOrigin }
     markedAt = total;
   }
   /** @param {AudioData} data */
+  // 記録する大きさは、プレイヤーの音量のつまみで割り戻した「つまみ 100% のときの大きさ」にする
+  // (つまみを下げて見ていても、動画ごとの波形が同じ大きさで残るように。🎚 音量バランスは、つまみをあとから掛ける)
   function onAudio(data) {
     const v = connected;
-    if (!measuring || !v || v.paused || v.seeking || adShowing()) {
+    const pv = playerVolume();
+    if (!measuring || !v || v.paused || v.seeking || adShowing() || !(pv > 0.01)) {
       markNow(); // 抜けの前までの分は、抜ける前の再生位置で印を付けておく
       return;
     }
@@ -132,7 +143,7 @@ const HakomadoMix = ({ video, adShowing, setMuted, unmuteQuietly, parentOrigin }
     for (let k = 0; k < n; k++) {
       acc += Math.abs(a[k]) + Math.abs(b[k]);
       if (++cnt === per) {
-        bins.push(acc / (2 * per));
+        bins.push(acc / (2 * per) / pv);
         acc = 0;
         cnt = 0;
       }
@@ -175,12 +186,28 @@ const HakomadoMix = ({ video, adShowing, setMuted, unmuteQuietly, parentOrigin }
     outGain.gain.cancelScheduledValues(ctx.currentTime);
     outGain.gain.setValueAtTime(measuring && wantMuted ? 0 : 1, ctx.currentTime);
   }
+  // 記録を求めるのは 2 か所: ✨ 自動補正 (親の measure。syncWant) と 🎚 音量バランス (mix の level。levelWant)。
+  // どちらかが求めている間だけ 1 つの記録を動かし、記録は 1 回だけ親へ送る (親は同じ記録を ✨ と波形と音量バランスで使う)。
+  // 始めるときの消音は ✨ が求めているときはその値、音量バランスだけのときは消音しない (音を出している枠だけを測るため)。
+  // 記録している間の消音は、親の audio の指示 (いつも今の枠の状態) で決める
+  let syncWant = false;
+  let syncMuted = false;
+  let levelWant = false;
+  function wantRecord() {
+    const want = syncWant || levelWant;
+    const muted = syncWant ? syncMuted : false;
+    if (want && !measuring) startMeasure(muted);
+    else if (!want && measuring) stopMeasure();
+  }
   async function startMeasure(muted) {
     wantMuted = !!muted;
     if (typeof MediaStreamTrackProcessor !== 'function' || !(await running())) {
-      window.parent.postMessage({ hakomado: 'measure', ok: false }, parentOrigin);
+      // 求めた側に知らせる (✨ は measure、音量バランスは level)
+      if (syncWant) window.parent.postMessage({ hakomado: 'measure', ok: false }, parentOrigin);
+      if (levelWant) window.parent.postMessage({ hakomado: 'level', ok: false }, parentOrigin);
       return;
     }
+    if (!(syncWant || levelWant)) return; // 待っている間に求めが無くなった
     connectVideo();
     if (!timer) timer = setInterval(connectVideo, 2000);
     if (!tap) tap = new MediaStreamAudioDestinationNode(ctx, { channelCount: 2 });
@@ -207,7 +234,7 @@ const HakomadoMix = ({ video, adShowing, setMuted, unmuteQuietly, parentOrigin }
     }, 250);
     clearInterval(flushTimer);
     flushTimer = setInterval(flush, 1000);
-    window.parent.postMessage({ hakomado: 'measure', ok: true }, parentOrigin);
+    if (syncWant) window.parent.postMessage({ hakomado: 'measure', ok: true }, parentOrigin);
   }
   function stopMeasure() {
     if (!measuring) return;
@@ -226,11 +253,21 @@ const HakomadoMix = ({ video, adShowing, setMuted, unmuteQuietly, parentOrigin }
   }
   /** 親からの消音の指示。測っている間は Web Audio 側で行う (true を返す) */
   function audio(muted) {
+    syncMuted = !!muted;
     if (!measuring) return false;
     wantMuted = !!muted;
     applyMute();
     return true;
   }
+
+  // プレイヤーの音量のつまみが変わったら親に知らせる (🎚 音量バランスの「聞こえる大きさ」に掛ける)
+  let sentPv = -1;
+  const pvTimer = setInterval(() => {
+    const pv = Math.round(Math.max(0, Math.min(1, Number(playerVolume()) || 0)) * 100) / 100;
+    if (pv === sentPv || !video()) return;
+    sentPv = pv;
+    window.parent.postMessage({ hakomado: 'pvol', v: pv }, parentOrigin);
+  }, 1000);
 
   // 枠を読み直す・閉じるときは片付ける (「戻る」で元に戻せるように残すとき (persisted) は閉じない)
   window.addEventListener('pagehide', (e) => {
@@ -238,7 +275,20 @@ const HakomadoMix = ({ video, adShowing, setMuted, unmuteQuietly, parentOrigin }
     clearInterval(timer);
     clearInterval(guard);
     clearInterval(flushTimer);
+    clearInterval(pvTimer);
     ctx?.close().catch(() => {});
   });
-  return { set, measure: (on, muted) => (on ? startMeasure(muted) : stopMeasure()), audio };
+  /** ✨ 自動補正からの測る / やめる (音量バランスが求めている間は、やめても記録は続ける) */
+  function measure(on, muted) {
+    syncWant = !!on;
+    syncMuted = !!muted;
+    if (on && measuring) {
+      // すでに音量バランスのために記録している: 消音の求めだけ合わせ、始めたことを知らせる
+      audio(!!muted);
+      window.parent.postMessage({ hakomado: 'measure', ok: true }, parentOrigin);
+      return;
+    }
+    wantRecord();
+  }
+  return { set, measure, audio };
 };
