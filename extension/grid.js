@@ -4217,7 +4217,7 @@ function setupErrLog() {
     }
   });
   document.getElementById('errClear').addEventListener('click', async () => {
-    if (!confirm(tr('errClearConfirm'))) return;
+    if (!confirm(tr('errClearConfirm', list.length))) return;
     await ErrLog.clear();
     notify(tr('errCleared'));
   });
@@ -5932,7 +5932,7 @@ function setupBackup() {
     try {
       parsed = Backup.parse(await f.text(), DEFAULT_SETTINGS);
     } catch (e) {
-      alert(tr(e.message === 'tooNew' ? 'backupTooNew' : 'backupNotFile'));
+      notify(tr(e.message === 'tooNew' ? 'backupTooNew' : 'backupNotFile'));
       return;
     }
     const c = parsed.counts;
@@ -7919,6 +7919,12 @@ function mk(tag, props = {}, ...children) {
   return el;
 }
 
+/**
+ * 赤い知らせ欄 (.fav-error・.share-error) に、うまくいったときの文を出すときはこれで包む (赤はエラーだけ。デザインガイド 7 章)。
+ * 包んだ文は textContent で上書きされると消えるので、あとからエラーを書いたときは赤に戻る
+ */
+const okNote = (text) => mk('span', { class: 'note-ok', textContent: text });
+
 /** 再生リスト 1 件の編集画面 */
 function playlistEditor(pl) {
   const q = favFilter.trim().toLowerCase();
@@ -8001,7 +8007,8 @@ function playlistEditor(pl) {
         class: 'pl-small',
         textContent: tr('plClearWatched', watched),
         title: tr('plClearWatchedTitle'),
-        onclick: () => Playlists.setWatched(pl.id, null, false),
+        // 見た印はこのアプリで付けたもので、消すと戻せない (デザインガイド 5 章: 全部消すは件数入りの確認)
+        onclick: () => confirm(tr('plClearWatchedConfirm', pl.name, watched)) && Playlists.setWatched(pl.id, null, false),
       }),
     );
   }
@@ -8100,10 +8107,10 @@ async function removePlaylistItem(pl, x) {
     onclick: async () => {
       favErrorEl.textContent = '';
       const r = await Playlists.insertItem(pl.id, x, at);
-      if (r === 'full') favErrorEl.textContent = tr('plItemsFull', pl.name, Playlists.limitOf(pl));
+      if (r === 'full') favErrorEl.textContent = tr(pl.sync ? 'plItemsFullSync' : 'plItemsFull', pl.name, Playlists.limitOf(pl));
     },
   });
-  favErrorEl.replaceChildren(tr('plRemoved', name), ' ', undo);
+  favErrorEl.replaceChildren(okNote(tr('plRemoved', name)), ' ', undo);
 }
 
 /** 複製して、複製したほうを開く */
@@ -8237,7 +8244,7 @@ async function switchToSync(pl) {
   const extra = pl.items.length - Playlists.SYNC_MAX;
   if (!confirm(tr('plSyncCutConfirm', Playlists.SYNC_MAX, extra))) return;
   await Playlists.setOptions(pl.id, { sync: true }, { cut: true });
-  favErrorEl.textContent = tr('plSyncCut', extra);
+  favErrorEl.replaceChildren(okNote(tr('plSyncCut', extra)));
 }
 
 /** 再生リストの 1 行 */
@@ -8404,12 +8411,12 @@ const withOffset = (info) => {
 function reportPlaylistAdd(pl, r, { bad = 0, tooMany = false, live = 0 } = {}) {
   if (!r) return;
   const notes = [];
-  if (r.added) notes.push(tr('plAdded', r.added));
-  if (r.exists) notes.push(tr('plAlready', r.exists));
+  if (r.added) notes.push(okNote(tr('plAdded', r.added)));
+  if (r.exists) notes.push(okNote(tr('plAlready', r.exists)));
   if (r.full || tooMany) notes.push(tr(pl.sync ? 'plItemsFullSync' : 'plItemsFull', pl.name, Playlists.limitOf(pl)));
   if (bad) notes.push(tr('shareBadLines', bad));
   if (live) notes.push(tr('plTwitchLive'));
-  favErrorEl.textContent = notes.join(' / ');
+  favErrorEl.replaceChildren(...notes.flatMap((n, k) => (k ? [' / ', n] : [n])));
 }
 
 /** 追加欄の文字 (URL / 動画 ID / @チャンネル名。何行でも) を再生リストの最後に足す */
@@ -8423,7 +8430,7 @@ async function addToPlaylistFromText(id, text) {
     return;
   }
   const got = await parseVideoLines(text, room, (done, total) => {
-    favErrorEl.textContent = tr('shareLoading', done, total);
+    favErrorEl.replaceChildren(okNote(tr('shareLoading', done, total)));
   });
   const { bad, tooMany } = got;
   // Twitch のチャンネルのライブは、配信中ならその配信の VOD を入れる。分からなければ入れない (チャンネルごとに同じ ID で、開くたびに中身が変わる)
@@ -8567,7 +8574,7 @@ function playlistRefChanged(videoId) {
 }
 
 // ---- 📃 再生リストに入れる (枠のバーや一覧の 📃 で開く小さな画面)
-// 再生リストを押すと最後に足して閉じる。もう入っている再生リストを押すと外す。名前を入れて新しく作って入れることもできる
+// 再生リストを押すと最後に足して閉じる。もう入っている再生リストを押すと外す (閉じずに「元に戻す」を出す)。名前を入れて新しく作って入れることもできる
 let pickTarget = null;
 
 async function openPlaylistPicker(info) {
@@ -8616,8 +8623,24 @@ async function renderPlaylistPicker() {
 async function pickPlaylist(p, has) {
   const status = document.getElementById('plPickStatus');
   if (has) {
+    // 外したら画面は開いたまま、再生リストの行の ✕ と同じく「元に戻す」を出す (同じ位置・枠の名前・見た印のまま戻す。デザインガイド 5 章)
+    const at = p.items.findIndex((h) => h.videoId === pickTarget.videoId);
+    const item = p.items[at];
     await Playlists.removeItem(p.id, pickTarget.videoId);
-    notify(tr('plPickRemoved', p.name));
+    const undo = mk('button', {
+      type: 'button',
+      class: 'fav-restore',
+      textContent: tr('plUndo'),
+      onclick: async () => {
+        status.textContent = '';
+        const r = await Playlists.insertItem(p.id, item, at);
+        if (r === 'full') status.textContent = tr(p.sync ? 'plItemsFullSync' : 'plItemsFull', p.name, Playlists.limitOf(p));
+        await renderPlaylistPicker();
+      },
+    });
+    status.replaceChildren(okNote(tr('plPickRemoved', p.name)), ' ', undo);
+    await renderPlaylistPicker();
+    return;
   } else {
     const r = await Playlists.addItem(p.id, withOffset(pickTarget));
     if (r === 'full') {
@@ -9103,7 +9126,7 @@ async function removeSelectedChannels() {
     favStatus.delete(id);
     cmSelected.delete(id);
   }
-  document.getElementById('cmError').textContent = starred && !check.checked ? tr('cmRemovedKeep', n, starred) : tr('cmRemoved', n);
+  document.getElementById('cmError').replaceChildren(okNote(starred && !check.checked ? tr('cmRemovedKeep', n, starred) : tr('cmRemoved', n)));
   await afterPresetsChanged();
 }
 
@@ -10702,14 +10725,20 @@ async function saveMissedPickups() {
   if (!ended.length) return;
   const watched = await watchedIds();
   const added = [];
+  const full = []; // あとで見るがいっぱいで入れられなかった (黙っていると録り逃しに気づけない。デザインガイド 1 章)
   for (const { f, st } of ended) {
     if (watched.has(st.videoId)) continue;
     const info = { title: st.title || '', channel: f.name, label: f.name, channelId: f.channelId, handle: f.handle || '', kind: 'live' };
-    if ((await SavedVideos.add(st.videoId, info)) === 'saved') added.push(f.name);
+    const r = await SavedVideos.add(st.videoId, info);
+    if (r === 'saved') added.push(f.name);
+    else if (r === 'full') full.push(f.name);
   }
-  if (!added.length) return;
-  await refreshSavedIds();
-  notify(tr('missedSaved', added.join(tr('sep'))));
+  if (!added.length && !full.length) return;
+  if (added.length) await refreshSavedIds();
+  const msgs = [];
+  if (added.length) msgs.push(tr('missedSaved', added.join(tr('sep'))));
+  if (full.length) msgs.push(tr('missedFull', SavedVideos.MAX, full.join(tr('sep'))));
+  notify(msgs.join(' '));
 }
 
 function startNoticeWatch() {
@@ -10984,11 +11013,11 @@ async function addFavorite(raw, onSuccess) {
   // Twitch のチャンネルを調べるには twitch.tv の許可が要る (聞くのは押した操作の中で、await より前)
   const allow = twitchIdFromUrl(raw) || /^tw:/.test(raw.trim()) ? requestTwitch() : null;
   const out = document.getElementById('cmError');
-  out.textContent = tr('adding');
+  out.replaceChildren(okNote(tr('adding')));
   try {
     if (allow) await allow;
     const { info, added } = await Favorites.add(raw);
-    out.textContent = added ? tr('cmAdded', info.name) : tr('favExists', info.name);
+    out.replaceChildren(okNote(added ? tr('cmAdded', info.name) : tr('favExists', info.name)));
     onSuccess?.();
     favStatus.delete(info.channelId);
     await afterPresetsChanged();

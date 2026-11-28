@@ -1592,6 +1592,8 @@ dialog.share-dialog { width: min(600px, calc(100% - 32px)); }
 .share-feed { justify-content: flex-end; }
 .share-status { color: var(--muted); font-size: 12px; }
 .share-error { color: #ff8a80; }
+/* 赤い知らせ欄に出す、うまくいったときの文 (okNote)。赤はエラーだけにする (デザインガイド 7 章) */
+.fav-error .note-ok, .share-error .note-ok { color: var(--muted); }
 .help-form { display: flex; flex-direction: column; gap: 10px; padding: 16px; }
 .help-form h3 { margin: 4px 0 0; font-size: 13px; color: var(--muted); }
 .help-keys { border-collapse: collapse; }

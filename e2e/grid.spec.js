@@ -1090,6 +1090,119 @@ test.describe('ライブラリの種類の絞り込み', () => {
   });
 });
 
+test.describe('消す操作の守り (HAKO-59)', () => {
+  const ITEMS = [
+    { videoId: 'aaaaaaaaaaa', title: '1 本目', label: '枠の名前', watched: true },
+    { videoId: 'bbbbbbbbbbb', title: '2 本目', watched: true },
+    { videoId: 'ccccccccccc', title: '3 本目' },
+  ];
+  const makeList = (page) =>
+    page.evaluate(async (items) => {
+      const r = await Playlists.create('守りのテスト', items);
+      await Promise.all(items.filter((x) => x.watched).map((x) => Playlists.updateItem(r.playlist.id, x.videoId, { watched: true })));
+      return r.playlist.id;
+    }, ITEMS);
+  const getList = (page, id) => page.evaluate((id) => Playlists.get(id), id);
+
+  test('再生リストの「見た印を消す」は件数入りで確かめ、やめれば消さない', async ({ openGrid }) => {
+    const page = await openGrid();
+    await skipTour(page);
+    const id = await makeList(page);
+    await page.locator('#openFavorites').click();
+    await page.locator('[data-favtab="playlists"]').click();
+    await page.locator('#plSelect').selectOption(id);
+    const clear = page.locator('.pl-opts .pl-small', { hasText: '見た印を消す (2)' });
+    const asked = [];
+    page.once('dialog', (d) => {
+      asked.push(d.message());
+      d.dismiss();
+    });
+    await clear.click();
+    expect(asked).toEqual(['再生リスト「守りのテスト」の見た印を全部 (2 本) 消しますか？']);
+    expect((await getList(page, id)).items.filter((x) => x.watched)).toHaveLength(2);
+    page.once('dialog', (d) => d.accept());
+    await clear.click();
+    await expect.poll(async () => (await getList(page, id)).items.filter((x) => x.watched).length).toBe(0);
+  });
+
+  test('「再生リストに入れる」で外すと、閉じずに「元に戻す」を出し、同じ位置・枠の名前・見た印のまま戻る', async ({ openGrid }) => {
+    const page = await openGrid();
+    await skipTour(page);
+    const id = await makeList(page);
+    // 開いたときの対象には枠の名前・見た印を入れない (戻すのは、保存されていた行から)
+    await page.evaluate((videoId) => openPlaylistPicker({ videoId }), ITEMS[0].videoId);
+    const dialog = page.locator('#plPickDialog');
+    await expect(dialog).toBeVisible();
+    await dialog.locator('#plPickList button', { hasText: '✓ 守りのテスト' }).click();
+    await expect(dialog).toBeVisible();
+    await expect(dialog.locator('#plPickStatus')).toContainText('「守りのテスト」から外しました');
+    await expect(dialog.locator('#plPickStatus .note-ok')).not.toHaveCSS('color', 'rgb(255, 138, 128)');
+    expect((await getList(page, id)).items.map((x) => x.videoId)).toEqual(['bbbbbbbbbbb', 'ccccccccccc']);
+    await expect(dialog.locator('#plPickList button', { hasText: '守りのテスト' })).not.toHaveClass(/\bon\b/);
+
+    await dialog.locator('#plPickStatus .fav-restore').click();
+    await expect.poll(async () => (await getList(page, id)).items.map((x) => x.videoId)).toEqual(['aaaaaaaaaaa', 'bbbbbbbbbbb', 'ccccccccccc']);
+    const back = (await getList(page, id)).items[0];
+    expect(back.label).toBe('枠の名前');
+    expect(back.watched).toBe(true);
+    await expect(dialog.locator('#plPickList button', { hasText: '✓ 守りのテスト' })).toHaveClass(/\bon\b/);
+  });
+});
+
+test.describe('知らせ (HAKO-59)', () => {
+  test('再生リストの行の ✕ で外した知らせは赤で出さず、元に戻すと同じ位置に戻る', async ({ openGrid }) => {
+    const page = await openGrid();
+    await skipTour(page);
+    const id = await page.evaluate(async () => (await Playlists.create('行の ✕', [{ videoId: 'aaaaaaaaaaa', title: '1' }, { videoId: 'bbbbbbbbbbb', title: '2' }])).playlist.id);
+    await page.locator('#openFavorites').click();
+    await page.locator('[data-favtab="playlists"]').click();
+    await page.locator('#plSelect').selectOption(id);
+    await page.locator('#favList li[data-video-id="aaaaaaaaaaa"] .fav-del').click();
+    await expect(page.locator('#favError .note-ok')).toContainText('外しました');
+    await expect(page.locator('#favError .note-ok')).not.toHaveCSS('color', 'rgb(255, 138, 128)');
+    await page.locator('#favError .fav-restore').click();
+    await expect
+      .poll(() => page.evaluate(async (id) => (await Playlists.get(id)).items.map((x) => x.videoId), id))
+      .toEqual(['aaaaaaaaaaa', 'bbbbbbbbbbb']);
+  });
+
+  test('不具合の記録を消す確認に件数が出る', async ({ openGrid }) => {
+    const page = await openGrid();
+    await skipTour(page);
+    await page.evaluate(() =>
+      chrome.storage.local.set({
+        [ErrLog.KEY]: [
+          { src: 'grid', kind: 'error', msg: 'テストの記録 1', t: Date.now() },
+          { src: 'grid', kind: 'error', msg: 'テストの記録 2', t: Date.now() },
+        ],
+      }),
+    );
+    await page.locator('#openHelp').click();
+    await page.locator('#helpReportTab').click();
+    await expect(page.locator('#errClear')).toBeEnabled();
+    const asked = [];
+    page.once('dialog', (d) => {
+      asked.push(d.message());
+      d.dismiss();
+    });
+    await page.locator('#errClear').click();
+    expect(asked).toEqual(['エラーの記録 2 件をすべて削除します。よろしいですか？']);
+  });
+
+  test('バックアップの形が合わないファイルは、警告の箱でなく画面の下の知らせで出す', async ({ openGrid }) => {
+    const page = await openGrid();
+    await skipTour(page);
+    let boxed = false;
+    page.on('dialog', (d) => {
+      boxed = true;
+      d.dismiss();
+    });
+    await page.locator('#backupFile').setInputFiles({ name: 'x.json', mimeType: 'application/json', buffer: Buffer.from('{"hello":1}') });
+    await expect(page.locator('#globalToast')).toHaveText('Hakomado のバックアップファイルではないため、読み込めませんでした');
+    expect(boxed).toBe(false);
+  });
+});
+
 test.describe('チャンネルの管理', () => {
   // 既定のチャンネル (同梱のホロライブ) のうち 2 つ
   const SORA = 'UCp6993wxpyDPHUpavwDFqgg';
@@ -1151,6 +1264,8 @@ test.describe('チャンネルの管理', () => {
     await page.locator('#cmConfirmOk').click();
     await expect(page.locator('#cmConfirm')).toBeHidden();
     await expect(page.locator('#cmError')).toContainText('1 件のチャンネルを外しました');
+    // うまくいったときの文は赤で出さない (赤はエラーだけ。HAKO-59)
+    await expect(page.locator('#cmError .note-ok')).not.toHaveCSS('color', 'rgb(255, 138, 128)');
     const after = await channels(page);
     expect(after.some((f) => f.channelId === ROBO)).toBe(false);
     expect(after.find((f) => f.channelId === SORA)?.star).toBe(true);
