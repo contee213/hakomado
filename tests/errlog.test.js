@@ -73,3 +73,23 @@ test('ほかの場所から届いた記録は、形を確かめてから足す (
   assert.deepEqual(got.map((e) => e.msg).sort(), ['枠の例外', '画面から'].sort());
   assert.ok(got.every((e) => e.t <= Date.now()));
 });
+
+test('取得の失敗: 待てば直るもの (通信できない・時間切れ・500 番台・制限中) は警告にせず記録しない。ほかは記録する (HAKO-67)', async () => {
+  const { env, quiet, list } = setup();
+  const infos = [];
+  quiet.info = (...args) => infos.push(args);
+  const make = (expr) => env.get(expr);
+  const transient = [
+    "new TypeError('Failed to fetch')",
+    "Object.assign(new Error('signal timed out'), { name: 'TimeoutError' })",
+    "Object.assign(new Error('取得できませんでした (503)'), { status: 503 })",
+    "Object.assign(new Error('HTTP 500'), { status: 500 })",
+    "Object.assign(new Error('制限中'), { name: 'RateLimitedError' })",
+  ];
+  for (const expr of transient) env.get('ErrLog').warnFetch('hakomado: 一時的', 'ch', make(expr));
+  env.get('ErrLog').warnFetch('hakomado: 404', 'ch', make("Object.assign(new Error('取得できませんでした (404)'), { status: 404 })"));
+  env.get('ErrLog').warnFetch('hakomado: 読めない', make("new Error('no version')"));
+  const got = await list();
+  assert.deepEqual(got.map((e) => e.msg.split(' ')[1]).sort(), ['404', '読めない'].sort());
+  assert.equal(infos.length, transient.length);
+});
