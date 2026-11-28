@@ -2,7 +2,7 @@
 // 画面 (DOM) に触らない関数だけをここに置く (grid.js から切り出し。tests/ から読み込んで試せるように)。
 // 読み込む順: grid.html で grid.js より前。background.js も importScripts で読む (右クリックのメニューで videoIdFromUrl を使う)。
 // parseVideoLines は呼ばれたときに grid.js の resolveVideoId と favorites.js の Favorites を使う
-/* exported SHARE_TAG, SHARE_CODE_RE, shareName, shareNote, SHARE_NOTE_MAX, movieLineTail, videoIdFromUrl, TWITCH_ID_RE, twitchIdFromUrl, twitchName, formatShareCode, parseShareCode, formatShareLink, parseShareLink, formatXPostUrl, parseWatchVideosLink, youtubePlaylistId, parseVideoLines, metaOn */
+/* exported SHARE_TAG, SHARE_CODE_RE, shareName, shareNote, SHARE_NOTE_MAX, NOTE_LINE, movieLineTail, videoIdFromUrl, TWITCH_ID_RE, twitchIdFromUrl, twitchName, formatShareCode, parseShareCode, formatShareLink, parseShareLink, formatXPostUrl, parseWatchVideosLink, youtubePlaylistId, parseVideoLines, metaOn */
 /* global resolveVideoId, Favorites */
 'use strict';
 
@@ -122,8 +122,10 @@ function cleanNotes(notes, others = 0) {
 // ---- 1 行 1 本のテキストでの 🎬 同時視聴 (HAKO-49)
 // 「# movie=on」の行で 🎬 のセット。配信の行の後ろに「~!<本編の 0:00 の再生位置>」(「~!*…」なら基準)、
 // 見つけた区間があれば「~w <区間>,<区間>,…」(区間は「<再生位置>」= 作品の始まり、「<再生位置>=<タイマーの値>」= 途中から動き出した所)。
-// 位置・値は「時:分:秒.xx」「分:秒.xx」か秒。「[空き枠]  # <説明>」(英語の表示では「[empty]」。どちらも読む) の行は、その位置に説明付きの空き枠を置く
-const NOTE_LINE_RE = /^\[(?:空き枠|empty)\]$/i;
+// 位置・値は「時:分:秒.xx」「分:秒.xx」か秒。「[empty]  # <説明>」の行は、その位置に説明付きの空き枠を置く
+// (仕組みが読む値は、表示の言語によらず英語にする。「# layout=」「# movie=on」と同じ)
+const NOTE_LINE = '[empty]';
+const NOTE_LINE_RE = /^\[empty\]$/i;
 /** 秒 → 「1:02:03.45」「2:03.45」(小数が無ければ付けない) */
 function clockOf(sec) {
   const v = Math.round(Math.max(0, Number(sec)) * 100) / 100;
@@ -552,7 +554,7 @@ async function parseVideoLines(text, max, onProgress) {
       continue;
     }
     let rest = s.slice(t.length);
-    // 説明付きの空き枠の行 (「[空き枠]  # 説明」)
+    // 説明付きの空き枠の行 (「[empty]  # 説明」)
     if (NOTE_LINE_RE.test(t)) {
       const text = shareNote(rest.match(/^\s+#\s*(.*)$/)?.[1] || '');
       if (text) tokens.push({ note: text });

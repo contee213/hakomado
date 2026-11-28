@@ -555,7 +555,6 @@ const MESSAGES = {
   timerScanWorksTitle: ['画面のタイマーから見つけた作品。選ぶと、その作品の 0:00 を本編の位置にして移る', 'Titles found from the on-screen timer. Pick one to move to its 0:00'],
   readMovie: ['🎬 同時視聴 (本編でそろえる)', '🎬 Watch-along (aligned on the movie)'],
   readNotes: ['説明付きの空き枠 {0}', '{0} empty tile(s) with a note'],
-  noteLine: ['[空き枠]', '[empty]'],
   shareNoteTile: ['{0} の枠 ({1})', 'Tile {0} ({1})'],
   shareNotePlaceholder: ['説明 (例: ここに Prime Video 等の作品の URL を入れてください)', 'Note (e.g. Put the URL of the movie on Prime Video etc. here)'],
   packConfirm: [

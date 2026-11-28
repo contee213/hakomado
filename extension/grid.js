@@ -4322,8 +4322,8 @@ function playlistText(pl) {
     if (l) parts.push(`# ${l}`);
     out.push(parts.join('  '));
   }
-  // 説明付きの空き枠は、枠の並びでの位置に「[空き枠]  # 説明」の行で入れる (英語の表示なら「[empty]」。読むときはどちらも読む)
-  for (const n of [...(pl.notes || [])].sort((a, b) => a.k - b.k)) out.splice(Math.min(n.k, out.length), 0, `${tr('noteLine')}  # ${n.text}`);
+  // 説明付きの空き枠は、枠の並びでの位置に「[empty]  # 説明」の行で入れる
+  for (const n of [...(pl.notes || [])].sort((a, b) => a.k - b.k)) out.splice(Math.min(n.k, out.length), 0, `${NOTE_LINE}  # ${n.text}`);
   return [...lines, ...out].join('\n');
 }
 
