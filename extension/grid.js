@@ -3004,10 +3004,12 @@ const TileInfo = (() => {
     });
     v.append(form);
     if (errors.has(i)) {
-      const p = document.createElement('div');
+      // 入力の右に並べて、行の高さを変えない (デザインガイド 3 章)。読み込み中は灰色 (赤はエラーだけ)
+      const p = document.createElement('span');
       p.className = 'info-error';
-      p.textContent = errors.get(i);
-      v.append(p);
+      p.classList.toggle('is-loading', errors.get(i) === tr('loading'));
+      p.textContent = p.title = errors.get(i);
+      form.append(p);
     }
     const ops = document.createElement('td');
     ops.className = 'info-ops';
@@ -3171,6 +3173,15 @@ const TileInfo = (() => {
       const sel = `tr[data-i="${i}"] button[data-act="${act}"]` + (p ? `[data-pan="${p}"]` : '');
       rowsEl.querySelector(sel)?.focus();
     }
+    // 5 秒ごとに書き直しても、種類・数字の桁が変わった列が縮まないようにする (操作のボタンが横へずれない。デザインガイド 3 章)。
+    // 残りの幅を使うタイトルの列は除く。開き直したら測り直す
+    for (const th of dialog.querySelectorAll('.info-table thead th:not([data-i18n="info.colVideo"])')) {
+      const w = Math.ceil(th.getBoundingClientRect().width);
+      if (w > (Number(th.dataset.minW) || 0)) {
+        th.dataset.minW = String(w);
+        th.style.width = `${w}px`;
+      }
+    }
     const add = document.getElementById('infoAddTile');
     add.disabled = state.count >= MAX_TILES;
     add.title = tr(add.disabled ? 'infoAddTileNo' : 'infoAddTileTitle', MAX_TILES);
@@ -3188,6 +3199,10 @@ const TileInfo = (() => {
 
   function open() {
     if (dialog.open) return;
+    for (const th of dialog.querySelectorAll('.info-table thead th')) {
+      delete th.dataset.minW;
+      th.style.width = '';
+    }
     dialog.showModal();
     render();
     request();
@@ -5297,8 +5312,10 @@ function setupRead() {
   let lead = '';
   // 外側を押して閉じるのは setupShare で付けてある (同じ画面)
 
+  // 1 行ずつ … で切って並べる (場所は 4 行ぶん先に取ってある。全文は乗せると出る。デザインガイド 3 章)
   const setSummary = (text, isError = false) => {
-    summary.textContent = [lead, text].filter(Boolean).join('\n');
+    const lines = [lead, text].filter(Boolean).join('\n').split('\n').filter(Boolean);
+    summary.replaceChildren(...lines.map((t) => mk('div', { textContent: t, title: t })));
     summary.classList.toggle('share-error', isError);
   };
   const updateButtons = () => {
@@ -5324,11 +5341,12 @@ function setupRead() {
     if (set.movie) parts.push(tr('readMovie'));
     if (set.notes?.length) parts.push(tr('readNotes', set.notes.length));
     const notes = [];
+    // 同じ名前の再生リストを置き換えることは、いちばん先に出す (保存すると前の中身が消える。4 行の枠からはみ出して見落とさないように)
+    const name = saveName(set);
+    if (name && (await Playlists.list()).some((p) => p.name === name)) notes.push(tr('readReplace', name));
     if (set.bad) notes.push(tr('shareBadLines', set.bad));
     if (set.tooMany) notes.push(tr('plTooMany', Playlists.MAX_ITEMS));
     if (set.items.length > SHARE_MAX) notes.push(tr(set.sync && Sync.enabled() ? 'readOverSync' : 'readOverTiles', SHARE_MAX)); // ⏱ アーカイブ同期が OFF なら同期の話はしない
-    const name = saveName(set);
-    if (name && (await Playlists.list()).some((p) => p.name === name)) notes.push(tr('readReplace', name));
     return [parts.join(' / '), ...notes].join('\n');
   };
 
@@ -6003,6 +6021,10 @@ function setupToolbar() {
   setupPacks();
   setupSubscriptions();
   setupChannelManage();
+  // 1 行で … に切る知らせ欄・状態の文は、乗せると全文が出るようにする (デザインガイド 3 章)
+  for (const el of document.querySelectorAll('.fav-error, .share-status')) {
+    new MutationObserver(() => (el.title = el.textContent)).observe(el, { childList: true, characterData: true, subtree: true });
+  }
   setupAddons();
   Sync.setup();
   showAppVersion();
@@ -6464,6 +6486,11 @@ function renderFavorites(favs) {
   const scope = libScopeNow(favs);
   updateLibScopeButtons(); // 最初に開いたときは、ここで決まった値 (ピックアップが無ければ「すべて」) をボタンにも出す
   if (scope === 'star') favs = favs.filter((f) => f.star); // 📌 ピックアップだけ
+  // 配信状況を取っている間は、⟳ 更新のボタンに進み具合を出す (最近の動画と同じ形。デザインガイド 1 章)
+  if (favMode === 'all') {
+    const loading = favs.filter((f) => favStatus.get(f.channelId) === 'loading').length;
+    showRefreshProgress(loading ? { done: favs.length - loading, total: favs.length } : null);
+  }
   const q = favFilter.trim().toLowerCase();
   const shown = q
     ? favs.filter((f) => [f.name, f.nameJa, f.handle, f.group].some((s) => String(s ?? '').toLowerCase().includes(q)))
@@ -6799,7 +6826,7 @@ async function renderArchiveTab({ force = false } = {}) {
   ul.dataset.list = 'archive'; // 滑らせるのは、この一覧どうしの描き直しだけ (replaceKeepingPlaces)
   ul.append(...items.map(({ v, f }) => archiveItem(v, f)));
   replaceKeepingPlaces(favListEl, items.length ? [ul] : [], 'archive');
-  showArchiveProgress(done < targets.length ? { done, total: targets.length } : null);
+  showRefreshProgress(done < targets.length ? { done, total: targets.length } : null);
   const stale = targets.filter((f) => archiveStale.has(f.channelId)).length;
   document.getElementById('savedCount').textContent =
     done < targets.length ? tr('archiveProgress', done, targets.length) : stale ? tr('archiveStale', items.length, stale) : tr('items', items.length);
@@ -6820,7 +6847,7 @@ async function renderArchiveTab({ force = false } = {}) {
  * 最近の動画を取っている間の進み具合を「⟳ 更新」ボタンで見せる (アイコンを回し、下端の線を伸ばし、乗せたときの説明に「取得中 N / M」)。
  * null で元に戻す。デザインガイド 1 章「進み具合は始めたボタンで見せる」(HAKO-24)
  */
-function showArchiveProgress(p) {
+function showRefreshProgress(p) {
   const btn = document.getElementById('favRefresh');
   const bar = document.getElementById('favRefreshBar');
   if (!btn.classList.contains('busy')) btn.dataset.idleTitle = btn.title; // 表示言語を変えたあとの説明も戻せるよう、始めるたびに覚える
@@ -6980,7 +7007,7 @@ function setFavMode(mode, { render = true } = {}) {
   }
   // 「⟳ 更新」はチャンネルとアーカイブで使う (アーカイブでは取り直し)
   document.getElementById('favRefresh').hidden = favMode === 'saved' || favMode === 'history' || favMode === 'playlists';
-  if (favMode !== 'archive') showArchiveProgress(null); // 進み具合を出すのは最近の動画のタブだけ
+  if (favMode !== 'archive' && favMode !== 'all') showRefreshProgress(null); // 進み具合を出すのは、⟳ 更新のある 📺 チャンネルと最近の動画のタブだけ
   document.getElementById('favLiveCount').hidden = isHistory;
   // ⚙ 管理 と、チャンネルが無いときの足し方は 📺 チャンネルだけ
   document.getElementById('favManage').hidden = favMode !== 'all';
@@ -9087,9 +9114,19 @@ async function renderChannelManage() {
 }
 
 function updateChannelManageSel() {
-  document.getElementById('cmSelBar').hidden = !cmSelected.size;
-  document.getElementById('cmSelCount').textContent = tr('cmSelCount', cmSelected.size);
-  document.getElementById('cmList').classList.toggle('selecting', cmSelected.size > 0);
+  // 帯はチャンネルを出している間いつも出す (選んだ瞬間に一覧の高さが変わらないように。ライブラリと同じ。HAKO-33・HAKO-60)。
+  // 何も選んでいなければ案内を出し、ボタンは押せなくする
+  const list = document.getElementById('cmList');
+  const none = !cmSelected.size;
+  const bar = document.getElementById('cmSelBar');
+  bar.hidden = none && !list.querySelector('.fav-item');
+  bar.classList.toggle('idle', none);
+  document.getElementById('cmSelClear').disabled = none;
+  document.getElementById('cmRemove').disabled = none;
+  const count = document.getElementById('cmSelCount');
+  count.textContent = none ? tr('cmSelNone') : tr('cmSelCount', cmSelected.size);
+  count.title = count.textContent;
+  list.classList.toggle('selecting', !none);
 }
 
 /**
@@ -9108,15 +9145,27 @@ async function removeSelectedChannels() {
   document.getElementById('cmConfirmStarRow').hidden = !starred;
   document.getElementById('cmConfirmStarText').textContent = tr('cmConfirmStar', starred);
   check.checked = false;
+  const noteOf = (checked) => {
+    const n = checked ? favs.length : favs.length - starred;
+    return { n, text: !n ? tr('cmConfirmOnlyStar', starred) : starred && !checked ? tr('cmConfirmKeep', n, starred) : tr('cmConfirmAll', n) };
+  };
   const update = () => {
-    const n = check.checked ? favs.length : favs.length - starred;
-    note.textContent = !n ? tr('cmConfirmOnlyStar') : starred && !check.checked ? tr('cmConfirmKeep', n, starred) : tr('cmConfirmAll', n);
+    const { n, text } = noteOf(check.checked);
+    note.textContent = text;
     ok.disabled = !n;
   };
   check.onchange = update;
-  update();
   dialog.returnValue = '';
+  note.style.minHeight = '';
   dialog.showModal();
+  // 「📌 付きも外す」を付け外ししても「外す」が動かないよう、説明は長いほうの高さを先に取っておく (デザインガイド 3 章)
+  let tallest = 0;
+  for (const checked of [false, true]) {
+    note.textContent = noteOf(checked).text;
+    tallest = Math.max(tallest, note.offsetHeight);
+  }
+  note.style.minHeight = `${tallest}px`;
+  update();
   if (!ok.disabled) ok.focus();
   await new Promise((r) => dialog.addEventListener('close', r, { once: true }));
   if (dialog.returnValue !== 'ok') return;

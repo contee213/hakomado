@@ -610,7 +610,7 @@
           </div>
           <ul id="cmList" class="fav-list cm-list"></ul>
           <p id="cmEmpty" class="fav-empty"></p>
-          <!-- 1 件以上選んでいる間だけ出す -->
+          <!-- チャンネルを出している間はいつも出す (選んでいなければ案内だけ。ライブラリと同じ。HAKO-33・HAKO-60) -->
           <div id="cmSelBar" class="fav-selbar" hidden>
             <span id="cmSelCount" class="fav-selcount"></span>
             <span class="spacer"></span>
@@ -677,6 +677,10 @@
   <!-- まとめて外す前の確かめ。📌 付きは既定で残す (パックを外すときと同じ) -->
   <dialog id="cmConfirm" class="cm-confirm">
     <form method="dialog" class="help-form">
+      <div class="settings-title">
+        <h2 data-i18n="cm.confirmH">⚙ チャンネルを外す</h2>
+        <button value="close" class="dialog-close" data-i18n-title="close" title="閉じる (Esc)">✕</button>
+      </div>
       <p id="cmConfirmText"></p>
       <label id="cmConfirmStarRow" class="cm-confirm-star"><input type="checkbox" id="cmConfirmStar"> <span id="cmConfirmStarText"></span></label>
       <p id="cmConfirmNote" class="settings-note"></p>
